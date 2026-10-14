@@ -30,7 +30,7 @@ use a GitHub token from `opts.github_token`, `GITHUB_TOKEN`, `GH_TOKEN` or `gh a
 | `:DuckDiff build` | build the binary from this checkout with Bun instead of downloading |
 
 In the page: `j`/`k` next or previous change, `Shift J`/`Shift K` next or previous file, `t` split or stacked,
-`/` filter files, `Ctrl K` command palette, `?` all shortcuts. Saving a buffer refreshes the page, and the
+`/` filter files, `1` to `5` switch views, `Ctrl K` command palette, `?` all shortcuts. Saving a buffer refreshes the page, and the
 "Open in Neovim" button on a file jumps back to it.
 
 On unstaged changes, stage or discard a file from its header or one change from the toolbar next to a hovered line
@@ -48,6 +48,22 @@ to compare the two versions. Stashes also show in the ref pickers, so any stash 
 During a merge, a conflicted file shows once with its markers and cannot be staged from the page; resolve it in
 Neovim. Binary files show their size change, changed images show before and after, and files marked
 `linguist-generated` in `.gitattributes` start folded.
+
+### Beyond the diff
+
+The rail on the left (or keys `1` to `5`) switches between five views of the repo:
+
+- **Changes**: the diff above, with a commit box (amend, commit and push, stash) under the file tree. Branch
+  menu, pull, push and fetch sit in the top bar.
+- **Commit graph**: every commit with its branch lanes, like VS Code's Git Graph. Find commits by message,
+  author or sha. A commit's panel shows its files and starts a branch there, checks it out, cherry-picks or
+  reverts it. Branch rows switch, merge into the current branch or delete; stash rows apply, pop or drop.
+  When a merge or pick stops on conflicts, the commit box says so and offers Abort.
+- **Files**: the whole repo as a tree, opening on the README. Markdown renders, with a toggle for its source.
+- **Pull requests** and **Issues**: GitHub for this repo's `origin`. Sign in with `gh auth login` (or paste a
+  token, kept only in the server's memory). Read and comment, approve or request changes, merge, open a pull
+  request from the current branch, and see its CI checks. Review files fetches the head and shows it in the
+  diff, with GitHub's review threads under their lines; a line comment can go straight to GitHub.
 
 ## Options
 
