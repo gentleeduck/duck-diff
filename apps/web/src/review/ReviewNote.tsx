@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { relativeTime } from '../sidebar/relative-time'
 import type { Note } from './annotations'
+import { ImagePreview } from './ImagePreview'
 
 function Editor({
   initial,
@@ -109,6 +110,7 @@ function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
 
 export function ReviewNote({ note }: { note: Note }) {
   const { reviews } = useApp()
+  if (note.kind === 'image') return <ImagePreview file={note.file} />
   return (
     <div className="mx-2 my-1 max-w-3xl rounded-sm border border-[var(--dd-line)] bg-[var(--dd-surface)] p-2 font-normal font-sans">
       {note.kind === 'draft' ? (

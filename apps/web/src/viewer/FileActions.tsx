@@ -9,6 +9,7 @@ export function FileActions({
   viewed,
   onViewed,
   onHistory,
+  note,
 }: {
   path: string
   onOpen?: () => void
@@ -16,6 +17,7 @@ export function FileActions({
   viewed: boolean
   onViewed(): void
   onHistory(): void
+  note?: string | null
 }) {
   const [copied, setCopied] = useState(false)
   const viewedId = useId()
@@ -26,6 +28,7 @@ export function FileActions({
   }
   return (
     <span className="flex items-center gap-0.5">
+      {note ? <span className="mr-2 text-[12px] text-[var(--dd-muted)]">{note}</span> : null}
       {writes}
       {onOpen && (
         <Tooltip>

@@ -11,6 +11,7 @@ const TREE_STATUS: Record<FileStatus, TreeStatus> = {
   deleted: 'deleted',
   renamed: 'renamed',
   untracked: 'untracked',
+  conflicted: 'modified',
 }
 
 export function toGitStatus(status: FileStatus): TreeStatus {

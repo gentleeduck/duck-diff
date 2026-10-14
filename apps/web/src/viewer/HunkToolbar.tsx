@@ -25,7 +25,7 @@ export function HunkToolbar({ item, getHoveredLine }: { item: CodeViewItem<Note>
   const writes = useWrites()
   if (item.type !== 'diff') return null
   const file = files.find((entry) => entry.path === item.fileDiff.name)
-  const kinds = file && file.status !== 'untracked' ? actionsFor(target) : []
+  const kinds = file && file.status !== 'untracked' && file.status !== 'conflicted' ? actionsFor(target) : []
 
   const hovered = () => {
     const line = getHoveredLine()
