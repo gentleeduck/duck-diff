@@ -20,6 +20,9 @@ const result = Bun.spawnSync(
     'build',
     '--compile',
     '--minify',
+    // The binary runs inside the user's repo; that repo's bunfig preloads and .env must not reach it.
+    '--no-compile-autoload-bunfig',
+    '--no-compile-autoload-dotenv',
     ...(target ? ['--target', target] : []),
     'src/cli.ts',
     '--outfile',
