@@ -43,3 +43,17 @@ test('starts a branch at an older commit and checks one out detached', async ({ 
   await panel.getByRole('button', { name: 'Checkout' }).click()
   await expect.poll(() => repo.git('branch', '--show-current').trim()).toBe('')
 })
+
+test('number keys switch views, and diff keys stay inert outside the changes view', async ({ page, app, repo }) => {
+  await page.goto(app.url)
+  await expect(page.getByRole('banner')).toContainText('2 files')
+  await page.keyboard.press('2')
+  await expect(page).toHaveURL(/view=graph/)
+  await page.keyboard.press('j')
+  await page.keyboard.press('x')
+  await page.keyboard.press('3')
+  await expect(page).toHaveURL(/view=files/)
+  expect(repo.git('status', '--porcelain')).not.toBe('')
+  await page.keyboard.press('1')
+  await expect(page.getByRole('banner')).toContainText('2 files')
+})

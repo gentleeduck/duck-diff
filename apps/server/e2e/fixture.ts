@@ -44,7 +44,10 @@ export const test = base.extend<Fixtures>({
     const [chunk] = (await once(child.stdout, 'data')) as [Buffer]
     const handshake = HandshakeSchema.parse(JSON.parse(chunk.toString().split('\n')[0] ?? ''))
     await use({ url: handshake.url })
+    // Wait for the exit so the repo is not deleted under a git command still running.
+    const exited = once(child, 'exit')
     child.kill()
+    await exited
     rmSync(home, { recursive: true, force: true })
   },
 })

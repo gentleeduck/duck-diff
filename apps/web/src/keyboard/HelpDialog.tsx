@@ -9,6 +9,7 @@ const SHORTCUTS: [string, string][] = [
   ['o', 'Open the current change in Neovim'],
   ['t', 'Switch between split and stacked'],
   ['/', 'Filter files'],
+  ['1 to 5', 'Changes, graph, files, pull requests, issues'],
   ['Ctrl K', 'Command palette'],
   ['?', 'This list'],
 ]

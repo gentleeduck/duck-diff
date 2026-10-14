@@ -67,9 +67,9 @@ function Screen() {
   useThemeClass()
   const [palette, setPalette] = useState(false)
   const [help, setHelp] = useState(false)
-  useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true) })
+  const { view, show } = useView()
+  useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true), show })
   const live = useLiveRefresh()
-  const { view } = useView()
   // Bumped when a page changes an item, so its list reloads.
   const [pullsVersion, setPullsVersion] = useState(0)
   const [issuesVersion, setIssuesVersion] = useState(0)
