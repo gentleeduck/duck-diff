@@ -1,7 +1,7 @@
 import type { CodeViewItem } from '@pierre/diffs'
-import { CodeView, WorkerPoolContextProvider } from '@pierre/diffs/react'
+import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from '@pierre/diffs/react'
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
@@ -26,17 +26,26 @@ export default function Viewer() {
   const items = useSession(selectItems)
   const settings = useSettings(selectSettings)
   const synced = useRef<readonly Item[]>([])
+  // CodeView hands over its handle after mount, so syncing waits for it rather than for the first render.
+  const [handle, setHandle] = useState<CodeViewHandle<undefined, undefined> | null>(null)
+  const attach = useCallback(
+    (next: CodeViewHandle<undefined, undefined> | null) => {
+      viewer.current = next
+      synced.current = []
+      setHandle(next)
+    },
+    [viewer],
+  )
 
   const loader = useMemo(() => createContentLoader(api, () => session.get().target), [api, session])
   const options = useMemo(() => viewerOptions(settings, loader), [settings, loader])
   const highlighter = useMemo(() => ({ theme: settings.themes }), [settings.themes])
 
   useEffect(() => {
-    const handle = viewer.current
     if (!handle) return
     syncItems(handle, synced.current, items)
     synced.current = items
-  }, [items, viewer])
+  }, [items, handle])
 
   const renderMeta = useCallback(
     (item: Item) => (item.type === 'diff' ? <FileActions path={item.fileDiff.name} /> : null),
@@ -46,7 +55,7 @@ export default function Viewer() {
   return (
     <WorkerPoolContextProvider poolOptions={POOL} highlighterOptions={highlighter}>
       <CodeView<undefined>
-        ref={viewer}
+        ref={attach}
         initialItems={[]}
         options={options}
         style={viewerStyle(settings)}
