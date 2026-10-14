@@ -48,6 +48,9 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       reviewComment: async () => {
         throw new Error('no pull requests')
       },
+      reply: async () => {
+        throw new Error('no pull requests')
+      },
       review: async () => {},
       merge: async () => {},
       issues: async () => [],

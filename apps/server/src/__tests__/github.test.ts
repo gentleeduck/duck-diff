@@ -77,6 +77,9 @@ function fakeGitHub(calls: Call[]) {
         },
       ])
     }
+    if (path === '/repos/o/r/pulls/7/comments/2/replies') {
+      return Response.json({ id: 3, user, body: 'done', created_at: 'x', path: 'a.ts', line: 3, in_reply_to_id: 2 })
+    }
     if (path === '/repos/o/r/pulls/7/merge') return Response.json({ merged: true })
     if (path === '/repos/o/r/pulls/7/reviews') return Response.json({ id: 9 })
     return Response.json({ message: 'Not Found' }, { status: 404 })
@@ -133,7 +136,7 @@ describe('/api/github', () => {
     expect(details).toMatchObject({ body: 'Why', headSha: 'h1', changedFiles: 2, comments: [{ body: 'Looks good' }] })
   })
 
-  it('posts review comments on the head commit, reviews and merges', async () => {
+  it('posts review comments on the head commit, replies, reviews and merges', async () => {
     const calls: Call[] = []
     await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
     const posted = await call('POST', '/api/github/pulls/7/review-comments', {
@@ -150,6 +153,8 @@ describe('/api/github', () => {
       side: 'RIGHT',
       commit_id: 'h1',
     })
+    const reply = await (await call('POST', '/api/github/pulls/7/replies', { inReplyTo: 2, body: 'done' })).json()
+    expect(reply).toMatchObject({ id: 3, inReplyTo: 2, side: 'RIGHT' })
     expect((await call('POST', '/api/github/pulls/7/reviews', { event: 'APPROVE', body: '' })).status).toBe(204)
     expect((await call('POST', '/api/github/pulls/7/merge', { method: 'squash' })).status).toBe(204)
     expect(calls.find((entry) => entry.path.endsWith('/merge'))?.body).toEqual({ merge_method: 'squash' })

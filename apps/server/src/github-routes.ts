@@ -5,6 +5,7 @@ import {
   PostCommentSchema,
   PostReviewCommentSchema,
   type PullRefs,
+  ReplySchema,
   SetTokenSchema,
   SubmitReviewSchema,
 } from '@duck-diff/protocol'
@@ -54,6 +55,10 @@ export async function handleGitHub(
       const input = PostReviewCommentSchema.parse(await body())
       const { headSha } = await github.pull(number)
       return Response.json(await github.reviewComment(number, { ...input, commitId: headSha }))
+    }
+    if (action === 'replies' && post) {
+      const { inReplyTo, body: text } = ReplySchema.parse(await body())
+      return Response.json(await github.reply(number, inReplyTo, text))
     }
     if (action === 'reviews' && post) {
       const { event, body: text } = SubmitReviewSchema.parse(await body())

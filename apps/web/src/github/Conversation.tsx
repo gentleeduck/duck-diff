@@ -21,9 +21,15 @@ export function Body({ text }: { text: string }) {
   return text.trim() ? <Markdown text={text} /> : <p className="text-muted-foreground">No description.</p>
 }
 
-export function Comment({ author, createdAt, body, extra }: Omit<ConversationComment, 'id'> & { extra?: ReactNode }) {
+export function Comment({
+  author,
+  createdAt,
+  body,
+  extra,
+  bare = false,
+}: Omit<ConversationComment, 'id'> & { extra?: ReactNode; bare?: boolean }) {
   return (
-    <article className="rounded-md border border-border bg-card">
+    <article className={bare ? '' : 'rounded-md border border-border bg-card'}>
       <header className="flex items-center gap-2 border-border border-b px-3 py-1.5 text-muted-foreground">
         <Avatar user={author} />
         <span className="text-foreground">{author.login}</span>

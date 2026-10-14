@@ -85,6 +85,7 @@ export const PostReviewCommentSchema = PostCommentSchema.extend({
   line: z.number().int().min(1),
   side: z.enum(['LEFT', 'RIGHT']),
 })
+export const ReplySchema = PostCommentSchema.extend({ inReplyTo: z.number().int() })
 export const SubmitReviewSchema = z.object({ event: ReviewEventSchema, body: z.string().max(65_000) })
 export const MergePullSchema = z.object({ method: z.enum(['merge', 'squash', 'rebase']) })
 export const CreateIssueSchema = z.object({ title: z.string().trim().min(1).max(256), body: z.string().max(65_000) })

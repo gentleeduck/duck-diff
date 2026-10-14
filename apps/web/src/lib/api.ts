@@ -94,6 +94,7 @@ export interface GitHubApi {
     number: number,
     input: { body: string; path: string; line: number; side: 'LEFT' | 'RIGHT' },
   ): Promise<GitHubReviewComment>
+  reply(number: number, inReplyTo: number, body: string): Promise<GitHubReviewComment>
   review(number: number, event: ReviewEvent, body: string): Promise<void>
   merge(number: number, method: MergeMethod): Promise<void>
   issues(state: ItemState): Promise<IssueSummary[]>
@@ -146,6 +147,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       send('POST', `/api/github/issues/${number}/comments`, { body }, ConversationCommentSchema),
     reviewComment: (number, input) =>
       send('POST', `/api/github/pulls/${number}/review-comments`, input, GitHubReviewCommentSchema),
+    reply: (number, inReplyTo, body) =>
+      send('POST', `/api/github/pulls/${number}/replies`, { inReplyTo, body }, GitHubReviewCommentSchema),
     review: (number, event, body) => post(`/api/github/pulls/${number}/reviews`, { event, body }),
     merge: (number, method) => post(`/api/github/pulls/${number}/merge`, { method }),
     issues: (state) => json(`/api/github/issues?state=${state}`, z.array(IssueSummarySchema)),

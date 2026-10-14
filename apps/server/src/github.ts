@@ -175,6 +175,14 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         }),
       )
     },
+    async reply(number: number, inReplyTo: number, body: string): Promise<GitHubReviewComment> {
+      return reviewComment(
+        await call<RawReviewComment>(`${await repoPath()}/pulls/${number}/comments/${inReplyTo}/replies`, {
+          method: 'POST',
+          body: JSON.stringify({ body }),
+        }),
+      )
+    },
     async submitReview(number: number, event: string, body: string): Promise<void> {
       await call(`${await repoPath()}/pulls/${number}/reviews`, {
         method: 'POST',

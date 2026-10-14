@@ -17,9 +17,11 @@ function Editor({
   onSave,
   onCancel,
   onPublish,
+  saveLabel = 'Save comment',
 }: {
   initial: string
   label: string
+  saveLabel?: string
   onSave(body: string): Promise<void>
   onCancel(): void
   // Set while the diff shows a pull request: posts the comment on GitHub instead of keeping it local.
@@ -63,7 +65,7 @@ function Editor({
           </Button>
         ) : null}
         <Button type="submit" size="sm" variant={onPublish ? 'outline' : 'default'} disabled={!body.trim() || busy}>
-          {onPublish ? 'Keep local' : 'Save comment'}
+          {onPublish ? 'Keep local' : saveLabel}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={onCancel}>
           Cancel
@@ -115,11 +117,32 @@ function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
 }
 
 function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['thread'] }) {
+  const { pullReview } = useApp()
+  const [replying, setReplying] = useState(false)
+  const root = thread[0]
   return (
-    <div className="mx-3 my-2 flex max-w-3xl flex-col gap-2 font-normal font-sans">
+    <div className="mx-3 my-2 max-w-3xl divide-y divide-border rounded-md border border-border bg-card font-normal font-sans">
       {thread.map((comment) => (
-        <GitHubComment key={comment.id} {...comment} />
+        <GitHubComment key={comment.id} {...comment} bare />
       ))}
+      <div className="p-2">
+        {replying && root ? (
+          <Editor
+            initial=""
+            label="Reply"
+            saveLabel="Reply"
+            onSave={async (body) => {
+              await pullReview.reply(root.id, body.trim())
+              setReplying(false)
+            }}
+            onCancel={() => setReplying(false)}
+          />
+        ) : (
+          <Button size="sm" variant="ghost" onClick={() => setReplying(true)}>
+            Reply
+          </Button>
+        )}
+      </div>
     </div>
   )
 }

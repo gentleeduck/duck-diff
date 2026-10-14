@@ -19,6 +19,7 @@ export interface PullReviewState {
 export interface PullReview extends Store<PullReviewState> {
   load(number: number | null): Promise<void>
   post(input: { body: string; path: string; line: number; side: 'LEFT' | 'RIGHT' }): Promise<void>
+  reply(inReplyTo: number, body: string): Promise<void>
 }
 
 export function createPullReview(api: Api): PullReview {
@@ -36,6 +37,12 @@ export function createPullReview(api: Api): PullReview {
       const { number } = store.get()
       if (number === null) return
       const comment = await api.github.reviewComment(number, input)
+      store.set((prev) => ({ ...prev, comments: [...prev.comments, comment] }))
+    },
+    async reply(inReplyTo, body) {
+      const { number } = store.get()
+      if (number === null) return
+      const comment = await api.github.reply(number, inReplyTo, body)
       store.set((prev) => ({ ...prev, comments: [...prev.comments, comment] }))
     },
   }

@@ -124,7 +124,7 @@ function Pull({ number, onChanged }: { number: number; onChanged(): void }) {
           </Badge>
           <Avatar user={pull.author} />
           <span className="text-foreground">{pull.author.login}</span>
-          <span>wants to merge into</span>
+          <span>{pull.merged ? 'merged into' : 'wants to merge into'}</span>
           <code className="text-tn-cyan">{pull.baseRef}</code>
           <span>from</span>
           <code className="text-tn-cyan">{pull.headRef}</code>

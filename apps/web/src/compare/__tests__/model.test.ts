@@ -21,6 +21,9 @@ describe('describeTarget', () => {
     })
     expect(describeTarget({ kind: 'range', from: 'main', to: 'feat', mode: 'merge-base' }).operator).toBe('...')
     expect(describeTarget({ kind: 'range', from: SHA, to: 'feat', mode: 'two-dot' }).from).toBe('3f2a91c')
+    expect(
+      describeTarget({ kind: 'range', from: 'origin/main', to: 'refs/duck-diff/pr/12', mode: 'merge-base' }).to,
+    ).toBe('PR #12')
     expect(describeTarget({ kind: 'commit', sha: SHA })).toEqual({
       from: '3f2a91c^',
       to: '3f2a91c',
