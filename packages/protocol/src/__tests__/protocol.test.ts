@@ -6,6 +6,7 @@ import {
   decodeTarget,
   encodeTarget,
   HandshakeSchema,
+  RefSchema,
   ReviewCommentSchema,
   ServerEventSchema,
   targetKey,
@@ -19,6 +20,8 @@ const TARGETS: DiffTarget[] = [
   { kind: 'range', from: 'main', to: 'feat/x', mode: 'merge-base' },
   { kind: 'range', from: 'v1.0', to: 'HEAD', mode: 'two-dot' },
   { kind: 'commit', sha: 'a'.repeat(40) },
+  { kind: 'commit', sha: 'b'.repeat(40), path: 'src/app.ts' },
+  { kind: 'range', from: 'a1', to: 'b2', mode: 'two-dot', path: 'README.md' },
 ]
 
 describe('target encoding', () => {
@@ -91,5 +94,31 @@ describe('reviews', () => {
       targetKey({ mode: 'two-dot', to: 'b', from: 'a', kind: 'range' } as DiffTarget),
     )
     expect(targetKey({ kind: 'staged' })).not.toBe(targetKey({ kind: 'unstaged' }))
+  })
+})
+
+describe('file history and stashes', () => {
+  it('refuses a path that leaves the repo', () => {
+    expect(() => decodeTarget(encodeTarget({ kind: 'commit', sha: 'abc', path: '../x' }))).toThrow()
+    expect(() => decodeTarget(encodeTarget({ kind: 'commit', sha: 'abc', path: '/etc/passwd' }))).toThrow()
+  })
+
+  it('keys a filtered target apart from the whole one', () => {
+    expect(targetKey({ kind: 'commit', sha: 'abc', path: 'a.ts' })).not.toBe(targetKey({ kind: 'commit', sha: 'abc' }))
+    expect(targetKey({ kind: 'range', from: 'a', to: 'b', mode: 'two-dot', path: 'a.ts' })).not.toBe(
+      targetKey({ kind: 'range', from: 'a', to: 'b', mode: 'two-dot' }),
+    )
+  })
+
+  it('accepts stash refs with their message', () => {
+    const ref = {
+      name: 'stash@{0}',
+      kind: 'stash',
+      sha: 'c'.repeat(40),
+      committedAt: 1,
+      current: false,
+      subject: 'WIP',
+    }
+    expect(RefSchema.parse(ref)).toEqual(ref)
   })
 })

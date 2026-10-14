@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { type DiffTarget, DiffTargetSchema, FileStatusSchema } from './git'
+import { type DiffTarget, DiffTargetSchema, FileStatusSchema, RepoPathSchema } from './git'
 
 export function encodeTarget(target: DiffTarget): string {
   return encodeURIComponent(JSON.stringify(target))
@@ -35,24 +35,12 @@ export const RepoInfoSchema = z.object({
 })
 export type RepoInfo = z.infer<typeof RepoInfoSchema>
 
-// Paths are repo-relative; the server refuses anything that climbs out of the repo.
-export const OpenRequestSchema = z.object({
-  path: z
-    .string()
-    .min(1)
-    .refine((path) => !path.startsWith('/') && !path.split('/').includes('..'), 'path must stay inside the repo'),
-  line: z.number().int().min(1).default(1),
-})
+export const OpenRequestSchema = z.object({ path: RepoPathSchema, line: z.number().int().min(1).default(1) })
 export type OpenRequest = z.infer<typeof OpenRequestSchema>
 
-const RepoPath = z
-  .string()
-  .min(1)
-  .refine((path) => !path.startsWith('/') && !path.split('/').includes('..'), 'path must stay inside the repo')
-
 const WriteFileSchema = z.object({
-  path: RepoPath,
-  oldPath: RepoPath.nullable(),
+  path: RepoPathSchema,
+  oldPath: RepoPathSchema.nullable(),
   status: FileStatusSchema,
   newSha: z.string().nullable(),
 })
@@ -76,9 +64,9 @@ export type UndoResult = z.infer<typeof UndoResultSchema>
 export function targetKey(target: DiffTarget): string {
   switch (target.kind) {
     case 'range':
-      return `range:${target.mode}:${target.from}:${target.to}`
+      return `range:${target.mode}:${target.from}:${target.to}${target.path ? `:${target.path}` : ''}`
     case 'commit':
-      return `commit:${target.sha}`
+      return `commit:${target.sha}${target.path ? `:${target.path}` : ''}`
     default:
       return target.kind
   }
@@ -86,7 +74,7 @@ export function targetKey(target: DiffTarget): string {
 
 export const CreateReviewSchema = z.object({
   target: DiffTargetSchema,
-  path: RepoPath,
+  path: RepoPathSchema,
   side: z.enum(['additions', 'deletions']),
   line: z.number().int().min(1),
   lineHash: z.string().min(1).max(64),
