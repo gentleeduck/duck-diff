@@ -48,7 +48,7 @@ export function ChangesTree() {
   }, [model, visible])
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-col gap-2 border-[var(--dd-line)] border-b p-3">
         <input
           id="file-filter"
