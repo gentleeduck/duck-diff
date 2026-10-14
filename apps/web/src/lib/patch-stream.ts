@@ -20,6 +20,11 @@ export function createPatchSplitter(onFile: (text: string) => void) {
   }
 }
 
+// Parsing a large buffered diff in one go would block the first paint, so work is cut into slices with a
+// yield to the browser in between.
+const SLICE_MS = 8
+const yieldToBrowser = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
+
 export async function readPatchStream(
   body: ReadableStream<Uint8Array>,
   onFile: (text: string) => void,
@@ -27,16 +32,32 @@ export async function readPatchStream(
 ): Promise<void> {
   const reader = body.getReader()
   const decoder = new TextDecoder()
-  const splitter = createPatchSplitter(onFile)
+  let pending: string[] = []
+  const splitter = createPatchSplitter((text) => pending.push(text))
+  let sliceStart = performance.now()
+  const drain = async () => {
+    const texts = pending
+    pending = []
+    for (const text of texts) {
+      if (signal?.aborted) return
+      onFile(text)
+      if (performance.now() - sliceStart > SLICE_MS) {
+        await yieldToBrowser()
+        sliceStart = performance.now()
+      }
+    }
+  }
   try {
     while (!signal?.aborted) {
       const { value, done } = await reader.read()
       if (done) break
       splitter.push(decoder.decode(value, { stream: true }))
+      await drain()
     }
     if (!signal?.aborted) {
       splitter.push(decoder.decode())
       splitter.finish()
+      await drain()
     }
   } finally {
     reader.releaseLock()
