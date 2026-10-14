@@ -1,4 +1,5 @@
-import { createContext, type ReactNode, useContext, useEffect, useMemo } from 'react'
+import type { CodeViewHandle } from '@pierre/diffs/react'
+import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
 import { type Api, createApi } from '../lib/api'
 import type { Store } from '../lib/store'
 import { readTarget } from '../lib/target-url'
@@ -9,17 +10,20 @@ interface AppContextValue {
   api: Api
   session: Session
   settings: Store<Settings>
+  viewer: RefObject<CodeViewHandle<undefined, undefined> | null>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
 
 export function AppProvider({ api, children }: { api?: Api; children: ReactNode }) {
+  const viewer = useRef<CodeViewHandle<undefined, undefined> | null>(null)
   const value = useMemo(() => {
     const client = api ?? createApi()
     return {
       api: client,
       session: createSession(client, readTarget(window.location.search)),
       settings: createSettingsStore(),
+      viewer,
     }
   }, [api])
 

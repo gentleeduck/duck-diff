@@ -6,7 +6,7 @@ export interface Settings {
   diffStyle: 'split' | 'unified'
   diffIndicators: DiffIndicators
   lineDiffType: LineDiffTypes
-  hunkSeparators: HunkSeparators
+  hunkSeparators: Exclude<HunkSeparators, 'custom'>
   overflow: 'scroll' | 'wrap'
   lineNumbers: boolean
   backgrounds: boolean

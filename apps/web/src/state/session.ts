@@ -5,6 +5,12 @@ import { cacheKeyFor, toDiffItem } from '../lib/items'
 import { readPatchStream } from '../lib/patch-stream'
 import { createStore, type Store } from '../lib/store'
 
+// Binary files and huge diffs start folded so opening a large comparison stays fast.
+const COLLAPSE_LINES = 5000
+function shouldCollapse(file: ChangedFile): boolean {
+  return file.binary || (file.additions ?? 0) + (file.deletions ?? 0) > COLLAPSE_LINES
+}
+
 export interface SessionState {
   target: DiffTarget
   status: 'idle' | 'loading' | 'ready' | 'error'
@@ -56,7 +62,10 @@ export function createSession(api: Api, initial: DiffTarget): Session {
           const item = toDiffItem(text)
           if (!item) return
           const file = byPath.get(item.fileDiff.name)
-          if (file) item.fileDiff.cacheKey = cacheKeyFor(file)
+          if (file) {
+            item.fileDiff.cacheKey = cacheKeyFor(file)
+            item.collapsed = shouldCollapse(file)
+          }
           items.push(item)
           flushTimer ??= setTimeout(flush, 50)
         },
