@@ -2,7 +2,16 @@
   "$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
   "assist": { "actions": { "source": { "preset": "recommended" } }, "enabled": true },
   "files": {
-    "includes": ["**", "!**/node_modules", "!**/dist", "!**/coverage", "!**/.turbo", "!**/.cache", "!**/*.tsbuildinfo"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/coverage",
+      "!**/.turbo",
+      "!**/.cache",
+      "!**/*.tsbuildinfo",
+      "!**/*.gen.ts"
+    ]
   },
   "formatter": {
     "enabled": true,

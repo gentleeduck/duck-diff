@@ -6,16 +6,17 @@
   "license": "MIT",
   "bin": { "duck-diff": "./src/cli.ts" },
   "scripts": {
-    "build": "bun ../../scripts/build-binary.ts",
-    "check-types": "tsc -p tsconfig.json --noEmit",
-    "dev": "bun --watch src/cli.ts serve --repo ../..",
-    "test": "bun test",
-    "test:coverage": "bun test --coverage"
+    "build": "bun ../../scripts/gen-web-assets.ts && bun ../../scripts/build-binary.ts",
+    "check-types": "bun ../../scripts/gen-web-assets.ts && tsc -p tsconfig.json --noEmit",
+    "dev": "bun ../../scripts/gen-web-assets.ts && bun --watch src/cli.ts serve --repo ../..",
+    "test": "bun ../../scripts/gen-web-assets.ts && bun test",
+    "test:coverage": "bun ../../scripts/gen-web-assets.ts && bun test --coverage"
   },
   "dependencies": { "@duck-diff/git": "workspace:*", "@duck-diff/protocol": "workspace:*", "zod": "catalog:" },
   "devDependencies": {
     "@duck-diff/testing": "workspace:*",
     "@duck-diff/typescript-config": "workspace:*",
+    "@duck-diff/web": "workspace:*",
     "@types/bun": "^1.4.2",
     "typescript": "catalog:"
   }
