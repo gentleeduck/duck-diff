@@ -1,34 +1,6 @@
-import type { ChangedFile } from '@duck-diff/protocol'
 import { describe, expect, it } from 'vitest'
-import type { Api } from '../../lib/api'
+import { FILES, fakeApi, PATCH } from '../../test/fake-api'
 import { createSession } from '../session'
-
-const PATCH =
-  'diff --git a/a.ts b/a.ts\nindex 1..2 100644\n--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-a\n+b\n' +
-  'diff --git a/b.ts b/b.ts\nindex 3..4 100644\n--- a/b.ts\n+++ b/b.ts\n@@ -1 +1 @@\n-c\n+d\n'
-
-const FILES: ChangedFile[] = ['a.ts', 'b.ts'].map((path) => ({
-  path,
-  oldPath: null,
-  status: 'modified',
-  additions: 1,
-  deletions: 1,
-  binary: false,
-  oldSha: '1',
-  newSha: '2',
-}))
-
-function fakeApi(overrides: Partial<Api> = {}): Api {
-  return {
-    repo: async () => ({ root: '/r', branch: 'main', head: null }),
-    refs: async () => [],
-    commits: async () => [],
-    content: async () => null,
-    files: async () => FILES,
-    diff: async () => new Response(PATCH).body as ReadableStream<Uint8Array>,
-    ...overrides,
-  }
-}
 
 describe('session', () => {
   it('loads files and items for a target', async () => {

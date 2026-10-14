@@ -1,3 +1,4 @@
 @import "tailwindcss";
 @import "@duck-diff/ui/styles.css";
+@import "./theme.css";
 @source "../../../packages/ui/src";

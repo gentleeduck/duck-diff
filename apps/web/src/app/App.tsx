@@ -1,10 +1,24 @@
-import { Button } from '@duck-diff/ui'
+import type { Api } from '../lib/api'
+import { AppProvider } from './AppProvider'
+import { Shell } from './Shell'
+import { useThemeClass } from './useThemeClass'
 
-export function App() {
+function Screen() {
+  useThemeClass()
   return (
-    <main className="flex h-screen items-center justify-center gap-3">
-      <h1 className="font-mono text-sm">duck-diff</h1>
-      <Button size="sm">ready</Button>
-    </main>
+    <Shell
+      topBar={<h1 className="font-[var(--dd-font-code)] text-[15px]">duck-diff</h1>}
+      sidebar={null}
+      viewer={null}
+      status={null}
+    />
+  )
+}
+
+export function App({ api }: { api?: Api }) {
+  return (
+    <AppProvider api={api}>
+      <Screen />
+    </AppProvider>
   )
 }

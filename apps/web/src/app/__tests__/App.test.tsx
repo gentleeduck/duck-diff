@@ -1,14 +1,14 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { fakeApi } from '../../test/fake-api'
 import { App } from '../App'
 
 describe('App', () => {
-  it('renders', () => {
-    render(<App />)
-    expect(screen.getByRole('heading', { name: 'duck-diff' })).toBeTruthy()
-  })
-  it('renders a duck-ui button', () => {
-    render(<App />)
-    expect(screen.getByRole('button', { name: 'ready' })).toBeTruthy()
+  it('renders the shell regions', () => {
+    render(<App api={fakeApi()} />)
+    expect(screen.getByRole('banner')).toBeTruthy()
+    expect(screen.getByRole('navigation', { name: 'Changed files' })).toBeTruthy()
+    expect(screen.getByRole('main')).toBeTruthy()
+    expect(screen.getByRole('contentinfo')).toBeTruthy()
   })
 })
