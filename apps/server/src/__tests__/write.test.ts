@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { getPatch, listFiles, splitPatch } from '@duck-diff/git'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { createServer, type RunningServer } from '../server'
+import { testPort } from './helpers'
 
 let repo: TestRepo
 let server: RunningServer
@@ -23,7 +24,7 @@ async function start() {
   repo.write('a.txt', 'ONE\n')
   repo.write('b.txt', 'TWO\n')
   cache = mkdtempSync(join(tmpdir(), 'duck-diff-cache-'))
-  server = await createServer({ repo: repo.path, port: 0, watch: false, undoCache: cache })
+  server = await createServer({ repo: repo.path, port: testPort(), watch: false, undoCache: cache })
 }
 
 function post(path: string, body?: unknown) {
