@@ -133,7 +133,9 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     websocket: {
       async open(socket) {
         hub.add(socket)
-        socket.send(JSON.stringify({ type: 'hello', repo: await repoInfo(repo, Boolean(options.nvim)) }))
+        // The repo can disappear under a running server; a missing hello is better than a crash.
+        const info = await repoInfo(repo, Boolean(options.nvim)).catch(() => null)
+        if (info) socket.send(JSON.stringify({ type: 'hello', repo: info }))
       },
       close(socket) {
         hub.remove(socket)
