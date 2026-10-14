@@ -3,6 +3,9 @@ import { SearchIcon } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useState } from 'react'
 import { CompareBar } from '../compare/CompareBar'
 import { FilesSidebar } from '../files/FilesSidebar'
+import { BranchMenu } from '../git/BranchMenu'
+import { GitProvider } from '../git/GitProvider'
+import { SyncButtons } from '../git/SyncButtons'
 import { GraphSidebar } from '../graph/GraphSidebar'
 import type { GraphState } from '../graph/store'
 import { useView } from '../hooks/useView'
@@ -70,9 +73,11 @@ function Screen() {
     changes: {
       top: (
         <>
+          <BranchMenu />
           <CompareBar />
           {search}
           <CommentsSheet />
+          <SyncButtons />
           <SettingsPopover />
         </>
       ),
@@ -83,8 +88,10 @@ function Screen() {
     graph: {
       top: (
         <>
+          <BranchMenu />
           <GraphTitle />
           {search}
+          <SyncButtons />
         </>
       ),
       side: <GraphSidebar />,
@@ -94,8 +101,10 @@ function Screen() {
     files: {
       top: (
         <>
+          <BranchMenu />
           <h1 className="min-w-0 flex-1">Files</h1>
           {search}
+          <SyncButtons />
           <SettingsPopover />
         </>
       ),
@@ -126,8 +135,10 @@ export function App({ api }: { api?: Api }) {
     <AppProvider api={api}>
       <TooltipProvider>
         <WritesProvider>
-          <Screen />
-          <Toaster position="bottom-right" />
+          <GitProvider>
+            <Screen />
+            <Toaster position="bottom-right" />
+          </GitProvider>
         </WritesProvider>
       </TooltipProvider>
     </AppProvider>

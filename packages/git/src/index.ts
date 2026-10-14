@@ -7,6 +7,16 @@ export { getPatch, streamDiff, streamPatch } from './patch'
 export { listRefs, type Ref, type RefKind } from './refs'
 export { resolveRepo } from './repo'
 export { type RunOptions, runGit, streamGit } from './run'
+export {
+  checkoutDetached,
+  commit,
+  fetchAll,
+  pull,
+  push,
+  readSyncStatus,
+  type SyncStatus,
+  switchBranch,
+} from './sync'
 export { type DiffTarget, targetArgs, unmergedPaths } from './target'
 export { type FileContents, listTree, readTreeFile, type TreeRef } from './tree'
 export { repoId, restoreLatest, snapshot } from './undo'

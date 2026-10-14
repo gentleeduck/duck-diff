@@ -9,6 +9,8 @@ export interface RunOptions {
   holdStdin?: boolean
   // Written to stdin, for commands such as `git apply -` that read a patch.
   input?: string
+  // Extra environment, on top of the fixed one below.
+  env?: Record<string, string>
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
@@ -17,7 +19,8 @@ const DEFAULT_TIMEOUT_MS = 30_000
 const ENV = { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0' }
 
 function spawnGit(args: string[], options: RunOptions) {
-  const child = spawn('git', args, { cwd: options.cwd, env: ENV, stdio: ['pipe', 'pipe', 'pipe'] })
+  const env = options.env ? { ...ENV, ...options.env } : ENV
+  const child = spawn('git', args, { cwd: options.cwd, env, stdio: ['pipe', 'pipe', 'pipe'] })
   if (options.input !== undefined) child.stdin.end(options.input)
   else if (!options.holdStdin) child.stdin.end()
   let stderr = ''

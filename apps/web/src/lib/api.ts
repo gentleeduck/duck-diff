@@ -18,6 +18,8 @@ import {
   RepoInfoSchema,
   type ReviewComment,
   ReviewCommentSchema,
+  type SyncStatus,
+  SyncStatusSchema,
   type UndoResult,
   UndoResultSchema,
   type WriteRequest,
@@ -54,7 +56,11 @@ export interface Api {
   // Without a ref these read the working tree.
   tree(ref?: string): Promise<string[]>
   file(path: string, ref?: string): Promise<FileContents>
+  sync(): Promise<SyncStatus>
+  git(action: GitAction, body?: unknown): Promise<{ sha?: string }>
 }
+
+export type GitAction = 'commit' | 'push' | 'pull' | 'fetch' | 'switch' | 'checkout'
 
 const ContentSchema = z.object({ contents: z.string().nullable() })
 
@@ -123,6 +129,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       if (ref) params.set('ref', ref)
       return json(`/api/file?${params}`, FileContentsSchema)
     },
+    sync: () => json('/api/sync', SyncStatusSchema),
+    git: (action, body) => send('POST', `/api/git/${action}`, body ?? {}, z.object({ sha: z.string().optional() })),
     commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),
     reviews: (target) => json(`/api/reviews?target=${encodeTarget(target)}`, z.array(ReviewCommentSchema)),
     createReview: (input) => send('POST', '/api/reviews', input, ReviewCommentSchema),

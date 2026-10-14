@@ -1,4 +1,4 @@
-import { resolveRepo } from '@duck-diff/git'
+import { readSyncStatus, resolveRepo } from '@duck-diff/git'
 import {
   type ChangeReason,
   CreateReviewSchema,
@@ -17,7 +17,7 @@ import { handleApi, repoInfo } from './routes'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
-import { applyWrite, createWriteQueue, undoLatest } from './writes'
+import { applyWrite, createWriteQueue, gitAction, undoLatest } from './writes'
 
 export interface ServerOptions {
   repo: string
@@ -73,6 +73,12 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           hub.touch()
           notify('saved')
           return new Response(null, { status: 204 })
+        }
+        if (url.pathname === '/api/sync') return Response.json(await readSyncStatus(repo))
+        if (url.pathname.startsWith('/api/git/') && request.method === 'POST') {
+          const result = await enqueue(() => gitAction(repo, url.pathname.slice(9), request))
+          notify(result.reason)
+          return Response.json(result.body)
         }
         if (url.pathname === '/api/navigate' && request.method === 'POST') {
           const { target } = NavigateRequestSchema.parse(await request.json())

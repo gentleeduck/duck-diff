@@ -1,15 +1,27 @@
 import {
+  checkoutDetached,
+  commit,
   discardFile,
   discardHunk,
+  fetchAll,
+  pull,
+  push,
   restoreLatest,
   snapshot,
   stageFile,
   stageHunk,
+  switchBranch,
   unmergedPaths,
   unstageFile,
   unstageHunk,
 } from '@duck-diff/git'
-import type { WriteRequest } from '@duck-diff/protocol'
+import {
+  type ChangeReason,
+  CheckoutRequestSchema,
+  CommitRequestSchema,
+  SwitchRequestSchema,
+  type WriteRequest,
+} from '@duck-diff/protocol'
 import { HttpError } from './errors'
 
 // Writes touch the index and working tree, so they run one at a time in arrival order.
@@ -48,4 +60,35 @@ export async function applyWrite(repo: string, request: WriteRequest, undoCache?
 
 export function undoLatest(repo: string, undoCache?: string) {
   return restoreLatest(repo, undoCache)
+}
+
+// Commit, sync and branch commands; the reason tells open pages what to reload.
+export async function gitAction(
+  repo: string,
+  action: string,
+  request: Request,
+): Promise<{ reason: ChangeReason; body: Record<string, unknown> }> {
+  switch (action) {
+    case 'commit': {
+      const sha = await commit(repo, CommitRequestSchema.parse(await request.json()))
+      return { reason: 'refs', body: { sha } }
+    }
+    case 'push':
+      await push(repo)
+      return { reason: 'refs', body: {} }
+    case 'pull':
+      await pull(repo)
+      return { reason: 'refs', body: {} }
+    case 'fetch':
+      await fetchAll(repo)
+      return { reason: 'refs', body: {} }
+    case 'switch':
+      await switchBranch(repo, SwitchRequestSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'checkout':
+      await checkoutDetached(repo, CheckoutRequestSchema.parse(await request.json()).sha)
+      return { reason: 'refs', body: {} }
+    default:
+      throw new HttpError(404, 'not-found', `no git action ${action}`)
+  }
 }

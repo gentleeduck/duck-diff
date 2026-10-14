@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@duck-diff/ui'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { describeTarget } from '../compare/model'
+import { CommitBox } from '../git/CommitBox'
 import { useTarget } from '../hooks/useTarget'
 import { ChangesTree } from './ChangesTree'
 import { HistoryList } from './HistoryList'
@@ -28,6 +29,7 @@ export function Sidebar() {
       <TabsContent value="changes" className="mt-0 min-h-0 flex-1">
         <div className="flex h-full flex-col">
           <ChangesTree />
+          <CommitBox />
         </div>
       </TabsContent>
       <TabsContent value="history" className="mt-0 min-h-0 flex-1">
