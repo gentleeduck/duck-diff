@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import type { ServerEvent } from '@duck-diff/protocol'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { createServer, type RunningServer } from '../server'
+import { testPort } from './helpers'
 
 let repo: TestRepo
 let server: RunningServer
@@ -16,7 +17,7 @@ afterEach(async () => {
 })
 
 async function start() {
-  server = await createServer({ repo: repo.path, port: 0, watch: false, dataDir: data })
+  server = await createServer({ repo: repo.path, port: testPort(), watch: false, dataDir: data })
 }
 
 async function setup() {
