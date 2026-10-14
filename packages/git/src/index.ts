@@ -1,5 +1,6 @@
 export { GitError, type GitErrorCode } from './errors'
 export { type ChangedFile, type FileStatus, listFiles, parseNumstat, parseRaw } from './files'
+export { getPatch, streamPatch } from './patch'
 export { resolveRepo } from './repo'
 export { type RunOptions, runGit, streamGit } from './run'
 export { type DiffTarget, targetArgs } from './target'
