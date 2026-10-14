@@ -7,3 +7,12 @@ export { listRefs, type Ref, type RefKind } from './refs'
 export { resolveRepo } from './repo'
 export { type RunOptions, runGit, streamGit } from './run'
 export { type DiffTarget, targetArgs } from './target'
+export {
+  discardFile,
+  discardHunk,
+  splitPatch,
+  stageFile,
+  stageHunk,
+  unstageFile,
+  unstageHunk,
+} from './write'

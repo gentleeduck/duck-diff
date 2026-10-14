@@ -1,4 +1,4 @@
-export type GitErrorCode = 'not-a-repo' | 'unknown-ref' | 'timeout' | 'failed'
+export type GitErrorCode = 'not-a-repo' | 'unknown-ref' | 'timeout' | 'failed' | 'stale'
 
 export class GitError extends Error {
   constructor(

@@ -7,6 +7,8 @@ export interface RunOptions {
   timeoutMs?: number
   // Keeps stdin open instead of closing it at once; only the timeout test needs this.
   holdStdin?: boolean
+  // Written to stdin, for commands such as `git apply -` that read a patch.
+  input?: string
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
@@ -16,7 +18,8 @@ const ENV = { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', GIT_TERMINAL
 
 function spawnGit(args: string[], options: RunOptions) {
   const child = spawn('git', args, { cwd: options.cwd, env: ENV, stdio: ['pipe', 'pipe', 'pipe'] })
-  if (!options.holdStdin) child.stdin.end()
+  if (options.input !== undefined) child.stdin.end(options.input)
+  else if (!options.holdStdin) child.stdin.end()
   let stderr = ''
   let timedOut = false
   child.stderr.setEncoding('utf8')
