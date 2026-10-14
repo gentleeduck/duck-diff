@@ -47,6 +47,9 @@ export function createSession(api: Api, initial: DiffTarget): Session {
     current = controller
     store.set((prev) => ({ ...prev, target, status: 'loading', error: null }))
     try {
+      // Both requests start together: git can stream the patch while the file list is still being built.
+      const diffBody = api.diff(target, controller.signal)
+      diffBody.catch(() => {})
       const files = await api.files(target, controller.signal)
       if (controller.signal.aborted) return
       const byPath = new Map(files.map((file) => [file.path, file]))
@@ -54,13 +57,14 @@ export function createSession(api: Api, initial: DiffTarget): Session {
       const previous = new Map(store.get().items.map((item) => [item.id, item]))
       const items: CodeViewDiffItem<undefined>[] = []
       let flushTimer: ReturnType<typeof setTimeout> | null = null
-      // Publishing in 50 ms batches lets files appear while git is still streaming without a render per file.
+      // The first file is published at once so something paints early; after that, 50 ms batches let files
+      // appear while git is still streaming without a render per file.
       const flush = () => {
         flushTimer = null
         if (controller.signal.aborted) return
         store.set((prev) => ({ ...prev, files, items: [...items], streaming: true }))
       }
-      const body = await api.diff(target, controller.signal)
+      const body = await diffBody
       await readPatchStream(
         body,
         (text) => {
@@ -73,7 +77,8 @@ export function createSession(api: Api, initial: DiffTarget): Session {
           }
           const before = previous.get(item.id)
           items.push(file && before && before.fileDiff.cacheKey === item.fileDiff.cacheKey ? before : item)
-          flushTimer ??= setTimeout(flush, 50)
+          if (items.length === 1) flush()
+          else flushTimer ??= setTimeout(flush, 50)
         },
         controller.signal,
       )
