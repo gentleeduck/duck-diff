@@ -57,6 +57,9 @@ export const WriteRequestSchema = z.union([
 export type WriteRequest = z.infer<typeof WriteRequestSchema>
 export type WriteAction = WriteRequest['action']
 
+export const FileContentsSchema = z.object({ text: z.string().nullable(), size: z.number(), binary: z.boolean() })
+export type FileContents = z.infer<typeof FileContentsSchema>
+
 export const NavigateRequestSchema = z.object({ target: DiffTargetSchema })
 export const NavigateResultSchema = z.object({ pages: z.number().int() })
 

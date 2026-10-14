@@ -8,6 +8,7 @@ export { listRefs, type Ref, type RefKind } from './refs'
 export { resolveRepo } from './repo'
 export { type RunOptions, runGit, streamGit } from './run'
 export { type DiffTarget, targetArgs, unmergedPaths } from './target'
+export { type FileContents, listTree, readTreeFile, type TreeRef } from './tree'
 export { repoId, restoreLatest, snapshot } from './undo'
 export {
   discardFile,

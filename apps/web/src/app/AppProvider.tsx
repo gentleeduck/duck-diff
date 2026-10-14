@@ -22,6 +22,8 @@ interface AppContextValue {
   graph: Graph
   // The commit open in the graph's side panel.
   graphSelection: Store<string | null>
+  // The file open in the Files view.
+  fileSelection: Store<string | null>
   viewer: RefObject<DiffViewHandle | null>
 }
 
@@ -41,6 +43,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       view: createStore<View>(readView(window.location.search)),
       graph: createGraph(client),
       graphSelection: createStore<string | null>(null),
+      fileSelection: createStore<string | null>(null),
       viewer,
     }
   }, [api])

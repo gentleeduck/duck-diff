@@ -31,6 +31,8 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       throw new Error('not faked')
     },
     deleteReview: async () => {},
+    tree: async () => ['a.ts', 'b.ts'],
+    file: async () => ({ text: 'a\n', size: 2, binary: false }),
     graph: async () => new Response('').body as ReadableStream<Uint8Array>,
     commit: async (sha) => ({
       sha,

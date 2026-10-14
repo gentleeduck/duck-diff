@@ -10,6 +10,8 @@ import {
   ErrorBodySchema,
   type ErrorCode,
   encodeTarget,
+  type FileContents,
+  FileContentsSchema,
   type Ref,
   RefSchema,
   type RepoInfo,
@@ -49,6 +51,9 @@ export interface Api {
   deleteReview(id: string): Promise<void>
   graph(query: { all: boolean; limit: number }, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   commit(sha: string): Promise<CommitDetails>
+  // Without a ref these read the working tree.
+  tree(ref?: string): Promise<string[]>
+  file(path: string, ref?: string): Promise<FileContents>
 }
 
 const ContentSchema = z.object({ contents: z.string().nullable() })
@@ -111,6 +116,12 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       const response = await request(`/api/graph?all=${query.all}&limit=${query.limit}`, signal)
       if (!response.body) throw new ApiError(500, 'failed', 'empty graph body')
       return response.body
+    },
+    tree: (ref) => json(`/api/tree${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`, z.array(z.string())),
+    file(path, ref) {
+      const params = new URLSearchParams({ path })
+      if (ref) params.set('ref', ref)
+      return json(`/api/file?${params}`, FileContentsSchema)
     },
     commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),
     reviews: (target) => json(`/api/reviews?target=${encodeTarget(target)}`, z.array(ReviewCommentSchema)),

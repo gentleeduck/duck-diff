@@ -2,7 +2,7 @@ import { targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { DiffView } from '../diff/DiffView'
-import { createHighlighter } from '../diff/highlight'
+import { highlighter } from '../diff/highlighter'
 import { buildPage } from '../diff/page'
 import type { RowContextValue } from '../diff/Rows'
 import type { DiffLine, DiffRow } from '../diff/rows'
@@ -23,13 +23,6 @@ import { FileActions } from './FileActions'
 import { FileHeader } from './FileHeader'
 import { fileNote } from './file-info'
 import { WriteButtons } from './WriteButtons'
-
-// One highlighter for the page; tests run without workers and keep plain text.
-const highlighter = createHighlighter(
-  typeof Worker === 'undefined'
-    ? null
-    : () => new Worker(new URL('../diff/highlight.worker.ts', import.meta.url), { type: 'module' }),
-)
 
 const selectItems = (state: SessionState) => state.items
 const selectFiles = (state: SessionState) => state.files

@@ -1,7 +1,8 @@
 import { Button, Kbd, Toaster, TooltipProvider } from '@duck-diff/ui'
 import { SearchIcon } from 'lucide-react'
-import { lazy, Suspense, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useState } from 'react'
 import { CompareBar } from '../compare/CompareBar'
+import { FilesSidebar } from '../files/FilesSidebar'
 import { GraphSidebar } from '../graph/GraphSidebar'
 import type { GraphState } from '../graph/store'
 import { useView } from '../hooks/useView'
@@ -24,8 +25,9 @@ import { useThemeClass } from './useThemeClass'
 
 const Viewer = lazy(() => import('../viewer/Viewer'))
 const GraphView = lazy(() => import('../graph/GraphView'))
+const FileView = lazy(() => import('../files/FileView'))
 
-const SHIPPED: View[] = ['changes', 'graph']
+const SHIPPED: View[] = ['changes', 'graph', 'files']
 
 const selectCommitCount = (state: GraphState) => state.entries.length
 
@@ -61,29 +63,56 @@ function Screen() {
       <Kbd className="ms-auto">Ctrl K</Kbd>
     </Button>
   )
-  const graph = view === 'graph'
+  const screens: Record<
+    'changes' | 'graph' | 'files',
+    { top: ReactNode; side: ReactNode; label: string; main: ReactNode }
+  > = {
+    changes: {
+      top: (
+        <>
+          <CompareBar />
+          {search}
+          <CommentsSheet />
+          <SettingsPopover />
+        </>
+      ),
+      side: <Sidebar />,
+      label: 'Changed files',
+      main: <Viewer />,
+    },
+    graph: {
+      top: (
+        <>
+          <GraphTitle />
+          {search}
+        </>
+      ),
+      side: <GraphSidebar />,
+      label: 'Branches and tags',
+      main: <GraphView />,
+    },
+    files: {
+      top: (
+        <>
+          <h1 className="min-w-0 flex-1">Files</h1>
+          {search}
+          <SettingsPopover />
+        </>
+      ),
+      side: <FilesSidebar />,
+      label: 'All files',
+      main: <FileView />,
+    },
+  }
+  const screen = screens[view === 'graph' || view === 'files' ? view : 'changes']
   return (
     <>
       <Shell
         rail={<ActivityRail views={SHIPPED} />}
-        topBar={
-          graph ? (
-            <>
-              <GraphTitle />
-              {search}
-            </>
-          ) : (
-            <>
-              <CompareBar />
-              {search}
-              <CommentsSheet />
-              <SettingsPopover />
-            </>
-          )
-        }
-        sidebar={graph ? <GraphSidebar /> : <Sidebar />}
-        sidebarLabel={graph ? 'Branches and tags' : 'Changed files'}
-        viewer={<Suspense fallback={null}>{graph ? <GraphView /> : <Viewer />}</Suspense>}
+        topBar={screen.top}
+        sidebar={screen.side}
+        sidebarLabel={screen.label}
+        viewer={<Suspense fallback={null}>{screen.main}</Suspense>}
         status={<StatusBar live={live} />}
       />
       <Palette open={palette} onOpenChange={setPalette} />

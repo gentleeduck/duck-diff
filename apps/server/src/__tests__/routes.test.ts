@@ -98,6 +98,19 @@ describe('api', () => {
     expect((await fixture.get('/api/graph?limit=0')).status).toBe(400)
   })
 
+  it('lists the file tree and reads files, refusing paths outside the repo', async () => {
+    fixture = await startFixture((repo) => {
+      repo.write('src/a.ts', 'one\n')
+      repo.commit('base')
+      repo.write('src/a.ts', 'two\n')
+    })
+    expect(await (await fixture.get('/api/tree')).json()).toEqual(['src/a.ts'])
+    expect(await (await fixture.get('/api/file?path=src/a.ts')).json()).toMatchObject({ text: 'two\n' })
+    expect(await (await fixture.get('/api/file?ref=HEAD&path=src/a.ts')).json()).toMatchObject({ text: 'one\n' })
+    expect((await fixture.get('/api/file?path=../etc/passwd')).status).toBe(400)
+    expect((await fixture.get('/api/file?path=nope.ts')).status).toBe(404)
+  })
+
   it('answers 400 for a bad target and an unknown ref', async () => {
     await edited()
     expect((await fixture.get('/api/files?target=garbage')).status).toBe(400)

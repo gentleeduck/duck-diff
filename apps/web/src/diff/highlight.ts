@@ -15,8 +15,8 @@ export interface HighlightResponse {
 }
 
 type Side = 'old' | 'new'
-type LineTokens = Map<number, Token[]>
-interface Entry {
+export type LineTokens = Map<number, Token[]>
+export interface Entry {
   old: LineTokens
   new: LineTokens
 }
@@ -83,6 +83,21 @@ export function createHighlighter(makeWorker: (() => Worker) | null) {
     subscribe(listener: () => void) {
       listeners.add(listener)
       return () => listeners.delete(listener)
+    },
+    // A whole file, line numbers from 1; same caching as diffs.
+    text(key: string, path: string, text: string): LineTokens | null {
+      const hit = cache.get(key)
+      if (hit === 'pending') return null
+      if (hit) return hit.new
+      cache.set(key, 'pending')
+      void post({ lang: getFiletypeFromFileName(path), runs: [text.replace(/\n$/, '')] }).then((response) => {
+        const entry: Entry = { old: new Map(), new: new Map() }
+        for (const [offset, tokens] of (response.runs?.[0] ?? []).entries()) entry.new.set(offset + 1, tokens)
+        cache.set(key, entry)
+        version++
+        for (const listener of listeners) listener()
+      })
+      return null
     },
     // Returns tokens once ready; the first call for a key starts the work and later calls see the result.
     tokens(key: string, path: string, rows: readonly DiffRow[]): Entry | null {
