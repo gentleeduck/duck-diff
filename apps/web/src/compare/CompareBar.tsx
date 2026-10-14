@@ -30,18 +30,19 @@ export function CompareBar() {
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-6">
-      <h1 className="flex items-baseline gap-1 truncate font-mono text-[15px]">
+      <h1 className="flex items-center gap-1 truncate text-[17px]">
         <RefPicker label={from} side="from" refs={refs} onPick={(end) => navigate(withSide(target, 'from', end))} />
         {operator ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="sm"
                 aria-label={`Range operator ${operator}`}
                 onClick={() => navigate(toggleOperator(target))}
-                className="rounded-sm px-0.5 font-semibold text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring">
+                className="h-7 px-2 text-[15px]">
                 {operator}
-              </button>
+              </Button>
             </TooltipTrigger>
             <TooltipContent className="max-w-64">{OPERATOR_HELP[operator]}</TooltipContent>
           </Tooltip>
@@ -51,7 +52,7 @@ export function CompareBar() {
         <RefPicker label={to} side="to" refs={refs} onPick={(end) => navigate(withSide(target, 'to', end))} />
       </h1>
       {path ? (
-        <span className="flex min-w-0 items-center gap-1 font-mono text-[13px] text-muted-foreground">
+        <span className="flex min-w-0 items-center gap-1 font-mono text-[15px] text-muted-foreground">
           <span className="truncate" title={path}>
             {path}
           </span>
@@ -65,7 +66,7 @@ export function CompareBar() {
           </Button>
         </span>
       ) : null}
-      <p className="shrink-0 text-[13px] text-muted-foreground tabular-nums">
+      <p className="shrink-0 text-[15px] text-muted-foreground tabular-nums">
         {files} {files === '1' ? 'file' : 'files'}
         <span className="ml-3 text-added">+{additions}</span>
         <span className="ml-1.5 text-removed">-{deletions}</span>

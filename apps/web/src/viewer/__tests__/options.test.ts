@@ -31,7 +31,7 @@ describe('viewerOptions', () => {
       disableLineNumbers: true,
       disableBackground: true,
       expandUnchanged: true,
-      themeType: 'system',
+      themeType: 'dark',
       theme: DEFAULT_SETTINGS.themes,
       stickyHeaders: true,
       loadDiffFiles: loader,

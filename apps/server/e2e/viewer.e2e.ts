@@ -3,9 +3,9 @@ import { expect, test } from './fixture'
 test('lists the changed files and shows the diff', async ({ page, app }) => {
   await page.goto(app.url)
   await expect(page.getByRole('banner')).toContainText('2 files')
-  const tree = page.getByRole('navigation', { name: 'Changed files' })
-  await expect(tree.getByRole('treeitem', { name: 'app.ts' })).toBeVisible()
-  await expect(tree.getByRole('treeitem', { name: 'notes.txt' })).toBeVisible()
+  const tree = page.getByRole('list', { name: 'Changed files' })
+  await expect(tree.getByRole('button', { name: /^app\.ts/ })).toBeVisible()
+  await expect(tree.getByRole('button', { name: /^notes\.txt/ })).toBeVisible()
   await expect(page.locator('main')).toContainText('export const answer = 42')
 })
 

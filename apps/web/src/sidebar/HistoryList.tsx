@@ -35,18 +35,18 @@ function Row({
 }) {
   return (
     <li>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
         aria-current={current}
         onClick={onClick}
-        className="mx-2 flex w-[calc(100%-1rem)] flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-accent aria-[current=true]:bg-accent aria-[current=true]:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring">
-        <span className="truncate text-[13px]">{subject}</span>
-        <span className="flex gap-2 text-[12px] text-muted-foreground">
+        className="mx-2 h-auto w-[calc(100%-1rem)] flex-col items-stretch gap-0.5 px-2 py-1.5 text-start aria-[current=true]:bg-accent">
+        <span className="truncate text-[15px]">{subject}</span>
+        <span className="flex gap-2 text-[13px] text-muted-foreground">
           <span className="font-mono">{sha.slice(0, 7)}</span>
           <span className="truncate">{who}</span>
           <span className="ml-auto shrink-0">{when}</span>
         </span>
-      </button>
+      </Button>
     </li>
   )
 }
@@ -98,7 +98,7 @@ export function HistoryList({ now }: { now?: number }) {
     <div className="flex min-h-0 flex-1 flex-col">
       {path ? (
         <div className="flex items-center gap-1 border-border border-b px-3 py-1.5">
-          <span className="min-w-0 flex-1 truncate font-mono text-[12px]" title={path}>
+          <span className="min-w-0 flex-1 truncate font-mono text-[13px]" title={path}>
             {path}
           </span>
           <Button
@@ -113,7 +113,7 @@ export function HistoryList({ now }: { now?: number }) {
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto py-1">
         {state.commits.length === 0 ? (
-          <p className="p-3 text-[13px] text-muted-foreground">No commits to show.</p>
+          <p className="p-3 text-[15px] text-muted-foreground">No commits to show.</p>
         ) : (
           <ol>
             {state.commits.map((commit) => (
@@ -130,13 +130,13 @@ export function HistoryList({ now }: { now?: number }) {
           </ol>
         )}
         {path && state.commits.length > 1 ? (
-          <p className="px-3 py-2 text-[12px] text-muted-foreground">
+          <p className="px-3 py-2 text-[13px] text-muted-foreground">
             Shift-click a second commit to compare versions.
           </p>
         ) : null}
         {!path && state.stashes.length > 0 ? (
           <section aria-label="Stashes" className="mt-2 border-border border-t pt-1">
-            <h3 className="px-3 py-1 text-[12px] text-muted-foreground">Stashes</h3>
+            <h3 className="px-3 py-1 text-[13px] text-muted-foreground">Stashes</h3>
             <ol>
               {state.stashes.map((stash) => (
                 <Row

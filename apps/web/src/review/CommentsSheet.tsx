@@ -63,19 +63,21 @@ export function CommentsSheet() {
         <div className="-mx-2 flex-1 overflow-y-auto">
           {groups.map(([path, entries]) => (
             <section key={path} className="mb-4">
-              <h3 className="px-2 pb-1 font-mono text-[12px] text-muted-foreground">{path}</h3>
+              <h3 className="px-2 pb-1 font-mono text-[13px] text-muted-foreground">{path}</h3>
               <ul>
                 {entries.map((anchored) => (
                   <li key={anchored.comment.id}>
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
                       onClick={() => jump(path, anchored)}
-                      className="flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-accent focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring">
-                      <span className="text-[12px] text-muted-foreground">
+                      className="h-auto w-full flex-col items-stretch gap-0.5 px-2 py-1.5 text-start">
+                      <span className="text-[13px] text-muted-foreground">
                         {anchored.outdated ? 'Outdated' : `Line ${anchored.line}`}
                       </span>
-                      <span className="line-clamp-2 text-[13px] text-foreground">{anchored.comment.body}</span>
-                    </button>
+                      <span className="line-clamp-2 whitespace-normal text-[15px] text-foreground">
+                        {anchored.comment.body}
+                      </span>
+                    </Button>
                   </li>
                 ))}
               </ul>

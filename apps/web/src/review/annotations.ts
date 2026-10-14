@@ -35,6 +35,7 @@ export function createAnnotator() {
     draft: Draft | null,
     folded: ReadonlySet<string> = new Set(),
     files: readonly ChangedFile[] = [],
+    opened: ReadonlySet<string> = new Set(),
   ): NoteItem[] => {
     const images = new Map(files.filter((file) => file.binary && isImage(file.path)).map((file) => [file.path, file]))
     const byPath = new Map<string, ReviewComment[]>()
@@ -58,7 +59,8 @@ export function createAnnotator() {
       if (draft?.path === path) {
         annotations.push({ side: draft.side, lineNumber: draft.line, metadata: { kind: 'draft', draft } })
       }
-      const collapsed = folded.has(path) || Boolean(item.collapsed)
+      // An explicit open beats both the viewed mark and the size rule that folds big files.
+      const collapsed = !opened.has(path) && (folded.has(path) || Boolean(item.collapsed))
       const key = JSON.stringify([collapsed, annotations])
       const cached = cache.get(item.id)
       if (cached && cached.base === item && cached.key === key) return cached.out

@@ -28,7 +28,7 @@ export function FileActions({
   }
   return (
     <span className="flex items-center gap-0.5">
-      {note ? <span className="mr-2 text-[12px] text-muted-foreground">{note}</span> : null}
+      {note ? <span className="mr-2 text-[13px] text-muted-foreground">{note}</span> : null}
       {writes}
       {onOpen && (
         <Tooltip>
@@ -58,7 +58,7 @@ export function FileActions({
       </Tooltip>
       <label
         htmlFor={viewedId}
-        className="ml-2 flex cursor-pointer items-center gap-1.5 text-[12px] text-muted-foreground">
+        className="ml-2 flex cursor-pointer items-center gap-1.5 text-[13px] text-muted-foreground">
         <Checkbox id={viewedId} checked={viewed} onCheckedChange={onViewed} />
         Viewed
       </label>

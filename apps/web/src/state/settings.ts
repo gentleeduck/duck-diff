@@ -26,9 +26,10 @@ export const DEFAULT_SETTINGS: Settings = {
   lineNumbers: true,
   backgrounds: true,
   expandUnchanged: false,
-  themeType: 'system',
-  themes: { light: 'pierre-light', dark: 'pierre-dark' },
-  fontSize: 13,
+  // Tokyo Night only comes dark, so the page starts dark to keep code readable.
+  themeType: 'dark',
+  themes: { light: 'tokyo-night', dark: 'tokyo-night' },
+  fontSize: 15,
   tabSize: 2,
 }
 

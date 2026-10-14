@@ -1,4 +1,5 @@
 import {
+  Button,
   Command,
   CommandEmpty,
   CommandGroup,
@@ -33,12 +34,13 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           aria-label={side === 'from' ? `Compare from ${label}` : `Compare to ${label}`}
-          className="rounded-sm px-1 underline decoration-border underline-offset-4 hover:decoration-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring">
+          className="h-8 px-2 text-[17px]">
           {label}
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0">
         <Command>
@@ -60,7 +62,7 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
                       onSelect={() => pick({ kind: 'ref', name: ref.name })}>
                       <span className="font-mono">{ref.name}</span>
                       {ref.subject && <span className="truncate text-muted-foreground">{ref.subject}</span>}
-                      {ref.current && <span className="ml-auto text-muted-foreground text-[12px]">current</span>}
+                      {ref.current && <span className="ml-auto text-muted-foreground text-[13px]">current</span>}
                     </CommandItem>
                   ))}
                 </CommandGroup>

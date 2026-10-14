@@ -1,3 +1,4 @@
+import { targetKey } from '@duck-diff/protocol'
 import type { CodeViewItem, DiffLineAnnotation, LineAnnotation } from '@pierre/diffs'
 import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from '@pierre/diffs/react'
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker'
@@ -16,6 +17,7 @@ import { type ViewedState, viewedPaths } from '../state/viewed'
 import { useWrites } from '../writes/WritesProvider'
 import { actionsFor } from './actions'
 import { FileActions } from './FileActions'
+import { FileHeader } from './FileHeader'
 import { fileNote } from './file-info'
 import { type HoveredLineGetter, HunkToolbar } from './HunkToolbar'
 import { createContentLoader, viewerOptions, viewerStyle } from './options'
@@ -34,6 +36,7 @@ const selectFiles = (state: SessionState) => state.files
 const selectSettings = (state: Settings) => state
 const selectReviews = (state: ReviewsState) => state
 const selectViewed = (state: ViewedState) => state
+const EMPTY_TOGGLES: ReadonlyMap<string, boolean> = new Map()
 
 export default function Viewer() {
   const { api, session, viewer, reviews, viewed, fileHistory } = useApp()
@@ -42,11 +45,28 @@ export default function Viewer() {
   const { target } = useTarget()
   const { comments, draft } = useStore(reviews, selectReviews)
   const viewedState = useStore(viewed, selectViewed)
-  const folded = useMemo(() => viewedPaths(viewedState, target, files), [viewedState, target, files])
+  // Paths the header chevron folded (true) or opened (false), on top of the viewed marks; kept per comparison.
+  const shownKey = targetKey(target)
+  const [toggles, setToggles] = useState<{ key: string; paths: ReadonlyMap<string, boolean> }>({
+    key: shownKey,
+    paths: new Map(),
+  })
+  const toggled = toggles.key === shownKey ? toggles.paths : EMPTY_TOGGLES
+  const setToggled = useCallback(
+    (update: (prev: ReadonlyMap<string, boolean>) => ReadonlyMap<string, boolean>) =>
+      setToggles((prev) => ({ key: shownKey, paths: update(prev.key === shownKey ? prev.paths : EMPTY_TOGGLES) })),
+    [shownKey],
+  )
+  const folded = useMemo(() => {
+    const paths = viewedPaths(viewedState, target, files)
+    for (const [path, fold] of toggled) if (fold) paths.add(path)
+    return paths
+  }, [viewedState, target, files, toggled])
+  const opened = useMemo(() => new Set([...toggled].filter(([, fold]) => !fold).map(([path]) => path)), [toggled])
   const annotate = useMemo(createAnnotator, [])
   const items = useMemo(
-    () => annotate(plain, comments, draft, folded, files),
-    [annotate, plain, comments, draft, folded, files],
+    () => annotate(plain, comments, draft, folded, files, opened),
+    [annotate, plain, comments, draft, folded, files, opened],
   )
   const writes = useWrites()
   const kinds = useMemo(() => actionsFor(target), [target])
@@ -83,29 +103,33 @@ export default function Viewer() {
     )
   }, [api])
 
-  const renderMeta = useCallback(
+  const renderHeader = useCallback(
     (item: Item) => {
       if (item.type !== 'diff') return null
       const path = item.fileDiff.name
       const file = byPath.get(path)
       const firstLine = item.fileDiff.hunks[0]?.additionStart ?? 1
+      const collapsed = Boolean(item.collapsed)
+      const toggle = () => setToggled((prev) => new Map(prev).set(path, !collapsed))
       return (
-        <FileActions
-          path={path}
-          viewed={folded.has(path)}
-          onViewed={() => file && viewed.toggle(target, file)}
-          onHistory={() => fileHistory.set(path)}
-          note={file ? fileNote(file) : null}
-          onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
-          writes={
-            file && file.status !== 'conflicted' && kinds.length > 0 ? (
-              <WriteButtons kinds={kinds} scope="file" onWrite={(kind) => void writes.perform(kind, file)} />
-            ) : null
-          }
-        />
+        <FileHeader path={path} file={file} collapsed={collapsed} onToggle={toggle}>
+          <FileActions
+            path={path}
+            viewed={folded.has(path)}
+            onViewed={() => file && viewed.toggle(target, file)}
+            onHistory={() => fileHistory.set(path)}
+            note={file ? fileNote(file) : null}
+            onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
+            writes={
+              file && file.status !== 'conflicted' && kinds.length > 0 ? (
+                <WriteButtons kinds={kinds} scope="file" onWrite={(kind) => void writes.perform(kind, file)} />
+              ) : null
+            }
+          />
+        </FileHeader>
       )
     },
-    [api, canOpen, byPath, kinds, writes, folded, viewed, target, fileHistory],
+    [api, canOpen, byPath, kinds, writes, folded, viewed, target, fileHistory, setToggled],
   )
 
   const renderGutter = useCallback(
@@ -127,7 +151,7 @@ export default function Viewer() {
         options={options}
         style={viewerStyle(settings)}
         className="h-full overflow-y-auto px-4 [contain:strict]"
-        renderHeaderMetadata={renderMeta}
+        renderCustomHeader={renderHeader}
         renderGutterUtility={renderGutter}
         renderAnnotation={renderNote}
       />

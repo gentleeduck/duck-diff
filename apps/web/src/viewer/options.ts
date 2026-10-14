@@ -6,6 +6,12 @@ import type { Api } from '../lib/api'
 import type { Note } from '../review/annotations'
 import type { Settings } from '../state/settings'
 
+// The syntax theme sets its own background inline; code keeps Tokyo Night's colors but sits on the zinc page.
+const ZINC_CODE = `:host, :host * {
+  --diffs-dark-bg: var(--background) !important;
+  --diffs-light-bg: var(--background) !important;
+}`
+
 const LAYOUT = { paddingTop: 16, paddingBottom: 64, gap: 16 }
 
 export function viewerOptions(
@@ -24,6 +30,7 @@ export function viewerOptions(
     disableBackground: !settings.backgrounds,
     expandUnchanged: settings.expandUnchanged,
     stickyHeaders: true,
+    unsafeCSS: ZINC_CODE,
     layout: LAYOUT,
     loadDiffFiles,
   }

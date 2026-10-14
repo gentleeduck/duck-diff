@@ -1,7 +1,5 @@
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
-import type { GitStatus } from '@pierre/trees'
-
-export type TreeStatus = Exclude<GitStatus, 'ignored'>
+export type TreeStatus = 'added' | 'deleted' | 'modified' | 'renamed' | 'untracked'
 
 const TREE_STATUS: Record<FileStatus, TreeStatus> = {
   added: 'added',

@@ -44,7 +44,7 @@ const SEPARATORS: Options<'hunkSeparators'> = [
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 py-1.5">
-      <span className="text-[13px]">{label}</span>
+      <span className="text-[15px]">{label}</span>
       {children}
     </div>
   )
@@ -62,7 +62,7 @@ export function SettingsPopover() {
   ) => (
     <Row label={label}>
       <Select value={settings[key]} onValueChange={(value: string) => set(key, value as Settings[K])}>
-        <SelectTrigger aria-label={label} className="h-7 w-44 text-[13px]">
+        <SelectTrigger aria-label={label} className="h-7 w-44 text-[15px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -103,7 +103,7 @@ export function SettingsPopover() {
           onClick={() => set(key, settings[key] - 1)}>
           <Minus className="size-3.5" />
         </Button>
-        <output className="w-6 text-center text-[13px] tabular-nums">{settings[key]}</output>
+        <output className="w-6 text-center text-[15px] tabular-nums">{settings[key]}</output>
         <Button
           variant="ghost"
           size="icon"
