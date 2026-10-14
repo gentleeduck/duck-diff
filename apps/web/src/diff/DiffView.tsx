@@ -21,6 +21,9 @@ interface DiffViewProps {
 
 const ESTIMATE: Record<PageRow['type'], number> = { header: 48, row: 22, note: 120, end: 16 }
 
+const fixedHeight = (row: PageRow, wrap: boolean) =>
+  !wrap && row.type === 'row' && (row.row.type === 'line' || row.row.type === 'pair')
+
 // One scroll container for every file; only rows near the viewport are in the DOM.
 export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffView(
   { page, context, renderHeader, renderNote },
@@ -102,8 +105,9 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
             return (
               <div
                 key={virtual.key}
-                // Unwrapped lines are exactly one line tall; measuring them would only cost resize work.
-                ref={row.type === 'row' && !wrap ? undefined : virtualizer.measureElement}
+                // Unwrapped code lines are exactly one line tall, so only they skip measuring; hunk headers
+                // and gap buttons can wrap or run taller.
+                ref={fixedHeight(row, wrap) ? undefined : virtualizer.measureElement}
                 data-index={virtual.index}
                 data-row={row.type}
                 className="absolute inset-x-0"
