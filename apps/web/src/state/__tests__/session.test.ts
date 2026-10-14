@@ -76,4 +76,15 @@ describe('session', () => {
     expect(session.get().items.map((i) => i.id)).toEqual(['diff:a.ts', 'diff:b.ts'])
     expect(seen.some((count) => count === 1)).toBe(true)
   })
+  it('keeps unchanged items identical across a reload so the viewer skips them', async () => {
+    let files = FILES
+    const session = createSession(fakeApi({ files: async () => files }), { kind: 'local' })
+    await session.load({ kind: 'local' })
+    const [a1, b1] = session.get().items
+    files = FILES.map((file) => (file.path === 'b.ts' ? { ...file, newSha: '3' } : file))
+    await session.reload()
+    const [a2, b2] = session.get().items
+    expect(a2).toBe(a1)
+    expect(b2).not.toBe(b1)
+  })
 })

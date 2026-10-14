@@ -47,6 +47,8 @@ export function createSession(api: Api, initial: DiffTarget): Session {
       const files = await api.files(target, controller.signal)
       if (controller.signal.aborted) return
       const byPath = new Map(files.map((file) => [file.path, file]))
+      // Same id and same content key means the same diff; reusing the object lets syncItems skip it.
+      const previous = new Map(store.get().items.map((item) => [item.id, item]))
       const items: CodeViewDiffItem<undefined>[] = []
       let flushTimer: ReturnType<typeof setTimeout> | null = null
       // Publishing in 50 ms batches lets files appear while git is still streaming without a render per file.
@@ -66,7 +68,8 @@ export function createSession(api: Api, initial: DiffTarget): Session {
             item.fileDiff.cacheKey = cacheKeyFor(file)
             item.collapsed = shouldCollapse(file)
           }
-          items.push(item)
+          const before = previous.get(item.id)
+          items.push(file && before && before.fileDiff.cacheKey === item.fileDiff.cacheKey ? before : item)
           flushTimer ??= setTimeout(flush, 50)
         },
         controller.signal,
