@@ -1,5 +1,5 @@
 {
   "extends": "@duck-diff/typescript-config/library.json",
   "compilerOptions": { "types": ["bun"] },
-  "include": ["src", "static"]
+  "include": ["src", "static", "e2e", "playwright.config.ts"]
 }
