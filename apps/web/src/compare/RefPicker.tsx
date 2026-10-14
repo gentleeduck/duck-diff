@@ -1,0 +1,81 @@
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@duck-diff/ui'
+import { useState } from 'react'
+import type { RefList } from '../hooks/useRefs'
+import type { Endpoint } from './model'
+
+interface RefPickerProps {
+  label: string
+  side: 'from' | 'to'
+  refs: RefList
+  onPick(endpoint: Endpoint): void
+}
+
+export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
+  const [open, setOpen] = useState(false)
+  const pick = (endpoint: Endpoint) => {
+    setOpen(false)
+    onPick(endpoint)
+  }
+  const byKind = (kind: string) => refs.refs.filter((ref) => ref.kind === kind)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={side === 'from' ? `Compare from ${label}` : `Compare to ${label}`}
+          className="rounded-sm px-1 underline decoration-[var(--dd-line)] underline-offset-4 hover:decoration-[var(--dd-accent)]">
+          {label}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-0">
+        <Command>
+          <CommandInput placeholder="Branch, tag or commit" />
+          <CommandList className="max-h-80">
+            <CommandEmpty>No ref matches.</CommandEmpty>
+            <CommandGroup heading="Your changes">
+              {side === 'to' && <CommandItem onSelect={() => pick({ kind: 'worktree' })}>Working tree</CommandItem>}
+              <CommandItem onSelect={() => pick({ kind: 'index' })}>Staged</CommandItem>
+              {side === 'from' && <CommandItem onSelect={() => pick({ kind: 'ref', name: 'HEAD' })}>HEAD</CommandItem>}
+            </CommandGroup>
+            {(['branch', 'tag', 'remote'] as const).map((kind) =>
+              byKind(kind).length > 0 ? (
+                <CommandGroup key={kind} heading={{ branch: 'Branches', tag: 'Tags', remote: 'Remote branches' }[kind]}>
+                  {byKind(kind).map((ref) => (
+                    <CommandItem key={ref.name} value={ref.name} onSelect={() => pick({ kind: 'ref', name: ref.name })}>
+                      <span className="font-[var(--dd-font-code)]">{ref.name}</span>
+                      {ref.current && <span className="ml-auto text-[var(--dd-muted)] text-[12px]">current</span>}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null,
+            )}
+            {refs.commits.length > 0 && (
+              <CommandGroup heading="Recent commits">
+                {refs.commits.map((commit) => (
+                  <CommandItem
+                    key={commit.sha}
+                    value={`${commit.sha} ${commit.subject}`}
+                    onSelect={() => pick({ kind: 'ref', name: commit.sha })}>
+                    <span className="font-[var(--dd-font-code)] text-[var(--dd-muted)]">{commit.sha.slice(0, 7)}</span>
+                    <span className="truncate">{commit.subject}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}

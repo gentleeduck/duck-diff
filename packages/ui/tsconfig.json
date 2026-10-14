@@ -1,0 +1,5 @@
+{
+  "extends": "@duck-diff/typescript-config/library.json",
+  "compilerOptions": { "jsx": "react-jsx", "paths": { "~/*": ["./src/*"] } },
+  "include": ["src"]
+}

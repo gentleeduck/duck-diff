@@ -1,0 +1,1 @@
+export const COMBOBOX_MAX_SELECTION_BADGES = 2
