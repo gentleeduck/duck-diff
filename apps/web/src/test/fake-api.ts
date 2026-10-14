@@ -23,6 +23,8 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     commits: async () => [],
     content: async () => null,
     open: async () => {},
+    write: async () => {},
+    undo: async () => ({ restored: null }),
     files: async () => FILES,
     diff: async () => new Response(PATCH).body as ReadableStream<Uint8Array>,
     ...overrides,

@@ -1,8 +1,8 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { Check, Copy, SquareArrowOutUpRight } from 'lucide-react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 
-export function FileActions({ path, onOpen }: { path: string; onOpen?: () => void }) {
+export function FileActions({ path, onOpen, writes }: { path: string; onOpen?: () => void; writes?: ReactNode }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     await navigator.clipboard.writeText(path)
@@ -11,6 +11,7 @@ export function FileActions({ path, onOpen }: { path: string; onOpen?: () => voi
   }
   return (
     <span className="flex items-center gap-0.5">
+      {writes}
       {onOpen && (
         <Tooltip>
           <TooltipTrigger asChild>
