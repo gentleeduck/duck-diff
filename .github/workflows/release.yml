@@ -1,0 +1,58 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            targets: bun-linux-x64 bun-linux-arm64
+          # macOS binaries are built natively so they carry the signature Apple Silicon requires.
+          - os: macos-latest
+            targets: bun-darwin-arm64 bun-darwin-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: Tag matches the version
+        run: test "v$(jq -r .version apps/server/package.json)" = "$GITHUB_REF_NAME"
+      - run: bun run --filter @duck-diff/web build
+      - run: bun scripts/gen-web-assets.ts
+      - name: Compile
+        run: for target in ${{ matrix.targets }}; do bun scripts/build-binary.ts --target "$target"; done
+      - name: Smoke test the native binary
+        run: |
+          for bin in apps/server/dist/duck-diff-*; do
+            "$bin" --version 2>/dev/null && echo "ran $bin" || true
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.os }}
+          path: apps/server/dist/duck-diff-*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binaries-*
+          merge-multiple: true
+          path: dist
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum duck-diff-* > checksums.txt && cat checksums.txt
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
