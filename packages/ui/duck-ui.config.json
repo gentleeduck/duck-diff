@@ -1,0 +1,8 @@
+{
+  "schema": "https://gentleduck.org/schema.json",
+  "rsc": false,
+  "monorepo": true,
+  "workspace": { "project": ".", "root": "." },
+  "tailwind": { "baseColor": "zinc", "css": "./src/styles.css", "cssVariables": true, "prefix": "" },
+  "aliases": { "ui": "~/ui", "libs": "~/libs", "hooks": "~/hooks", "pages": "~/pages", "layouts": "~/layouts" }
+}

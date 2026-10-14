@@ -7,4 +7,8 @@ describe('App', () => {
     render(<App />)
     expect(screen.getByRole('heading', { name: 'duck-diff' })).toBeTruthy()
   })
+  it('renders a duck-ui button', () => {
+    render(<App />)
+    expect(screen.getByRole('button', { name: 'ready' })).toBeTruthy()
+  })
 })

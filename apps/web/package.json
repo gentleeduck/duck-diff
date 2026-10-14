@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@duck-diff/protocol": "workspace:*",
+    "@duck-diff/ui": "workspace:*",
     "@pierre/diffs": "catalog:",
     "@pierre/trees": "catalog:",
     "react": "catalog:",
