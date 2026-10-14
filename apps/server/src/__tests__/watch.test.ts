@@ -27,9 +27,17 @@ describe('watchRepo', () => {
     repo.cleanup()
   })
 
-  function nextChange(): Promise<string> {
+  // macOS FSEvents can replay writes made just before the watch started, so wait for the reason
+  // under test instead of taking the first event.
+  function changeOf(expected: string): Promise<string> {
     return new Promise((resolve) => {
-      stop = watchRepo(repo.path, resolve, 50)
+      stop = watchRepo(
+        repo.path,
+        (reason) => {
+          if (reason === expected) resolve(reason)
+        },
+        50,
+      )
     })
   }
 
@@ -50,7 +58,7 @@ describe('watchRepo', () => {
     repo.write('a.txt', '1\n')
     repo.commit('base')
     repo.write('a.txt', '2\n')
-    const change = nextChange()
+    const change = changeOf('index')
     await Bun.sleep(100)
     repo.git('add', 'a.txt')
     expect(await change).toBe('index')
@@ -60,7 +68,7 @@ describe('watchRepo', () => {
     repo = createRepo()
     repo.write('a.txt', '1\n')
     repo.commit('base')
-    const change = nextChange()
+    const change = changeOf('refs')
     await Bun.sleep(100)
     repo.git('commit', '-q', '--allow-empty', '-m', 'empty')
     expect(await change).toBe('refs')
