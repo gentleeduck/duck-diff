@@ -4,11 +4,13 @@ import { CompareBar } from '../compare/CompareBar'
 import { HelpDialog } from '../keyboard/HelpDialog'
 import { useKeyboard } from '../keyboard/useKeyboard'
 import type { Api } from '../lib/api'
+import { useLiveRefresh } from '../live/useLiveRefresh'
 import { Palette } from '../palette/Palette'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
 import { AppProvider } from './AppProvider'
 import { Shell } from './Shell'
+import { StatusBar } from './StatusBar'
 import { useThemeClass } from './useThemeClass'
 
 const Viewer = lazy(() => import('../viewer/Viewer'))
@@ -18,6 +20,7 @@ function Screen() {
   const [palette, setPalette] = useState(false)
   const [help, setHelp] = useState(false)
   useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true) })
+  const live = useLiveRefresh()
   return (
     <>
       <Shell
@@ -36,7 +39,7 @@ function Screen() {
             <Viewer />
           </Suspense>
         }
-        status={null}
+        status={<StatusBar live={live} />}
       />
       <Palette open={palette} onOpenChange={setPalette} />
       <HelpDialog open={help} onOpenChange={setHelp} />
