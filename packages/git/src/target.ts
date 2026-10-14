@@ -30,3 +30,8 @@ export async function targetArgs(repo: string, target: DiffTarget): Promise<stri
 export function readsWorkTree(target: DiffTarget): boolean {
   return target.kind === 'unstaged' || target.kind === 'local'
 }
+
+// A target limited to one file passes it after `--` so git reports nothing else.
+export function pathArgs(target: DiffTarget): string[] {
+  return (target.kind === 'range' || target.kind === 'commit') && target.path ? ['--', target.path] : []
+}

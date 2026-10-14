@@ -1,5 +1,5 @@
 import { listCommits, listFiles, listRefs, readSide, runGit, streamDiff, streamPatch } from '@duck-diff/git'
-import { decodeTarget, FileStatusSchema, type RepoInfo } from '@duck-diff/protocol'
+import { decodeTarget, FileStatusSchema, type RepoInfo, RepoPathSchema } from '@duck-diff/protocol'
 import { z } from 'zod'
 import { HttpError } from './errors'
 import { iterableToStream } from './stream'
@@ -26,6 +26,7 @@ const CommitsQuery = z.object({
   head: z.string().min(1),
   base: z.string().min(1).optional(),
   limit: z.coerce.number().int().positive().max(5000).optional(),
+  path: RepoPathSchema.optional(),
 })
 
 function requireTarget(url: URL) {
