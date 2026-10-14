@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { type DiffTarget, DiffTargetSchema } from './git'
+import { type DiffTarget, DiffTargetSchema, FileStatusSchema } from './git'
 
 export function encodeTarget(target: DiffTarget): string {
   return encodeURIComponent(JSON.stringify(target))
@@ -44,3 +44,30 @@ export const OpenRequestSchema = z.object({
   line: z.number().int().min(1).default(1),
 })
 export type OpenRequest = z.infer<typeof OpenRequestSchema>
+
+const RepoPath = z
+  .string()
+  .min(1)
+  .refine((path) => !path.startsWith('/') && !path.split('/').includes('..'), 'path must stay inside the repo')
+
+const WriteFileSchema = z.object({
+  path: RepoPath,
+  oldPath: RepoPath.nullable(),
+  status: FileStatusSchema,
+  newSha: z.string().nullable(),
+})
+
+export const WriteRequestSchema = z.union([
+  z.object({
+    action: z.enum(['stage-hunk', 'unstage-hunk', 'discard-hunk']),
+    file: WriteFileSchema,
+    hunkIndex: z.number().int().min(0),
+    hunkHeader: z.string().startsWith('@@ '),
+  }),
+  z.object({ action: z.enum(['stage-file', 'unstage-file', 'discard-file']), file: WriteFileSchema }),
+])
+export type WriteRequest = z.infer<typeof WriteRequestSchema>
+export type WriteAction = WriteRequest['action']
+
+export const UndoResultSchema = z.object({ restored: z.array(z.string()).nullable() })
+export type UndoResult = z.infer<typeof UndoResultSchema>

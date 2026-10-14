@@ -1,5 +1,5 @@
 import { resolveRepo } from '@duck-diff/git'
-import { type ChangeReason, OpenRequestSchema } from '@duck-diff/protocol'
+import { type ChangeReason, OpenRequestSchema, WriteRequestSchema } from '@duck-diff/protocol'
 import { createToken, isAuthorized, TOKEN_COOKIE } from './auth'
 import { errorResponse, HttpError } from './errors'
 import { Hub } from './hub'
@@ -8,6 +8,7 @@ import { handleApi, repoInfo } from './routes'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
+import { applyWrite, createWriteQueue, undoLatest } from './writes'
 
 export interface ServerOptions {
   repo: string
@@ -19,6 +20,8 @@ export interface ServerOptions {
   // Address of the Neovim that started the server, so the page can open files in it.
   nvim?: string | null
   runNvim?: NvimRunner
+  // Where discard snapshots go; tests point it at a temp folder.
+  undoCache?: string
 }
 
 export interface RunningServer {
@@ -40,6 +43,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const hub = new Hub(options.idleTimeoutMs ?? DEFAULT_IDLE_MS, options.onIdle ?? (() => {}))
   const notify = (reason: ChangeReason) => hub.broadcast({ type: 'changed', reason })
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
+  const enqueue = createWriteQueue()
 
   const server = Bun.serve({
     hostname: HOST,
@@ -56,6 +60,17 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           hub.touch()
           notify('saved')
           return new Response(null, { status: 204 })
+        }
+        if (url.pathname === '/api/write' && request.method === 'POST') {
+          const write = WriteRequestSchema.parse(await request.json())
+          await enqueue(() => applyWrite(repo, write, options.undoCache))
+          notify('index')
+          return new Response(null, { status: 204 })
+        }
+        if (url.pathname === '/api/undo' && request.method === 'POST') {
+          const restored = await enqueue(() => undoLatest(repo, options.undoCache))
+          if (restored) notify('worktree')
+          return Response.json({ restored })
         }
         if (url.pathname === '/api/open' && request.method === 'POST') {
           if (!options.nvim) throw new HttpError(409, 'bad-request', 'no Neovim attached to this server')
