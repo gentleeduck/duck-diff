@@ -1,5 +1,5 @@
 import type { CodeViewItem } from '@pierre/diffs'
-import { CodeView, type CodeViewHandle, type CodeViewProps, WorkerPoolContextProvider } from '@pierre/diffs/react'
+import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from '@pierre/diffs/react'
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
@@ -9,14 +9,14 @@ import { useTarget } from '../hooks/useTarget'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { useWrites } from '../writes/WritesProvider'
-import { actionsFor, hunkAt } from './actions'
+import { actionsFor } from './actions'
 import { FileActions } from './FileActions'
+import { type HoveredLineGetter, HunkToolbar } from './HunkToolbar'
 import { createContentLoader, viewerOptions, viewerStyle } from './options'
 import { syncItems } from './sync-items'
 import { WriteButtons } from './WriteButtons'
 
 type Item = CodeViewItem<undefined>
-type HoveredLineGetter = Parameters<NonNullable<CodeViewProps<undefined, undefined>['renderGutterUtility']>>[0]
 
 const POOL = {
   poolSize: Math.max(1, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1),
@@ -91,26 +91,9 @@ export default function Viewer() {
     [api, canOpen, byPath, kinds, writes],
   )
 
-  // The gutter utility shows next to the hovered line; it acts on the hunk that line belongs to.
   const renderGutter = useCallback(
-    (getHoveredLine: HoveredLineGetter, item: Item) => {
-      if (item.type !== 'diff' || kinds.length === 0) return null
-      const file = byPath.get(item.fileDiff.name)
-      if (!file || file.status === 'untracked') return null
-      const act = (kind: (typeof kinds)[number]) => {
-        const line = getHoveredLine()
-        const side = line && 'side' in line ? (line.side as 'additions' | 'deletions') : 'additions'
-        const index = line ? hunkAt(item.fileDiff.hunks, line.lineNumber, side) : null
-        const hunk = index === null ? undefined : item.fileDiff.hunks[index]
-        if (index !== null && hunk) void writes.perform(kind, file, { index, hunk })
-      }
-      return (
-        <span className="flex rounded-sm bg-[var(--dd-surface)] shadow-md ring-1 ring-[var(--dd-line)]">
-          <WriteButtons kinds={kinds} scope="change" onWrite={act} compact />
-        </span>
-      )
-    },
-    [byPath, kinds, writes],
+    (getHoveredLine: HoveredLineGetter, item: Item) => <HunkToolbar item={item} getHoveredLine={getHoveredLine} />,
+    [],
   )
 
   return (
