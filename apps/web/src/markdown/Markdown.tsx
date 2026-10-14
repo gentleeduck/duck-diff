@@ -33,8 +33,12 @@ const components: Components = {
       <table {...props} className="border-collapse" />
     </div>
   ),
-  th: ({ node: _, ...props }) => <th {...props} className="border border-border px-2 py-1 text-start" />,
-  td: ({ node: _, ...props }) => <td {...props} className="border border-border px-2 py-1" />,
+  th: ({ node: _, ...props }) => (
+    <th {...props} className="border border-border px-2 py-1 text-start align-top [overflow-wrap:anywhere]" />
+  ),
+  td: ({ node: _, ...props }) => (
+    <td {...props} className="border border-border px-2 py-1 align-top [overflow-wrap:anywhere]" />
+  ),
   hr: () => <hr className="my-3 border-border" />,
   img: ({ node: _, alt, ...props }) => <img {...props} alt={alt ?? ''} className="max-w-full rounded-md" />,
   input: ({ node: _, ...props }) => <input {...props} className="me-1.5 align-middle" />,

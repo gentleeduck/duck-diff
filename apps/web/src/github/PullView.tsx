@@ -1,5 +1,17 @@
 import type { PullDetails } from '@duck-diff/protocol'
-import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Separator } from '@duck-diff/ui'
+import {
+  Badge,
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Separator,
+} from '@duck-diff/ui'
 import { Check, FileDiff, GitMerge, SquareArrowOutUpRight, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
@@ -207,14 +219,27 @@ function Pull({ number, onChanged }: { number: number; onChanged(): void }) {
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                size="sm"
-                disabled={pull.mergeable === false || pull.draft}
-                loading={busy === 'merge'}
-                onClick={() => act('merge', () => api.github.merge(number, method), `Merged #${number}`)}>
-                <GitMerge />
-                Merge
-              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button size="sm" disabled={pull.mergeable === false || pull.draft} loading={busy === 'merge'}>
+                    <GitMerge />
+                    Merge
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="flex w-80 flex-col gap-2">
+                  <p>
+                    {MERGE_METHODS.find((option) => option.value === method)?.label} #{number} into{' '}
+                    <code className="text-tn-cyan">{pull.baseRef}</code> on GitHub?
+                  </p>
+                  <Button
+                    size="sm"
+                    className="self-end"
+                    loading={busy === 'merge'}
+                    onClick={() => act('merge', () => api.github.merge(number, method), `Merged #${number}`)}>
+                    Confirm merge
+                  </Button>
+                </PopoverContent>
+              </Popover>
             </section>
           ) : null}
           <p className="text-muted-foreground">

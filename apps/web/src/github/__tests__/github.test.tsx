@@ -70,6 +70,16 @@ describe('GitHub views', () => {
     await waitFor(() => expect(review).toHaveBeenCalledWith(7, 'APPROVE', ''))
   })
 
+  it('merges only after the confirm', async () => {
+    const merge = vi.fn(async () => {})
+    render(<App api={fakeApi({ github: githubApi({ merge }) })} />)
+    fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Merge' }))
+    expect(merge).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm merge' }))
+    await waitFor(() => expect(merge).toHaveBeenCalledWith(7, 'squash'))
+  })
+
   it('says so when the repo has no GitHub remote', async () => {
     render(
       <App
