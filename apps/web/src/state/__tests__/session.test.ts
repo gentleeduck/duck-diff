@@ -76,4 +76,32 @@ describe('session', () => {
     expect(session.get().target).toEqual({ kind: 'unstaged' })
     expect(session.get().files.length).toBe(2)
   })
+  it('publishes items while the stream is still arriving', async () => {
+    const encoder = new TextEncoder()
+    let push: (text: string) => void = () => {}
+    let end: () => void = () => {}
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        push = (text) => controller.enqueue(encoder.encode(text))
+        end = () => controller.close()
+      },
+    })
+    const session = createSession(fakeApi({ diff: async () => body }), { kind: 'local' })
+    const seen: number[] = []
+    session.subscribe(() => seen.push(session.get().items.length))
+    const loading = session.load({ kind: 'local' })
+    const [first = '', second = ''] = PATCH.split(/(?=diff --git a\/b)/)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    push(first)
+    push(second.slice(0, 12))
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect(session.get().streaming).toBe(true)
+    expect(session.get().items.map((i) => i.id)).toEqual(['diff:a.ts'])
+    push(second.slice(12))
+    end()
+    await loading
+    expect(session.get().streaming).toBe(false)
+    expect(session.get().items.map((i) => i.id)).toEqual(['diff:a.ts', 'diff:b.ts'])
+    expect(seen.some((count) => count === 1)).toBe(true)
+  })
 })
