@@ -59,11 +59,10 @@ async function serve(repo: TestRepo) {
   }
 }
 
-// Records, from the first frame on, when a diff row is first painted inside the viewer's shadow root.
+// Records, from the first frame on, when the first diff line is painted.
 const WATCH_FIRST_ROW = () => {
   const tick = () => {
-    const host = document.querySelector('diffs-container')
-    if (host?.shadowRoot?.querySelector('[data-line]')) {
+    if (document.querySelector('[data-row="row"]')) {
       ;(window as unknown as { firstRow: number }).firstRow = performance.now()
       return
     }
@@ -100,8 +99,7 @@ async function heapAfterLoad(page: Page, url: string): Promise<number> {
 // Scrolls the viewer a fixed distance every frame for two seconds and reports the median frame time.
 async function scrollFrames(page: Page): Promise<number> {
   return page.evaluate(async () => {
-    // The viewer is the one scroll container marked with strict containment.
-    const target = document.querySelector('[class*="contain:strict"]') as HTMLElement
+    const target = document.querySelector('[data-diff-view]') as HTMLElement
     const frames: number[] = []
     let last = performance.now()
     const end = last + 2000

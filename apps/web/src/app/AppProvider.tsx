@@ -1,9 +1,8 @@
-import type { CodeViewHandle } from '@pierre/diffs/react'
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
+import type { DiffViewHandle } from '../diff/DiffView'
 import { type Api, createApi } from '../lib/api'
 import { createStore, type Store } from '../lib/store'
 import { readTarget } from '../lib/target-url'
-import type { Note } from '../review/annotations'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createSession, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
@@ -17,13 +16,13 @@ interface AppContextValue {
   viewed: Viewed
   // The file whose history the sidebar shows, or null for the branch history.
   fileHistory: Store<string | null>
-  viewer: RefObject<CodeViewHandle<Note, undefined> | null>
+  viewer: RefObject<DiffViewHandle | null>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
 
 export function AppProvider({ api, children }: { api?: Api; children: ReactNode }) {
-  const viewer = useRef<CodeViewHandle<Note, undefined> | null>(null)
+  const viewer = useRef<DiffViewHandle | null>(null)
   const value = useMemo(() => {
     const client = api ?? createApi()
     return {

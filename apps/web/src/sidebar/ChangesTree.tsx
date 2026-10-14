@@ -1,96 +1,80 @@
-import type { FileStatus } from '@duck-diff/protocol'
-import {
-  Input,
-  SidebarContext,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-} from '@duck-diff/ui'
-import { ChevronRight, FileIcon, FolderIcon, FolderOpenIcon } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import type { ChangedFile } from '@duck-diff/protocol'
+import { Input } from '@duck-diff/ui'
+import type { FileTreeVisibleRow } from '@pierre/trees'
+import { useFileTree } from '@pierre/trees/react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useSession } from '../hooks/useSession'
 import { itemId } from '../lib/items'
 import type { SessionState } from '../state/session'
 import { filterFiles, type TreeStatus } from './filters'
+import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_GLYPH } from './icons'
 import { StatusFilter } from './StatusFilter'
-import { buildTree, type TreeNode } from './tree'
 
 const selectFiles = (state: SessionState) => state.files
+const ROW_HEIGHT = 25
 
-// duck-ui's menu buttons read sidebar state; this panel is always open, so the context is fixed.
-const ALWAYS_OPEN = {
-  state: 'expanded' as const,
-  open: true,
-  setOpen: () => {},
-  openMobile: false,
-  setOpenMobile: () => {},
-  isMobile: false,
-  toggleSidebar: () => {},
-  dir: 'ltr' as const,
-}
-
-const LETTER: Record<FileStatus, { letter: string; tone: string }> = {
-  added: { letter: 'A', tone: 'text-added' },
-  untracked: { letter: 'U', tone: 'text-added' },
-  copied: { letter: 'C', tone: 'text-added' },
-  modified: { letter: 'M', tone: 'text-warning' },
-  'type-changed': { letter: 'T', tone: 'text-warning' },
-  conflicted: { letter: '!', tone: 'text-removed' },
-  deleted: { letter: 'D', tone: 'text-removed' },
-  renamed: { letter: 'R', tone: 'text-muted-foreground' },
-}
-
-interface BranchProps {
-  nodes: TreeNode[]
-  closed: ReadonlySet<string>
-  selected: string | null
-  onToggle(path: string): void
-  onOpen(path: string): void
-}
-
-function Branch({ nodes, closed, selected, onToggle, onOpen }: BranchProps) {
-  return nodes.map((node) => {
-    if (node.kind === 'file') {
-      const { letter, tone } = LETTER[node.file.status]
-      return (
-        <SidebarMenuSubItem key={node.path}>
-          <SidebarMenuButton
-            size="sm"
-            isActive={node.path === selected}
-            onClick={() => onOpen(node.path)}
-            className="h-7 text-[15px]"
-            title={node.path}>
-            <FileIcon className="text-muted-foreground" />
-            <span className={node.file.status === 'deleted' ? 'line-through' : undefined}>{node.name}</span>
-            <span className={`ms-auto ${tone}`}>{letter}</span>
-          </SidebarMenuButton>
-        </SidebarMenuSubItem>
-      )
-    }
-    const open = !closed.has(node.path)
-    const Icon = open ? FolderOpenIcon : FolderIcon
-    return (
-      <SidebarMenuSubItem key={node.path}>
-        <SidebarMenuButton
-          size="sm"
-          aria-expanded={open}
-          onClick={() => onToggle(node.path)}
-          className="h-7 text-[15px]"
-          title={node.path}>
-          <ChevronRight className={`transition-transform ${open ? 'rotate-90' : ''}`} />
-          <Icon className="text-muted-foreground" />
-          <span>{node.name}</span>
-        </SidebarMenuButton>
-        {open ? (
-          <SidebarMenuSub className="me-0 pe-0">
-            <Branch nodes={node.children} closed={closed} selected={selected} onToggle={onToggle} onOpen={onOpen} />
-          </SidebarMenuSub>
-        ) : null}
-      </SidebarMenuSubItem>
-    )
-  })
+function TreeRow({
+  row,
+  file,
+  selected,
+  onClick,
+}: {
+  row: FileTreeVisibleRow
+  file: ChangedFile | undefined
+  selected: boolean
+  onClick(): void
+}) {
+  const folder = row.kind === 'directory'
+  const icon = folder
+    ? { glyph: row.isExpanded ? FOLDER.open : FOLDER.closed, color: FOLDER.color }
+    : fileGlyph(row.name)
+  const status = file ? STATUS_GLYPH[file.status] : null
+  const dim = file && (file.status === 'modified' || file.status === 'type-changed')
+  const name = folder
+    ? 'text-tn-blue'
+    : isSpecialFile(row.name)
+      ? 'text-tn-pink underline'
+      : file?.status === 'deleted'
+        ? 'text-tn-comment line-through'
+        : dim
+          ? 'text-tn-dark5'
+          : 'text-tn-blue'
+  return (
+    <button
+      type="button"
+      role="treeitem"
+      aria-level={row.depth + 1}
+      aria-selected={selected}
+      onClick={onClick}
+      aria-expanded={folder ? row.isExpanded : undefined}
+      aria-current={selected || undefined}
+      title={row.path}
+      className="flex h-[25px] w-full items-center whitespace-pre pe-3 text-start outline-hidden hover:bg-accent focus-visible:bg-accent aria-[current=true]:bg-accent">
+      {row.ancestorPaths
+        .slice(-row.depth || row.ancestorPaths.length)
+        .slice(0, row.depth)
+        .map((ancestor) => (
+          // Indent guides, one per ancestor, like the editor's tree.
+          <span key={ancestor} className="h-full w-5 shrink-0 border-tn-gutter border-s ms-[9px]" />
+        ))}
+      <span className="w-5 shrink-0 text-center text-tn-comment">
+        {folder ? (row.isExpanded ? CHEVRON.open : CHEVRON.closed) : ''}
+      </span>
+      <span className="w-6 shrink-0 text-center" style={{ color: icon.color }}>
+        {icon.glyph}
+      </span>
+      {status ? (
+        <span className="w-6 shrink-0 text-center" style={{ color: status.color }}>
+          {status.glyph}
+        </span>
+      ) : null}
+      <span className={`min-w-0 truncate ${name}`}>
+        {row.flattenedSegments?.length ? row.flattenedSegments.map((segment) => segment.name).join('/') : row.name}
+      </span>
+    </button>
+  )
 }
 
 export function ChangesTree() {
@@ -98,20 +82,34 @@ export function ChangesTree() {
   const files = useSession(selectFiles)
   const [statuses, setStatuses] = useState<ReadonlySet<TreeStatus>>(new Set())
   const [query, setQuery] = useState('')
-  const [closed, setClosed] = useState<ReadonlySet<string>>(new Set())
   const [selected, setSelected] = useState<string | null>(null)
   const visible = useMemo(() => filterFiles(files, statuses, query), [files, statuses, query])
-  const tree = useMemo(() => buildTree(visible), [visible])
+  const byPath = useMemo(() => new Map(files.map((file) => [file.path, file])), [files])
 
-  const toggle = (path: string) =>
-    setClosed((prev) => {
-      const next = new Set(prev)
-      if (!next.delete(path)) next.add(path)
-      return next
-    })
-  const open = (path: string) => {
-    setSelected(path)
-    viewer.current?.scrollTo({ type: 'item', id: itemId(path), align: 'start' })
+  // @pierre/trees keeps the structure, expansion and flattening; the rows below are ours.
+  const { model } = useFileTree({ paths: [], initialExpansion: 'open', flattenEmptyDirectories: true })
+  const [, refresh] = useReducer((n: number) => n + 1, 0)
+  useEffect(() => model.subscribe(refresh), [model])
+  useEffect(() => model.resetPaths(visible.map((file) => file.path)), [model, visible])
+
+  const count = model.getVisibleCount()
+  const rows = model.getVisibleRows(0, count)
+  const scroller = useRef<HTMLDivElement>(null)
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scroller.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 20,
+  })
+
+  const open = (row: FileTreeVisibleRow) => {
+    const handle = model.getItem(row.path)
+    if (row.kind === 'directory') {
+      if (handle && 'toggle' in handle) handle.toggle()
+      return
+    }
+    setSelected(row.path)
+    viewer.current?.scrollTo({ type: 'item', id: itemId(row.path), align: 'start' })
   }
 
   return (
@@ -127,19 +125,33 @@ export function ChangesTree() {
         />
         <StatusFilter files={files} value={statuses} onChange={setStatuses} />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {visible.length > 0 ? (
-          <SidebarContext.Provider value={ALWAYS_OPEN}>
-            <SidebarMenu aria-label="Changed files">
-              <Branch nodes={tree} closed={closed} selected={selected} onToggle={toggle} onOpen={open} />
-            </SidebarMenu>
-          </SidebarContext.Provider>
-        ) : (
-          <p className="p-1 text-[15px] text-muted-foreground">
-            {files.length === 0 ? 'No changes in this comparison.' : 'No files match the filter.'}
-          </p>
-        )}
-      </div>
+      {visible.length > 0 ? (
+        <div ref={scroller} role="tree" aria-label="Changed files" className="min-h-0 flex-1 overflow-y-auto py-1">
+          <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+            {virtualizer.getVirtualItems().map((virtual) => {
+              const row = rows[virtual.index]
+              if (!row) return null
+              return (
+                <div
+                  key={row.path}
+                  className="absolute inset-x-0"
+                  style={{ transform: `translateY(${virtual.start}px)` }}>
+                  <TreeRow
+                    row={row}
+                    file={byPath.get(row.path)}
+                    selected={row.path === selected}
+                    onClick={() => open(row)}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <p className="p-3 text-tn-comment">
+          {files.length === 0 ? 'No changes in this comparison.' : 'No files match the filter.'}
+        </p>
+      )}
     </div>
   )
 }

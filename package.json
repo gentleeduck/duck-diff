@@ -11,6 +11,9 @@
     "catalog": {
       "@biomejs/biome": "2.5.13",
       "@pierre/diffs": "1.5.2",
+      "@pierre/trees": "1.0.0-beta.6",
+      "@tanstack/react-virtual": "^3.13.12",
+      "diff": "^8.0.2",
       "@tailwindcss/vite": "^4.3.3",
       "@testing-library/react": "^16.3.3",
       "@types/node": "^26.5.1",
@@ -20,6 +23,7 @@
       "@vitest/coverage-v8": "^5.0.0",
       "jsdom": "^30.1.2",
       "react": "^19.3.0",
+      "shiki": "4.5.0",
       "react-dom": "^19.3.0",
       "tailwindcss": "^4.3.3",
       "typescript": "7.0.2",

@@ -3,9 +3,9 @@ import { expect, test } from './fixture'
 test('lists the changed files and shows the diff', async ({ page, app }) => {
   await page.goto(app.url)
   await expect(page.getByRole('banner')).toContainText('2 files')
-  const tree = page.getByRole('list', { name: 'Changed files' })
-  await expect(tree.getByRole('button', { name: /^app\.ts/ })).toBeVisible()
-  await expect(tree.getByRole('button', { name: /^notes\.txt/ })).toBeVisible()
+  const tree = page.getByRole('tree', { name: 'Changed files' })
+  await expect(tree.getByRole('treeitem', { name: /app\.ts/ })).toBeVisible()
+  await expect(tree.getByRole('treeitem', { name: /notes\.txt/ })).toBeVisible()
   await expect(page.locator('main')).toContainText('export const answer = 42')
 })
 
@@ -30,9 +30,9 @@ test('edits on disk appear without reloading', async ({ page, app, repo }) => {
 test('t switches between split and stacked', async ({ page, app }) => {
   await page.goto(app.url)
   await expect(page.locator('main')).toContainText('export const answer = 42')
-  await expect(page.locator('[data-unified]')).toHaveCount(0)
+  await expect(page.locator('[data-layout="split"]')).toBeAttached()
   await page.keyboard.press('t')
-  await expect(page.locator('[data-unified]').first()).toBeAttached()
+  await expect(page.locator('[data-layout="unified"]')).toBeAttached()
 })
 
 test('the palette jumps to a file', async ({ page, app }) => {
