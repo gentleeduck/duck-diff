@@ -167,7 +167,7 @@ export const LineRow = memo(function LineRow({ item, row }: { item: NoteItem; ro
   if (row.type === 'hunk') {
     if (settings.hunkSeparators === 'simple') return <div className="h-2 border-border border-y bg-card" />
     return (
-      <div className="flex items-center gap-2 bg-card px-3 py-1 text-tn-comment">
+      <div className="truncate bg-card px-3 py-1 text-tn-comment" title={row.header}>
         {settings.hunkSeparators === 'line-info-basic' ? '...' : row.header}
       </div>
     )
