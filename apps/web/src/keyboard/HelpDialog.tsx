@@ -1,0 +1,30 @@
+import { Dialog, DialogContent, DialogTitle, Kbd } from '@duck-diff/ui'
+
+const SHORTCUTS: [string, string][] = [
+  ['j / k', 'Next or previous change'],
+  ['Shift J / Shift K', 'Next or previous file'],
+  ['t', 'Switch between split and stacked'],
+  ['/', 'Filter files'],
+  ['Ctrl K', 'Command palette'],
+  ['?', 'This list'],
+]
+
+export function HelpDialog({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogTitle>Keyboard shortcuts</DialogTitle>
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[13px]">
+          {SHORTCUTS.map(([keys, label]) => (
+            <div key={keys} className="contents">
+              <dt>
+                <Kbd>{keys}</Kbd>
+              </dt>
+              <dd className="text-[var(--dd-muted)]">{label}</dd>
+            </div>
+          ))}
+        </dl>
+      </DialogContent>
+    </Dialog>
+  )
+}
