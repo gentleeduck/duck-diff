@@ -57,7 +57,7 @@ export function CommentsSheet() {
         <Button variant="outline">
           <MessageSquare />
           Comments
-          {comments.length > 0 ? <Badge className="text-sm">{comments.length}</Badge> : null}
+          {comments.length > 0 ? <Badge className="h-5 px-1.5 text-sm">{comments.length}</Badge> : null}
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="flex w-[420px] flex-col gap-4 bg-card">

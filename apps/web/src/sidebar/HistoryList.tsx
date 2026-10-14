@@ -101,13 +101,8 @@ export function HistoryList({ now }: { now?: number }) {
           <span className="min-w-0 flex-1 truncate font-mono" title={path}>
             {path}
           </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            aria-label="Back to branch history"
-            onClick={() => fileHistory.set(null)}>
-            <X className="size-3.5" />
+          <Button variant="ghost" size="icon" aria-label="Back to branch history" onClick={() => fileHistory.set(null)}>
+            <X />
           </Button>
         </div>
       ) : null}

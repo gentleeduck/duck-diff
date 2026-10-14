@@ -13,7 +13,7 @@ import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_GLYPH } from './icons
 import { StatusFilter } from './StatusFilter'
 
 const selectFiles = (state: SessionState) => state.files
-const ROW_HEIGHT = 25
+const ROW_HEIGHT = 28
 
 function TreeRow({
   row,
@@ -51,7 +51,7 @@ function TreeRow({
       aria-expanded={folder ? row.isExpanded : undefined}
       aria-current={selected || undefined}
       title={row.path}
-      className="h-[25px] w-full items-stretch justify-start gap-0 rounded-none p-0 pe-3 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
+      className="h-7 w-full items-stretch justify-start gap-0 rounded-none p-0 pe-3 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
       {row.ancestorPaths
         .slice(-row.depth || row.ancestorPaths.length)
         .slice(0, row.depth)
@@ -121,7 +121,6 @@ export function ChangesTree() {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Filter files"
           aria-label="Filter files"
-          className="h-8"
         />
         <StatusFilter files={files} value={statuses} onChange={setStatuses} />
       </div>

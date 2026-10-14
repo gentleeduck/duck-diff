@@ -101,7 +101,7 @@ export function SettingsPopover() {
           aria-label={`Decrease ${label.toLowerCase()}`}
           disabled={settings[key] <= min}
           onClick={() => set(key, settings[key] - 1)}>
-          <Minus className="size-3.5" />
+          <Minus />
         </Button>
         <output className="w-6 text-center tabular-nums">{settings[key]}</output>
         <Button
@@ -110,7 +110,7 @@ export function SettingsPopover() {
           aria-label={`Increase ${label.toLowerCase()}`}
           disabled={settings[key] >= max}
           onClick={() => set(key, settings[key] + 1)}>
-          <Plus className="size-3.5" />
+          <Plus />
         </Button>
       </div>
     </Row>

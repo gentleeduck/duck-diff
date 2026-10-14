@@ -59,7 +59,7 @@ function Toolbar({ item, line, side }: { item: NoteItem; line: DiffLine; side: '
           <Button
             variant="ghost"
             size="icon"
-            className="size-6"
+            className="size-5.5"
             aria-label="Comment on line"
             onClick={() => comment(item, line, side)}>
             <MessageSquarePlus />
@@ -75,7 +75,7 @@ function Toolbar({ item, line, side }: { item: NoteItem; line: DiffLine; side: '
               <Button
                 variant="ghost"
                 size="icon"
-                className={`size-6 ${kind === 'discard' ? 'text-destructive hover:text-destructive' : ''}`}
+                className={`size-5.5 ${kind === 'discard' ? 'text-destructive hover:text-destructive' : ''}`}
                 aria-label={label}
                 onClick={() => write(kind, item, line.hunk)}>
                 <Icon />

@@ -35,7 +35,7 @@ export function FileHeader({
   children: ReactNode
 }) {
   return (
-    <div className="flex min-h-12 items-center gap-3 border-border border-b bg-card px-3 font-sans">
+    <div className="flex h-11 items-center gap-3 border-border border-b bg-card px-3 font-sans">
       <Button
         variant="ghost"
         size="icon-sm"
@@ -45,7 +45,7 @@ export function FileHeader({
         <ChevronRight className={`size-4 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
       </Button>
       {file ? (
-        <Badge variant="outline" className={`h-7 px-2.5 text-sm ${STATUS[file.status].tone}`}>
+        <Badge variant="outline" className={`h-6 px-2 text-sm ${STATUS[file.status].tone}`}>
           {STATUS[file.status].label}
         </Badge>
       ) : null}

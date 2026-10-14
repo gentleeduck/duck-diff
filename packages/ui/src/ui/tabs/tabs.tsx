@@ -123,7 +123,7 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, ITabsTriggerProps>(
         aria-controls={`${tabsId}-content-${value}`}
         aria-selected={isActive}
         className={cn(
-          'relative inline-flex h-[29.04px] select-none items-center justify-center gap-2 whitespace-nowrap rounded-sm px-3 font-medium text-sm ring-offset-background transition-[color,background-color,border-color,box-shadow] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'relative inline-flex h-7 select-none items-center justify-center gap-2 whitespace-nowrap rounded-sm px-2.5 font-medium text-sm ring-offset-background transition-[color,background-color,border-color,box-shadow] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           isActive && 'bg-background text-foreground shadow-sm',
           disabled && 'cursor-not-allowed opacity-50',
           className,
