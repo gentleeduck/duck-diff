@@ -58,6 +58,14 @@ export async function runGit(args: string[], options: RunOptions): Promise<strin
   return stdout
 }
 
+export async function runGitBytes(args: string[], options: RunOptions): Promise<Buffer> {
+  const { child, done } = spawnGit(args, options)
+  const chunks: Buffer[] = []
+  child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk))
+  await done
+  return Buffer.concat(chunks)
+}
+
 export async function* streamGit(args: string[], options: RunOptions): AsyncIterable<string> {
   const { child, done } = spawnGit(args, options)
   child.stdout.setEncoding('utf8')

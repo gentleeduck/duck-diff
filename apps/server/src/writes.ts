@@ -5,10 +5,12 @@ import {
   snapshot,
   stageFile,
   stageHunk,
+  unmergedPaths,
   unstageFile,
   unstageHunk,
 } from '@duck-diff/git'
 import type { WriteRequest } from '@duck-diff/protocol'
+import { HttpError } from './errors'
 
 // Writes touch the index and working tree, so they run one at a time in arrival order.
 export function createWriteQueue() {
@@ -22,6 +24,10 @@ export function createWriteQueue() {
 
 export async function applyWrite(repo: string, request: WriteRequest, undoCache?: string): Promise<void> {
   const { file } = request
+  // Checked against git rather than the page, which may not know the file is conflicted yet.
+  if ((await unmergedPaths(repo, { kind: 'unstaged' })).includes(file.path)) {
+    throw new HttpError(409, 'bad-request', `${file.path} has a merge conflict; resolve it in your editor first`)
+  }
   switch (request.action) {
     case 'stage-hunk':
       return stageHunk(repo, file, request.hunkIndex, request.hunkHeader)

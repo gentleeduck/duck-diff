@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { DiffTarget } from '@duck-diff/protocol'
-import { runGit } from './run'
+import { runGit, runGitBytes } from './run'
 
 export type Side = 'old' | 'new'
 
@@ -32,12 +32,21 @@ async function sideSource(repo: string, target: DiffTarget, side: Side): Promise
   }
 }
 
-export async function readSide(repo: string, target: DiffTarget, side: Side, path: string): Promise<string | null> {
+export async function readSideBytes(
+  repo: string,
+  target: DiffTarget,
+  side: Side,
+  path: string,
+): Promise<Buffer | null> {
   const source = await sideSource(repo, target, side)
   if (source === null) return null
-  if (source.from === 'worktree') return readFile(join(repo, path), 'utf8').catch(() => null)
+  if (source.from === 'worktree') return readFile(join(repo, path)).catch(() => null)
   const spec = source.from === 'index' ? `:${path}` : `${source.rev}:${path}`
   const type = await runGit(['cat-file', '-t', spec], { cwd: repo, okExitCodes: [128] })
   if (type.trim() !== 'blob') return null
-  return runGit(['cat-file', 'blob', spec], { cwd: repo })
+  return runGitBytes(['cat-file', 'blob', spec], { cwd: repo })
+}
+
+export async function readSide(repo: string, target: DiffTarget, side: Side, path: string): Promise<string | null> {
+  return (await readSideBytes(repo, target, side, path))?.toString('utf8') ?? null
 }
