@@ -1,13 +1,17 @@
 import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
-import { Cherry, GitBranchPlus, LocateFixed, Undo2 } from 'lucide-react'
+import { Cherry, GitBranchPlus, GitCompareArrows, LocateFixed, Undo2 } from 'lucide-react'
 import { useState } from 'react'
 import { useGit } from '../git/GitProvider'
+import { useTarget } from '../hooks/useTarget'
+import { useView } from '../hooks/useView'
 
 // Branch names git would reject are caught by the server; this only blocks the obvious blanks.
 const usable = (name: string) => name.trim().length > 0 && !/\s/.test(name.trim())
 
 export function CommitActions({ sha }: { sha: string }) {
   const { busy, run } = useGit()
+  const { navigate } = useTarget()
+  const { show } = useView()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const short = sha.slice(0, 7)
@@ -22,6 +26,17 @@ export function CommitActions({ sha }: { sha: string }) {
 
   return (
     <div className="flex flex-wrap gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        title="Everything that changed between this commit and HEAD"
+        onClick={() => {
+          navigate({ kind: 'range', from: sha, to: 'HEAD', mode: 'two-dot' })
+          show('changes')
+        }}>
+        <GitCompareArrows />
+        Compare with HEAD
+      </Button>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button size="sm" variant="outline">

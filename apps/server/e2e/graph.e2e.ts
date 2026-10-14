@@ -19,6 +19,16 @@ test('shows the commit graph and opens a commit with its changed files', async (
   await expect(page.getByRole('banner')).toContainText('1 file')
 })
 
+test('compares a commit with HEAD', async ({ page, app, repo }) => {
+  repo.commit('edit')
+  repo.write('later.txt', 'later\n')
+  repo.commit('add later')
+  await page.goto(`${app.url}&view=graph`)
+  await page.getByRole('listbox', { name: 'Commits' }).getByRole('option', { name: /base/ }).click()
+  await page.getByRole('complementary', { name: 'Commit' }).getByRole('button', { name: 'Compare with HEAD' }).click()
+  await expect(page.getByRole('banner')).toContainText('3 files')
+})
+
 test('switches views from the rail and keeps the view in the url', async ({ page, app }) => {
   await page.goto(app.url)
   await page.getByRole('button', { name: 'Commit graph' }).click()
