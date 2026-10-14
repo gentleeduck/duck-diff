@@ -20,6 +20,8 @@ interface RefPickerProps {
   onPick(endpoint: Endpoint): void
 }
 
+const HEADINGS = { branch: 'Branches', tag: 'Tags', remote: 'Remote branches', stash: 'Stashes' }
+
 export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
   const [open, setOpen] = useState(false)
   const pick = (endpoint: Endpoint) => {
@@ -48,12 +50,16 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
               <CommandItem onSelect={() => pick({ kind: 'index' })}>Staged</CommandItem>
               {side === 'from' && <CommandItem onSelect={() => pick({ kind: 'ref', name: 'HEAD' })}>HEAD</CommandItem>}
             </CommandGroup>
-            {(['branch', 'tag', 'remote'] as const).map((kind) =>
+            {(['branch', 'tag', 'remote', 'stash'] as const).map((kind) =>
               byKind(kind).length > 0 ? (
-                <CommandGroup key={kind} heading={{ branch: 'Branches', tag: 'Tags', remote: 'Remote branches' }[kind]}>
+                <CommandGroup key={kind} heading={HEADINGS[kind]}>
                   {byKind(kind).map((ref) => (
-                    <CommandItem key={ref.name} value={ref.name} onSelect={() => pick({ kind: 'ref', name: ref.name })}>
+                    <CommandItem
+                      key={ref.name}
+                      value={`${ref.name} ${ref.subject ?? ''}`}
+                      onSelect={() => pick({ kind: 'ref', name: ref.name })}>
                       <span className="font-[var(--dd-font-code)]">{ref.name}</span>
+                      {ref.subject && <span className="truncate text-[var(--dd-muted)]">{ref.subject}</span>}
                       {ref.current && <span className="ml-auto text-[var(--dd-muted)] text-[12px]">current</span>}
                     </CommandItem>
                   ))}

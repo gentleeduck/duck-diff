@@ -1,7 +1,7 @@
 import type { CodeViewHandle } from '@pierre/diffs/react'
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
 import { type Api, createApi } from '../lib/api'
-import type { Store } from '../lib/store'
+import { createStore, type Store } from '../lib/store'
 import { readTarget } from '../lib/target-url'
 import type { Note } from '../review/annotations'
 import { createReviews, type Reviews } from '../review/reviews'
@@ -15,6 +15,8 @@ interface AppContextValue {
   settings: Store<Settings>
   reviews: Reviews
   viewed: Viewed
+  // The file whose history the sidebar shows, or null for the branch history.
+  fileHistory: Store<string | null>
   viewer: RefObject<CodeViewHandle<Note, undefined> | null>
 }
 
@@ -30,6 +32,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       settings: createSettingsStore(),
       reviews: createReviews(client),
       viewed: createViewedStore(),
+      fileHistory: createStore<string | null>(null),
       viewer,
     }
   }, [api])
