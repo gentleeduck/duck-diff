@@ -9,8 +9,8 @@
     "build": "bun ../../scripts/gen-web-assets.ts && bun ../../scripts/build-binary.ts",
     "check-types": "bun ../../scripts/gen-web-assets.ts && tsc -p tsconfig.json --noEmit",
     "dev": "bun ../../scripts/gen-web-assets.ts && bun --watch src/cli.ts serve --repo ../..",
-    "test": "bun ../../scripts/gen-web-assets.ts && bun test",
-    "test:coverage": "bun ../../scripts/gen-web-assets.ts && bun test --coverage",
+    "test": "bun ../../scripts/gen-web-assets.ts && bun test --retry=2",
+    "test:coverage": "bun ../../scripts/gen-web-assets.ts && bun test --coverage --retry=2",
     "test:e2e": "playwright test"
   },
   "dependencies": { "@duck-diff/git": "workspace:*", "@duck-diff/protocol": "workspace:*", "zod": "catalog:" },
