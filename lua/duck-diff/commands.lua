@@ -21,7 +21,12 @@ local function show(root, diff_target)
     if err then
       return notify(err, vim.log.levels.ERROR)
     end
-    open.open(target.url(running.url, diff_target), config.get())
+    -- A page that is already open switches in place, which skips launching another browser window.
+    server.navigate(root, diff_target, function(pages)
+      if pages == 0 then
+        open.open(target.url(running.url, diff_target), config.get())
+      end
+    end)
   end)
 end
 

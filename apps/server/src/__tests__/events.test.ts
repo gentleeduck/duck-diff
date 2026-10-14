@@ -58,6 +58,26 @@ describe('events', () => {
     socket.close()
   })
 
+  it('tells open pages to switch comparison and reports how many listened', async () => {
+    repo = createRepo()
+    repo.write('a.txt', '1\n')
+    repo.commit('base')
+    server = await createServer({ repo: repo.path, port: testPort(), watch: false })
+    const navigate = () =>
+      fetch(`http://127.0.0.1:${server.port}/api/navigate`, {
+        method: 'POST',
+        headers: { 'x-duck-diff-token': server.token, 'content-type': 'application/json' },
+        body: JSON.stringify({ target: { kind: 'staged' } }),
+      }).then((response) => response.json())
+    expect(await navigate()).toEqual({ pages: 0 })
+    const { socket, messages } = await open(`ws://127.0.0.1:${server.port}/api/events?token=${server.token}`)
+    await waitFor(() => messages.length > 0)
+    expect(await navigate()).toEqual({ pages: 1 })
+    await waitFor(() => messages.some((message) => (message as { type: string }).type === 'navigate'))
+    expect(messages).toContainEqual({ type: 'navigate', target: { kind: 'staged' } })
+    socket.close()
+  })
+
   it('pushes watcher changes to clients', async () => {
     repo = createRepo()
     repo.write('a.txt', '1\n')

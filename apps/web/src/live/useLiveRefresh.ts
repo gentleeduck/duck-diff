@@ -2,6 +2,7 @@ import type { RepoInfo } from '@duck-diff/protocol'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { connectEvents, type EventsStatus } from '../lib/events'
+import { writeTarget } from '../lib/target-url'
 import { createRefresher } from './refresher'
 
 export interface LiveState {
@@ -26,6 +27,12 @@ export function useLiveRefresh(): LiveState {
       onStatus: (status) => setState((prev) => ({ ...prev, status })),
       onEvent: (event) => {
         if (event.type === 'hello') return setState((prev) => ({ ...prev, repo: event.repo }))
+        if (event.type === 'navigate') {
+          window.history.pushState(null, '', writeTarget(event.target, window.location.search))
+          void session.load(event.target)
+          window.focus()
+          return
+        }
         if (event.reason === 'reviews') return void reviews.reload().catch(() => {})
         refresher.notify()
         if (event.reason === 'refs') {

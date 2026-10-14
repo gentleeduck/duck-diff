@@ -90,6 +90,23 @@ function M.saved(root, callback)
   end))
 end
 
+---Asks an open page to switch comparison; answers how many pages were listening.
+---@param callback fun(pages: integer)
+function M.navigate(root, diff_target, callback)
+  local server = servers[root]
+  if not server then
+    return callback(0)
+  end
+  vim.system({
+    'curl', '-s', '-X', 'POST', '-H', 'content-type: application/json',
+    '-H', 'x-duck-diff-token: ' .. server.token,
+    '--data-binary', vim.json.encode({ target = diff_target }), server.origin .. '/api/navigate',
+  }, { text = true }, vim.schedule_wrap(function(out)
+    local ok, body = pcall(vim.json.decode, out.stdout or '')
+    callback(ok and type(body) == 'table' and tonumber(body.pages) or 0)
+  end))
+end
+
 function M.stop(root)
   local server = servers[root]
   if server then

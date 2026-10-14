@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
-import { classifyPath, watchRepo } from '../watch'
+import { classifyPath, watchedFolders, watchRepo } from '../watch'
 
 describe('classifyPath', () => {
   it.each([
@@ -46,7 +46,9 @@ describe('watchRepo', () => {
     repo.write('a.txt', '1\n')
     repo.commit('base')
     const reasons: string[] = []
-    stop = watchRepo(repo.path, (reason) => reasons.push(reason), 50)
+    const watching = watchRepo(repo.path, (reason) => reasons.push(reason), 50)
+    stop = watching
+    await watching.ready
     repo.write('a.txt', '2\n')
     repo.write('b.txt', '3\n')
     // macOS delivers events late and may replay the setup writes as a second batch.
@@ -77,5 +79,35 @@ describe('watchRepo', () => {
     await Bun.sleep(100)
     repo.git('commit', '-q', '--allow-empty', '-m', 'empty')
     expect(await change).toBe('refs')
+  })
+
+  it('skips folders git ignores and picks up folders made later', async () => {
+    repo = createRepo()
+    repo.write('.gitignore', 'node_modules/\n')
+    repo.write('node_modules/pkg/index.js', 'x\n')
+    repo.write('src/a.ts', '1\n')
+    repo.commit('base')
+    const reasons: string[] = []
+    const watching = watchRepo(repo.path, (reason) => reasons.push(reason), 50)
+    stop = watching
+    await watching.ready
+    repo.write('node_modules/pkg/index.js', 'y\n')
+    await Bun.sleep(300)
+    expect(reasons).toEqual([])
+    repo.write('lib/new.ts', 'n\n')
+    await Bun.sleep(300)
+    repo.write('lib/new.ts', 'm\n')
+    const end = Date.now() + 3000
+    while (!reasons.includes('worktree') && Date.now() < end) await Bun.sleep(20)
+    expect(reasons).toContain('worktree')
+  })
+
+  it('lists only the folders git can see', async () => {
+    repo = createRepo()
+    repo.write('.gitignore', 'node_modules/\n')
+    repo.write('node_modules/pkg/index.js', 'x\n')
+    repo.write('src/deep/a.ts', '1\n')
+    repo.write('notes.txt', 'n\n')
+    expect((await watchedFolders(repo.path)).sort()).toEqual(['.', 'src', 'src/deep'])
   })
 })

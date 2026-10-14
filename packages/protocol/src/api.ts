@@ -57,6 +57,9 @@ export const WriteRequestSchema = z.union([
 export type WriteRequest = z.infer<typeof WriteRequestSchema>
 export type WriteAction = WriteRequest['action']
 
+export const NavigateRequestSchema = z.object({ target: DiffTargetSchema })
+export const NavigateResultSchema = z.object({ pages: z.number().int() })
+
 export const UndoResultSchema = z.object({ restored: z.array(z.string()).nullable() })
 export type UndoResult = z.infer<typeof UndoResultSchema>
 

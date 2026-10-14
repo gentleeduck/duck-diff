@@ -3,6 +3,7 @@ import {
   type ChangeReason,
   CreateReviewSchema,
   decodeTarget,
+  NavigateRequestSchema,
   OpenRequestSchema,
   UpdateReviewSchema,
   WriteRequestSchema,
@@ -72,6 +73,11 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           hub.touch()
           notify('saved')
           return new Response(null, { status: 204 })
+        }
+        if (url.pathname === '/api/navigate' && request.method === 'POST') {
+          const { target } = NavigateRequestSchema.parse(await request.json())
+          hub.broadcast({ type: 'navigate', target })
+          return Response.json({ pages: hub.size })
         }
         if (url.pathname === '/api/write' && request.method === 'POST') {
           const write = WriteRequestSchema.parse(await request.json())

@@ -43,6 +43,24 @@ function tallRepo(): TestRepo {
   return repo
 }
 
+// A small repo next to a large ignored tree, like an app with its node_modules installed.
+function ignoredTreeRepo(): TestRepo {
+  const repo = createRepo()
+  repo.write('.gitignore', 'node_modules/\n')
+  repo.write('src/app.ts', 'export const a = 1\n')
+  for (let i = 0; i < 3000; i++) repo.write(`node_modules/pkg-${i}/lib/index.js`, 'module.exports = 1\n')
+  repo.commit('base')
+  return repo
+}
+
+async function serverStart(repo: TestRepo): Promise<number> {
+  const started = performance.now()
+  const server = await serve(repo)
+  const elapsed = performance.now() - started
+  server.stop()
+  return elapsed
+}
+
 async function serve(repo: TestRepo) {
   const home = mkdtempSync(join(tmpdir(), 'duck-diff-bench-'))
   const env = { ...process.env, XDG_DATA_HOME: join(home, 'data'), XDG_CACHE_HOME: join(home, 'cache') }
@@ -122,6 +140,12 @@ async function main() {
   const browser = await chromium.launch()
   const results: Result[] = []
   try {
+    results.push({
+      name: 'Server start, 6,000 ignored folders',
+      value: await serverStart(ignoredTreeRepo()),
+      unit: 'ms',
+      budget: 150,
+    })
     const wide = await serve(wideRepo())
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
