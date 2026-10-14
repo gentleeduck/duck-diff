@@ -30,7 +30,7 @@ describe('HistoryList', () => {
       commit('b'.repeat(40), 'feat: first', 60),
     ])
     const api = fakeApi({
-      repo: async () => ({ root: '/r', branch: 'feat', head: 'a'.repeat(40) }),
+      repo: async () => ({ root: '/r', branch: 'feat', head: 'a'.repeat(40), nvim: false }),
       refs: async () => [
         { name: 'main', kind: 'branch', sha: 'c', committedAt: 0, current: false },
         { name: 'feat', kind: 'branch', sha: 'a', committedAt: 0, current: true },

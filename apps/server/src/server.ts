@@ -1,8 +1,9 @@
 import { resolveRepo } from '@duck-diff/git'
-import type { ChangeReason } from '@duck-diff/protocol'
+import { type ChangeReason, OpenRequestSchema } from '@duck-diff/protocol'
 import { createToken, isAuthorized, TOKEN_COOKIE } from './auth'
 import { errorResponse, HttpError } from './errors'
 import { Hub } from './hub'
+import { type NvimRunner, openKeys, runNvim } from './nvim'
 import { handleApi, repoInfo } from './routes'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
@@ -15,6 +16,9 @@ export interface ServerOptions {
   idleTimeoutMs?: number
   watch?: boolean
   onIdle?: () => void
+  // Address of the Neovim that started the server, so the page can open files in it.
+  nvim?: string | null
+  runNvim?: NvimRunner
 }
 
 export interface RunningServer {
@@ -53,7 +57,18 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           notify('saved')
           return new Response(null, { status: 204 })
         }
-        if (url.pathname.startsWith('/api/')) return await handleApi(repo, url)
+        if (url.pathname === '/api/open' && request.method === 'POST') {
+          if (!options.nvim) throw new HttpError(409, 'bad-request', 'no Neovim attached to this server')
+          const { path, line } = OpenRequestSchema.parse(await request.json())
+          await (options.runNvim ?? runNvim)([
+            '--server',
+            options.nvim,
+            '--remote-send',
+            openKeys(`${repo}/${path}`, line),
+          ])
+          return new Response(null, { status: 204 })
+        }
+        if (url.pathname.startsWith('/api/')) return await handleApi(repo, url, Boolean(options.nvim))
         const response = serveWeb(url.pathname)
         // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
         if (response.headers.get('content-type')?.startsWith('text/html')) {
@@ -67,7 +82,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     websocket: {
       async open(socket) {
         hub.add(socket)
-        socket.send(JSON.stringify({ type: 'hello', repo: await repoInfo(repo) }))
+        socket.send(JSON.stringify({ type: 'hello', repo: await repoInfo(repo, Boolean(options.nvim)) }))
       },
       close(socket) {
         hub.remove(socket)

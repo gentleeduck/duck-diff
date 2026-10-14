@@ -46,6 +46,7 @@ describe('api', () => {
       root: fixture.repo.git('rev-parse', '--show-toplevel'),
       branch: 'main',
       head: fixture.repo.git('rev-parse', 'HEAD'),
+      nvim: false,
     })
   })
 
