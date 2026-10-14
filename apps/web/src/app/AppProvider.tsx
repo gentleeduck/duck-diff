@@ -27,6 +27,8 @@ interface AppContextValue {
   graph: Graph
   // The commit open in the graph's side panel.
   graphSelection: Store<string | null>
+  // What the graph's find box holds, so matching rows can stand out.
+  graphQuery: Store<string>
   // The file open in the Files view.
   fileSelection: Store<string | null>
   github: GitHub
@@ -56,6 +58,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       view: createStore<View>(readView(window.location.search)),
       graph: createGraph(client),
       graphSelection: createStore<string | null>(null),
+      graphQuery: createStore(''),
       fileSelection: createStore<string | null>(null),
       github: createGitHub(client),
       pullSelection: createStore<number | null>(null),

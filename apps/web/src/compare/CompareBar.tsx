@@ -1,8 +1,11 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
-import { X } from 'lucide-react'
+import { GitPullRequest, X } from 'lucide-react'
+import { useApp } from '../app/AppProvider'
+import { pullOf } from '../github/pull-review'
 import { useRefs } from '../hooks/useRefs'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
+import { useView } from '../hooks/useView'
 import type { SessionState } from '../state/session'
 import { describeTarget, toggleOperator, withoutPath, withSide } from './model'
 import { RefPicker } from './RefPicker'
@@ -27,6 +30,9 @@ export function CompareBar() {
   const refs = useRefs()
   const [files = '0', additions = '0', deletions = '0'] = useSession(selectStats).split(':')
   const { from, to, operator, path } = describeTarget(target)
+  const pull = pullOf(target)
+  const { pullSelection } = useApp()
+  const { show } = useView()
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-4">
@@ -63,6 +69,19 @@ export function CompareBar() {
             <X />
           </Button>
         </span>
+      ) : null}
+      {pull !== null ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="shrink-0"
+          onClick={() => {
+            pullSelection.set(pull)
+            show('prs')
+          }}>
+          <GitPullRequest />
+          Conversation
+        </Button>
       ) : null}
       <p className="shrink-0 text-muted-foreground tabular-nums">
         {files} {files === '1' ? 'file' : 'files'}

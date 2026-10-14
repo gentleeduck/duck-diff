@@ -14,6 +14,7 @@ import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
 import { relativeTime } from '../sidebar/relative-time'
 import { CommitPanel } from './CommitPanel'
+import { matchesCommit } from './FindCommit'
 import { GraphLines, LANE_WIDTH, laneColor } from './GraphLines'
 import type { RefLabel } from './records'
 import type { GraphState } from './store'
@@ -22,6 +23,7 @@ const ROW_HEIGHT = 28
 // Very wide histories clip at this many lanes so the subject column always stays readable.
 const MAX_LANES = 10
 const selectGraph = (state: GraphState) => state
+const selectQuery = (query: string) => query
 
 const SHOWN_REFS = 2
 
@@ -65,8 +67,9 @@ function RefBadges({ refs, color }: { refs: RefLabel[]; color: string }) {
 }
 
 export default function GraphView() {
-  const { graph, graphSelection } = useApp()
+  const { graph, graphSelection, graphQuery } = useApp()
   const state = useStore(graph, selectGraph)
+  const needle = useStore(graphQuery, selectQuery).trim().toLowerCase()
   const selected = useStore(graphSelection, (sha: string | null) => sha)
   const scroller = useRef<HTMLDivElement>(null)
 
@@ -129,7 +132,10 @@ export default function GraphView() {
                   </span>
                   <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
                     <RefBadges refs={entry.refs} color={laneColor(row.color) ?? ''} />
-                    <span className="min-w-0 truncate">{entry.subject}</span>
+                    <span
+                      className={`min-w-0 truncate ${needle && matchesCommit(entry, needle) ? 'text-tn-yellow' : ''}`}>
+                      {entry.subject}
+                    </span>
                   </span>
                   {/* Side columns drop out as the pane narrows, so the subject always keeps room. */}
                   <span className="hidden w-36 shrink-0 truncate text-muted-foreground @3xl:block">{entry.author}</span>

@@ -3,29 +3,32 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
+import type { GraphEntry } from './records'
 import type { GraphState } from './store'
 
 const selectEntries = (state: GraphState) => state.entries
+const selectQuery = (query: string) => query
+
+export function matchesCommit(entry: GraphEntry, needle: string): boolean {
+  return (
+    entry.subject.toLowerCase().includes(needle) ||
+    entry.author.toLowerCase().includes(needle) ||
+    entry.email.toLowerCase().includes(needle) ||
+    entry.sha.startsWith(needle)
+  )
+}
 
 // Searches subjects, authors, emails and shas; Enter and the arrows step through matches by selecting them.
 export function FindCommit() {
-  const { graph, graphSelection } = useApp()
+  const { graph, graphSelection, graphQuery } = useApp()
   const entries = useStore(graph, selectEntries)
-  const [query, setQuery] = useState('')
+  const query = useStore(graphQuery, selectQuery)
   const [at, setAt] = useState(0)
 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (!needle) return []
-    return entries
-      .filter(
-        (entry) =>
-          entry.subject.toLowerCase().includes(needle) ||
-          entry.author.toLowerCase().includes(needle) ||
-          entry.email.toLowerCase().includes(needle) ||
-          entry.sha.startsWith(needle),
-      )
-      .map((entry) => entry.sha)
+    return entries.filter((entry) => matchesCommit(entry, needle)).map((entry) => entry.sha)
   }, [entries, query])
 
   const go = (index: number) => {
@@ -43,7 +46,7 @@ export function FindCommit() {
         className="w-56"
         value={query}
         onChange={(event) => {
-          setQuery(event.target.value)
+          graphQuery.set(event.target.value)
           setAt(0)
         }}
         onKeyDown={(event) => {
