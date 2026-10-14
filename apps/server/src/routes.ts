@@ -2,13 +2,15 @@ import {
   listCommits,
   listFiles,
   listRefs,
+  readCommit,
   readSide,
   readSideBytes,
   runGit,
   streamDiff,
+  streamGraph,
   streamPatch,
 } from '@duck-diff/git'
-import { decodeTarget, FileStatusSchema, type RepoInfo, RepoPathSchema } from '@duck-diff/protocol'
+import { decodeTarget, FileStatusSchema, RefNameSchema, type RepoInfo, RepoPathSchema } from '@duck-diff/protocol'
 import { z } from 'zod'
 import { HttpError } from './errors'
 import { iterableToStream } from './stream'
@@ -48,6 +50,11 @@ const IMAGE_TYPES: Record<string, string> = {
 }
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024
 
+const GraphQuery = z.object({
+  all: z.enum(['true', 'false']).optional(),
+  limit: z.coerce.number().int().positive().max(100_000).default(5000),
+})
+
 function requireTarget(url: URL) {
   const raw = url.searchParams.get('target')
   if (!raw) throw new HttpError(400, 'bad-request', 'missing target')
@@ -81,6 +88,16 @@ export async function handleApi(repo: string, url: URL, nvim = false): Promise<R
     case '/api/commits': {
       const query = CommitsQuery.parse(Object.fromEntries(url.searchParams))
       return Response.json(await listCommits(repo, query))
+    }
+    case '/api/commit': {
+      const { sha } = z.object({ sha: RefNameSchema }).parse(Object.fromEntries(url.searchParams))
+      return Response.json(await readCommit(repo, sha))
+    }
+    case '/api/graph': {
+      const query = GraphQuery.parse(Object.fromEntries(url.searchParams))
+      return new Response(iterableToStream(streamGraph(repo, { all: query.all !== 'false', limit: query.limit })), {
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+      })
     }
     case '/api/patch': {
       const target = requireTarget(url)

@@ -85,6 +85,19 @@ describe('api', () => {
     expect((await fixture.get('/api/commits?head=main&path=../x')).status).toBe(400)
   })
 
+  it('streams the commit graph with parents and ref names', async () => {
+    fixture = await startFixture((repo) => {
+      repo.write('a.txt', 'one\n')
+      repo.commit('base')
+      repo.commit('second')
+    })
+    const text = await (await fixture.get('/api/graph?limit=10')).text()
+    const records = text.split('\x1e').filter((record) => record.trim())
+    expect(records).toHaveLength(2)
+    expect(records[0]).toContain('HEAD -> main')
+    expect((await fixture.get('/api/graph?limit=0')).status).toBe(400)
+  })
+
   it('answers 400 for a bad target and an unknown ref', async () => {
     await edited()
     expect((await fixture.get('/api/files?target=garbage')).status).toBe(400)

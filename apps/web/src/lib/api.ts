@@ -2,6 +2,8 @@ import {
   type ChangedFile,
   ChangedFileSchema,
   type Commit,
+  type CommitDetails,
+  CommitDetailsSchema,
   CommitSchema,
   type CreateReview,
   type DiffTarget,
@@ -45,6 +47,8 @@ export interface Api {
   createReview(input: CreateReview): Promise<ReviewComment>
   updateReview(id: string, body: string): Promise<ReviewComment>
   deleteReview(id: string): Promise<void>
+  graph(query: { all: boolean; limit: number }, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
+  commit(sha: string): Promise<CommitDetails>
 }
 
 const ContentSchema = z.object({ contents: z.string().nullable() })
@@ -103,6 +107,12 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     async undo() {
       return UndoResultSchema.parse(await (await request('/api/undo', undefined, { method: 'POST' })).json())
     },
+    async graph(query, signal) {
+      const response = await request(`/api/graph?all=${query.all}&limit=${query.limit}`, signal)
+      if (!response.body) throw new ApiError(500, 'failed', 'empty graph body')
+      return response.body
+    },
+    commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),
     reviews: (target) => json(`/api/reviews?target=${encodeTarget(target)}`, z.array(ReviewCommentSchema)),
     createReview: (input) => send('POST', '/api/reviews', input, ReviewCommentSchema),
     updateReview: (id, body) => send('PATCH', `/api/reviews/${encodeURIComponent(id)}`, { body }, ReviewCommentSchema),

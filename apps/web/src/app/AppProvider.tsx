@@ -1,8 +1,10 @@
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
 import type { DiffViewHandle } from '../diff/DiffView'
+import { createGraph, type Graph } from '../graph/store'
 import { type Api, createApi } from '../lib/api'
 import { createStore, type Store } from '../lib/store'
 import { readTarget } from '../lib/target-url'
+import { readView, type View } from '../lib/view-url'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createSession, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
@@ -16,6 +18,10 @@ interface AppContextValue {
   viewed: Viewed
   // The file whose history the sidebar shows, or null for the branch history.
   fileHistory: Store<string | null>
+  view: Store<View>
+  graph: Graph
+  // The commit open in the graph's side panel.
+  graphSelection: Store<string | null>
   viewer: RefObject<DiffViewHandle | null>
 }
 
@@ -32,6 +38,9 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       reviews: createReviews(client),
       viewed: createViewedStore(),
       fileHistory: createStore<string | null>(null),
+      view: createStore<View>(readView(window.location.search)),
+      graph: createGraph(client),
+      graphSelection: createStore<string | null>(null),
       viewer,
     }
   }, [api])

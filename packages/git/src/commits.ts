@@ -33,3 +33,33 @@ export async function listCommits(
       }
     })
 }
+
+export interface CommitDetails {
+  sha: string
+  parents: string[]
+  authorName: string
+  authorEmail: string
+  authoredAt: number
+  committerName: string
+  committedAt: number
+  message: string
+}
+
+export async function readCommit(repo: string, sha: string): Promise<CommitDetails> {
+  const out = await runGit(
+    ['show', '-s', `--format=${['%H', '%P', '%an', '%ae', '%at', '%cn', '%ct', '%B'].join('%x1f')}`, sha, '--'],
+    { cwd: repo },
+  )
+  const [hash = '', parents = '', authorName = '', authorEmail = '', at = '0', committerName = '', ct = '0', ...body] =
+    out.split('\x1f')
+  return {
+    sha: hash,
+    parents: parents ? parents.split(' ') : [],
+    authorName,
+    authorEmail,
+    authoredAt: Number(at),
+    committerName,
+    committedAt: Number(ct),
+    message: body.join('\x1f').trimEnd(),
+  }
+}

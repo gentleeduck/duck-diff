@@ -1,6 +1,6 @@
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, describe, expect, it } from 'vitest'
-import { listCommits } from '../index'
+import { listCommits, readCommit } from '../index'
 
 describe('listCommits', () => {
   let repo: TestRepo
@@ -34,5 +34,20 @@ describe('listCommits', () => {
   it('returns an empty list when head has nothing new', async () => {
     history()
     expect(await listCommits(repo.path, { base: 'feat', head: 'main' })).toEqual([])
+  })
+})
+
+describe('readCommit', () => {
+  let repo: TestRepo
+  afterEach(() => repo.cleanup())
+
+  it('reads the full message and both identities', async () => {
+    repo = createRepo()
+    repo.write('a.txt', '1\n')
+    repo.git('add', 'a.txt')
+    repo.git('commit', '-q', '-m', 'subject line', '-m', 'body with | pipes\nand lines')
+    const details = await readCommit(repo.path, 'HEAD')
+    expect(details).toMatchObject({ authorName: 'Duck Test', committerName: 'Duck Test', parents: [] })
+    expect(details.message).toBe('subject line\n\nbody with | pipes\nand lines')
   })
 })
