@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+.cache/
+*.tsbuildinfo
+*.log
+.DS_Store
+
+# Local notes and assistant files
+docs/superpowers/
+CLAUDE.md
+AGENTS.md
+.claude/

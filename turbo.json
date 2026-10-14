@@ -1,0 +1,16 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/__tests__/**", "!**/*.test.*"],
+      "outputs": ["dist/**"]
+    },
+    "check-types": { "dependsOn": ["^build"] },
+    "test": { "dependsOn": ["^build"], "env": ["TEST_LOGS"] },
+    "test:coverage": { "dependsOn": ["^build"], "env": ["TEST_LOGS"], "outputs": ["coverage/**"] },
+    "clean": { "cache": false },
+    "dev": { "cache": false, "persistent": true }
+  }
+}

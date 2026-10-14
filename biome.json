@@ -1,0 +1,35 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
+  "assist": { "actions": { "source": { "preset": "recommended" } }, "enabled": true },
+  "files": {
+    "includes": ["**", "!**/node_modules", "!**/dist", "!**/coverage", "!**/.turbo", "!**/.cache", "!**/*.tsbuildinfo"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 120,
+    "bracketSameLine": true,
+    "expand": "never"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "semicolons": "asNeeded",
+      "trailingCommas": "all"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "domains": { "react": "recommended", "test": "recommended" },
+    "rules": {
+      "preset": "recommended",
+      "correctness": { "noUndeclaredDependencies": "error", "noUnusedImports": "error", "noUnusedVariables": "warn" },
+      "nursery": { "noFloatingPromises": "error" },
+      "style": { "useNodejsImportProtocol": "error", "noNonNullAssertion": "warn" },
+      "suspicious": { "noExplicitAny": "warn", "noFocusedTests": "error", "noDoubleEquals": "error" }
+    }
+  }
+}

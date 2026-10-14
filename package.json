@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "duck-diff",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "bun@1.4.0",
+  "workspaces": {
+    "packages": ["apps/*", "packages/*", "tooling/*"],
+    "catalog": {
+      "@biomejs/biome": "2.5.13",
+      "@types/node": "^26.5.1",
+      "@vitest/coverage-v8": "^5.0.0",
+      "typescript": "7.0.2",
+      "vitest": "^5.0.0"
+    }
+  },
+  "scripts": {
+    "build": "turbo run build --concurrency=4",
+    "check": "biome check .",
+    "check-types": "turbo run check-types --concurrency=4",
+    "ci": "bun run check && bun run check-types && bun run test:coverage && bun run build",
+    "clean": "turbo run clean && rm -rf .turbo",
+    "fix": "biome check --write .",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "prepare": "husky",
+    "test": "turbo run test --concurrency=4",
+    "test:coverage": "turbo run test:coverage --concurrency=4",
+    "verify": "bun run ci"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2",
+    "@duck-diff/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "husky": "^9.1.7",
+    "turbo": "^2.10.12",
+    "typescript": "catalog:"
+  }
+}
