@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { RefNameSchema } from './git'
 
 export const GitHubUserSchema = z.object({ login: z.string(), avatarUrl: z.string() })
 export type GitHubUser = z.infer<typeof GitHubUserSchema>
@@ -88,6 +89,14 @@ export const PostReviewCommentSchema = PostCommentSchema.extend({
 export const ReplySchema = PostCommentSchema.extend({ inReplyTo: z.number().int() })
 export const SubmitReviewSchema = z.object({ event: ReviewEventSchema, body: z.string().max(65_000) })
 export const MergePullSchema = z.object({ method: z.enum(['merge', 'squash', 'rebase']) })
+export const CreatePullSchema = z.object({
+  title: z.string().trim().min(1).max(256),
+  body: z.string().max(65_000),
+  head: RefNameSchema,
+  base: RefNameSchema,
+  draft: z.boolean(),
+})
+export type CreatePull = z.infer<typeof CreatePullSchema>
 export const CreateIssueSchema = z.object({ title: z.string().trim().min(1).max(256), body: z.string().max(65_000) })
 export const SetTokenSchema = z.object({ token: z.string().trim().min(10).max(500) })
 export const PullRefsSchema = z.object({ base: z.string(), head: z.string() })

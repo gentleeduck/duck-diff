@@ -51,6 +51,8 @@ function fakeGitHub(calls: Call[]) {
     const path = url.pathname
     if (path === '/user') return Response.json(user)
     if (path === '/repos/o/r/pulls' && method === 'GET') return Response.json([pull])
+    if (path === '/repos/o/r/pulls' && method === 'POST') return Response.json({ ...pull, number: 8 }, { status: 201 })
+    if (path === '/repos/o/r') return Response.json({ default_branch: 'trunk' })
     if (path === '/repos/o/r/pulls/7' && method === 'GET') {
       return Response.json({ ...pull, body: 'Why', mergeable: true, additions: 3, deletions: 1, changed_files: 2 })
     }
@@ -158,6 +160,17 @@ describe('/api/github', () => {
     expect((await call('POST', '/api/github/pulls/7/reviews', { event: 'APPROVE', body: '' })).status).toBe(204)
     expect((await call('POST', '/api/github/pulls/7/merge', { method: 'squash' })).status).toBe(204)
     expect(calls.find((entry) => entry.path.endsWith('/merge'))?.body).toEqual({ merge_method: 'squash' })
+  })
+
+  it('opens a pull request against the default branch', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    expect(await (await call('GET', '/api/github/default-branch')).json()).toEqual({ branch: 'trunk' })
+    const input = { title: 'New', body: '', head: 'feat', base: 'trunk', draft: true }
+    const created = await call('POST', '/api/github/pulls', input)
+    expect(created.status).toBe(201)
+    expect(await created.json()).toMatchObject({ number: 8 })
+    expect(calls.find((entry) => entry.method === 'POST')?.body).toEqual(input)
   })
 
   it('lists issues without the pull requests GitHub mixes in', async () => {

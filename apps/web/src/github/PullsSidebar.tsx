@@ -3,6 +3,7 @@ import { GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft } f
 import { useApp } from '../app/AppProvider'
 import { ItemSidebar } from './ItemSidebar'
 import { Labels } from './Labels'
+import { NewPull } from './NewPull'
 import { ago } from './time'
 
 export function PullIcon({ pull }: { pull: Pick<PullSummary, 'state' | 'merged' | 'draft'> }) {
@@ -13,7 +14,7 @@ export function PullIcon({ pull }: { pull: Pick<PullSummary, 'state' | 'merged' 
   return <GitPullRequest aria-label="Open" className="size-4 shrink-0 text-added" />
 }
 
-export function PullsSidebar({ version }: { version: number }) {
+export function PullsSidebar({ version, onChanged }: { version: number; onChanged(): void }) {
   const { api, pullSelection } = useApp()
   return (
     <ItemSidebar
@@ -21,6 +22,7 @@ export function PullsSidebar({ version }: { version: number }) {
       load={api.github.pulls}
       selection={pullSelection}
       version={version}
+      actions={<NewPull onCreated={onChanged} />}
       row={(pull: PullSummary) => (
         <>
           <span className="pt-1">

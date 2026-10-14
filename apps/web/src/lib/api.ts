@@ -7,6 +7,7 @@ import {
   CommitSchema,
   type ConversationComment,
   ConversationCommentSchema,
+  type CreatePull,
   type CreateReview,
   type DiffTarget,
   ErrorBodySchema,
@@ -86,6 +87,8 @@ export interface GitHubApi {
   status(): Promise<GitHubStatus>
   signIn(token: string): Promise<GitHubStatus>
   pulls(state: ItemState): Promise<PullSummary[]>
+  createPull(input: CreatePull): Promise<PullSummary>
+  defaultBranch(): Promise<string>
   pull(number: number): Promise<PullDetails>
   fetchPull(number: number): Promise<PullRefs>
   // Pull requests and issues share one conversation endpoint.
@@ -151,6 +154,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     signIn: (token) => send('POST', '/api/github/token', { token }, GitHubStatusSchema),
     pulls: (state) => json(`/api/github/pulls?state=${state}`, z.array(PullSummarySchema)),
     pull: (number) => json(`/api/github/pulls/${number}`, PullDetailsSchema),
+    createPull: (input) => send('POST', '/api/github/pulls', input, PullSummarySchema),
+    defaultBranch: async () => (await json('/api/github/default-branch', z.object({ branch: z.string() }))).branch,
     fetchPull: (number) => send('POST', `/api/github/pulls/${number}/fetch`, {}, PullRefsSchema),
     comment: (number, body) =>
       send('POST', `/api/github/issues/${number}/comments`, { body }, ConversationCommentSchema),

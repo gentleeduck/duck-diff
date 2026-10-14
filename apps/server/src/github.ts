@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { runGit } from '@duck-diff/git'
 import type {
   ConversationComment,
+  CreatePull,
   GitHubReviewComment,
   GitHubStatus,
   GitHubUser,
@@ -129,6 +130,14 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         `${await repoPath()}/pulls?state=${state}&per_page=50&sort=updated&direction=desc`,
       )
       return raw.map(pullSummary)
+    },
+    async createPull(input: CreatePull): Promise<PullSummary> {
+      return pullSummary(
+        await call<RawPull>(`${await repoPath()}/pulls`, { method: 'POST', body: JSON.stringify(input) }),
+      )
+    },
+    async defaultBranch(): Promise<string> {
+      return (await call<{ default_branch: string }>(await repoPath())).default_branch
     },
     async pull(number: number): Promise<PullDetails> {
       const base = `${await repoPath()}`

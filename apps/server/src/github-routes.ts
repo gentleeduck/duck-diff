@@ -1,6 +1,7 @@
 import { runGit } from '@duck-diff/git'
 import {
   CreateIssueSchema,
+  CreatePullSchema,
   MergePullSchema,
   PostCommentSchema,
   PostReviewCommentSchema,
@@ -44,7 +45,11 @@ export async function handleGitHub(
     github.setToken(SetTokenSchema.parse(await body()).token)
     return Response.json(await github.status())
   }
+  if (area === 'default-branch') return Response.json({ branch: await github.defaultBranch() })
   if (area === 'pulls') {
+    if (id === undefined && post) {
+      return Response.json(await github.createPull(CreatePullSchema.parse(await body())), { status: 201 })
+    }
     if (id === undefined)
       return Response.json(await github.pulls(State.parse(Object.fromEntries(url.searchParams)).state))
     if (!Number.isInteger(number)) throw new HttpError(400, 'bad-request', 'bad pull request number')

@@ -138,7 +138,7 @@ function Screen() {
           <SyncButtons />
         </>
       ),
-      side: <PullsSidebar version={pullsVersion} />,
+      side: <PullsSidebar version={pullsVersion} onChanged={pullsChanged} />,
       label: 'Pull requests',
       main: <PullView onChanged={pullsChanged} />,
     },

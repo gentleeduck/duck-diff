@@ -9,7 +9,7 @@ import { toDirection } from '../direction/direction.libs'
 export interface ITabsContextProps {
   activeItem: string
   dir: IDirection.Kind
-  setActiveItem: React.Dispatch<React.SetStateAction<string>>
+  setActiveItem: (value: string) => void
   tabsId: string
 }
 
@@ -40,12 +40,17 @@ const Tabs = React.forwardRef<HTMLDivElement, ITabsProps>(
       if (value !== undefined) setActiveItem(value)
     }, [value])
 
-    React.useEffect(() => {
-      if (onValueChange) onValueChange(activeItem)
-    }, [activeItem, onValueChange])
+    // Only a pick from a trigger reports back; echoing mount or controlled updates fed loops in callers.
+    const pick = React.useCallback(
+      (next: string) => {
+        setActiveItem(next)
+        onValueChange?.(next)
+      },
+      [onValueChange],
+    )
 
     return (
-      <TabsContext.Provider value={{ activeItem, dir: direction, setActiveItem, tabsId }}>
+      <TabsContext.Provider value={{ activeItem, dir: direction, setActiveItem: pick, tabsId }}>
         <div {...props} data-slot="tabs" dir={direction} ref={ref} />
       </TabsContext.Provider>
     )

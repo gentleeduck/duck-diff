@@ -80,6 +80,32 @@ describe('GitHub views', () => {
     await waitFor(() => expect(merge).toHaveBeenCalledWith(7, 'squash'))
   })
 
+  it('opens a pull request from the current branch, titled by its latest commit', async () => {
+    const createPull = vi.fn(async () => ({ ...pull, number: 9 }))
+    const api = fakeApi({
+      commits: async () => [{ sha: 'abc', subject: 'Latest work', author: 'octo', authoredAt: 1 }] as never,
+      sync: async () => ({ branch: 'feat', upstream: 'origin/feat', ahead: 0, behind: 0, staged: 0 }),
+      github: githubApi({ createPull, defaultBranch: async () => 'trunk' }),
+    })
+    render(<App api={api} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'New pull request' }))
+    await waitFor(() => expect((screen.getByLabelText('Title') as HTMLInputElement).value).toBe('Latest work'))
+    // The submit button waits for the base branch from GitHub.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Open pull request' })).not.toHaveProperty('disabled', true),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Open pull request' }))
+    await waitFor(() =>
+      expect(createPull).toHaveBeenCalledWith({
+        title: 'Latest work',
+        body: '',
+        head: 'feat',
+        base: 'trunk',
+        draft: false,
+      }),
+    )
+  })
+
   it('says so when the repo has no GitHub remote', async () => {
     render(
       <App
