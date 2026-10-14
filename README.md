@@ -33,6 +33,14 @@ In the page: `j`/`k` next or previous change, `Shift J`/`Shift K` next or previo
 `/` filter files, `Ctrl K` command palette, `?` all shortcuts. Saving a buffer refreshes the page, and the
 "Open in Neovim" button on a file jumps back to it.
 
+On unstaged changes, stage or discard a file from its header or one change from the toolbar next to a hovered line
+(`s` and `x` act on the change `j`/`k` landed on); on staged changes, unstage (`u`). A discard asks first and can be
+undone from the toast or the palette.
+
+Hover any line and choose Comment (or press `c`) to leave a note. Comments stay on this machine under
+`$XDG_DATA_HOME/duck-diff`, follow their line when code above it moves, and show as outdated when the line is gone.
+The Comments button lists them all. Tick Viewed on a file (or press `v`) to fold it until it changes again.
+
 ## Options
 
 ```lua
