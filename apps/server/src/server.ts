@@ -1,13 +1,22 @@
 import { resolveRepo } from '@duck-diff/git'
-import { type ChangeReason, OpenRequestSchema } from '@duck-diff/protocol'
+import {
+  type ChangeReason,
+  CreateReviewSchema,
+  decodeTarget,
+  OpenRequestSchema,
+  UpdateReviewSchema,
+  WriteRequestSchema,
+} from '@duck-diff/protocol'
 import { createToken, isAuthorized, TOKEN_COOKIE } from './auth'
 import { errorResponse, HttpError } from './errors'
 import { Hub } from './hub'
 import { type NvimRunner, openKeys, runNvim } from './nvim'
+import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
+import { applyWrite, createWriteQueue, undoLatest } from './writes'
 
 export interface ServerOptions {
   repo: string
@@ -19,6 +28,10 @@ export interface ServerOptions {
   // Address of the Neovim that started the server, so the page can open files in it.
   nvim?: string | null
   runNvim?: NvimRunner
+  // Where discard snapshots go; tests point it at a temp folder.
+  undoCache?: string
+  // Where review comments are kept; tests point it at a temp folder.
+  dataDir?: string
 }
 
 export interface RunningServer {
@@ -40,6 +53,8 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const hub = new Hub(options.idleTimeoutMs ?? DEFAULT_IDLE_MS, options.onIdle ?? (() => {}))
   const notify = (reason: ChangeReason) => hub.broadcast({ type: 'changed', reason })
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
+  const enqueue = createWriteQueue()
+  const reviews = createReviewStore(repo, options.dataDir)
 
   const server = Bun.serve({
     hostname: HOST,
@@ -56,6 +71,42 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           hub.touch()
           notify('saved')
           return new Response(null, { status: 204 })
+        }
+        if (url.pathname === '/api/write' && request.method === 'POST') {
+          const write = WriteRequestSchema.parse(await request.json())
+          await enqueue(() => applyWrite(repo, write, options.undoCache))
+          notify('index')
+          return new Response(null, { status: 204 })
+        }
+        if (url.pathname === '/api/undo' && request.method === 'POST') {
+          const restored = await enqueue(() => undoLatest(repo, options.undoCache))
+          if (restored) notify('worktree')
+          return Response.json({ restored })
+        }
+        if (url.pathname === '/api/reviews') {
+          if (request.method === 'POST') {
+            const input = CreateReviewSchema.parse(await request.json())
+            const comment = await enqueue(() => reviews.create(input))
+            notify('reviews')
+            return Response.json(comment, { status: 201 })
+          }
+          const raw = url.searchParams.get('target')
+          if (!raw) throw new HttpError(400, 'bad-request', 'missing target')
+          return Response.json(await reviews.list(decodeTarget(raw)))
+        }
+        if (url.pathname.startsWith('/api/reviews/')) {
+          const id = decodeURIComponent(url.pathname.slice('/api/reviews/'.length))
+          if (request.method === 'PATCH') {
+            const { body } = UpdateReviewSchema.parse(await request.json())
+            const comment = await enqueue(() => reviews.update(id, body))
+            notify('reviews')
+            return Response.json(comment)
+          }
+          if (request.method === 'DELETE') {
+            await enqueue(() => reviews.remove(id))
+            notify('reviews')
+            return new Response(null, { status: 204 })
+          }
         }
         if (url.pathname === '/api/open' && request.method === 'POST') {
           if (!options.nvim) throw new HttpError(409, 'bad-request', 'no Neovim attached to this server')
@@ -82,7 +133,9 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     websocket: {
       async open(socket) {
         hub.add(socket)
-        socket.send(JSON.stringify({ type: 'hello', repo: await repoInfo(repo, Boolean(options.nvim)) }))
+        // The repo can disappear under a running server; a missing hello is better than a crash.
+        const info = await repoInfo(repo, Boolean(options.nvim)).catch(() => null)
+        if (info) socket.send(JSON.stringify({ type: 'hello', repo: info }))
       },
       close(socket) {
         hub.remove(socket)

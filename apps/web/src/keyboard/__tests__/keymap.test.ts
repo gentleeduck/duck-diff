@@ -23,13 +23,19 @@ describe('resolveKey', () => {
     expect(resolveKey(key({ key: '?', shiftKey: true }))).toBe('help')
     expect(resolveKey(key({ key: 'k', ctrlKey: true }))).toBe('palette')
     expect(resolveKey(key({ key: 'k', metaKey: true }))).toBe('palette')
+    expect(resolveKey(key({ key: 's' }))).toBe('stage')
+    expect(resolveKey(key({ key: 'u' }))).toBe('unstage')
+    expect(resolveKey(key({ key: 'x' }))).toBe('discard')
+    expect(resolveKey(key({ key: 'c' }))).toBe('comment')
+    expect(resolveKey(key({ key: 'v' }))).toBe('viewed')
+    expect(resolveKey(key({ key: 'o' }))).toBe('open')
   })
 
   it('ignores keys while typing, except the palette shortcut', () => {
     expect(resolveKey(key({ key: 'j' }, 'INPUT'))).toBeNull()
     expect(resolveKey(key({ key: 'j' }, 'TEXTAREA'))).toBeNull()
     expect(resolveKey(key({ key: 'k', ctrlKey: true }, 'INPUT'))).toBe('palette')
-    expect(resolveKey(key({ key: 'x' }))).toBeNull()
+    expect(resolveKey(key({ key: 'z' }))).toBeNull()
   })
 })
 

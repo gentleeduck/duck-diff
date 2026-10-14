@@ -10,7 +10,9 @@
       "!**/.turbo",
       "!**/.cache",
       "!**/*.tsbuildinfo",
-      "!**/*.gen.ts"
+      "!**/*.gen.ts",
+      "!**/test-results",
+      "!**/playwright-report"
     ]
   },
   "formatter": {

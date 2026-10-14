@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { type DiffTarget, DiffTargetSchema } from './git'
+import { type DiffTarget, DiffTargetSchema, FileStatusSchema } from './git'
 
 export function encodeTarget(target: DiffTarget): string {
   return encodeURIComponent(JSON.stringify(target))
@@ -17,6 +17,7 @@ export const ErrorCodeSchema = z.enum([
   'bad-request',
   'unauthorized',
   'not-found',
+  'stale',
 ])
 export type ErrorCode = z.infer<typeof ErrorCodeSchema>
 
@@ -43,3 +44,62 @@ export const OpenRequestSchema = z.object({
   line: z.number().int().min(1).default(1),
 })
 export type OpenRequest = z.infer<typeof OpenRequestSchema>
+
+const RepoPath = z
+  .string()
+  .min(1)
+  .refine((path) => !path.startsWith('/') && !path.split('/').includes('..'), 'path must stay inside the repo')
+
+const WriteFileSchema = z.object({
+  path: RepoPath,
+  oldPath: RepoPath.nullable(),
+  status: FileStatusSchema,
+  newSha: z.string().nullable(),
+})
+
+export const WriteRequestSchema = z.union([
+  z.object({
+    action: z.enum(['stage-hunk', 'unstage-hunk', 'discard-hunk']),
+    file: WriteFileSchema,
+    hunkIndex: z.number().int().min(0),
+    hunkHeader: z.string().startsWith('@@ '),
+  }),
+  z.object({ action: z.enum(['stage-file', 'unstage-file', 'discard-file']), file: WriteFileSchema }),
+])
+export type WriteRequest = z.infer<typeof WriteRequestSchema>
+export type WriteAction = WriteRequest['action']
+
+export const UndoResultSchema = z.object({ restored: z.array(z.string()).nullable() })
+export type UndoResult = z.infer<typeof UndoResultSchema>
+
+// Stable whatever order the properties arrived in, so a target read back from JSON finds its comments.
+export function targetKey(target: DiffTarget): string {
+  switch (target.kind) {
+    case 'range':
+      return `range:${target.mode}:${target.from}:${target.to}`
+    case 'commit':
+      return `commit:${target.sha}`
+    default:
+      return target.kind
+  }
+}
+
+export const CreateReviewSchema = z.object({
+  target: DiffTargetSchema,
+  path: RepoPath,
+  side: z.enum(['additions', 'deletions']),
+  line: z.number().int().min(1),
+  lineHash: z.string().min(1).max(64),
+  body: z.string().trim().min(1).max(20_000),
+})
+export type CreateReview = z.infer<typeof CreateReviewSchema>
+
+export const UpdateReviewSchema = z.object({ body: CreateReviewSchema.shape.body })
+export type UpdateReview = z.infer<typeof UpdateReviewSchema>
+
+export const ReviewCommentSchema = CreateReviewSchema.extend({
+  id: z.string().min(1),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+export type ReviewComment = z.infer<typeof ReviewCommentSchema>

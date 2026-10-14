@@ -1,4 +1,4 @@
-import { Button, Kbd, TooltipProvider } from '@duck-diff/ui'
+import { Button, Kbd, Toaster, TooltipProvider } from '@duck-diff/ui'
 import { lazy, Suspense, useState } from 'react'
 import { CompareBar } from '../compare/CompareBar'
 import { HelpDialog } from '../keyboard/HelpDialog'
@@ -6,8 +6,10 @@ import { useKeyboard } from '../keyboard/useKeyboard'
 import type { Api } from '../lib/api'
 import { useLiveRefresh } from '../live/useLiveRefresh'
 import { Palette } from '../palette/Palette'
+import { CommentsSheet } from '../review/CommentsSheet'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
+import { WritesProvider } from '../writes/WritesProvider'
 import { AppProvider } from './AppProvider'
 import { Shell } from './Shell'
 import { StatusBar } from './StatusBar'
@@ -30,6 +32,7 @@ function Screen() {
             <Button variant="ghost" size="sm" className="gap-2 text-[var(--dd-muted)]" onClick={() => setPalette(true)}>
               Search <Kbd>Ctrl K</Kbd>
             </Button>
+            <CommentsSheet />
             <SettingsPopover />
           </>
         }
@@ -51,7 +54,10 @@ export function App({ api }: { api?: Api }) {
   return (
     <AppProvider api={api}>
       <TooltipProvider>
-        <Screen />
+        <WritesProvider>
+          <Screen />
+          <Toaster position="bottom-right" />
+        </WritesProvider>
       </TooltipProvider>
     </AppProvider>
   )

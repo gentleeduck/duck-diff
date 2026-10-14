@@ -3,6 +3,7 @@ import type { FileDiffContentsLoader } from '@pierre/diffs'
 import type { CodeViewReactOptions } from '@pierre/diffs/react'
 import type { CSSProperties } from 'react'
 import type { Api } from '../lib/api'
+import type { Note } from '../review/annotations'
 import type { Settings } from '../state/settings'
 
 const LAYOUT = { paddingTop: 8, paddingBottom: 64, gap: 12 }
@@ -10,7 +11,7 @@ const LAYOUT = { paddingTop: 8, paddingBottom: 64, gap: 12 }
 export function viewerOptions(
   settings: Settings,
   loadDiffFiles: FileDiffContentsLoader,
-): CodeViewReactOptions<undefined, undefined> {
+): CodeViewReactOptions<Note, undefined> {
   return {
     theme: settings.themes,
     themeType: settings.themeType,

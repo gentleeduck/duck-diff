@@ -17,6 +17,7 @@ const GIT_STATUS: Record<GitError['code'], number> = {
   timeout: 504,
   'not-a-repo': 500,
   failed: 500,
+  stale: 409,
 }
 
 function json(status: number, code: ErrorCode, message: string): Response {

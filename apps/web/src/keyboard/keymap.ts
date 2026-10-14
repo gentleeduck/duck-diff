@@ -7,6 +7,12 @@ export type Action =
   | 'focus-filter'
   | 'help'
   | 'palette'
+  | 'stage'
+  | 'unstage'
+  | 'discard'
+  | 'comment'
+  | 'viewed'
+  | 'open'
 
 interface KeyLike {
   key: string
@@ -24,6 +30,12 @@ const PLAIN: Record<string, Action> = {
   t: 'toggle-layout',
   '/': 'focus-filter',
   '?': 'help',
+  s: 'stage',
+  u: 'unstage',
+  x: 'discard',
+  c: 'comment',
+  v: 'viewed',
+  o: 'open',
 }
 
 function isTyping(target: KeyLike['target']): boolean {

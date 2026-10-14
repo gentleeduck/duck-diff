@@ -3,6 +3,10 @@ import { Dialog, DialogContent, DialogTitle, Kbd } from '@duck-diff/ui'
 const SHORTCUTS: [string, string][] = [
   ['j / k', 'Next or previous change'],
   ['Shift J / Shift K', 'Next or previous file'],
+  ['s / u / x', 'Stage, unstage or discard the current change'],
+  ['c', 'Comment on the current change'],
+  ['v', 'Mark the current file viewed'],
+  ['o', 'Open the current change in Neovim'],
   ['t', 'Switch between split and stacked'],
   ['/', 'Filter files'],
   ['Ctrl K', 'Command palette'],

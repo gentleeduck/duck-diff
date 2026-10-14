@@ -61,4 +61,35 @@ describe('createApi', () => {
     expect(url).toBe('/api/open')
     expect(init).toMatchObject({ method: 'POST', body: JSON.stringify({ path: 'src/a.ts', line: 7 }) })
   })
+
+  it('lists, creates, edits and deletes review comments', async () => {
+    const comment = {
+      id: 'c 1',
+      target: { kind: 'unstaged' },
+      path: 'a.ts',
+      side: 'additions',
+      line: 1,
+      lineHash: 'h',
+      body: 'note',
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) =>
+      init?.method === 'DELETE'
+        ? new Response(null, { status: 204 })
+        : Response.json(url.includes('target=') ? [comment] : comment),
+    ) as unknown as typeof fetch
+    const api = createApi(fetcher)
+    expect(await api.reviews({ kind: 'unstaged' })).toEqual([comment])
+    await api.createReview({ ...comment, target: { kind: 'unstaged' }, side: 'additions' })
+    await api.updateReview('c 1', 'better')
+    await api.deleteReview('c 1')
+    const calls = vi.mocked(fetcher).mock.calls.map(([url, init]) => [init?.method ?? 'GET', url])
+    expect(calls).toEqual([
+      ['GET', `/api/reviews?target=${encodeTarget({ kind: 'unstaged' })}`],
+      ['POST', '/api/reviews'],
+      ['PATCH', '/api/reviews/c%201'],
+      ['DELETE', '/api/reviews/c%201'],
+    ])
+  })
 })
