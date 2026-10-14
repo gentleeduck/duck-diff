@@ -45,6 +45,10 @@ The History tab lists the branch's commits and your stashes. "File history" on a
 commits that touched that file (following renames): click one to see its change to the file, Shift-click a second
 to compare the two versions. Stashes also show in the ref pickers, so any stash can be compared with any ref.
 
+During a merge, a conflicted file shows once with its markers and cannot be staged from the page; resolve it in
+Neovim. Binary files show their size change, changed images show before and after, and files marked
+`linguist-generated` in `.gitattributes` start folded.
+
 ## Options
 
 ```lua
@@ -70,4 +74,8 @@ bun install
 bun run ci        # biome, types, build, unit tests with coverage
 bun run test:e2e  # Playwright against the compiled binary
 bun run test:nvim # Lua specs in headless Neovim
+bun run bench     # performance budgets against the compiled binary
 ```
+
+The budgets: the first diff row within 300 ms of the file list for 1,000 changed files, under 300 MB of JS heap
+for a 50,000-line diff, and 60 fps while scrolling. CI checks them on Linux.
