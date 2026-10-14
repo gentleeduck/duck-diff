@@ -22,3 +22,8 @@ jobs:
       - run: bunx playwright install --with-deps chromium
         working-directory: apps/server
       - run: bun run test:e2e
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - run: bun run test:nvim
