@@ -46,7 +46,7 @@ export function FileActions({
       )}
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label="File history" onClick={onHistory}>
+          <Button variant="ghost" size="icon" aria-label="File history" onClick={onHistory}>
             <History />
           </Button>
         </TooltipTrigger>
@@ -54,7 +54,7 @@ export function FileActions({
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label="Copy path" onClick={copy}>
+          <Button variant="ghost" size="icon" aria-label="Copy path" onClick={copy}>
             {copied ? <Check /> : <Copy />}
           </Button>
         </TooltipTrigger>

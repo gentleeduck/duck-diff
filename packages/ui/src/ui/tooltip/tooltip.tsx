@@ -13,10 +13,11 @@ Tooltip.displayName = 'Tooltip'
 const TooltipTrigger = TooltipPrimitive.Trigger
 TooltipTrigger.displayName = 'TooltipTrigger'
 
+// Every tooltip points at what it describes; pass `arrow={false}` to drop it.
 const TooltipContent = React.forwardRef<
   React.ComponentRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 4, style, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & { arrow?: boolean }
+>(({ className, sideOffset = 8, style, arrow = true, children, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       ref={ref}
@@ -27,8 +28,10 @@ const TooltipContent = React.forwardRef<
         className,
       )}
       style={{ '--tooltip-border-color': 'var(--border)', ...style } as React.CSSProperties}
-      {...props}
-    />
+      {...props}>
+      {children}
+      {arrow ? <TooltipArrow /> : null}
+    </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
 ))
 TooltipContent.displayName = TooltipPrimitive.Content.displayName

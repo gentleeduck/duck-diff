@@ -57,7 +57,7 @@ export function CompareBar() {
           </span>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             aria-label="Show every file"
             onClick={() => navigate(withoutPath(target))}>
             <X />

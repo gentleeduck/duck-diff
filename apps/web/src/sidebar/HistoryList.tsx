@@ -36,6 +36,7 @@ function Row({
   return (
     <li>
       <Button
+        size="sm"
         variant="ghost"
         aria-current={current}
         onClick={onClick}

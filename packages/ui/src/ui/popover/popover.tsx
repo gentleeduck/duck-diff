@@ -14,10 +14,11 @@ PopoverTrigger.displayName = 'PopoverTrigger'
 const PopoverAnchor: typeof PopoverPrimitive.Anchor = PopoverPrimitive.Anchor
 PopoverAnchor.displayName = 'PopoverAnchor'
 
+// Popovers point at their trigger by default; pass `arrow={false}` to drop it.
 const PopoverContent = React.forwardRef<
   React.ComponentRef<typeof PopoverPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
->(({ className, align = 'center', sideOffset = 4, style, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & { arrow?: boolean }
+>(({ className, align = 'center', sideOffset = 8, style, arrow = true, children, ...props }, ref) => (
   <PopoverPrimitive.Portal>
     <PopoverPrimitive.Content
       ref={ref}
@@ -29,8 +30,10 @@ const PopoverContent = React.forwardRef<
         className,
       )}
       style={{ '--popover-border-color': 'var(--border)', ...style } as React.CSSProperties}
-      {...props}
-    />
+      {...props}>
+      {children}
+      {arrow ? <PopoverArrow /> : null}
+    </PopoverPrimitive.Content>
   </PopoverPrimitive.Portal>
 ))
 PopoverContent.displayName = PopoverPrimitive.Content.displayName

@@ -97,7 +97,7 @@ export function SettingsPopover() {
       <div className="flex items-center gap-1">
         <Button
           variant="outline"
-          size="icon-sm"
+          size="icon"
           aria-label={`Decrease ${label.toLowerCase()}`}
           disabled={settings[key] <= min}
           onClick={() => set(key, settings[key] - 1)}>
@@ -106,7 +106,7 @@ export function SettingsPopover() {
         <output className="w-6 text-center tabular-nums">{settings[key]}</output>
         <Button
           variant="outline"
-          size="icon-sm"
+          size="icon"
           aria-label={`Increase ${label.toLowerCase()}`}
           disabled={settings[key] >= max}
           onClick={() => set(key, settings[key] + 1)}>

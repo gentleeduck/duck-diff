@@ -54,10 +54,10 @@ export function CommentsSheet() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline">
+        <Button size="sm" variant="outline">
           <MessageSquare />
           Comments
-          {comments.length > 0 ? <Badge className="h-5 px-1.5 text-sm">{comments.length}</Badge> : null}
+          {comments.length > 0 ? <Badge size="sm">{comments.length}</Badge> : null}
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="flex w-[420px] flex-col gap-4 bg-card">
@@ -77,6 +77,7 @@ export function CommentsSheet() {
                 {entries.map((anchored) => (
                   <li key={anchored.comment.id}>
                     <Button
+                      size="sm"
                       variant="ghost"
                       onClick={() => jump(path, anchored)}
                       className="h-auto w-full flex-col items-stretch gap-0.5 px-2 py-1.5 text-start">

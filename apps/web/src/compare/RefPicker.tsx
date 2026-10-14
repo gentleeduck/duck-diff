@@ -36,6 +36,7 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
+          size="sm"
           variant="outline"
           aria-label={side === 'from' ? `Compare from ${label}` : `Compare to ${label}`}
           className="gap-1.5">

@@ -38,14 +38,14 @@ export function FileHeader({
     <div className="flex h-11 items-center gap-3 border-border border-b bg-card px-3 font-sans">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         aria-label={collapsed ? `Show ${path}` : `Hide ${path}`}
         aria-expanded={!collapsed}
         onClick={onToggle}>
         <ChevronRight className={`size-4 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
       </Button>
       {file ? (
-        <Badge variant="outline" className={`h-6 px-2 text-sm ${STATUS[file.status].tone}`}>
+        <Badge variant="outline" size="sm" className={STATUS[file.status].tone}>
           {STATUS[file.status].label}
         </Badge>
       ) : null}

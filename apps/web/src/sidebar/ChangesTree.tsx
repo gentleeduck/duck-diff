@@ -43,6 +43,7 @@ function TreeRow({
           : 'text-tn-blue'
   return (
     <Button
+      size="sm"
       variant="ghost"
       role="treeitem"
       aria-level={row.depth + 1}

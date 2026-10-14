@@ -31,6 +31,7 @@ function Screen() {
           <>
             <CompareBar />
             <Button
+              size="sm"
               variant="outline"
               className="w-72 justify-start gap-2 text-muted-foreground"
               aria-label="Search files and actions"

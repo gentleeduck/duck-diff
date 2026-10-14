@@ -56,12 +56,7 @@ function Toolbar({ item, line, side }: { item: NoteItem; line: DiffLine; side: '
     <span className="absolute inset-y-0 start-0 z-10 hidden items-center gap-0.5 bg-popover px-0.5 group-hover/line:flex">
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-5.5"
-            aria-label="Comment on line"
-            onClick={() => comment(item, line, side)}>
+          <Button variant="ghost" size="icon" aria-label="Comment on line" onClick={() => comment(item, line, side)}>
             <MessageSquarePlus />
           </Button>
         </TooltipTrigger>
@@ -75,7 +70,7 @@ function Toolbar({ item, line, side }: { item: NoteItem; line: DiffLine; side: '
               <Button
                 variant="ghost"
                 size="icon"
-                className={`size-5.5 ${kind === 'discard' ? 'text-destructive hover:text-destructive' : ''}`}
+                className={kind === 'discard' ? 'text-destructive hover:text-destructive' : undefined}
                 aria-label={label}
                 onClick={() => write(kind, item, line.hunk)}>
                 <Icon />
