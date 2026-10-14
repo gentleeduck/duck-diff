@@ -8,6 +8,8 @@ M.defaults = {
   -- Browser command for 'app' mode; detected when nil.
   browser = nil,
   repo_url = 'https://github.com/gentleeduck/duck-diff',
+  -- Token for private release downloads; GITHUB_TOKEN, GH_TOKEN or `gh auth token` are used when nil.
+  github_token = nil,
   server = { idle_timeout_ms = 600000 },
 }
 

@@ -13,8 +13,9 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 ```
 
 The first `:DuckDiff` downloads the binary for your machine from the matching GitHub release, checks its sha256 and
-caches it under `stdpath('data')/duck-diff`. Linux and macOS, x64 and arm64. Run `:checkhealth duck-diff` if
-something is off.
+caches it under `stdpath('data')/duck-diff`. Linux and macOS, x64 and arm64. While the repo is private, downloads
+use a GitHub token from `opts.github_token`, `GITHUB_TOKEN`, `GH_TOKEN` or `gh auth token`. Run
+`:checkhealth duck-diff` if something is off.
 
 ## Use
 
@@ -39,6 +40,7 @@ opts = {
   open = 'app',      -- 'app' (Chrome app window), 'tab' (default browser) or function(url)
   browser = nil,     -- browser command for app windows; detected when nil
   binary = nil,      -- path to your own duck-diff binary
+  github_token = nil, -- for private release downloads
   server = { idle_timeout_ms = 600000 },
 }
 ```
