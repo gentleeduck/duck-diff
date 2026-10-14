@@ -1,6 +1,7 @@
 import { TooltipProvider } from '@duck-diff/ui'
 import { lazy, Suspense } from 'react'
 import type { Api } from '../lib/api'
+import { ChangesTree } from '../sidebar/ChangesTree'
 import { AppProvider } from './AppProvider'
 import { Shell } from './Shell'
 import { useThemeClass } from './useThemeClass'
@@ -12,7 +13,7 @@ function Screen() {
   return (
     <Shell
       topBar={<h1 className="font-[var(--dd-font-code)] text-[15px]">duck-diff</h1>}
-      sidebar={null}
+      sidebar={<ChangesTree />}
       viewer={
         <Suspense fallback={null}>
           <Viewer />
