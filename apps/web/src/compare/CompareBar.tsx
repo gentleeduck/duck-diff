@@ -64,7 +64,7 @@ export function CompareBar() {
           </Button>
         </span>
       ) : null}
-      <p className="hidden shrink-0 text-muted-foreground tabular-nums 2xl:block">
+      <p className="shrink-0 text-muted-foreground tabular-nums">
         {files} {files === '1' ? 'file' : 'files'}
         <span className="ml-3 text-added">+{additions}</span>
         <span className="ml-1.5 text-removed">-{deletions}</span>
