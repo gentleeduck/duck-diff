@@ -1,11 +1,12 @@
 import { resolveRepo } from '@duck-diff/git'
 import type { ChangeReason } from '@duck-diff/protocol'
-import pageBundle from '../static/index.html' with { type: 'file' }
 import { createToken, isAuthorized, TOKEN_COOKIE } from './auth'
 import { errorResponse, HttpError } from './errors'
 import { Hub } from './hub'
 import { handleApi, repoInfo } from './routes'
 import { watchRepo } from './watch'
+import { createWebHandler } from './web'
+import { WEB_ASSETS } from './web-assets.gen'
 
 export interface ServerOptions {
   repo: string
@@ -27,8 +28,7 @@ export interface RunningServer {
 
 const HOST = '127.0.0.1'
 const DEFAULT_IDLE_MS = 600_000
-// Bun types every .html import as a bundle, but `type: 'file'` yields the embedded file path.
-const page = pageBundle as unknown as string
+const serveWeb = createWebHandler(WEB_ASSETS)
 
 export async function createServer(options: ServerOptions): Promise<RunningServer> {
   const repo = await resolveRepo(options.repo)
@@ -54,12 +54,12 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           return new Response(null, { status: 204 })
         }
         if (url.pathname.startsWith('/api/')) return await handleApi(repo, url)
-        return new Response(Bun.file(page), {
-          headers: {
-            'content-type': 'text/html; charset=utf-8',
-            'set-cookie': `${TOKEN_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/`,
-          },
-        })
+        const response = serveWeb(url.pathname)
+        // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
+        if (response.headers.get('content-type')?.startsWith('text/html')) {
+          response.headers.set('set-cookie', `${TOKEN_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/`)
+        }
+        return response
       } catch (error) {
         return errorResponse(error)
       }
