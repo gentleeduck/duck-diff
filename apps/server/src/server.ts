@@ -1,9 +1,17 @@
 import { resolveRepo } from '@duck-diff/git'
-import { type ChangeReason, OpenRequestSchema, WriteRequestSchema } from '@duck-diff/protocol'
+import {
+  type ChangeReason,
+  CreateReviewSchema,
+  decodeTarget,
+  OpenRequestSchema,
+  UpdateReviewSchema,
+  WriteRequestSchema,
+} from '@duck-diff/protocol'
 import { createToken, isAuthorized, TOKEN_COOKIE } from './auth'
 import { errorResponse, HttpError } from './errors'
 import { Hub } from './hub'
 import { type NvimRunner, openKeys, runNvim } from './nvim'
+import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
@@ -22,6 +30,8 @@ export interface ServerOptions {
   runNvim?: NvimRunner
   // Where discard snapshots go; tests point it at a temp folder.
   undoCache?: string
+  // Where review comments are kept; tests point it at a temp folder.
+  dataDir?: string
 }
 
 export interface RunningServer {
@@ -44,6 +54,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const notify = (reason: ChangeReason) => hub.broadcast({ type: 'changed', reason })
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
   const enqueue = createWriteQueue()
+  const reviews = createReviewStore(repo, options.dataDir)
 
   const server = Bun.serve({
     hostname: HOST,
@@ -71,6 +82,31 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           const restored = await enqueue(() => undoLatest(repo, options.undoCache))
           if (restored) notify('worktree')
           return Response.json({ restored })
+        }
+        if (url.pathname === '/api/reviews') {
+          if (request.method === 'POST') {
+            const input = CreateReviewSchema.parse(await request.json())
+            const comment = await enqueue(() => reviews.create(input))
+            notify('reviews')
+            return Response.json(comment, { status: 201 })
+          }
+          const raw = url.searchParams.get('target')
+          if (!raw) throw new HttpError(400, 'bad-request', 'missing target')
+          return Response.json(await reviews.list(decodeTarget(raw)))
+        }
+        if (url.pathname.startsWith('/api/reviews/')) {
+          const id = decodeURIComponent(url.pathname.slice('/api/reviews/'.length))
+          if (request.method === 'PATCH') {
+            const { body } = UpdateReviewSchema.parse(await request.json())
+            const comment = await enqueue(() => reviews.update(id, body))
+            notify('reviews')
+            return Response.json(comment)
+          }
+          if (request.method === 'DELETE') {
+            await enqueue(() => reviews.remove(id))
+            notify('reviews')
+            return new Response(null, { status: 204 })
+          }
         }
         if (url.pathname === '/api/open' && request.method === 'POST') {
           if (!options.nvim) throw new HttpError(409, 'bad-request', 'no Neovim attached to this server')

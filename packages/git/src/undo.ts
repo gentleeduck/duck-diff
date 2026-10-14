@@ -14,9 +14,13 @@ function defaultCache(): string {
   return process.env.XDG_CACHE_HOME ?? join(homedir(), '.cache')
 }
 
-// Snapshots live outside the repo, one folder per repo, so undo never shows up in git status.
+// Per-repo state lives outside the repo, one folder per repo, so it never shows up in git status.
+export function repoId(repo: string): string {
+  return createHash('sha1').update(repo).digest('hex').slice(0, 16)
+}
+
 function storeFor(repo: string, cache: string): string {
-  return join(cache, 'duck-diff', createHash('sha1').update(repo).digest('hex').slice(0, 16), 'undo')
+  return join(cache, 'duck-diff', repoId(repo), 'undo')
 }
 
 async function snapshots(store: string): Promise<string[]> {
