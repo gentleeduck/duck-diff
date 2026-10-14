@@ -1,0 +1,25 @@
+local M = {}
+
+M.defaults = {
+  -- Path to a duck-diff binary to use instead of downloading the release.
+  binary = nil,
+  -- 'app' opens a Chrome app window, 'tab' the default browser; a function receives the url.
+  open = 'app',
+  -- Browser command for 'app' mode; detected when nil.
+  browser = nil,
+  repo_url = 'https://github.com/gentleeduck/duck-diff',
+  server = { idle_timeout_ms = 600000 },
+}
+
+local current = vim.deepcopy(M.defaults)
+
+function M.setup(opts)
+  current = vim.tbl_deep_extend('force', vim.deepcopy(M.defaults), opts or {})
+  return current
+end
+
+function M.get()
+  return current
+end
+
+return M

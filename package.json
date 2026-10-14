@@ -42,7 +42,8 @@
     "test": "turbo run test --concurrency=4",
     "test:coverage": "turbo run test:coverage --concurrency=4",
     "verify": "bun run ci && bun run test:e2e",
-    "test:e2e": "turbo run test:e2e --concurrency=1"
+    "test:e2e": "turbo run test:e2e --concurrency=1",
+    "test:nvim": "nvim --headless -l tests/nvim/run.lua"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
