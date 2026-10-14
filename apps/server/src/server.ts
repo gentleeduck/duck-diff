@@ -10,6 +10,8 @@ import {
 } from '@duck-diff/protocol'
 import { createToken, isAuthorized, tokenCookie } from './auth'
 import { errorResponse, HttpError } from './errors'
+import { createGitHub, type GitHubOptions } from './github'
+import { handleGitHub } from './github-routes'
 import { Hub } from './hub'
 import { type NvimRunner, openKeys, runNvim } from './nvim'
 import { createReviewStore } from './reviews'
@@ -33,6 +35,8 @@ export interface ServerOptions {
   undoCache?: string
   // Where review comments are kept; tests point it at a temp folder.
   dataDir?: string
+  // GitHub access; tests swap in a fake fetch and token.
+  github?: GitHubOptions
 }
 
 export interface RunningServer {
@@ -56,6 +60,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
   const enqueue = createWriteQueue()
   const reviews = createReviewStore(repo, options.dataDir)
+  const github = createGitHub(repo, options.github)
 
   const server = Bun.serve({
     hostname: HOST,
@@ -75,6 +80,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           return new Response(null, { status: 204 })
         }
         if (url.pathname === '/api/sync') return Response.json(await readSyncStatus(repo))
+        if (url.pathname.startsWith('/api/github/')) return await handleGitHub(github, repo, url, request, enqueue)
         if (url.pathname.startsWith('/api/git/') && request.method === 'POST') {
           const result = await enqueue(() => gitAction(repo, url.pathname.slice(9), request))
           notify(result.reason)

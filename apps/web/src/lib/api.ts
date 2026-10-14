@@ -5,6 +5,8 @@ import {
   type CommitDetails,
   CommitDetailsSchema,
   CommitSchema,
+  type ConversationComment,
+  ConversationCommentSchema,
   type CreateReview,
   type DiffTarget,
   ErrorBodySchema,
@@ -12,6 +14,20 @@ import {
   encodeTarget,
   type FileContents,
   FileContentsSchema,
+  type GitHubReviewComment,
+  GitHubReviewCommentSchema,
+  type GitHubStatus,
+  GitHubStatusSchema,
+  type IssueDetails,
+  IssueDetailsSchema,
+  type IssueSummary,
+  IssueSummarySchema,
+  type PullDetails,
+  PullDetailsSchema,
+  type PullRefs,
+  PullRefsSchema,
+  type PullSummary,
+  PullSummarySchema,
   type Ref,
   RefSchema,
   type RepoInfo,
@@ -58,6 +74,32 @@ export interface Api {
   file(path: string, ref?: string): Promise<FileContents>
   sync(): Promise<SyncStatus>
   git(action: GitAction, body?: unknown): Promise<{ sha?: string }>
+  github: GitHubApi
+}
+
+export type ItemState = 'open' | 'closed'
+export type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES'
+export type MergeMethod = 'merge' | 'squash' | 'rebase'
+
+// Every GitHub call goes through the local server, which holds the token.
+export interface GitHubApi {
+  status(): Promise<GitHubStatus>
+  signIn(token: string): Promise<GitHubStatus>
+  pulls(state: ItemState): Promise<PullSummary[]>
+  pull(number: number): Promise<PullDetails>
+  fetchPull(number: number): Promise<PullRefs>
+  // Pull requests and issues share one conversation endpoint.
+  comment(number: number, body: string): Promise<ConversationComment>
+  reviewComment(
+    number: number,
+    input: { body: string; path: string; line: number; side: 'LEFT' | 'RIGHT' },
+  ): Promise<GitHubReviewComment>
+  review(number: number, event: ReviewEvent, body: string): Promise<void>
+  merge(number: number, method: MergeMethod): Promise<void>
+  issues(state: ItemState): Promise<IssueSummary[]>
+  issue(number: number): Promise<IssueDetails>
+  createIssue(title: string, body: string): Promise<IssueSummary>
+  setIssueState(number: number, state: ItemState): Promise<void>
 }
 
 export type GitAction = 'commit' | 'push' | 'pull' | 'fetch' | 'switch' | 'checkout'
@@ -86,7 +128,34 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     return schema.parse(await response.json())
   }
 
+  async function post(path: string, body: unknown): Promise<void> {
+    await request(path, undefined, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  }
+
+  const github: GitHubApi = {
+    status: () => json('/api/github/status', GitHubStatusSchema),
+    signIn: (token) => send('POST', '/api/github/token', { token }, GitHubStatusSchema),
+    pulls: (state) => json(`/api/github/pulls?state=${state}`, z.array(PullSummarySchema)),
+    pull: (number) => json(`/api/github/pulls/${number}`, PullDetailsSchema),
+    fetchPull: (number) => send('POST', `/api/github/pulls/${number}/fetch`, {}, PullRefsSchema),
+    comment: (number, body) =>
+      send('POST', `/api/github/issues/${number}/comments`, { body }, ConversationCommentSchema),
+    reviewComment: (number, input) =>
+      send('POST', `/api/github/pulls/${number}/review-comments`, input, GitHubReviewCommentSchema),
+    review: (number, event, body) => post(`/api/github/pulls/${number}/reviews`, { event, body }),
+    merge: (number, method) => post(`/api/github/pulls/${number}/merge`, { method }),
+    issues: (state) => json(`/api/github/issues?state=${state}`, z.array(IssueSummarySchema)),
+    issue: (number) => json(`/api/github/issues/${number}`, IssueDetailsSchema),
+    createIssue: (title, body) => send('POST', '/api/github/issues', { title, body }, IssueSummarySchema),
+    setIssueState: (number, state) => post(`/api/github/issues/${number}/state`, { state }),
+  }
+
   return {
+    github,
     repo: () => json('/api/repo', RepoInfoSchema),
     refs: () => json('/api/refs', z.array(RefSchema)),
     files: (target, signal) => json(`/api/files?target=${encodeTarget(target)}`, z.array(ChangedFileSchema), signal),

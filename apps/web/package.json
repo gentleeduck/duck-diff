@@ -22,6 +22,8 @@
     "lucide-react": "^1.57.0",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
     "shiki": "catalog:",
     "sonner": "^2.0.8",
     "zod": "catalog:"

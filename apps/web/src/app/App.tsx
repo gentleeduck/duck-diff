@@ -6,6 +6,9 @@ import { FilesSidebar } from '../files/FilesSidebar'
 import { BranchMenu } from '../git/BranchMenu'
 import { GitProvider } from '../git/GitProvider'
 import { SyncButtons } from '../git/SyncButtons'
+import { IssuesSidebar } from '../github/IssuesSidebar'
+import { PullsSidebar } from '../github/PullsSidebar'
+import { useGitHub } from '../github/SignIn'
 import { GraphSidebar } from '../graph/GraphSidebar'
 import type { GraphState } from '../graph/store'
 import { useView } from '../hooks/useView'
@@ -29,8 +32,10 @@ import { useThemeClass } from './useThemeClass'
 const Viewer = lazy(() => import('../viewer/Viewer'))
 const GraphView = lazy(() => import('../graph/GraphView'))
 const FileView = lazy(() => import('../files/FileView'))
+const PullView = lazy(() => import('../github/PullView'))
+const IssueView = lazy(() => import('../github/IssueView'))
 
-const SHIPPED: View[] = ['changes', 'graph', 'files']
+const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues']
 
 const selectCommitCount = (state: GraphState) => state.entries.length
 
@@ -47,6 +52,17 @@ function GraphTitle() {
   )
 }
 
+function GitHubTitle({ title }: { title: string }) {
+  const { status } = useGitHub()
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+      <h1>{title}</h1>
+      {status?.repo ? <span className="truncate text-muted-foreground">{status.repo}</span> : null}
+      {status?.user ? <span className="ms-auto shrink-0 text-muted-foreground">{status.user.login}</span> : null}
+    </div>
+  )
+}
+
 function Screen() {
   useThemeClass()
   const [palette, setPalette] = useState(false)
@@ -54,6 +70,11 @@ function Screen() {
   useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true) })
   const live = useLiveRefresh()
   const { view } = useView()
+  // Bumped when a page changes an item, so its list reloads.
+  const [pullsVersion, setPullsVersion] = useState(0)
+  const [issuesVersion, setIssuesVersion] = useState(0)
+  const pullsChanged = () => setPullsVersion((n) => n + 1)
+  const issuesChanged = () => setIssuesVersion((n) => n + 1)
   const search = (
     <Button
       size="sm"
@@ -66,10 +87,7 @@ function Screen() {
       <Kbd className="ms-auto">Ctrl K</Kbd>
     </Button>
   )
-  const screens: Record<
-    'changes' | 'graph' | 'files',
-    { top: ReactNode; side: ReactNode; label: string; main: ReactNode }
-  > = {
+  const screens: Record<View, { top: ReactNode; side: ReactNode; label: string; main: ReactNode }> = {
     changes: {
       top: (
         <>
@@ -112,8 +130,32 @@ function Screen() {
       label: 'All files',
       main: <FileView />,
     },
+    prs: {
+      top: (
+        <>
+          <GitHubTitle title="Pull requests" />
+          {search}
+          <SyncButtons />
+        </>
+      ),
+      side: <PullsSidebar version={pullsVersion} />,
+      label: 'Pull requests',
+      main: <PullView onChanged={pullsChanged} />,
+    },
+    issues: {
+      top: (
+        <>
+          <GitHubTitle title="Issues" />
+          {search}
+          <SyncButtons />
+        </>
+      ),
+      side: <IssuesSidebar version={issuesVersion} onChanged={issuesChanged} />,
+      label: 'Issues',
+      main: <IssueView onChanged={issuesChanged} />,
+    },
   }
-  const screen = screens[view === 'graph' || view === 'files' ? view : 'changes']
+  const screen = screens[view]
   return (
     <>
       <Shell

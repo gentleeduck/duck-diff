@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
 import type { DiffViewHandle } from '../diff/DiffView'
+import { createGitHub, type GitHub } from '../github/store'
 import { createGraph, type Graph } from '../graph/store'
 import { type Api, createApi } from '../lib/api'
 import { createStore, type Store } from '../lib/store'
@@ -24,6 +25,10 @@ interface AppContextValue {
   graphSelection: Store<string | null>
   // The file open in the Files view.
   fileSelection: Store<string | null>
+  github: GitHub
+  // The pull request and issue open in their views.
+  pullSelection: Store<number | null>
+  issueSelection: Store<number | null>
   viewer: RefObject<DiffViewHandle | null>
 }
 
@@ -44,6 +49,9 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       graph: createGraph(client),
       graphSelection: createStore<string | null>(null),
       fileSelection: createStore<string | null>(null),
+      github: createGitHub(client),
+      pullSelection: createStore<number | null>(null),
+      issueSelection: createStore<number | null>(null),
       viewer,
     }
   }, [api])

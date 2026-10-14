@@ -34,6 +34,31 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     tree: async () => ['a.ts', 'b.ts'],
     sync: async () => ({ branch: 'main', upstream: 'origin/main', ahead: 0, behind: 0, staged: 0 }),
     git: async () => ({}),
+    github: {
+      status: async () => ({ repo: null, user: null, source: null }),
+      signIn: async () => ({ repo: null, user: null, source: null }),
+      pulls: async () => [],
+      pull: async () => {
+        throw new Error('no pull requests')
+      },
+      fetchPull: async () => ({ base: 'main', head: 'main' }),
+      comment: async () => {
+        throw new Error('no pull requests')
+      },
+      reviewComment: async () => {
+        throw new Error('no pull requests')
+      },
+      review: async () => {},
+      merge: async () => {},
+      issues: async () => [],
+      issue: async () => {
+        throw new Error('no issues')
+      },
+      createIssue: async () => {
+        throw new Error('no issues')
+      },
+      setIssueState: async () => {},
+    },
     file: async () => ({ text: 'a\n', size: 2, binary: false }),
     graph: async () => new Response('').body as ReadableStream<Uint8Array>,
     commit: async (sha) => ({
