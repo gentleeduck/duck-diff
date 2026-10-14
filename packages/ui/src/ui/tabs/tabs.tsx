@@ -35,6 +35,11 @@ const Tabs = React.forwardRef<HTMLDivElement, ITabsProps>(
     const [activeItem, setActiveItem] = React.useState<string>(defaultValue ?? value ?? '')
     const tabsId = React.useId()
 
+    // A controlled `value` that changes from outside moves the active tab too.
+    React.useEffect(() => {
+      if (value !== undefined) setActiveItem(value)
+    }, [value])
+
     React.useEffect(() => {
       if (onValueChange) onValueChange(activeItem)
     }, [activeItem, onValueChange])

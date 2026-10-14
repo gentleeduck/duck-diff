@@ -24,5 +24,6 @@ describe.skipIf(!existsSync(BINARY))('compiled binary', () => {
     if (Object.keys(WEB_ASSETS).some((path) => path.startsWith('/assets/'))) expect(html).toContain('id="root"')
     child.kill()
     repo.cleanup()
-  })
+    // macOS scans a freshly built, unsigned binary on its first launch, which can take several seconds on CI.
+  }, 30_000)
 })

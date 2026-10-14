@@ -30,5 +30,16 @@ export async function listRefs(repo: string): Promise<Ref[]> {
       current: head === '*',
     })
   }
-  return refs
+  return [...refs, ...(await listStashes(repo))]
+}
+
+async function listStashes(repo: string): Promise<Ref[]> {
+  const out = await runGit(['stash', 'list', '--format=%H%x1f%gd%x1f%ct%x1f%gs'], { cwd: repo })
+  return out
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [sha = '', name = '', at = '0', subject = ''] = line.split('\x1f')
+      return { name, kind: 'stash' as const, sha, committedAt: Number(at), current: false, subject }
+    })
 }

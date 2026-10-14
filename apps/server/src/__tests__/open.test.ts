@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { createServer, type RunningServer } from '../server'
+import { testPort } from './helpers'
 
 let repo: TestRepo
 let server: RunningServer
@@ -20,7 +21,7 @@ function post(body: unknown) {
 describe('/api/open', () => {
   it('answers 409 when the server was started without a Neovim address', async () => {
     repo = createRepo()
-    server = await createServer({ repo: repo.path, port: 0, watch: false })
+    server = await createServer({ repo: repo.path, port: testPort(), watch: false })
     expect((await post({ path: 'a.ts', line: 3 })).status).toBe(409)
   })
 
@@ -29,7 +30,7 @@ describe('/api/open', () => {
     const calls: string[][] = []
     server = await createServer({
       repo: repo.path,
-      port: 0,
+      port: testPort(),
       watch: false,
       nvim: '/tmp/nvim.sock',
       runNvim: async (args) => {
@@ -48,7 +49,7 @@ describe('/api/open', () => {
 
   it('reports nvim in repo info', async () => {
     repo = createRepo()
-    server = await createServer({ repo: repo.path, port: 0, watch: false, nvim: '/tmp/nvim.sock' })
+    server = await createServer({ repo: repo.path, port: testPort(), watch: false, nvim: '/tmp/nvim.sock' })
     const info = await (
       await fetch(`http://127.0.0.1:${server.port}/api/repo`, { headers: { 'x-duck-diff-token': server.token } })
     ).json()

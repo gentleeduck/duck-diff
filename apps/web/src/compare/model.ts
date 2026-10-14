@@ -6,24 +6,36 @@ export interface TargetDescription {
   from: string
   to: string
   operator: '..' | '...' | null
+  path: string | null
 }
 
 const WORKTREE = 'working tree'
 const INDEX = 'staged'
 
+// Full commit hashes (from history picks) read better at the length git prints them.
+function short(ref: string): string {
+  return /^[0-9a-f]{40}$/.test(ref) ? ref.slice(0, 7) : ref
+}
+
 export function describeTarget(target: DiffTarget): TargetDescription {
+  const path = target.kind === 'range' || target.kind === 'commit' ? (target.path ?? null) : null
   switch (target.kind) {
     case 'local':
-      return { from: 'HEAD', to: WORKTREE, operator: null }
+      return { from: 'HEAD', to: WORKTREE, operator: null, path }
     case 'staged':
-      return { from: 'HEAD', to: INDEX, operator: null }
+      return { from: 'HEAD', to: INDEX, operator: null, path }
     case 'unstaged':
-      return { from: INDEX, to: WORKTREE, operator: null }
+      return { from: INDEX, to: WORKTREE, operator: null, path }
     case 'range':
-      return { from: target.from, to: target.to, operator: target.mode === 'two-dot' ? '..' : '...' }
+      return {
+        from: short(target.from),
+        to: short(target.to),
+        operator: target.mode === 'two-dot' ? '..' : '...',
+        path,
+      }
     case 'commit': {
       const short = target.sha.slice(0, 7)
-      return { from: `${short}^`, to: short, operator: null }
+      return { from: `${short}^`, to: short, operator: null, path }
     }
   }
 }
@@ -60,7 +72,21 @@ export function withSide(target: DiffTarget, side: 'from' | 'to', endpoint: Endp
   if (nextTo.kind === 'index') return { kind: 'staged' }
   if (nextFrom.kind !== 'ref') return { kind: 'local' }
   const mode = target.kind === 'range' ? target.mode : 'merge-base'
-  return { kind: 'range', from: nextFrom.name, to: nextTo.name, mode }
+  const path = describeTarget(target).path
+  return { kind: 'range', from: nextFrom.name, to: nextTo.name, mode, ...(path ? { path } : {}) }
+}
+
+export function withoutPath(target: DiffTarget): DiffTarget {
+  if (target.kind !== 'range' && target.kind !== 'commit') return target
+  const { path: _path, ...rest } = target
+  return rest
+}
+
+// `order` is the file's log, newest first, so the commit further down is the older version.
+export function historyTarget(path: string, order: readonly string[], sha: string, other?: string): DiffTarget {
+  if (!other || other === sha) return { kind: 'commit', sha, path }
+  const [to, from] = order.indexOf(sha) < order.indexOf(other) ? [sha, other] : [other, sha]
+  return { kind: 'range', from, to, mode: 'two-dot', path }
 }
 
 export function toggleOperator(target: DiffTarget): DiffTarget {

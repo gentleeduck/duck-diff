@@ -1,11 +1,26 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@duck-diff/ui'
+import { useEffect, useState } from 'react'
+import { useApp } from '../app/AppProvider'
+import { describeTarget } from '../compare/model'
+import { useTarget } from '../hooks/useTarget'
 import { ChangesTree } from './ChangesTree'
 import { HistoryList } from './HistoryList'
 
 // duck-ui hides inactive panels with `hidden`; layout classes go on an inner wrapper so they never override it.
 export function Sidebar() {
+  const { fileHistory } = useApp()
+  const { target } = useTarget()
+  const [tab, setTab] = useState('changes')
+  const targetPath = describeTarget(target).path
+
+  // Asking for a file's history, or opening a link to one file, shows that file's log.
+  useEffect(() => fileHistory.subscribe(() => fileHistory.get() && setTab('history')), [fileHistory])
+  useEffect(() => {
+    if (targetPath && fileHistory.get() !== targetPath) fileHistory.set(targetPath)
+  }, [targetPath, fileHistory])
+
   return (
-    <Tabs defaultValue="changes" className="flex h-full min-h-0 flex-col gap-0">
+    <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col gap-0">
       <TabsList className="mx-3 mt-3 grid grid-cols-2">
         <TabsTrigger value="changes">Changes</TabsTrigger>
         <TabsTrigger value="history">History</TabsTrigger>

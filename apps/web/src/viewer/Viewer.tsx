@@ -35,7 +35,7 @@ const selectReviews = (state: ReviewsState) => state
 const selectViewed = (state: ViewedState) => state
 
 export default function Viewer() {
-  const { api, session, viewer, reviews, viewed } = useApp()
+  const { api, session, viewer, reviews, viewed, fileHistory } = useApp()
   const plain = useSession(selectItems)
   const files = useSession(selectFiles)
   const { target } = useTarget()
@@ -90,6 +90,7 @@ export default function Viewer() {
           path={path}
           viewed={folded.has(path)}
           onViewed={() => file && viewed.toggle(target, file)}
+          onHistory={() => fileHistory.set(path)}
           onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
           writes={
             file && kinds.length > 0 ? (
@@ -99,7 +100,7 @@ export default function Viewer() {
         />
       )
     },
-    [api, canOpen, byPath, kinds, writes, folded, viewed, target],
+    [api, canOpen, byPath, kinds, writes, folded, viewed, target, fileHistory],
   )
 
   const renderGutter = useCallback(

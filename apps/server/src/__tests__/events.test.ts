@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { createServer, type RunningServer } from '../server'
+import { testPort } from './helpers'
 
 let repo: TestRepo
 let server: RunningServer
@@ -30,7 +31,7 @@ async function waitFor(check: () => boolean, ms = 2000) {
 describe('events', () => {
   it('rejects a socket without the token', async () => {
     repo = createRepo()
-    server = await createServer({ repo: repo.path, port: 0, watch: false })
+    server = await createServer({ repo: repo.path, port: testPort(), watch: false })
     const response = await fetch(`http://127.0.0.1:${server.port}/api/events`, { headers: { upgrade: 'websocket' } })
     expect(response.status).toBe(401)
   })
@@ -39,7 +40,7 @@ describe('events', () => {
     repo = createRepo()
     repo.write('a.txt', '1\n')
     repo.commit('base')
-    server = await createServer({ repo: repo.path, port: 0, watch: false })
+    server = await createServer({ repo: repo.path, port: testPort(), watch: false })
     const { socket, messages } = await open(`ws://127.0.0.1:${server.port}/api/events?token=${server.token}`)
     await waitFor(() => messages.length === 1)
     expect(messages[0]).toMatchObject({ type: 'hello', repo: { branch: 'main' } })
@@ -61,7 +62,7 @@ describe('events', () => {
     repo = createRepo()
     repo.write('a.txt', '1\n')
     repo.commit('base')
-    server = await createServer({ repo: repo.path, port: 0, watch: true })
+    server = await createServer({ repo: repo.path, port: testPort(), watch: true })
     const { socket, messages } = await open(`ws://127.0.0.1:${server.port}/api/events?token=${server.token}`)
     await waitFor(() => messages.length === 1)
     repo.write('a.txt', '2\n')
@@ -75,7 +76,7 @@ describe('events', () => {
     let idle = false
     server = await createServer({
       repo: repo.path,
-      port: 0,
+      port: testPort(),
       watch: false,
       idleTimeoutMs: 100,
       onIdle: () => {
@@ -91,7 +92,7 @@ describe('events', () => {
     let idle = false
     server = await createServer({
       repo: repo.path,
-      port: 0,
+      port: testPort(),
       watch: false,
       idleTimeoutMs: 100,
       onIdle: () => {

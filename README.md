@@ -41,6 +41,10 @@ Hover any line and choose Comment (or press `c`) to leave a note. Comments stay 
 `$XDG_DATA_HOME/duck-diff`, follow their line when code above it moves, and show as outdated when the line is gone.
 The Comments button lists them all. Tick Viewed on a file (or press `v`) to fold it until it changes again.
 
+The History tab lists the branch's commits and your stashes. "File history" on a file header narrows it to the
+commits that touched that file (following renames): click one to see its change to the file, Shift-click a second
+to compare the two versions. Stashes also show in the ref pickers, so any stash can be compared with any ref.
+
 ## Options
 
 ```lua

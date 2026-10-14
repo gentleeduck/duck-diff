@@ -1,20 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import { describeTarget, presets, toggleOperator, withSide } from '../model'
+import { describeTarget, historyTarget, presets, toggleOperator, withoutPath, withSide } from '../model'
 
 const SHA = '3f2a91c4b5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0'
 
 describe('describeTarget', () => {
   it('names both sides and the operator', () => {
-    expect(describeTarget({ kind: 'local' })).toEqual({ from: 'HEAD', to: 'working tree', operator: null })
-    expect(describeTarget({ kind: 'staged' })).toEqual({ from: 'HEAD', to: 'staged', operator: null })
-    expect(describeTarget({ kind: 'unstaged' })).toEqual({ from: 'staged', to: 'working tree', operator: null })
+    expect(describeTarget({ kind: 'local' })).toEqual({ from: 'HEAD', to: 'working tree', operator: null, path: null })
+    expect(describeTarget({ kind: 'staged' })).toEqual({ from: 'HEAD', to: 'staged', operator: null, path: null })
+    expect(describeTarget({ kind: 'unstaged' })).toEqual({
+      from: 'staged',
+      to: 'working tree',
+      operator: null,
+      path: null,
+    })
     expect(describeTarget({ kind: 'range', from: 'main', to: 'feat', mode: 'two-dot' })).toEqual({
       from: 'main',
       to: 'feat',
       operator: '..',
+      path: null,
     })
     expect(describeTarget({ kind: 'range', from: 'main', to: 'feat', mode: 'merge-base' }).operator).toBe('...')
-    expect(describeTarget({ kind: 'commit', sha: SHA })).toEqual({ from: '3f2a91c^', to: '3f2a91c', operator: null })
+    expect(describeTarget({ kind: 'range', from: SHA, to: 'feat', mode: 'two-dot' }).from).toBe('3f2a91c')
+    expect(describeTarget({ kind: 'commit', sha: SHA })).toEqual({
+      from: '3f2a91c^',
+      to: '3f2a91c',
+      operator: null,
+      path: null,
+    })
   })
 })
 
@@ -65,5 +77,33 @@ describe('presets', () => {
       mode: 'merge-base',
     })
     expect(presets(['dev']).map((p) => p.label)).toEqual(['Local changes', 'Staged', 'Unstaged'])
+  })
+})
+
+describe('one file', () => {
+  const OLD = 'b'.repeat(40)
+  const NEW = 'a'.repeat(40)
+
+  it('describes the path and keeps it while the endpoints change', () => {
+    const target = { kind: 'range', from: 'main', to: 'feat', mode: 'two-dot', path: 'src/a.ts' } as const
+    expect(describeTarget(target).path).toBe('src/a.ts')
+    expect(describeTarget({ kind: 'local' }).path).toBeNull()
+    expect(withSide(target, 'from', { kind: 'ref', name: 'v1' })).toEqual({ ...target, from: 'v1' })
+    expect(toggleOperator(target)).toEqual({ ...target, mode: 'merge-base' })
+    expect(withoutPath(target)).toEqual({ kind: 'range', from: 'main', to: 'feat', mode: 'two-dot' })
+  })
+
+  it('opens one commit, or the span between two picked commits oldest first', () => {
+    const order = [NEW, OLD]
+    expect(historyTarget('a.ts', order, NEW)).toEqual({ kind: 'commit', sha: NEW, path: 'a.ts' })
+    expect(historyTarget('a.ts', order, NEW, OLD)).toEqual({
+      kind: 'range',
+      from: OLD,
+      to: NEW,
+      mode: 'two-dot',
+      path: 'a.ts',
+    })
+    expect(historyTarget('a.ts', order, OLD, NEW)).toEqual(historyTarget('a.ts', order, NEW, OLD))
+    expect(historyTarget('a.ts', order, NEW, NEW)).toEqual({ kind: 'commit', sha: NEW, path: 'a.ts' })
   })
 })

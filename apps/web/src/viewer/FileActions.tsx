@@ -1,5 +1,5 @@
 import { Button, Checkbox, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
-import { Check, Copy, SquareArrowOutUpRight } from 'lucide-react'
+import { Check, Copy, History, SquareArrowOutUpRight } from 'lucide-react'
 import { type ReactNode, useId, useState } from 'react'
 
 export function FileActions({
@@ -8,12 +8,14 @@ export function FileActions({
   writes,
   viewed,
   onViewed,
+  onHistory,
 }: {
   path: string
   onOpen?: () => void
   writes?: ReactNode
   viewed: boolean
   onViewed(): void
+  onHistory(): void
 }) {
   const [copied, setCopied] = useState(false)
   const viewedId = useId()
@@ -35,6 +37,14 @@ export function FileActions({
           <TooltipContent>Open in Neovim</TooltipContent>
         </Tooltip>
       )}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" className="size-6" aria-label="File history" onClick={onHistory}>
+            <History className="size-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>File history</TooltipContent>
+      </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" className="size-6" aria-label="Copy path" onClick={copy}>
