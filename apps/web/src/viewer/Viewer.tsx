@@ -6,6 +6,7 @@ import { highlighter } from '../diff/highlighter'
 import { buildPage } from '../diff/page'
 import type { RowContextValue } from '../diff/Rows'
 import type { DiffLine, DiffRow } from '../diff/rows'
+import { type PullReviewState, pullOf } from '../github/pull-review'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
@@ -28,6 +29,7 @@ const selectItems = (state: SessionState) => state.items
 const selectFiles = (state: SessionState) => state.files
 const selectSettings = (state: Settings) => state
 const selectReviews = (state: ReviewsState) => state
+const selectRemote = (state: PullReviewState) => state.comments
 const selectViewed = (state: ViewedState) => state
 
 // State that belongs to one comparison and starts over when the comparison changes.
@@ -46,12 +48,17 @@ const emptyContents = () => new Map<string, readonly string[]>() as ReadonlyMap<
 const emptyExpanded = () => new Map<string, ReadonlySet<number>>() as ReadonlyMap<string, ReadonlySet<number>>
 
 export default function Viewer() {
-  const { api, viewer, reviews, viewed, fileHistory } = useApp()
+  const { api, viewer, reviews, viewed, fileHistory, pullReview } = useApp()
   const plain = useSession(selectItems)
   const files = useSession(selectFiles)
   const { target } = useTarget()
   const shownKey = targetKey(target)
   const { comments, draft } = useStore(reviews, selectReviews)
+  const remote = useStore(pullReview, selectRemote)
+  const pull = pullOf(target)
+  useEffect(() => {
+    pullReview.load(pull).catch(() => {})
+  }, [pullReview, pull])
   const viewedState = useStore(viewed, selectViewed)
   const settings = useSettings(selectSettings)
   const writes = useWrites()
@@ -69,8 +76,8 @@ export default function Viewer() {
   const opened = useMemo(() => new Set([...toggled].filter(([, fold]) => !fold).map(([path]) => path)), [toggled])
   const annotate = useMemo(createAnnotator, [])
   const items = useMemo(
-    () => annotate(plain, comments, draft, folded, files, opened),
-    [annotate, plain, comments, draft, folded, files, opened],
+    () => annotate(plain, comments, draft, folded, files, opened, remote),
+    [annotate, plain, comments, draft, folded, files, opened, remote],
   )
 
   // Unchanged lines are read from the full file the first time someone opens a gap.

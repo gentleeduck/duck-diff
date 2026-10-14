@@ -1,4 +1,4 @@
-import type { ReviewComment } from '@duck-diff/protocol'
+import type { GitHubReviewComment, ReviewComment } from '@duck-diff/protocol'
 import { describe, expect, it } from 'vitest'
 import { toDiffItem } from '../../lib/items'
 import { lineHash } from '../anchor'
@@ -22,7 +22,27 @@ const comment: ReviewComment = {
   updatedAt: 1,
 }
 
+const github = (id: number, inReplyTo: number | null, line: number | null): GitHubReviewComment => ({
+  id,
+  author: { login: 'octo', avatarUrl: '' },
+  body: `note ${id}`,
+  createdAt: '2026-10-01T00:00:00Z',
+  path: 'a.ts',
+  line,
+  side: 'RIGHT',
+  inReplyTo,
+})
+
 describe('createAnnotator', () => {
+  it('groups GitHub replies under their thread on its line and leaves outdated threads out', () => {
+    const annotate = createAnnotator()
+    const remote = [github(1, null, 2), github(2, 1, null), github(3, null, null)]
+    const [annotated] = annotate([item], [], null, new Set(), [], new Set(), remote)
+    expect(annotated?.annotations).toEqual([
+      { side: 'additions', lineNumber: 2, metadata: { kind: 'github', thread: [remote[0], remote[1]] } },
+    ])
+  })
+
   it('puts comments and the draft on their lines', () => {
     const annotate = createAnnotator()
     const [annotated] = annotate([item], [comment], { path: 'a.ts', side: 'deletions', line: 2, lineHash: 'x' })

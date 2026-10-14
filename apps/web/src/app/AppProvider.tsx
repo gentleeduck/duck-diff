@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
 import type { DiffViewHandle } from '../diff/DiffView'
+import { createPullReview, type PullReview } from '../github/pull-review'
 import { createGitHub, type GitHub } from '../github/store'
 import { createGraph, type Graph } from '../graph/store'
 import { type Api, createApi } from '../lib/api'
@@ -29,6 +30,8 @@ interface AppContextValue {
   // The pull request and issue open in their views.
   pullSelection: Store<number | null>
   issueSelection: Store<number | null>
+  // GitHub's review threads for the pull request the diff shows.
+  pullReview: PullReview
   viewer: RefObject<DiffViewHandle | null>
 }
 
@@ -52,6 +55,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       github: createGitHub(client),
       pullSelection: createStore<number | null>(null),
       issueSelection: createStore<number | null>(null),
+      pullReview: createPullReview(client),
       viewer,
     }
   }, [api])
