@@ -31,5 +31,7 @@
       "style": { "useNodejsImportProtocol": "error", "noNonNullAssertion": "warn" },
       "suspicious": { "noExplicitAny": "warn", "noFocusedTests": "error", "noDoubleEquals": "error" }
     }
-  }
+  },
+  "css": { "parser": { "tailwindDirectives": true } },
+  "overrides": [{ "includes": ["packages/ui/src/ui/**", "packages/ui/src/styles.css"], "linter": { "enabled": false } }]
 }
