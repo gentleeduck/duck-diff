@@ -16,7 +16,7 @@ export function Avatar({ user }: { user: GitHubUser }) {
   )
 }
 
-// The renderer is 150 KB, so it loads with the first comment instead of with the diff viewer.
+// The Markdown renderer is large, so it loads with the first comment instead of with the diff viewer.
 const Markdown = lazy(() => import('../markdown/Markdown').then((module) => ({ default: module.Markdown })))
 
 export function Body({ text }: { text: string }) {

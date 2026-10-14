@@ -40,7 +40,7 @@ const Tabs = React.forwardRef<HTMLDivElement, ITabsProps>(
       if (value !== undefined) setActiveItem(value)
     }, [value])
 
-    // Only a pick from a trigger reports back; echoing mount or controlled updates fed loops in callers.
+    // Only a pick from a trigger reports back, so a caller never hears its own value echoed.
     const pick = React.useCallback(
       (next: string) => {
         setActiveItem(next)

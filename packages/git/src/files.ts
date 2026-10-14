@@ -201,8 +201,7 @@ export async function listFiles(repo: string, target: DiffTarget): Promise<Chang
   const unmerged = await unmergedPaths(repo, target)
   const args = [...(await targetArgs(repo, target)), ...pathArgs(target), ...excludeArgs(target, unmerged)]
   const worktree = readsWorkTree(target)
-  // Every diff re-reads the index and stats the tree; two at once contend, so one call prints both
-  // halves (about 75 ms on a large repo against 120 ms for two in parallel).
+  // Every diff re-reads the index and stats the tree, and two at once contend, so one call prints both halves.
   const [summary, extra] = await Promise.all([
     runGit(['diff', ...DIFF_FLAGS, '--raw', '--numstat', '--no-abbrev', ...args], { cwd: repo }),
     worktree
