@@ -64,6 +64,40 @@
   --diff-del-word: #713137;
 }
 
+/* tokyonight-day, for the light setting. */
+:root:not(.dark) {
+  --tn-bg: #e1e2e7;
+  --tn-bg-dark: #d0d5e3;
+  --tn-bg-highlight: #c4c8da;
+  --tn-gutter: #a8aecb;
+  --tn-fg: #3760bf;
+  --tn-fg-dark: #6172b0;
+  --tn-comment: #848cb5;
+  --tn-dark5: #68709a;
+  --tn-blue: #2e7de9;
+  --tn-cyan: #007197;
+  --tn-magenta: #9854f1;
+  --tn-pink: #d20065;
+  --tn-orange: #b15c00;
+  --tn-yellow: #8c6c3e;
+  --tn-green: #587539;
+  --tn-teal: #118c74;
+  --tn-red: #f52a65;
+
+  --diff-add-bg: #cfe1c9;
+  --diff-del-bg: #f0cfd6;
+  --diff-add-word: #a9cf9d;
+  --diff-del-word: #eaa5b3;
+}
+
+/* Shiki only ships tokyo-night, so in light mode each token keeps its hue and flips its lightness. */
+.tok {
+  color: var(--tok);
+}
+:root:not(.dark) .tok {
+  color: oklch(from var(--tok) calc(1 - l * 0.62) calc(c * 1.15) h);
+}
+
 /* One size across the page, the same as the code, including duck-ui's own small and large text. */
 @theme {
   --text-xs: 15px;

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import type { Token } from './highlight'
 import type { Range } from './words'
 
@@ -23,7 +23,9 @@ export function Code({ text, tokens, marks }: { text: string; tokens?: Token[]; 
         <span
           key={`${i}:${from}`}
           data-mark={marked || undefined}
-          style={{ color: color || undefined, textDecoration: style & 4 ? 'underline' : undefined }}>
+          // The color rides in a variable so the light theme can remap it in CSS.
+          className={color ? 'tok' : undefined}
+          style={{ '--tok': color || undefined, textDecoration: style & 4 ? 'underline' : undefined } as CSSProperties}>
           {content.slice(from - at, to - at)}
         </span>,
       )
