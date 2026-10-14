@@ -1,4 +1,4 @@
-import { listCommits, listFiles, listRefs, runGit, streamPatch } from '@duck-diff/git'
+import { listCommits, listFiles, listRefs, readSide, runGit, streamDiff, streamPatch } from '@duck-diff/git'
 import { decodeTarget, FileStatusSchema, type RepoInfo } from '@duck-diff/protocol'
 import { z } from 'zod'
 import { HttpError } from './errors'
@@ -14,6 +14,12 @@ const PatchQuery = z.object({
   path: z.string().min(1),
   oldPath: z.string().min(1).nullable(),
   status: FileStatusSchema,
+})
+
+const ContentQuery = z.object({
+  side: z.enum(['old', 'new']),
+  path: z.string().min(1),
+  oldPath: z.string().min(1).nullable(),
 })
 
 const CommitsQuery = z.object({
@@ -55,6 +61,27 @@ export async function handleApi(repo: string, url: URL): Promise<Response> {
       return new Response(iterableToStream(streamPatch(repo, target, file)), {
         headers: { 'content-type': 'text/plain; charset=utf-8' },
       })
+    }
+    case '/api/diff': {
+      const target = requireTarget(url)
+      return new Response(iterableToStream(streamDiff(repo, target)), {
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+      })
+    }
+    case '/api/content': {
+      const target = requireTarget(url)
+      const query = ContentQuery.parse({
+        side: url.searchParams.get('side'),
+        path: url.searchParams.get('path'),
+        oldPath: url.searchParams.get('oldPath'),
+      })
+      const changed = await listFiles(repo, target)
+      const entry = changed.find((candidate) => candidate.path === query.path)
+      if (!entry || (query.oldPath !== null && query.oldPath !== entry.oldPath)) {
+        throw new HttpError(400, 'bad-request', 'file is not part of this diff')
+      }
+      const path = query.side === 'old' ? (query.oldPath ?? query.path) : query.path
+      return Response.json({ contents: await readSide(repo, target, query.side, path) })
     }
     default:
       throw new HttpError(404, 'not-found', `no route ${url.pathname}`)
