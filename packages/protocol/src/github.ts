@@ -78,6 +78,17 @@ export const IssueDetailsSchema = IssueSummarySchema.extend({
 })
 export type IssueDetails = z.infer<typeof IssueDetailsSchema>
 
+export const CheckRunSchema = z.object({
+  name: z.string(),
+  // queued and in_progress have no conclusion yet.
+  status: z.enum(['queued', 'in_progress', 'completed', 'waiting', 'requested', 'pending']),
+  conclusion: z
+    .enum(['success', 'failure', 'neutral', 'cancelled', 'skipped', 'timed_out', 'action_required', 'stale'])
+    .nullable(),
+  url: z.string(),
+})
+export type CheckRun = z.infer<typeof CheckRunSchema>
+
 export const ReviewEventSchema = z.enum(['COMMENT', 'APPROVE', 'REQUEST_CHANGES'])
 
 export const PostCommentSchema = z.object({ body: z.string().trim().min(1).max(65_000) })

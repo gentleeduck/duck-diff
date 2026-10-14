@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { runGit } from '@duck-diff/git'
 import type {
+  CheckRun,
   ConversationComment,
   CreatePull,
   GitHubReviewComment,
@@ -139,6 +140,19 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     async defaultBranch(): Promise<string> {
       return (await call<{ default_branch: string }>(await repoPath())).default_branch
     },
+    async checks(number: number): Promise<CheckRun[]> {
+      const base = await repoPath()
+      const { head } = await call<RawPull>(`${base}/pulls/${number}`)
+      const { check_runs } = await call<{ check_runs: RawCheckRun[] }>(
+        `${base}/commits/${head.sha}/check-runs?per_page=100`,
+      )
+      return check_runs.map((run) => ({
+        name: run.name,
+        status: run.status,
+        conclusion: run.conclusion,
+        url: run.html_url ?? '',
+      }))
+    },
     async pull(number: number): Promise<PullDetails> {
       const base = `${await repoPath()}`
       const [raw, comments, reviewComments] = await Promise.all([
@@ -250,6 +264,12 @@ interface RawPullDetails extends RawPull {
   additions: number
   deletions: number
   changed_files: number
+}
+interface RawCheckRun {
+  name: string
+  status: CheckRun['status']
+  conclusion: CheckRun['conclusion']
+  html_url: string | null
 }
 interface RawReviewComment extends RawComment {
   path: string

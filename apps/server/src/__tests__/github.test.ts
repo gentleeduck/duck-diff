@@ -53,6 +53,14 @@ function fakeGitHub(calls: Call[]) {
     if (path === '/repos/o/r/pulls' && method === 'GET') return Response.json([pull])
     if (path === '/repos/o/r/pulls' && method === 'POST') return Response.json({ ...pull, number: 8 }, { status: 201 })
     if (path === '/repos/o/r') return Response.json({ default_branch: 'trunk' })
+    if (path === '/repos/o/r/commits/h1/check-runs') {
+      return Response.json({
+        check_runs: [
+          { name: 'test', status: 'completed', conclusion: 'success', html_url: 'https://ci/1' },
+          { name: 'lint', status: 'in_progress', conclusion: null, html_url: null },
+        ],
+      })
+    }
     if (path === '/repos/o/r/pulls/7' && method === 'GET') {
       return Response.json({ ...pull, body: 'Why', mergeable: true, additions: 3, deletions: 1, changed_files: 2 })
     }
@@ -171,6 +179,14 @@ describe('/api/github', () => {
     expect(created.status).toBe(201)
     expect(await created.json()).toMatchObject({ number: 8 })
     expect(calls.find((entry) => entry.method === 'POST')?.body).toEqual(input)
+  })
+
+  it("reads the check runs on a pull request's head commit", async () => {
+    await start({ token: 't', remote: 'git@github.com:o/r.git' })
+    expect(await (await call('GET', '/api/github/pulls/7/checks')).json()).toEqual([
+      { name: 'test', status: 'completed', conclusion: 'success', url: 'https://ci/1' },
+      { name: 'lint', status: 'in_progress', conclusion: null, url: '' },
+    ])
   })
 
   it('lists issues without the pull requests GitHub mixes in', async () => {

@@ -20,6 +20,7 @@ import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
 import type { MergeMethod, ReviewEvent } from '../lib/api'
 import { useStore } from '../lib/store'
+import { Checks } from './Checks'
 import { Avatar, Comment, Composer } from './Conversation'
 import { Labels } from './Labels'
 import { PullIcon } from './PullsSidebar'
@@ -145,6 +146,7 @@ function Pull({ number, onChanged }: { number: number; onChanged(): void }) {
           <span>
             {pull.changedFiles} {pull.changedFiles === 1 ? 'file' : 'files'}
           </span>
+          <Checks number={pull.number} />
           <Labels labels={pull.labels} />
         </div>
       </header>

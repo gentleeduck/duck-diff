@@ -1,6 +1,8 @@
 import {
   type ChangedFile,
   ChangedFileSchema,
+  type CheckRun,
+  CheckRunSchema,
   type Commit,
   type CommitDetails,
   CommitDetailsSchema,
@@ -90,6 +92,7 @@ export interface GitHubApi {
   createPull(input: CreatePull): Promise<PullSummary>
   defaultBranch(): Promise<string>
   pull(number: number): Promise<PullDetails>
+  checks(number: number): Promise<CheckRun[]>
   fetchPull(number: number): Promise<PullRefs>
   // Pull requests and issues share one conversation endpoint.
   comment(number: number, body: string): Promise<ConversationComment>
@@ -154,6 +157,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     signIn: (token) => send('POST', '/api/github/token', { token }, GitHubStatusSchema),
     pulls: (state) => json(`/api/github/pulls?state=${state}`, z.array(PullSummarySchema)),
     pull: (number) => json(`/api/github/pulls/${number}`, PullDetailsSchema),
+    checks: (number) => json(`/api/github/pulls/${number}/checks`, z.array(CheckRunSchema)),
     createPull: (input) => send('POST', '/api/github/pulls', input, PullSummarySchema),
     defaultBranch: async () => (await json('/api/github/default-branch', z.object({ branch: z.string() }))).branch,
     fetchPull: (number) => send('POST', `/api/github/pulls/${number}/fetch`, {}, PullRefsSchema),
