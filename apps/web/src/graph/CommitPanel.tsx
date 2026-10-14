@@ -7,6 +7,7 @@ import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
 import { fileGlyph, STATUS_GLYPH } from '../sidebar/icons'
 import { relativeTime } from '../sidebar/relative-time'
+import { CommitActions } from './CommitActions'
 
 interface Loaded {
   details: CommitDetails
@@ -102,6 +103,9 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
               ))}
             </dd>
           </dl>
+          <div className="mt-3">
+            <CommitActions sha={sha} />
+          </div>
           <Separator className="my-3" />
           <h3 className="mb-1 text-muted-foreground">
             {loaded.files.length} {loaded.files.length === 1 ? 'file' : 'files'} changed
