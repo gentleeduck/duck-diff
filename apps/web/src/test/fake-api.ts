@@ -25,6 +25,12 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     open: async () => {},
     write: async () => {},
     undo: async () => ({ restored: null }),
+    reviews: async () => [],
+    createReview: async (input) => ({ ...input, id: 'c1', createdAt: 1, updatedAt: 1 }),
+    updateReview: async () => {
+      throw new Error('not faked')
+    },
+    deleteReview: async () => {},
     files: async () => FILES,
     diff: async () => new Response(PATCH).body as ReadableStream<Uint8Array>,
     ...overrides,

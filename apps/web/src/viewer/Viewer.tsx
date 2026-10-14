@@ -1,4 +1,4 @@
-import type { CodeViewItem } from '@pierre/diffs'
+import type { CodeViewItem, DiffLineAnnotation, LineAnnotation } from '@pierre/diffs'
 import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from '@pierre/diffs/react'
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -6,6 +6,10 @@ import { useApp } from '../app/AppProvider'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
+import { useStore } from '../lib/store'
+import { createAnnotator, type Note } from '../review/annotations'
+import { ReviewNote } from '../review/ReviewNote'
+import type { ReviewsState } from '../review/reviews'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { useWrites } from '../writes/WritesProvider'
@@ -16,7 +20,7 @@ import { createContentLoader, viewerOptions, viewerStyle } from './options'
 import { syncItems } from './sync-items'
 import { WriteButtons } from './WriteButtons'
 
-type Item = CodeViewItem<undefined>
+type Item = CodeViewItem<Note>
 
 const POOL = {
   poolSize: Math.max(1, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1),
@@ -26,10 +30,14 @@ const POOL = {
 const selectItems = (state: SessionState) => state.items
 const selectFiles = (state: SessionState) => state.files
 const selectSettings = (state: Settings) => state
+const selectReviews = (state: ReviewsState) => state
 
 export default function Viewer() {
-  const { api, session, viewer } = useApp()
-  const items = useSession(selectItems)
+  const { api, session, viewer, reviews } = useApp()
+  const plain = useSession(selectItems)
+  const { comments, draft } = useStore(reviews, selectReviews)
+  const annotate = useMemo(createAnnotator, [])
+  const items = useMemo(() => annotate(plain, comments, draft), [annotate, plain, comments, draft])
   const files = useSession(selectFiles)
   const { target } = useTarget()
   const writes = useWrites()
@@ -38,9 +46,9 @@ export default function Viewer() {
   const settings = useSettings(selectSettings)
   const synced = useRef<readonly Item[]>([])
   // CodeView hands over its handle after mount, so syncing waits for it rather than for the first render.
-  const [handle, setHandle] = useState<CodeViewHandle<undefined, undefined> | null>(null)
+  const [handle, setHandle] = useState<CodeViewHandle<Note, undefined> | null>(null)
   const attach = useCallback(
-    (next: CodeViewHandle<undefined, undefined> | null) => {
+    (next: CodeViewHandle<Note, undefined> | null) => {
       viewer.current = next
       synced.current = []
       setHandle(next)
@@ -49,10 +57,7 @@ export default function Viewer() {
   )
 
   const loader = useMemo(() => createContentLoader(api, () => session.get().target), [api, session])
-  const options = useMemo(
-    () => ({ ...viewerOptions(settings, loader), enableGutterUtility: kinds.length > 0 }),
-    [settings, loader, kinds],
-  )
+  const options = useMemo(() => ({ ...viewerOptions(settings, loader), enableGutterUtility: true }), [settings, loader])
   const highlighter = useMemo(() => ({ theme: settings.themes }), [settings.themes])
 
   useEffect(() => {
@@ -96,9 +101,15 @@ export default function Viewer() {
     [],
   )
 
+  const renderNote = useCallback(
+    (annotation: LineAnnotation<Note> | DiffLineAnnotation<Note>) =>
+      annotation.metadata ? <ReviewNote note={annotation.metadata} /> : null,
+    [],
+  )
+
   return (
     <WorkerPoolContextProvider poolOptions={POOL} highlighterOptions={highlighter}>
-      <CodeView<undefined>
+      <CodeView<Note>
         ref={attach}
         initialItems={[]}
         options={options}
@@ -106,6 +117,7 @@ export default function Viewer() {
         className="h-full overflow-y-auto [contain:strict]"
         renderHeaderMetadata={renderMeta}
         renderGutterUtility={renderGutter}
+        renderAnnotation={renderNote}
       />
     </WorkerPoolContextProvider>
   )

@@ -3,6 +3,7 @@ import {
   ChangedFileSchema,
   type Commit,
   CommitSchema,
+  type CreateReview,
   type DiffTarget,
   ErrorBodySchema,
   type ErrorCode,
@@ -11,6 +12,8 @@ import {
   RefSchema,
   type RepoInfo,
   RepoInfoSchema,
+  type ReviewComment,
+  ReviewCommentSchema,
   type UndoResult,
   UndoResultSchema,
   type WriteRequest,
@@ -38,6 +41,10 @@ export interface Api {
   open(path: string, line: number): Promise<void>
   write(request: WriteRequest): Promise<void>
   undo(): Promise<UndoResult>
+  reviews(target: DiffTarget): Promise<ReviewComment[]>
+  createReview(input: CreateReview): Promise<ReviewComment>
+  updateReview(id: string, body: string): Promise<ReviewComment>
+  deleteReview(id: string): Promise<void>
 }
 
 const ContentSchema = z.object({ contents: z.string().nullable() })
@@ -53,6 +60,15 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
 
   async function json<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
     return schema.parse(await (await request(path, signal)).json())
+  }
+
+  async function send<T>(method: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+    const response = await request(path, undefined, {
+      method,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return schema.parse(await response.json())
   }
 
   return {
@@ -85,6 +101,12 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     },
     async undo() {
       return UndoResultSchema.parse(await (await request('/api/undo', undefined, { method: 'POST' })).json())
+    },
+    reviews: (target) => json(`/api/reviews?target=${encodeTarget(target)}`, z.array(ReviewCommentSchema)),
+    createReview: (input) => send('POST', '/api/reviews', input, ReviewCommentSchema),
+    updateReview: (id, body) => send('PATCH', `/api/reviews/${encodeURIComponent(id)}`, { body }, ReviewCommentSchema),
+    async deleteReview(id) {
+      await request(`/api/reviews/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' })
     },
     async open(path, line) {
       await request('/api/open', undefined, {
