@@ -1,11 +1,17 @@
 import { useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { lineHash, lineText } from '../review/anchor'
+import { actionsFor, firstChange, type WriteKind } from '../viewer/actions'
+import { useWrites } from '../writes/WritesProvider'
 import { type Action, type Position, resolveKey, step } from './keymap'
 
 const MOVES = new Set<Action>(['next-hunk', 'prev-hunk', 'next-file', 'prev-file'])
+const WRITES: Partial<Record<Action, WriteKind>> = { stage: 'stage', unstage: 'unstage', discard: 'discard' }
 
 export function useKeyboard(open: { palette(): void; help(): void }) {
-  const { session, settings, viewer } = useApp()
+  const { api, session, settings, viewer, reviews, viewed } = useApp()
+  const writes = useWrites()
   const position = useRef<Position>({ item: 0, hunk: 0 })
   const handlers = useRef(open)
   handlers.current = open
@@ -30,7 +36,7 @@ export function useKeyboard(open: { palette(): void; help(): void }) {
       if (action === 'toggle-layout') {
         return settings.set((prev) => ({ ...prev, diffStyle: prev.diffStyle === 'split' ? 'unified' : 'split' }))
       }
-      if (!MOVES.has(action)) return
+      if (!MOVES.has(action)) return onCurrent(action)
       const items = session.get().items
       if (items.length === 0) return
       const nav = items.map((item) => ({ hunks: item.fileDiff.hunks }))
@@ -45,7 +51,32 @@ export function useKeyboard(open: { palette(): void; help(): void }) {
           : { type: 'item', id: item.id, align: 'start' },
       )
     }
+    // The rest act on the change that j/k last landed on.
+    const onCurrent = (action: Action) => {
+      const { items, files, target } = session.get()
+      const item = items[position.current.item]
+      if (!item) return
+      const path = item.fileDiff.name
+      const file = files.find((entry) => entry.path === path)
+      const index = position.current.hunk
+      const hunk = item.fileDiff.hunks[index]
+      const kind = WRITES[action]
+      if (kind) {
+        if (!file || !actionsFor(target).includes(kind)) return
+        void writes.perform(kind, file, hunk && file.status !== 'untracked' ? { index, hunk } : undefined)
+      } else if (action === 'viewed') {
+        if (file) viewed.toggle(target, file)
+      } else if (hunk && action === 'comment') {
+        const { side, line } = firstChange(hunk)
+        reviews.startDraft({ path, side, line, lineHash: lineHash(lineText(item.fileDiff, side, line) ?? '') })
+      } else if (action === 'open') {
+        const at = hunk ? firstChange(hunk) : null
+        const line = at?.side === 'additions' ? at.line : (hunk?.additionStart ?? 1)
+        api.open(path, line).catch((error: Error) => toast.error(error.message))
+      }
+    }
+
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [session, settings, viewer])
+  }, [api, session, settings, viewer, reviews, viewed, writes])
 }

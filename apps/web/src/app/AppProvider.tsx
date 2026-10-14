@@ -7,12 +7,14 @@ import type { Note } from '../review/annotations'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createSession, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
+import { createViewedStore, type Viewed } from '../state/viewed'
 
 interface AppContextValue {
   api: Api
   session: Session
   settings: Store<Settings>
   reviews: Reviews
+  viewed: Viewed
   viewer: RefObject<CodeViewHandle<Note, undefined> | null>
 }
 
@@ -27,6 +29,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       session: createSession(client, readTarget(window.location.search)),
       settings: createSettingsStore(),
       reviews: createReviews(client),
+      viewed: createViewedStore(),
       viewer,
     }
   }, [api])

@@ -12,6 +12,7 @@ import { ReviewNote } from '../review/ReviewNote'
 import type { ReviewsState } from '../review/reviews'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
+import { type ViewedState, viewedPaths } from '../state/viewed'
 import { useWrites } from '../writes/WritesProvider'
 import { actionsFor } from './actions'
 import { FileActions } from './FileActions'
@@ -31,15 +32,18 @@ const selectItems = (state: SessionState) => state.items
 const selectFiles = (state: SessionState) => state.files
 const selectSettings = (state: Settings) => state
 const selectReviews = (state: ReviewsState) => state
+const selectViewed = (state: ViewedState) => state
 
 export default function Viewer() {
-  const { api, session, viewer, reviews } = useApp()
+  const { api, session, viewer, reviews, viewed } = useApp()
   const plain = useSession(selectItems)
-  const { comments, draft } = useStore(reviews, selectReviews)
-  const annotate = useMemo(createAnnotator, [])
-  const items = useMemo(() => annotate(plain, comments, draft), [annotate, plain, comments, draft])
   const files = useSession(selectFiles)
   const { target } = useTarget()
+  const { comments, draft } = useStore(reviews, selectReviews)
+  const viewedState = useStore(viewed, selectViewed)
+  const folded = useMemo(() => viewedPaths(viewedState, target, files), [viewedState, target, files])
+  const annotate = useMemo(createAnnotator, [])
+  const items = useMemo(() => annotate(plain, comments, draft, folded), [annotate, plain, comments, draft, folded])
   const writes = useWrites()
   const kinds = useMemo(() => actionsFor(target), [target])
   const byPath = useMemo(() => new Map(files.map((file) => [file.path, file])), [files])
@@ -84,6 +88,8 @@ export default function Viewer() {
       return (
         <FileActions
           path={path}
+          viewed={folded.has(path)}
+          onViewed={() => file && viewed.toggle(target, file)}
           onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
           writes={
             file && kinds.length > 0 ? (
@@ -93,7 +99,7 @@ export default function Viewer() {
         />
       )
     },
-    [api, canOpen, byPath, kinds, writes],
+    [api, canOpen, byPath, kinds, writes, folded, viewed, target],
   )
 
   const renderGutter = useCallback(

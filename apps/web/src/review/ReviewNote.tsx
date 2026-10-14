@@ -84,13 +84,17 @@ function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
         {outdated ? <span>Outdated: line {comment.line} has changed</span> : null}
         <span>{relativeTime(comment.updatedAt / 1000)}</span>
         <span className="ml-auto flex gap-1">
-          <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setEditing(true)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[12px] text-[var(--dd-muted)]"
+            onClick={() => setEditing(true)}>
             Edit
           </Button>
           <Button
             size="sm"
             variant="ghost"
-            className="h-6 px-2"
+            className="h-6 px-2 text-[12px] text-[var(--dd-muted)]"
             onClick={() =>
               reviews.remove(comment.id).catch((error: Error) => toast.error(`Could not delete: ${error.message}`))
             }>
@@ -106,7 +110,7 @@ function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
 export function ReviewNote({ note }: { note: Note }) {
   const { reviews } = useApp()
   return (
-    <div className="mx-2 my-1 max-w-3xl rounded-sm border border-[var(--dd-line)] bg-[var(--dd-surface)] p-2 font-sans">
+    <div className="mx-2 my-1 max-w-3xl rounded-sm border border-[var(--dd-line)] bg-[var(--dd-surface)] p-2 font-normal font-sans">
       {note.kind === 'draft' ? (
         <Editor
           initial=""

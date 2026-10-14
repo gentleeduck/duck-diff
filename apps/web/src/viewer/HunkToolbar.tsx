@@ -49,7 +49,8 @@ export function HunkToolbar({ item, getHoveredLine }: { item: CodeViewItem<Note>
   }
 
   return (
-    <span className="flex rounded-sm bg-[var(--dd-surface)] shadow-md ring-1 ring-[var(--dd-line)]">
+    // Above the line number, which otherwise paints over the button that sits on top of it.
+    <span className="relative z-10 flex rounded-sm bg-[var(--dd-surface)] shadow-md ring-1 ring-[var(--dd-line)]">
       <Tooltip>
         <TooltipTrigger asChild>
           <Button

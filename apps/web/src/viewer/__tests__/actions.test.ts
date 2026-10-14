@@ -1,7 +1,7 @@
 import type { ChangedFile } from '@duck-diff/protocol'
-import type { Hunk } from '@pierre/diffs'
+import { type Hunk, processFile } from '@pierre/diffs'
 import { describe, expect, it } from 'vitest'
-import { actionsFor, hunkAt, hunkHeader, writeRequest } from '../actions'
+import { actionsFor, firstChange, hunkAt, hunkHeader, writeRequest } from '../actions'
 
 const FILE: ChangedFile = {
   path: 'a.ts',
@@ -55,5 +55,24 @@ describe('writeRequest', () => {
       hunkHeader: '@@ -1,3 +1,4 @@ fn',
     })
     expect(writeRequest('discard', FILE)).toEqual({ action: 'discard-file', file })
+  })
+})
+
+describe('firstChange', () => {
+  const parse = (body: string) => {
+    const diff = processFile(`diff --git a/a.ts b/a.ts\nindex 1..2 100644\n--- a/a.ts\n+++ b/a.ts\n${body}`, {
+      isGitDiff: true,
+    })
+    const hunk = diff?.hunks[0]
+    if (!hunk) throw new Error('no hunk')
+    return hunk
+  }
+
+  it('finds the first added line after the context', () => {
+    expect(firstChange(parse('@@ -4,3 +4,3 @@\n four\n-five\n+FIVE\n six\n'))).toEqual({ side: 'additions', line: 5 })
+  })
+
+  it('falls back to the removed side for pure deletions', () => {
+    expect(firstChange(parse('@@ -4,3 +4,2 @@\n four\n-five\n six\n'))).toEqual({ side: 'deletions', line: 5 })
   })
 })

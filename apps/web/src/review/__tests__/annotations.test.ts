@@ -61,4 +61,13 @@ describe('createAnnotator', () => {
     const [annotated] = annotate([item], [{ ...comment, lineHash: 'gone' }], null)
     expect(annotated?.annotations?.[0]).toMatchObject({ lineNumber: 0, metadata: { outdated: true } })
   })
+
+  it('collapses folded files and opens them again', () => {
+    const annotate = createAnnotator()
+    const folded = annotate([item], [], null, new Set(['a.ts']))
+    expect(folded[0]?.collapsed).toBe(true)
+    const opened = annotate([item], [], null, new Set())
+    expect(opened[0]?.collapsed).toBe(false)
+    expect(opened[0]?.version).not.toBe(folded[0]?.version)
+  })
 })
