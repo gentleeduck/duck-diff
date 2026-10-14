@@ -20,7 +20,7 @@ interface Cached {
 }
 
 // CodeView only re-renders an item whose version changed, so every new object gets a fresh version
-// and an unchanged file keeps its old object to skip the update entirely.
+// and an unchanged file keeps its old object to skip the update entirely. Folded paths (viewed files) collapse.
 export function createAnnotator() {
   const cache = new Map<string, Cached>()
   let version = 0
@@ -29,6 +29,7 @@ export function createAnnotator() {
     items: readonly CodeViewDiffItem<undefined>[],
     comments: readonly ReviewComment[],
     draft: Draft | null,
+    folded: ReadonlySet<string> = new Set(),
   ): NoteItem[] => {
     const byPath = new Map<string, ReviewComment[]>()
     for (const comment of comments) byPath.set(comment.path, [...(byPath.get(comment.path) ?? []), comment])
@@ -48,10 +49,11 @@ export function createAnnotator() {
       if (draft?.path === path) {
         annotations.push({ side: draft.side, lineNumber: draft.line, metadata: { kind: 'draft', draft } })
       }
-      const key = JSON.stringify(annotations)
+      const collapsed = folded.has(path) || Boolean(item.collapsed)
+      const key = JSON.stringify([collapsed, annotations])
       const cached = cache.get(item.id)
       if (cached && cached.base === item && cached.key === key) return cached.out
-      const out: NoteItem = { ...(item as NoteItem), annotations, version: ++version }
+      const out: NoteItem = { ...(item as NoteItem), annotations, collapsed, version: ++version }
       cache.set(item.id, { base: item, key, out })
       return out
     })

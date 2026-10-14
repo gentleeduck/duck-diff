@@ -1,9 +1,22 @@
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
+import { Button, Checkbox, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { Check, Copy, SquareArrowOutUpRight } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 
-export function FileActions({ path, onOpen, writes }: { path: string; onOpen?: () => void; writes?: ReactNode }) {
+export function FileActions({
+  path,
+  onOpen,
+  writes,
+  viewed,
+  onViewed,
+}: {
+  path: string
+  onOpen?: () => void
+  writes?: ReactNode
+  viewed: boolean
+  onViewed(): void
+}) {
   const [copied, setCopied] = useState(false)
+  const viewedId = useId()
   const copy = async () => {
     await navigator.clipboard.writeText(path)
     setCopied(true)
@@ -30,6 +43,12 @@ export function FileActions({ path, onOpen, writes }: { path: string; onOpen?: (
         </TooltipTrigger>
         <TooltipContent>{copied ? 'Copied' : 'Copy path'}</TooltipContent>
       </Tooltip>
+      <label
+        htmlFor={viewedId}
+        className="ml-2 flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--dd-muted)]">
+        <Checkbox id={viewedId} checked={viewed} onCheckedChange={onViewed} />
+        Viewed
+      </label>
     </span>
   )
 }

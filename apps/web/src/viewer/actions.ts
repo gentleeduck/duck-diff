@@ -30,3 +30,17 @@ export function writeRequest(kind: WriteKind, file: ChangedFile, target?: { inde
   }
   return { action: `${kind}-file`, file: payload }
 }
+
+// Where a keyboard comment lands: the hunk's first added line, or its first removed one.
+export function firstChange(hunk: Hunk): { side: 'additions' | 'deletions'; line: number } {
+  let addition = hunk.additionStart
+  let deletion = hunk.deletionStart
+  for (const part of hunk.hunkContent) {
+    if (part.type === 'context') {
+      addition += part.lines
+      deletion += part.lines
+    } else if (part.additions > 0) return { side: 'additions', line: addition }
+    else if (part.deletions > 0) return { side: 'deletions', line: deletion }
+  }
+  return { side: 'additions', line: hunk.additionStart }
+}
