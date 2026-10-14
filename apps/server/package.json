@@ -11,7 +11,8 @@
     "dev": "bun ../../scripts/gen-web-assets.ts && bun --watch src/cli.ts serve --repo ../..",
     "test": "bun ../../scripts/gen-web-assets.ts && bun test",
     "test:coverage": "bun ../../scripts/gen-web-assets.ts && bun test --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "bench": "bun bench/viewer.bench.ts"
   },
   "dependencies": { "@duck-diff/git": "workspace:*", "@duck-diff/protocol": "workspace:*", "zod": "catalog:" },
   "devDependencies": {
