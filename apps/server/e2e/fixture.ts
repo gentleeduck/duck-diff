@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { HandshakeSchema } from '@duck-diff/protocol'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { test as base, expect } from '@playwright/test'
@@ -25,11 +28,15 @@ export const test = base.extend<Fixtures>({
     repo.cleanup()
   },
   app: async ({ repo }, use) => {
-    const child = spawn(BINARY, ['serve', '--repo', repo.path], { stdio: ['pipe', 'pipe', 'inherit'] })
+    // Comments and undo snapshots go to a throwaway home so tests never touch the real ones.
+    const home = mkdtempSync(join(tmpdir(), 'duck-diff-e2e-'))
+    const env = { ...process.env, XDG_DATA_HOME: join(home, 'data'), XDG_CACHE_HOME: join(home, 'cache') }
+    const child = spawn(BINARY, ['serve', '--repo', repo.path], { stdio: ['pipe', 'pipe', 'inherit'], env })
     const [chunk] = (await once(child.stdout, 'data')) as [Buffer]
     const handshake = HandshakeSchema.parse(JSON.parse(chunk.toString().split('\n')[0] ?? ''))
     await use({ url: handshake.url })
     child.kill()
+    rmSync(home, { recursive: true, force: true })
   },
 })
 
