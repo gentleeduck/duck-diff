@@ -12,6 +12,8 @@ describe('targetArgs', () => {
     repo = createRepo()
     expect(await targetArgs(repo.path, { kind: 'unstaged' })).toEqual([])
     expect(await targetArgs(repo.path, { kind: 'staged' })).toEqual(['--cached'])
+    expect(await targetArgs(repo.path, { kind: 'local' })).toEqual(['4b825dc642cb6eb9a060e54bf8d69288fbee4904'])
+    repo.commit('first')
     expect(await targetArgs(repo.path, { kind: 'local' })).toEqual(['HEAD'])
   })
 

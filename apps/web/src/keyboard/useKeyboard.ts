@@ -62,7 +62,7 @@ export function useKeyboard(open: { palette(): void; help(): void }) {
       const hunk = item.fileDiff.hunks[index]
       const kind = WRITES[action]
       if (kind) {
-        if (!file || !actionsFor(target).includes(kind)) return
+        if (!file || file.status === 'conflicted' || !actionsFor(target).includes(kind)) return
         void writes.perform(kind, file, hunk && file.status !== 'untracked' ? { index, hunk } : undefined)
       } else if (action === 'viewed') {
         if (file) viewed.toggle(target, file)

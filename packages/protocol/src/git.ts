@@ -36,6 +36,7 @@ export const FileStatusSchema = z.enum([
   'copied',
   'type-changed',
   'untracked',
+  'conflicted',
 ])
 export type FileStatus = z.infer<typeof FileStatusSchema>
 
@@ -48,6 +49,11 @@ export const ChangedFileSchema = z.object({
   binary: z.boolean(),
   oldSha: z.string().nullable(),
   newSha: z.string().nullable(),
+  // Bytes on each side, filled in for binary files only.
+  oldSize: z.number().int().nullable().optional(),
+  newSize: z.number().int().nullable().optional(),
+  // Marked linguist-generated in .gitattributes.
+  generated: z.boolean().optional(),
 })
 export type ChangedFile = z.infer<typeof ChangedFileSchema>
 

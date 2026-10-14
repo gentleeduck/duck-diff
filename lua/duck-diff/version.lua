@@ -1,2 +1,2 @@
 -- Kept equal to apps/server/package.json; the plugin downloads the release with this tag.
-return '0.3.0'
+return '0.4.0'

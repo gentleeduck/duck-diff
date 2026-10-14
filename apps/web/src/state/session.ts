@@ -4,11 +4,14 @@ import type { Api } from '../lib/api'
 import { cacheKeyFor, toDiffItem } from '../lib/items'
 import { readPatchStream } from '../lib/patch-stream'
 import { createStore, type Store } from '../lib/store'
+import { isImage } from '../viewer/file-info'
 
-// Binary files and huge diffs start folded so opening a large comparison stays fast.
+// Binary, generated and huge diffs start folded so opening a large comparison stays fast.
 const COLLAPSE_LINES = 5000
 function shouldCollapse(file: ChangedFile): boolean {
-  return file.binary || (file.additions ?? 0) + (file.deletions ?? 0) > COLLAPSE_LINES
+  // Images stay open: their preview is the useful part.
+  if (file.binary) return !isImage(file.path)
+  return Boolean(file.generated) || (file.additions ?? 0) + (file.deletions ?? 0) > COLLAPSE_LINES
 }
 
 export interface SessionState {
@@ -44,6 +47,9 @@ export function createSession(api: Api, initial: DiffTarget): Session {
     current = controller
     store.set((prev) => ({ ...prev, target, status: 'loading', error: null }))
     try {
+      // Both requests start together: git can stream the patch while the file list is still being built.
+      const diffBody = api.diff(target, controller.signal)
+      diffBody.catch(() => {})
       const files = await api.files(target, controller.signal)
       if (controller.signal.aborted) return
       const byPath = new Map(files.map((file) => [file.path, file]))
@@ -51,13 +57,14 @@ export function createSession(api: Api, initial: DiffTarget): Session {
       const previous = new Map(store.get().items.map((item) => [item.id, item]))
       const items: CodeViewDiffItem<undefined>[] = []
       let flushTimer: ReturnType<typeof setTimeout> | null = null
-      // Publishing in 50 ms batches lets files appear while git is still streaming without a render per file.
+      // The first file is published at once so something paints early; after that, 50 ms batches let files
+      // appear while git is still streaming without a render per file.
       const flush = () => {
         flushTimer = null
         if (controller.signal.aborted) return
         store.set((prev) => ({ ...prev, files, items: [...items], streaming: true }))
       }
-      const body = await api.diff(target, controller.signal)
+      const body = await diffBody
       await readPatchStream(
         body,
         (text) => {
@@ -70,7 +77,8 @@ export function createSession(api: Api, initial: DiffTarget): Session {
           }
           const before = previous.get(item.id)
           items.push(file && before && before.fileDiff.cacheKey === item.fileDiff.cacheKey ? before : item)
-          flushTimer ??= setTimeout(flush, 50)
+          if (items.length === 1) flush()
+          else flushTimer ??= setTimeout(flush, 50)
         },
         controller.signal,
       )
