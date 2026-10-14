@@ -1,0 +1,22 @@
+{
+  "name": "@duck-diff/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "bin": { "duck-diff": "./src/cli.ts" },
+  "scripts": {
+    "build": "bun ../../scripts/build-binary.ts",
+    "check-types": "tsc -p tsconfig.json --noEmit",
+    "dev": "bun --watch src/cli.ts serve --repo ../..",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage"
+  },
+  "dependencies": { "@duck-diff/git": "workspace:*", "@duck-diff/protocol": "workspace:*", "zod": "catalog:" },
+  "devDependencies": {
+    "@duck-diff/testing": "workspace:*",
+    "@duck-diff/typescript-config": "workspace:*",
+    "@types/bun": "^1.4.2",
+    "typescript": "catalog:"
+  }
+}
