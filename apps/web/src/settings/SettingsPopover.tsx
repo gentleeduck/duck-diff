@@ -81,6 +81,7 @@ export function SettingsPopover() {
     return (
       <Row label={label}>
         <Switch
+          className="border-muted-foreground"
           aria-label={label}
           checked={checked}
           onCheckedChange={(next: boolean) =>
@@ -95,9 +96,8 @@ export function SettingsPopover() {
     <Row label={label}>
       <div className="flex items-center gap-1">
         <Button
-          variant="ghost"
-          size="icon"
-          className="size-6"
+          variant="outline"
+          size="icon-sm"
           aria-label={`Decrease ${label.toLowerCase()}`}
           disabled={settings[key] <= min}
           onClick={() => set(key, settings[key] - 1)}>
@@ -105,9 +105,8 @@ export function SettingsPopover() {
         </Button>
         <output className="w-6 text-center tabular-nums">{settings[key]}</output>
         <Button
-          variant="ghost"
-          size="icon"
-          className="size-6"
+          variant="outline"
+          size="icon-sm"
           aria-label={`Increase ${label.toLowerCase()}`}
           disabled={settings[key] >= max}
           onClick={() => set(key, settings[key] + 1)}>
@@ -120,8 +119,8 @@ export function SettingsPopover() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Diff settings">
-          <Settings2 className="size-4" />
+        <Button variant="outline" size="icon" aria-label="Diff settings">
+          <Settings2 />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[23rem]">
@@ -164,7 +163,7 @@ export function SettingsPopover() {
         {stepper('fontSize', 'Font size', 10, 24)}
         {stepper('tabSize', 'Tab width', 1, 8)}
         <div className="mt-2 flex justify-end border-border border-t pt-2">
-          <Button variant="ghost" size="sm" onClick={() => store.set(DEFAULT_SETTINGS)}>
+          <Button variant="outline" size="sm" onClick={() => store.set(DEFAULT_SETTINGS)}>
             Reset to defaults
           </Button>
         </div>

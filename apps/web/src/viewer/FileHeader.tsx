@@ -3,15 +3,21 @@ import { Badge, Button } from '@duck-diff/ui'
 import { ChevronRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-const STATUS: Record<FileStatus, string> = {
-  added: 'Added',
-  untracked: 'New',
-  copied: 'Copied',
-  modified: 'Modified',
-  'type-changed': 'Type changed',
-  conflicted: 'Conflict',
-  deleted: 'Deleted',
-  renamed: 'Renamed',
+const ADDED = 'border-added/40 bg-added/15 text-added'
+const CHANGED = 'border-warning/40 bg-warning/15 text-warning'
+const REMOVED = 'border-destructive/40 bg-destructive/15 text-destructive'
+const MOVED = 'border-tn-magenta/40 bg-tn-magenta/15 text-tn-magenta'
+
+// Soft fills in the status color, so the badge reads at a glance without shouting over the code.
+const STATUS: Record<FileStatus, { label: string; tone: string }> = {
+  added: { label: 'Added', tone: ADDED },
+  untracked: { label: 'New', tone: ADDED },
+  copied: { label: 'Copied', tone: ADDED },
+  modified: { label: 'Modified', tone: CHANGED },
+  'type-changed': { label: 'Type changed', tone: CHANGED },
+  conflicted: { label: 'Conflict', tone: REMOVED },
+  deleted: { label: 'Deleted', tone: REMOVED },
+  renamed: { label: 'Renamed', tone: MOVED },
 }
 
 // Replaces the diff library's own header so every file starts with duck-ui controls.
@@ -32,16 +38,15 @@ export function FileHeader({
     <div className="flex min-h-12 items-center gap-3 border-border border-b bg-card px-3 font-sans">
       <Button
         variant="ghost"
-        size="icon"
-        className="size-7"
+        size="icon-sm"
         aria-label={collapsed ? `Show ${path}` : `Hide ${path}`}
         aria-expanded={!collapsed}
         onClick={onToggle}>
         <ChevronRight className={`size-4 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
       </Button>
       {file ? (
-        <Badge variant={file.status === 'conflicted' ? 'destructive' : 'secondary'} className="text-sm">
-          {STATUS[file.status]}
+        <Badge variant="outline" className={`h-7 px-2.5 text-sm ${STATUS[file.status].tone}`}>
+          {STATUS[file.status].label}
         </Badge>
       ) : null}
       <span className="min-w-0 truncate" title={path}>

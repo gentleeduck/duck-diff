@@ -2,6 +2,9 @@ import { Button, Checkbox, Tooltip, TooltipContent, TooltipTrigger } from '@duck
 import { Check, Copy, History, SquareArrowOutUpRight } from 'lucide-react'
 import { type ReactNode, useId, useState } from 'react'
 
+// duck-ui draws an empty box in the border color, which vanishes on the header; a lighter edge keeps it visible.
+export const VISIBLE_BOX = 'size-4 border-muted-foreground'
+
 export function FileActions({
   path,
   onOpen,
@@ -27,14 +30,15 @@ export function FileActions({
     setTimeout(() => setCopied(false), 1200)
   }
   return (
-    <span className="flex items-center gap-0.5">
+    <span className="flex items-center gap-1.5">
       {note ? <span className="mr-2 text-muted-foreground">{note}</span> : null}
       {writes}
       {onOpen && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-6" aria-label="Open in Neovim" onClick={onOpen}>
-              <SquareArrowOutUpRight className="size-3.5" />
+            <Button variant="outline" size="sm" aria-label="Open in Neovim" onClick={onOpen}>
+              <SquareArrowOutUpRight />
+              Open
             </Button>
           </TooltipTrigger>
           <TooltipContent>Open in Neovim</TooltipContent>
@@ -42,22 +46,22 @@ export function FileActions({
       )}
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-6" aria-label="File history" onClick={onHistory}>
-            <History className="size-3.5" />
+          <Button variant="ghost" size="icon-sm" aria-label="File history" onClick={onHistory}>
+            <History />
           </Button>
         </TooltipTrigger>
         <TooltipContent>File history</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" className="size-6" aria-label="Copy path" onClick={copy}>
-            {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+          <Button variant="ghost" size="icon-sm" aria-label="Copy path" onClick={copy}>
+            {copied ? <Check /> : <Copy />}
           </Button>
         </TooltipTrigger>
         <TooltipContent>{copied ? 'Copied' : 'Copy path'}</TooltipContent>
       </Tooltip>
-      <label htmlFor={viewedId} className="ml-2 flex cursor-pointer items-center gap-1.5 text-muted-foreground">
-        <Checkbox id={viewedId} checked={viewed} onCheckedChange={onViewed} />
+      <label htmlFor={viewedId} className="ms-2 flex cursor-pointer items-center gap-1.5">
+        <Checkbox id={viewedId} checked={viewed} onCheckedChange={onViewed} className={VISIBLE_BOX} />
         Viewed
       </label>
     </span>

@@ -10,6 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@duck-diff/ui'
+import { GitBranch } from 'lucide-react'
 import { useState } from 'react'
 import type { RefList } from '../hooks/useRefs'
 import type { Endpoint } from './model'
@@ -35,10 +36,10 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="ghost"
-          size="sm"
+          variant="outline"
           aria-label={side === 'from' ? `Compare from ${label}` : `Compare to ${label}`}
-          className="h-8 px-2">
+          className="gap-1.5">
+          <GitBranch />
           {label}
         </Button>
       </PopoverTrigger>

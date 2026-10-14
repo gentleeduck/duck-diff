@@ -30,17 +30,16 @@ export function CompareBar() {
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-6">
-      <h1 className="flex items-center gap-1 truncate">
+      <h1 className="flex items-center gap-2 truncate">
         <RefPicker label={from} side="from" refs={refs} onPick={(end) => navigate(withSide(target, 'from', end))} />
         {operator ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant="outline"
-                size="sm"
+                variant="secondary"
+                size="icon"
                 aria-label={`Range operator ${operator}`}
-                onClick={() => navigate(toggleOperator(target))}
-                className="h-7 px-2">
+                onClick={() => navigate(toggleOperator(target))}>
                 {operator}
               </Button>
             </TooltipTrigger>
@@ -58,11 +57,10 @@ export function CompareBar() {
           </span>
           <Button
             variant="ghost"
-            size="icon"
-            className="size-5"
+            size="icon-sm"
             aria-label="Show every file"
             onClick={() => navigate(withoutPath(target))}>
-            <X className="size-3" />
+            <X />
           </Button>
         </span>
       ) : null}

@@ -1,5 +1,5 @@
 import type { ChangedFile } from '@duck-diff/protocol'
-import { Input } from '@duck-diff/ui'
+import { Button, Input } from '@duck-diff/ui'
 import type { FileTreeVisibleRow } from '@pierre/trees'
 import { useFileTree } from '@pierre/trees/react'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -42,8 +42,8 @@ function TreeRow({
           ? 'text-tn-dark5'
           : 'text-tn-blue'
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
       role="treeitem"
       aria-level={row.depth + 1}
       aria-selected={selected}
@@ -51,29 +51,29 @@ function TreeRow({
       aria-expanded={folder ? row.isExpanded : undefined}
       aria-current={selected || undefined}
       title={row.path}
-      className="flex h-[25px] w-full items-center whitespace-pre pe-3 text-start outline-hidden hover:bg-accent focus-visible:bg-accent aria-[current=true]:bg-accent">
+      className="h-[25px] w-full items-stretch justify-start gap-0 rounded-none p-0 pe-3 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
       {row.ancestorPaths
         .slice(-row.depth || row.ancestorPaths.length)
         .slice(0, row.depth)
         .map((ancestor) => (
           // Indent guides, one per ancestor, like the editor's tree.
-          <span key={ancestor} className="h-full w-5 shrink-0 border-tn-gutter border-s ms-[9px]" />
+          <span key={ancestor} className="w-5 shrink-0 self-stretch border-tn-gutter border-s ms-[9px]" />
         ))}
-      <span className="w-5 shrink-0 text-center text-tn-comment">
+      <span className="w-5 shrink-0 justify-center text-tn-comment">
         {folder ? (row.isExpanded ? CHEVRON.open : CHEVRON.closed) : ''}
       </span>
-      <span className="w-6 shrink-0 text-center" style={{ color: icon.color }}>
+      <span className="w-6 shrink-0 justify-center" style={{ color: icon.color }}>
         {icon.glyph}
       </span>
       {status ? (
-        <span className="w-6 shrink-0 text-center" style={{ color: status.color }}>
+        <span className="w-6 shrink-0 justify-center" style={{ color: status.color }}>
           {status.glyph}
         </span>
       ) : null}
       <span className={`min-w-0 truncate ${name}`}>
         {row.flattenedSegments?.length ? row.flattenedSegments.map((segment) => segment.name).join('/') : row.name}
       </span>
-    </button>
+    </Button>
   )
 }
 

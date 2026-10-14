@@ -1,4 +1,13 @@
-import { Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@duck-diff/ui'
+import {
+  Badge,
+  Button,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@duck-diff/ui'
 import { MessageSquare } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
@@ -45,10 +54,10 @@ export function CommentsSheet() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
-          <MessageSquare className="size-3.5" />
+        <Button variant="outline">
+          <MessageSquare />
           Comments
-          {comments.length > 0 ? <span className="text-foreground">{comments.length}</span> : null}
+          {comments.length > 0 ? <Badge className="text-sm">{comments.length}</Badge> : null}
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="flex w-[420px] flex-col gap-4 bg-card">

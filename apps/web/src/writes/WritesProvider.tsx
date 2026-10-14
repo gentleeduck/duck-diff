@@ -72,7 +72,7 @@ export function WritesProvider({ children }: { children: ReactNode }) {
           <DialogTitle>Discard changes</DialogTitle>
           <DialogDescription>{question}</DialogDescription>
           <div className="mt-4 flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => close(false)}>
+            <Button variant="outline" onClick={() => close(false)}>
               Keep
             </Button>
             <Button variant="destructive" onClick={() => close(true)}>

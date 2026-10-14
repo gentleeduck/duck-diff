@@ -1,4 +1,4 @@
-import { Button } from '@duck-diff/ui'
+import { Button, Textarea } from '@duck-diff/ui'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
@@ -37,8 +37,7 @@ function Editor({
         event.preventDefault()
         void submit()
       }}>
-      <textarea
-        // biome-ignore lint/a11y/noAutofocus: the editor opens because someone asked to write right here
+      <Textarea
         autoFocus
         aria-label={label}
         value={body}
@@ -48,13 +47,12 @@ function Editor({
           if (event.key === 'Escape') onCancel()
           if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) void submit()
         }}
-        className="w-full min-w-0 resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-hidden transition-colors placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring dark:bg-input/30"
       />
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={!body.trim() || busy}>
           Save comment
         </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+        <Button type="button" size="sm" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
       </div>
@@ -85,13 +83,12 @@ function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
         {outdated ? <span>Outdated: line {comment.line} has changed</span> : null}
         <span>{relativeTime(comment.updatedAt / 1000)}</span>
         <span className="ml-auto flex gap-1">
-          <Button size="sm" variant="ghost" className="h-6 px-2 text-muted-foreground" onClick={() => setEditing(true)}>
+          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
             Edit
           </Button>
           <Button
             size="sm"
-            variant="ghost"
-            className="h-6 px-2 text-muted-foreground"
+            variant="destructive"
             onClick={() =>
               reviews.remove(comment.id).catch((error: Error) => toast.error(`Could not delete: ${error.message}`))
             }>

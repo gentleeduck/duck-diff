@@ -59,10 +59,10 @@ function Toolbar({ item, line, side }: { item: NoteItem; line: DiffLine; side: '
           <Button
             variant="ghost"
             size="icon"
-            className="size-5"
+            className="size-6"
             aria-label="Comment on line"
             onClick={() => comment(item, line, side)}>
-            <MessageSquarePlus className="size-3.5" />
+            <MessageSquarePlus />
           </Button>
         </TooltipTrigger>
         <TooltipContent>Comment on line</TooltipContent>
@@ -75,10 +75,10 @@ function Toolbar({ item, line, side }: { item: NoteItem; line: DiffLine; side: '
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-5"
+                className={`size-6 ${kind === 'discard' ? 'text-destructive hover:text-destructive' : ''}`}
                 aria-label={label}
                 onClick={() => write(kind, item, line.hunk)}>
-                <Icon className="size-3.5" />
+                <Icon />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{label}</TooltipContent>
@@ -178,8 +178,8 @@ export function LineRow({ item, row }: { item: NoteItem; row: DiffRow }) {
   }
   return (
     <div className="flex items-center bg-card px-1">
-      <Button variant="ghost" size="sm" className="h-7 gap-2 text-tn-comment" onClick={() => expand(item, row)}>
-        <ChevronsUpDown className="size-3.5" />
+      <Button variant="secondary" size="sm" className="my-1" onClick={() => expand(item, row)}>
+        <ChevronsUpDown />
         {`Show ${row.hidden} unchanged ${row.hidden === 1 ? 'line' : 'lines'}`}
       </Button>
     </div>

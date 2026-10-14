@@ -1,4 +1,5 @@
 import { Button, Kbd, Toaster, TooltipProvider } from '@duck-diff/ui'
+import { SearchIcon } from 'lucide-react'
 import { lazy, Suspense, useState } from 'react'
 import { CompareBar } from '../compare/CompareBar'
 import { HelpDialog } from '../keyboard/HelpDialog'
@@ -29,8 +30,14 @@ function Screen() {
         topBar={
           <>
             <CompareBar />
-            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => setPalette(true)}>
-              Search <Kbd>Ctrl K</Kbd>
+            <Button
+              variant="outline"
+              className="w-72 justify-start gap-2 text-muted-foreground"
+              aria-label="Search files and actions"
+              onClick={() => setPalette(true)}>
+              <SearchIcon />
+              <span className="min-w-0 flex-1 truncate text-start">Search files</span>
+              <Kbd className="ms-auto">Ctrl K</Kbd>
             </Button>
             <CommentsSheet />
             <SettingsPopover />

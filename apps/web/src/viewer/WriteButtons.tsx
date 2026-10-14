@@ -12,12 +12,10 @@ export function WriteButtons({
   kinds,
   scope,
   onWrite,
-  compact = false,
 }: {
   kinds: WriteKind[]
   scope: 'file' | 'change'
   onWrite(kind: WriteKind): void
-  compact?: boolean
 }) {
   return kinds.map((kind) => {
     const { icon: Icon, label } = LOOK[kind]
@@ -25,15 +23,16 @@ export function WriteButtons({
       <Tooltip key={kind}>
         <TooltipTrigger asChild>
           <Button
-            variant="ghost"
-            size="icon"
-            className={compact ? 'size-5 rounded-sm' : 'size-6'}
+            variant="outline"
+            size="sm"
+            className={kind === 'discard' ? 'text-destructive hover:text-destructive' : undefined}
             aria-label={`${label} ${scope}`}
             onClick={(event) => {
               event.stopPropagation()
               onWrite(kind)
             }}>
-            <Icon className={compact ? 'size-3' : 'size-3.5'} />
+            <Icon />
+            {label}
           </Button>
         </TooltipTrigger>
         <TooltipContent>{`${label} ${scope}`}</TooltipContent>
