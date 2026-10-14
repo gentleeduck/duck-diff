@@ -95,12 +95,13 @@ describe('/api/reviews', () => {
     const socket = new WebSocket(`ws://127.0.0.1:${server.port}/api/events?token=${server.token}`)
     const events: ServerEvent[] = []
     socket.onmessage = (message) => events.push(JSON.parse(String(message.data)))
-    await new Promise((resolve) => {
-      socket.onopen = resolve
-    })
+    const until = async (found: () => boolean) => {
+      const deadline = Date.now() + 2000
+      while (!found() && Date.now() < deadline) await Bun.sleep(20)
+    }
+    await until(() => events.some((event) => event.type === 'hello'))
     await call('POST', '/api/reviews', draft)
-    const deadline = Date.now() + 2000
-    while (!events.some((event) => event.type === 'changed') && Date.now() < deadline) await Bun.sleep(20)
+    await until(() => events.some((event) => event.type === 'changed'))
     socket.close()
     expect(events).toContainEqual({ type: 'changed', reason: 'reviews' })
   })
