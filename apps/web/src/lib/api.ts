@@ -11,6 +11,9 @@ import {
   RefSchema,
   type RepoInfo,
   RepoInfoSchema,
+  type UndoResult,
+  UndoResultSchema,
+  type WriteRequest,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
 
@@ -33,6 +36,8 @@ export interface Api {
   diff(target: DiffTarget, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   content(target: DiffTarget, side: 'old' | 'new', file: Pick<ChangedFile, 'path' | 'oldPath'>): Promise<string | null>
   open(path: string, line: number): Promise<void>
+  write(request: WriteRequest): Promise<void>
+  undo(): Promise<UndoResult>
 }
 
 const ContentSchema = z.object({ contents: z.string().nullable() })
@@ -70,6 +75,16 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       if (file.oldPath) params.set('oldPath', file.oldPath)
       const body = await json(`/api/content?target=${encodeTarget(target)}&${params}`, ContentSchema)
       return body.contents
+    },
+    async write(body) {
+      await request('/api/write', undefined, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    },
+    async undo() {
+      return UndoResultSchema.parse(await (await request('/api/undo', undefined, { method: 'POST' })).json())
     },
     async open(path, line) {
       await request('/api/open', undefined, {

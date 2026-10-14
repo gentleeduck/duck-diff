@@ -7,6 +7,7 @@ import { useTarget } from '../hooks/useTarget'
 import { itemId } from '../lib/items'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
+import { useWrites } from '../writes/WritesProvider'
 
 const selectFiles = (state: SessionState) => state.files
 
@@ -32,6 +33,7 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
   const files = useSession(selectFiles)
   const { navigate } = useTarget()
   const refs = useRefs()
+  const writes = useWrites()
   const branches = refs.refs.filter((ref) => ref.kind === 'branch').map((ref) => ref.name)
   const run = (action: () => void) => {
     onOpenChange(false)
@@ -72,6 +74,11 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
               This branch against <span className="font-[var(--dd-font-code)]">{name}</span>
             </CommandItem>
           ))}
+        </CommandGroup>
+        <CommandGroup heading="Changes">
+          <CommandItem value="undo last discard" onSelect={() => run(() => void writes.undo())}>
+            Undo last discard
+          </CommandItem>
         </CommandGroup>
         <CommandGroup heading="View">
           {TOGGLES.map((toggle) => (
