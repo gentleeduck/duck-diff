@@ -2,6 +2,7 @@ import { TooltipProvider } from '@duck-diff/ui'
 import { lazy, Suspense } from 'react'
 import { CompareBar } from '../compare/CompareBar'
 import type { Api } from '../lib/api'
+import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
 import { AppProvider } from './AppProvider'
 import { Shell } from './Shell'
@@ -13,7 +14,12 @@ function Screen() {
   useThemeClass()
   return (
     <Shell
-      topBar={<CompareBar />}
+      topBar={
+        <>
+          <CompareBar />
+          <SettingsPopover />
+        </>
+      }
       sidebar={<Sidebar />}
       viewer={
         <Suspense fallback={null}>
