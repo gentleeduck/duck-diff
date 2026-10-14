@@ -171,18 +171,14 @@ export function LineRow({ item, row }: { item: NoteItem; row: DiffRow }) {
   if (row.type === 'hunk') {
     if (settings.hunkSeparators === 'simple') return <div className="h-2 border-border border-y bg-card" />
     return (
-      <div className="flex items-center gap-2 bg-card px-3 py-1 text-[13px] text-tn-comment">
+      <div className="flex items-center gap-2 bg-card px-3 py-1 text-tn-comment">
         {settings.hunkSeparators === 'line-info-basic' ? '...' : row.header}
       </div>
     )
   }
   return (
     <div className="flex items-center bg-card px-1">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-2 text-[13px] text-tn-comment"
-        onClick={() => expand(item, row)}>
+      <Button variant="ghost" size="sm" className="h-7 gap-2 text-tn-comment" onClick={() => expand(item, row)}>
         <ChevronsUpDown className="size-3.5" />
         {`Show ${row.hidden} unchanged ${row.hidden === 1 ? 'line' : 'lines'}`}
       </Button>

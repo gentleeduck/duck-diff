@@ -38,7 +38,7 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
           variant="ghost"
           size="sm"
           aria-label={side === 'from' ? `Compare from ${label}` : `Compare to ${label}`}
-          className="h-8 px-2 text-[17px]">
+          className="h-8 px-2">
           {label}
         </Button>
       </PopoverTrigger>
@@ -62,7 +62,7 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
                       onSelect={() => pick({ kind: 'ref', name: ref.name })}>
                       <span className="font-mono">{ref.name}</span>
                       {ref.subject && <span className="truncate text-muted-foreground">{ref.subject}</span>}
-                      {ref.current && <span className="ml-auto text-muted-foreground text-[13px]">current</span>}
+                      {ref.current && <span className="ml-auto text-muted-foreground">current</span>}
                     </CommandItem>
                   ))}
                 </CommandGroup>

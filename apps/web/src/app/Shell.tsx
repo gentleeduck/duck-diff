@@ -23,7 +23,7 @@ export function Shell({ topBar, sidebar, viewer, status }: ShellProps) {
           <main className="h-full min-w-0">{viewer}</main>
         </ResizablePanel>
       </ResizablePanelGroup>
-      <footer className="flex h-7 shrink-0 items-center gap-4 border-border border-t bg-card px-4 text-[13px] text-muted-foreground">
+      <footer className="flex h-7 shrink-0 items-center gap-4 border-border border-t bg-card px-4 text-muted-foreground">
         {status}
       </footer>
     </div>

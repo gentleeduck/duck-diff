@@ -40,16 +40,16 @@ export function FileHeader({
         <ChevronRight className={`size-4 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
       </Button>
       {file ? (
-        <Badge variant={file.status === 'conflicted' ? 'destructive' : 'secondary'} className="text-[13px]">
+        <Badge variant={file.status === 'conflicted' ? 'destructive' : 'secondary'} className="text-sm">
           {STATUS[file.status]}
         </Badge>
       ) : null}
-      <span className="min-w-0 truncate text-[15px]" title={path}>
+      <span className="min-w-0 truncate" title={path}>
         {file?.oldPath ? <span className="text-muted-foreground">{file.oldPath} to </span> : null}
         {path}
       </span>
       {file && file.additions !== null && file.deletions !== null ? (
-        <span className="shrink-0 text-[13px] tabular-nums">
+        <span className="shrink-0 tabular-nums">
           <span className="text-added">+{file.additions}</span> <span className="text-removed">-{file.deletions}</span>
         </span>
       ) : null}

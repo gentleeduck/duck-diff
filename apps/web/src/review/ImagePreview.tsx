@@ -18,7 +18,7 @@ export function ImagePreview({ file }: { file: ChangedFile }) {
     <div className="grid grid-cols-2 gap-3 p-3 font-sans">
       {sides.map(({ side, label, present }) => (
         <figure key={side} className="flex flex-col gap-1.5">
-          <figcaption className="text-[13px] text-muted-foreground">{label}</figcaption>
+          <figcaption className="text-muted-foreground">{label}</figcaption>
           {present ? (
             <img
               src={blobUrl(encoded, side, file)}
@@ -26,7 +26,7 @@ export function ImagePreview({ file }: { file: ChangedFile }) {
               className="max-h-80 w-fit max-w-full rounded-md border border-border bg-[repeating-conic-gradient(var(--border)_0_25%,transparent_0_50%)] bg-[length:16px_16px] object-contain"
             />
           ) : (
-            <p className="text-[15px] text-muted-foreground">{side === 'old' ? 'New file' : 'Deleted'}</p>
+            <p className="text-muted-foreground">{side === 'old' ? 'New file' : 'Deleted'}</p>
           )}
         </figure>
       ))}

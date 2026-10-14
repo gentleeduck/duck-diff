@@ -81,21 +81,17 @@ function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
   }
   return (
     <article className="flex flex-col gap-1">
-      <header className="flex items-center gap-2 text-[13px] text-muted-foreground">
+      <header className="flex items-center gap-2 text-muted-foreground">
         {outdated ? <span>Outdated: line {comment.line} has changed</span> : null}
         <span>{relativeTime(comment.updatedAt / 1000)}</span>
         <span className="ml-auto flex gap-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 px-2 text-[13px] text-muted-foreground"
-            onClick={() => setEditing(true)}>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-muted-foreground" onClick={() => setEditing(true)}>
             Edit
           </Button>
           <Button
             size="sm"
             variant="ghost"
-            className="h-6 px-2 text-[13px] text-muted-foreground"
+            className="h-6 px-2 text-muted-foreground"
             onClick={() =>
               reviews.remove(comment.id).catch((error: Error) => toast.error(`Could not delete: ${error.message}`))
             }>
@@ -103,7 +99,7 @@ function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
           </Button>
         </span>
       </header>
-      <p className="whitespace-pre-wrap text-[15px] text-foreground">{comment.body}</p>
+      <p className="whitespace-pre-wrap text-foreground">{comment.body}</p>
     </article>
   )
 }

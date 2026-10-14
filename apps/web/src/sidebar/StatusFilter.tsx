@@ -27,7 +27,7 @@ export function StatusFilter({ files, value, onChange }: StatusFilterProps) {
       onValueChange={(next: string[]) => onChange(new Set(next as TreeStatus[]))}
       className="flex flex-wrap justify-start gap-1">
       {present.map((status) => (
-        <ToggleGroupItem key={status} value={status} size="sm" className="h-6 px-2 text-[13px]">
+        <ToggleGroupItem key={status} value={status} size="sm" className="h-6 px-2">
           {LABELS[status]} <span className="text-muted-foreground tabular-nums">{counts[status]}</span>
         </ToggleGroupItem>
       ))}

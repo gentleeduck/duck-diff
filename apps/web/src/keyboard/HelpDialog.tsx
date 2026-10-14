@@ -18,7 +18,7 @@ export function HelpDialog({ open, onOpenChange }: { open: boolean; onOpenChange
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogTitle>Keyboard shortcuts</DialogTitle>
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[15px]">
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
           {SHORTCUTS.map(([keys, label]) => (
             <div key={keys} className="contents">
               <dt>

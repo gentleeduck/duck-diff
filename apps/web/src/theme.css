@@ -64,6 +64,16 @@
   --diff-del-word: #713137;
 }
 
+/* One size across the page, the same as the code, including duck-ui's own small and large text. */
+@theme {
+  --text-xs: 15px;
+  --text-sm: 15px;
+  --text-base: 15px;
+  --text-lg: 15px;
+  --text-xl: 15px;
+  --text-2xl: 15px;
+}
+
 @theme inline {
   --color-added: var(--diff-added);
   --color-removed: var(--diff-removed);
