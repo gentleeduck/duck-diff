@@ -23,7 +23,7 @@ export interface IMotionShellProps {
 }
 
 /**
- * Inline-motion wrapper around a non-motion primitive — tiny `<m.div>` inside `LazyMotion`.
+ * Inline-motion wrapper around a non-motion primitive: a tiny `<m.div>` inside `LazyMotion`.
  * For motion-as-root patterns use `useMotionContent` directly.
  */
 export function MotionShell({

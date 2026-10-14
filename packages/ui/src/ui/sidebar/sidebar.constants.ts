@@ -12,7 +12,7 @@ export const SIDEBAR_KEYBOARD_SHORTCUT = 'b'
 /**
  * Write the sidebar open state to the cookie used by SSR on the next visit.
  * Hardened with `SameSite=Lax` (CSRF-tightening) and `Secure` on https origins
- * — keeps the open-state opaque to cross-site forgeries.
+ * This keeps the open-state opaque to cross-site forgeries.
  */
 export function persistSidebarOpen(open: boolean): void {
   if (typeof document === 'undefined') return

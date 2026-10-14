@@ -195,7 +195,7 @@ const Sidebar = React.forwardRef<HTMLDivElement, ISidebarProps>(
 Sidebar.displayName = 'Sidebar'
 
 // Hoisted constant prevents re-allocating the default trigger icon on every
-// render — saves an element allocation per `SidebarTrigger`.
+// render, which saves an element allocation per `SidebarTrigger`.
 const DEFAULT_TRIGGER_ICON = <PanelLeftIcon aria-hidden="true" className="rtl:-scale-x-100" />
 
 const SidebarTrigger = React.forwardRef<
