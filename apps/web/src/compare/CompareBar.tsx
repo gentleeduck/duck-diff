@@ -29,8 +29,8 @@ export function CompareBar() {
   const { from, to, operator, path } = describeTarget(target)
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-6">
-      <h1 className="flex items-center gap-2 truncate">
+    <div className="flex min-w-0 flex-1 items-center gap-4">
+      <h1 className="flex min-w-0 items-center gap-2">
         <RefPicker label={from} side="from" refs={refs} onPick={(end) => navigate(withSide(target, 'from', end))} />
         {operator ? (
           <Tooltip>
@@ -64,7 +64,7 @@ export function CompareBar() {
           </Button>
         </span>
       ) : null}
-      <p className="shrink-0 text-muted-foreground tabular-nums">
+      <p className="hidden shrink-0 text-muted-foreground tabular-nums 2xl:block">
         {files} {files === '1' ? 'file' : 'files'}
         <span className="ml-3 text-added">+{additions}</span>
         <span className="ml-1.5 text-removed">-{deletions}</span>

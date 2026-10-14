@@ -2,7 +2,7 @@ import type { ConversationComment, GitHubUser } from '@duck-diff/protocol'
 import { Button, Textarea } from '@duck-diff/ui'
 import { MessageSquare } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
-import { Markdown } from './Markdown'
+import { Markdown } from '../markdown/Markdown'
 import { ago } from './time'
 
 export function Avatar({ user }: { user: GitHubUser }) {

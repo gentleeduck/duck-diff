@@ -79,7 +79,7 @@ function Screen() {
     <Button
       size="sm"
       variant="outline"
-      className="w-72 justify-start gap-2 text-muted-foreground"
+      className="w-48 shrink-0 justify-start gap-2 text-muted-foreground xl:w-72"
       aria-label="Search files and actions"
       onClick={() => setPalette(true)}>
       <SearchIcon />

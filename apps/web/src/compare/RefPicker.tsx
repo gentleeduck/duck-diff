@@ -39,9 +39,12 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
           size="sm"
           variant="outline"
           aria-label={side === 'from' ? `Compare from ${label}` : `Compare to ${label}`}
-          className="gap-1.5">
+          title={label}
+          // Short names like HEAD never give up room; long branch names truncate first.
+          style={{ flexShrink: label.length > 12 ? 1 : 0 }}
+          className="min-w-0 max-w-56 gap-1.5">
           <GitBranch />
-          {label}
+          <span className="truncate">{label}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0">

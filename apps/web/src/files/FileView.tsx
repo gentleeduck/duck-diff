@@ -1,7 +1,7 @@
 import type { FileContents } from '@duck-diff/protocol'
 import { Badge, Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Check, Copy, FileDiff, History, SquareArrowOutUpRight } from 'lucide-react'
+import { Check, Code2, Copy, Eye, FileDiff, History, SquareArrowOutUpRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { Code } from '../diff/Code'
@@ -11,6 +11,7 @@ import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
+import { Markdown } from '../markdown/Markdown'
 import { fileGlyph } from '../sidebar/icons'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
@@ -19,6 +20,12 @@ import { formatBytes } from '../viewer/file-info'
 const selectPath = (path: string | null) => path
 const selectFiles = (state: SessionState) => state.files
 const selectSettings = (state: Settings) => state
+const MARKDOWN = /\.(md|markdown)$/i
+
+// A README's relative link, resolved against the file it sits in, as a repo path.
+function resolveLink(from: string, href: string): string {
+  return decodeURIComponent(new URL(href, `http://repo/${from}`).pathname.slice(1))
+}
 
 function Tool({ label, onClick, children }: { label: string; onClick(): void; children: React.ReactNode }) {
   return (
@@ -44,6 +51,7 @@ export default function FileView() {
   const [failed, setFailed] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [canOpen, setCanOpen] = useState(false)
+  const [preview, setPreview] = useState(true)
   useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
 
   useEffect(() => {
@@ -86,6 +94,7 @@ export default function FileView() {
   }
 
   const status = changed.find((file) => file.path === path)
+  const markdown = MARKDOWN.test(path)
   const icon = fileGlyph(path.split('/').pop() ?? path)
   const copy = async () => {
     await navigator.clipboard.writeText(path)
@@ -133,6 +142,11 @@ export default function FileView() {
             }}>
             <History />
           </Tool>
+          {markdown ? (
+            <Tool label={preview ? 'Show source' : 'Show preview'} onClick={() => setPreview(!preview)}>
+              {preview ? <Code2 /> : <Eye />}
+            </Tool>
+          ) : null}
           <Tool label={copied ? 'Copied' : 'Copy path'} onClick={copy}>
             {copied ? <Check /> : <Copy />}
           </Tool>
@@ -148,7 +162,14 @@ export default function FileView() {
           {contents.binary ? 'Binary file, not shown.' : `Too large to show (${formatBytes(contents.size)}).`}
         </p>
       ) : null}
-      {contents?.text !== null && contents ? (
+      {contents?.text && markdown && preview ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <article className="mx-auto max-w-4xl p-6">
+            <Markdown text={contents.text} onLocalLink={(href) => fileSelection.set(resolveLink(path, href))} />
+          </article>
+        </div>
+      ) : null}
+      {contents?.text !== null && contents && !(markdown && preview) ? (
         <div
           ref={scroller}
           className="min-h-0 flex-1 overflow-auto"

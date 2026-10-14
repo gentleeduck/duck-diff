@@ -1,4 +1,4 @@
-import { targetKey } from '@duck-diff/protocol'
+import { type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { DiffView } from '../diff/DiffView'
@@ -27,6 +27,15 @@ import { WriteButtons } from './WriteButtons'
 
 const selectItems = (state: SessionState) => state.items
 const selectFiles = (state: SessionState) => state.files
+const selectStatus = (state: SessionState) => state.status
+
+const EMPTY: Record<DiffTarget['kind'], string> = {
+  local: 'Nothing to commit. The working tree matches the last commit.',
+  staged: 'Nothing is staged. Stage files or hunks from the working tree to see them here.',
+  unstaged: 'No unstaged changes. Everything left is already staged.',
+  range: 'These two points have the same content.',
+  commit: 'This commit changes no files.',
+}
 const selectSettings = (state: Settings) => state
 const selectReviews = (state: ReviewsState) => state
 const selectRemote = (state: PullReviewState) => state.comments
@@ -51,6 +60,7 @@ export default function Viewer() {
   const { api, viewer, reviews, viewed, fileHistory, pullReview } = useApp()
   const plain = useSession(selectItems)
   const files = useSession(selectFiles)
+  const status = useSession(selectStatus)
   const { target } = useTarget()
   const shownKey = targetKey(target)
   const { comments, draft } = useStore(reviews, selectReviews)
@@ -176,5 +186,8 @@ export default function Viewer() {
 
   const renderNote = useCallback((note: Note) => <ReviewNote note={note} />, [])
 
+  if (status === 'ready' && files.length === 0) {
+    return <p className="p-6 text-muted-foreground">{EMPTY[target.kind]}</p>
+  }
   return <DiffView ref={viewer} page={page} context={context} renderHeader={renderHeader} renderNote={renderNote} />
 }

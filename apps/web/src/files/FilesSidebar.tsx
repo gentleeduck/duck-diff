@@ -19,13 +19,19 @@ export function FilesSidebar() {
   useEffect(() => {
     let alive = true
     api.tree().then(
-      (list) => alive && setPaths(list),
+      (list) => {
+        if (!alive) return
+        setPaths(list)
+        // Like a repo's home page on GitHub, the README is what opens first.
+        const readme = list.find((path) => /^readme(\.md|\.txt)?$/i.test(path))
+        if (readme && fileSelection.get() === null) fileSelection.set(readme)
+      },
       () => alive && setPaths([]),
     )
     return () => {
       alive = false
     }
-  }, [api])
+  }, [api, fileSelection])
 
   const byPath = useMemo(() => new Map(changed.map((file) => [file.path, file])), [changed])
   const fileFor = useCallback((path: string) => byPath.get(path), [byPath])

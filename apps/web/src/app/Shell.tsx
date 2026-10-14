@@ -17,7 +17,8 @@ export function Shell({ rail, topBar, sidebar, sidebarLabel, viewer, status }: S
       <div className="flex min-h-0 flex-1">
         {rail}
         <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-          <ResizablePanel defaultSize="22%" minSize="14%" maxSize="45%">
+          {/* Pixels, not percent: the tree and commit box need the same room on every screen width. */}
+          <ResizablePanel defaultSize="340px" minSize="260px" maxSize="45%">
             <nav aria-label={sidebarLabel} className="flex h-full flex-col bg-card">
               {sidebar}
             </nav>
