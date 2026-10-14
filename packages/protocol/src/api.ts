@@ -71,3 +71,35 @@ export type WriteAction = WriteRequest['action']
 
 export const UndoResultSchema = z.object({ restored: z.array(z.string()).nullable() })
 export type UndoResult = z.infer<typeof UndoResultSchema>
+
+// Stable whatever order the properties arrived in, so a target read back from JSON finds its comments.
+export function targetKey(target: DiffTarget): string {
+  switch (target.kind) {
+    case 'range':
+      return `range:${target.mode}:${target.from}:${target.to}`
+    case 'commit':
+      return `commit:${target.sha}`
+    default:
+      return target.kind
+  }
+}
+
+export const CreateReviewSchema = z.object({
+  target: DiffTargetSchema,
+  path: RepoPath,
+  side: z.enum(['additions', 'deletions']),
+  line: z.number().int().min(1),
+  lineHash: z.string().min(1).max(64),
+  body: z.string().trim().min(1).max(20_000),
+})
+export type CreateReview = z.infer<typeof CreateReviewSchema>
+
+export const UpdateReviewSchema = z.object({ body: CreateReviewSchema.shape.body })
+export type UpdateReview = z.infer<typeof UpdateReviewSchema>
+
+export const ReviewCommentSchema = CreateReviewSchema.extend({
+  id: z.string().min(1),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+export type ReviewComment = z.infer<typeof ReviewCommentSchema>
