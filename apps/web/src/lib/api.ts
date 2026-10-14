@@ -76,7 +76,7 @@ export interface Api {
   tree(ref?: string): Promise<string[]>
   file(path: string, ref?: string): Promise<FileContents>
   sync(): Promise<SyncStatus>
-  git(action: GitAction, body?: unknown): Promise<{ sha?: string }>
+  git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean }>
   github: GitHubApi
 }
 
@@ -119,6 +119,11 @@ export type GitAction =
   | 'stash'
   | 'stash-apply'
   | 'stash-drop'
+  | 'merge'
+  | 'cherry-pick'
+  | 'revert'
+  | 'abort'
+  | 'branch-delete'
 
 const ContentSchema = z.object({ contents: z.string().nullable() })
 
@@ -220,7 +225,13 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       return json(`/api/file?${params}`, FileContentsSchema)
     },
     sync: () => json('/api/sync', SyncStatusSchema),
-    git: (action, body) => send('POST', `/api/git/${action}`, body ?? {}, z.object({ sha: z.string().optional() })),
+    git: (action, body) =>
+      send(
+        'POST',
+        `/api/git/${action}`,
+        body ?? {},
+        z.object({ sha: z.string().optional(), conflicts: z.boolean().optional() }),
+      ),
     commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),
     reviews: (target) => json(`/api/reviews?target=${encodeTarget(target)}`, z.array(ReviewCommentSchema)),
     createReview: (input) => send('POST', '/api/reviews', input, ReviewCommentSchema),

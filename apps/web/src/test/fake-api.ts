@@ -32,7 +32,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     },
     deleteReview: async () => {},
     tree: async () => ['a.ts', 'b.ts'],
-    sync: async () => ({ branch: 'main', upstream: 'origin/main', ahead: 0, behind: 0, staged: 0 }),
+    sync: async () => ({ branch: 'main', upstream: 'origin/main', ahead: 0, behind: 0, staged: 0, operation: null }),
     git: async () => ({}),
     github: {
       status: async () => ({ repo: null, user: null, source: null }),

@@ -5,12 +5,17 @@ import { join } from 'node:path'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import {
+  abortOperation,
   checkoutDetached,
+  cherryPick,
   commit,
+  deleteBranch,
   fetchAll,
+  mergeRef,
   pull,
   push,
   readSyncStatus,
+  revertCommit,
   stashApply,
   stashDrop,
   stashSave,
@@ -68,7 +73,14 @@ describe('commit', () => {
 describe('sync', () => {
   it('publishes a new branch, then reports ahead and behind', async () => {
     withRemote()
-    expect(await readSyncStatus(repo.path)).toEqual({ branch: 'main', upstream: null, ahead: 0, behind: 0, staged: 0 })
+    expect(await readSyncStatus(repo.path)).toEqual({
+      branch: 'main',
+      upstream: null,
+      ahead: 0,
+      behind: 0,
+      staged: 0,
+      operation: null,
+    })
     repo.write('a.txt', 'staged\n')
     repo.git('add', 'a.txt')
     expect((await readSyncStatus(repo.path)).staged).toBe(1)
@@ -128,5 +140,52 @@ describe('stash', () => {
     await stashSave(repo.path, { message: '', untracked: false })
     await stashDrop(repo.path, 'stash@{0}')
     expect(repo.git('stash', 'list')).toBe('')
+  })
+})
+
+describe('merge, cherry-pick and revert', () => {
+  // main and side both edit a.txt, so merging or picking side into main conflicts.
+  function diverged() {
+    withRemote()
+    repo.git('switch', '-q', '-c', 'side')
+    repo.write('a.txt', 'side\n')
+    const sideSha = repo.commit('side edit')
+    repo.git('switch', '-q', 'main')
+    repo.write('a.txt', 'main\n')
+    repo.commit('main edit')
+    return sideSha
+  }
+
+  it('stops a conflicting merge for resolving, reports it, and aborts it', async () => {
+    diverged()
+    expect(await mergeRef(repo.path, 'side')).toEqual({ conflicts: true })
+    expect((await readSyncStatus(repo.path)).operation).toBe('merge')
+    await abortOperation(repo.path)
+    expect((await readSyncStatus(repo.path)).operation).toBeNull()
+    expect(repo.git('status', '--porcelain')).toBe('')
+  })
+
+  it('finishes a resolved merge with a commit even when the resolution matches HEAD', async () => {
+    diverged()
+    await mergeRef(repo.path, 'side')
+    repo.write('a.txt', 'main\n')
+    repo.git('add', 'a.txt')
+    await commit(repo.path, { message: 'merge side', amend: false })
+    expect(repo.git('log', '-1', '--format=%P').split(' ')).toHaveLength(2)
+  })
+
+  it('picks a clean commit, reverts it, and deletes a merged branch only when asked to force', async () => {
+    withRemote()
+    repo.git('switch', '-q', '-c', 'side')
+    repo.write('b.txt', 'b\n')
+    const sha = repo.commit('add b')
+    repo.git('switch', '-q', 'main')
+    expect(await cherryPick(repo.path, sha)).toEqual({ conflicts: false })
+    expect(repo.git('log', '-1', '--format=%s')).toBe('add b')
+    expect(await revertCommit(repo.path, 'HEAD')).toEqual({ conflicts: false })
+    expect(repo.git('log', '-1', '--format=%s')).toContain('Revert')
+    await expect(deleteBranch(repo.path, { name: 'side', force: false })).rejects.toThrow()
+    await deleteBranch(repo.path, { name: 'side', force: true })
+    expect(repo.git('branch', '--list', 'side')).toBe('')
   })
 })

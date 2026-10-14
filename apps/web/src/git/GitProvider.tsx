@@ -24,6 +24,11 @@ const DOING: Record<GitAction, string> = {
   stash: 'Stash',
   'stash-apply': 'Apply stash',
   'stash-drop': 'Drop stash',
+  merge: 'Merge',
+  'cherry-pick': 'Cherry-pick',
+  revert: 'Revert',
+  abort: 'Abort',
+  'branch-delete': 'Delete branch',
 }
 
 export function GitProvider({ children }: { children: ReactNode }) {
@@ -47,8 +52,11 @@ export function GitProvider({ children }: { children: ReactNode }) {
     async (action, body, done) => {
       setBusy(action)
       try {
-        await api.git(action, body)
-        toast(done ?? `${DOING[action]} done`)
+        const result = await api.git(action, body)
+        // A stop on conflicts is not a failure: the files wait in the changes view for resolving.
+        if (result.conflicts)
+          toast.warning(`${DOING[action]} stopped on conflicts. Resolve them in Changes, then commit.`)
+        else toast(done ?? `${DOING[action]} done`)
         refresh()
         void session.reload()
         if (graph.get().status !== 'idle') void graph.load()

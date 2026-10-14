@@ -1,5 +1,5 @@
 import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
-import { GitBranchPlus, LocateFixed } from 'lucide-react'
+import { Cherry, GitBranchPlus, LocateFixed, Undo2 } from 'lucide-react'
 import { useState } from 'react'
 import { useGit } from '../git/GitProvider'
 
@@ -52,6 +52,24 @@ export function CommitActions({ sha }: { sha: string }) {
           </form>
         </PopoverContent>
       </Popover>
+      <Button
+        size="sm"
+        variant="outline"
+        loading={busy === 'cherry-pick'}
+        title="Apply this commit's change on top of the current branch"
+        onClick={() => void run('cherry-pick', { ref: sha }, `Cherry-picked ${short}`)}>
+        <Cherry />
+        Cherry-pick
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        loading={busy === 'revert'}
+        title="Add a commit that undoes this one"
+        onClick={() => void run('revert', { ref: sha }, `Reverted ${short}`)}>
+        <Undo2 />
+        Revert
+      </Button>
       <Button
         size="sm"
         variant="outline"

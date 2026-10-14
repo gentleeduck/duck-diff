@@ -66,6 +66,7 @@ export const SyncStatusSchema = z.object({
   ahead: z.number().int(),
   behind: z.number().int(),
   staged: z.number().int(),
+  operation: z.enum(['merge', 'cherry-pick', 'revert', 'rebase']).nullable(),
 })
 export type SyncStatus = z.infer<typeof SyncStatusSchema>
 
@@ -80,6 +81,9 @@ export const SwitchRequestSchema = z.object({
 export type SwitchRequest = z.infer<typeof SwitchRequestSchema>
 
 export const CheckoutRequestSchema = z.object({ sha: RefNameSchema })
+
+export const RefRequestSchema = z.object({ ref: RefNameSchema })
+export const DeleteBranchSchema = z.object({ name: RefNameSchema, force: z.boolean() })
 
 export const StashSaveSchema = z.object({ message: z.string().trim().max(1000), untracked: z.boolean() })
 export const StashNameSchema = z.string().regex(/^stash@\{\d+\}$/)

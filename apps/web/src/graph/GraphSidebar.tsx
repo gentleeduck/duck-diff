@@ -10,7 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@duck-diff/ui'
-import { ArchiveRestore, PackageOpen, Trash2 } from 'lucide-react'
+import { ArchiveRestore, ArrowRightLeft, GitMerge, PackageOpen, Trash2 } from 'lucide-react'
 import { useId } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useGit } from '../git/GitProvider'
@@ -27,7 +27,7 @@ const GROUPS: { kind: Ref['kind']; title: string; glyph: string }[] = [
 
 const selectAll = (state: GraphState) => state.all
 
-function StashTool({ label, onClick, children }: { label: string; onClick(): void; children: React.ReactNode }) {
+function RowTool({ label, onClick, children }: { label: string; onClick(): void; children: React.ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -45,14 +45,12 @@ function StashActions({ name }: { name: string }) {
   const { run } = useGit()
   return (
     <span className="flex opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-      <StashTool
-        label={`Apply ${name}`}
-        onClick={() => void run('stash-apply', { name, pop: false }, `Applied ${name}`)}>
+      <RowTool label={`Apply ${name}`} onClick={() => void run('stash-apply', { name, pop: false }, `Applied ${name}`)}>
         <ArchiveRestore />
-      </StashTool>
-      <StashTool label={`Pop ${name}`} onClick={() => void run('stash-apply', { name, pop: true }, `Popped ${name}`)}>
+      </RowTool>
+      <RowTool label={`Pop ${name}`} onClick={() => void run('stash-apply', { name, pop: true }, `Popped ${name}`)}>
         <PackageOpen />
-      </StashTool>
+      </RowTool>
       <Popover>
         <PopoverTrigger asChild>
           <Button size="icon" variant="ghost" aria-label={`Drop ${name}`}>
@@ -70,6 +68,55 @@ function StashActions({ name }: { name: string }) {
           </Button>
         </PopoverContent>
       </Popover>
+    </span>
+  )
+}
+
+function BranchActions({ name, local }: { name: string; local: boolean }) {
+  const { status, run } = useGit()
+  const current = status?.branch
+  return (
+    <span className="flex opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+      {local ? (
+        <RowTool
+          label={`Switch to ${name}`}
+          onClick={() => void run('switch', { branch: name, create: false }, `Switched to ${name}`)}>
+          <ArrowRightLeft />
+        </RowTool>
+      ) : null}
+      {current ? (
+        <RowTool
+          label={`Merge ${name} into ${current}`}
+          onClick={() => void run('merge', { ref: name }, `Merged ${name} into ${current}`)}>
+          <GitMerge />
+        </RowTool>
+      ) : null}
+      {local ? (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button size="icon" variant="ghost" aria-label={`Delete ${name}`}>
+              <Trash2 />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="flex w-72 flex-col gap-2">
+            <p>Delete the branch {name}? Its commits stay reachable only if another branch has them.</p>
+            <div className="flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void run('branch-delete', { name, force: false }, `Deleted ${name}`)}>
+                Delete if merged
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => void run('branch-delete', { name, force: true }, `Deleted ${name}`)}>
+                Force delete
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+      ) : null}
     </span>
   )
 }
@@ -115,6 +162,9 @@ export function GraphSidebar() {
                     {ref.current ? <span className="text-tn-green">current</span> : null}
                   </Button>
                   {kind === 'stash' ? <StashActions name={ref.name} /> : null}
+                  {(kind === 'branch' || kind === 'remote') && !ref.current ? (
+                    <BranchActions name={ref.name} local={kind === 'branch'} />
+                  ) : null}
                 </div>
               ))}
             </section>

@@ -1,12 +1,17 @@
 import {
+  abortOperation,
   checkoutDetached,
+  cherryPick,
   commit,
+  deleteBranch,
   discardFile,
   discardHunk,
   fetchAll,
+  mergeRef,
   pull,
   push,
   restoreLatest,
+  revertCommit,
   snapshot,
   stageFile,
   stageHunk,
@@ -22,6 +27,8 @@ import {
   type ChangeReason,
   CheckoutRequestSchema,
   CommitRequestSchema,
+  DeleteBranchSchema,
+  RefRequestSchema,
   StashApplySchema,
   StashDropSchema,
   StashSaveSchema,
@@ -93,6 +100,24 @@ export async function gitAction(
       return { reason: 'refs', body: {} }
     case 'checkout':
       await checkoutDetached(repo, CheckoutRequestSchema.parse(await request.json()).sha)
+      return { reason: 'refs', body: {} }
+    case 'merge': {
+      const { conflicts } = await mergeRef(repo, RefRequestSchema.parse(await request.json()).ref)
+      return { reason: 'refs', body: { conflicts } }
+    }
+    case 'cherry-pick': {
+      const { conflicts } = await cherryPick(repo, RefRequestSchema.parse(await request.json()).ref)
+      return { reason: 'refs', body: { conflicts } }
+    }
+    case 'revert': {
+      const { conflicts } = await revertCommit(repo, RefRequestSchema.parse(await request.json()).ref)
+      return { reason: 'refs', body: { conflicts } }
+    }
+    case 'abort':
+      await abortOperation(repo)
+      return { reason: 'refs', body: {} }
+    case 'branch-delete':
+      await deleteBranch(repo, DeleteBranchSchema.parse(await request.json()))
       return { reason: 'refs', body: {} }
     case 'stash':
       await stashSave(repo, StashSaveSchema.parse(await request.json()))

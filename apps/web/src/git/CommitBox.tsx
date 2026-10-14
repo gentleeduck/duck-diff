@@ -3,6 +3,7 @@ import { Archive, GitCommitHorizontal } from 'lucide-react'
 import { useId, useState } from 'react'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { useGit } from './GitProvider'
+import { OperationBanner } from './OperationBanner'
 
 export function CommitBox() {
   const { status, busy, run } = useGit()
@@ -10,7 +11,9 @@ export function CommitBox() {
   const [amend, setAmend] = useState(false)
   const amendId = useId()
   const staged = status?.staged ?? 0
-  const ready = message.trim().length > 0 && (staged > 0 || amend) && busy === null
+  // An unfinished merge or pick commits its resolution even when nothing new is staged.
+  const finishing = Boolean(status?.operation && status.operation !== 'rebase')
+  const ready = message.trim().length > 0 && (staged > 0 || amend || finishing) && busy === null
 
   const commit = async (andPush: boolean) => {
     const ok = await run('commit', { message, amend }, amend ? 'Amended the last commit' : 'Committed')
@@ -28,6 +31,7 @@ export function CommitBox() {
         event.preventDefault()
         if (ready) void commit(false)
       }}>
+      <OperationBanner />
       <Textarea
         aria-label="Commit message"
         placeholder={

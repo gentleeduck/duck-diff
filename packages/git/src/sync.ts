@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { GitError } from './errors'
 import { runGit } from './run'
 
@@ -13,13 +15,34 @@ export interface SyncStatus {
   behind: number
   // Files with changes in the index, ready to commit.
   staged: number
+  // A merge, cherry-pick, revert or rebase stopped part way, usually on conflicts.
+  operation: Operation | null
+}
+
+export type Operation = 'merge' | 'cherry-pick' | 'revert' | 'rebase'
+
+// git marks an unfinished operation with these files in the git dir.
+const MARKERS: [string, Operation][] = [
+  ['MERGE_HEAD', 'merge'],
+  ['CHERRY_PICK_HEAD', 'cherry-pick'],
+  ['REVERT_HEAD', 'revert'],
+  ['rebase-merge', 'rebase'],
+  ['rebase-apply', 'rebase'],
+]
+
+async function readOperation(repo: string): Promise<Operation | null> {
+  const gitDir = (await runGit(['rev-parse', '--absolute-git-dir'], { cwd: repo })).trim()
+  return MARKERS.find(([marker]) => existsSync(join(gitDir, marker)))?.[1] ?? null
 }
 
 // `git status --porcelain=v2 --branch` headers: "# branch.head main", "# branch.upstream origin/main", "# branch.ab +1 -2";
 // entry lines start "1 XY" (or "2 XY" for renames), where X is the index side.
 export async function readSyncStatus(repo: string): Promise<SyncStatus> {
-  const out = await runGit(['status', '--porcelain=v2', '--branch', '--untracked-files=no'], { cwd: repo })
-  const status: SyncStatus = { branch: null, upstream: null, ahead: 0, behind: 0, staged: 0 }
+  const [out, operation] = await Promise.all([
+    runGit(['status', '--porcelain=v2', '--branch', '--untracked-files=no'], { cwd: repo }),
+    readOperation(repo),
+  ])
+  const status: SyncStatus = { branch: null, upstream: null, ahead: 0, behind: 0, staged: 0, operation }
   for (const line of out.split('\n')) {
     if (line.startsWith('# branch.head ')) {
       const head = line.slice(14)
@@ -35,7 +58,8 @@ export async function readSyncStatus(repo: string): Promise<SyncStatus> {
 }
 
 export async function commit(repo: string, options: { message: string; amend: boolean }): Promise<string> {
-  if (!options.amend) {
+  // Finishing a merge or pick may commit a resolution identical to HEAD, so only plain commits need staged files.
+  if (!options.amend && !(await readOperation(repo))) {
     const staged = await runGit(['diff', '--cached', '--name-only'], { cwd: repo })
     if (!staged.trim()) throw new GitError('failed', null, '', 'nothing is staged; stage changes before committing')
   }
@@ -95,4 +119,39 @@ export async function stashApply(repo: string, options: { name: string; pop: boo
 
 export async function stashDrop(repo: string, name: string): Promise<void> {
   await runGit(['stash', 'drop', '--quiet', name], { cwd: repo })
+}
+
+// Merges, picks and reverts that stop on conflicts are not failures: the conflicted files go to the
+// changes view and the status reports the operation until it is committed or aborted.
+async function mayConflict(repo: string, args: string[]): Promise<{ conflicts: boolean }> {
+  try {
+    await runGit(args, { cwd: repo, env: NO_EDITOR })
+    return { conflicts: false }
+  } catch (error) {
+    if (await readOperation(repo)) return { conflicts: true }
+    throw error
+  }
+}
+
+export function mergeRef(repo: string, ref: string): Promise<{ conflicts: boolean }> {
+  return mayConflict(repo, ['merge', '--no-edit', ref])
+}
+
+export function cherryPick(repo: string, sha: string): Promise<{ conflicts: boolean }> {
+  return mayConflict(repo, ['cherry-pick', sha])
+}
+
+export function revertCommit(repo: string, sha: string): Promise<{ conflicts: boolean }> {
+  return mayConflict(repo, ['revert', '--no-edit', sha])
+}
+
+export async function abortOperation(repo: string): Promise<void> {
+  const operation = await readOperation(repo)
+  if (!operation) throw new GitError('failed', null, '', 'nothing to abort')
+  await runGit([operation, '--abort'], { cwd: repo })
+}
+
+// -d refuses a branch that is not merged anywhere; force is the caller's explicit choice.
+export async function deleteBranch(repo: string, options: { name: string; force: boolean }): Promise<void> {
+  await runGit(['branch', options.force ? '-D' : '-d', options.name], { cwd: repo })
 }

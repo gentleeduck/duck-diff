@@ -84,7 +84,7 @@ describe('GitHub views', () => {
     const createPull = vi.fn(async () => ({ ...pull, number: 9 }))
     const api = fakeApi({
       commits: async () => [{ sha: 'abc', subject: 'Latest work', author: 'octo', authoredAt: 1 }] as never,
-      sync: async () => ({ branch: 'feat', upstream: 'origin/feat', ahead: 0, behind: 0, staged: 0 }),
+      sync: async () => ({ branch: 'feat', upstream: 'origin/feat', ahead: 0, behind: 0, staged: 0, operation: null }),
       github: githubApi({ createPull, defaultBranch: async () => 'trunk' }),
     })
     render(<App api={api} />)

@@ -8,12 +8,18 @@ export { listRefs, type Ref, type RefKind } from './refs'
 export { resolveRepo } from './repo'
 export { type RunOptions, runGit, streamGit } from './run'
 export {
+  abortOperation,
   checkoutDetached,
+  cherryPick,
   commit,
+  deleteBranch,
   fetchAll,
+  mergeRef,
+  type Operation,
   pull,
   push,
   readSyncStatus,
+  revertCommit,
   type SyncStatus,
   stashApply,
   stashDrop,
