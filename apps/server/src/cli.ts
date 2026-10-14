@@ -30,6 +30,7 @@ async function main(): Promise<number> {
     repo: command.repo,
     port: command.port,
     idleTimeoutMs: command.idleTimeoutMs,
+    nvim: command.nvim,
     onIdle: () => finish(0),
   }).catch((error: Error) => {
     console.error(error.message)

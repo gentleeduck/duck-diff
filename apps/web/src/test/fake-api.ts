@@ -18,10 +18,11 @@ export const FILES: ChangedFile[] = ['a.ts', 'b.ts'].map((path) => ({
 
 export function fakeApi(overrides: Partial<Api> = {}): Api {
   return {
-    repo: async () => ({ root: '/r', branch: 'main', head: 'abc1234def' }),
+    repo: async () => ({ root: '/r', branch: 'main', head: 'abc1234def', nvim: false }),
     refs: async () => [],
     commits: async () => [],
     content: async () => null,
+    open: async () => {},
     files: async () => FILES,
     diff: async () => new Response(PATCH).body as ReadableStream<Uint8Array>,
     ...overrides,

@@ -32,13 +32,14 @@ export interface Api {
   commits(query: { head: string; base?: string; limit?: number }): Promise<Commit[]>
   diff(target: DiffTarget, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   content(target: DiffTarget, side: 'old' | 'new', file: Pick<ChangedFile, 'path' | 'oldPath'>): Promise<string | null>
+  open(path: string, line: number): Promise<void>
 }
 
 const ContentSchema = z.object({ contents: z.string().nullable() })
 
 export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
-  async function request(path: string, signal?: AbortSignal): Promise<Response> {
-    const response = await fetcher(`${base}${path}`, { signal })
+  async function request(path: string, signal?: AbortSignal, init: RequestInit = {}): Promise<Response> {
+    const response = await fetcher(`${base}${path}`, { ...init, signal })
     if (response.ok) return response
     const parsed = ErrorBodySchema.safeParse(await response.json().catch(() => null))
     if (parsed.success) throw new ApiError(response.status, parsed.data.error.code, parsed.data.error.message)
@@ -69,6 +70,13 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       if (file.oldPath) params.set('oldPath', file.oldPath)
       const body = await json(`/api/content?target=${encodeTarget(target)}&${params}`, ContentSchema)
       return body.contents
+    },
+    async open(path, line) {
+      await request('/api/open', undefined, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path, line }),
+      })
     },
   }
 }

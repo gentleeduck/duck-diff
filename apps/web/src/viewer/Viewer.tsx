@@ -47,9 +47,23 @@ export default function Viewer() {
     synced.current = items
   }, [items, handle])
 
+  // Only a server started from Neovim can open files there, so the button follows repo info.
+  const [canOpen, setCanOpen] = useState(false)
+  useEffect(() => {
+    api.repo().then(
+      (info) => setCanOpen(info.nvim),
+      () => {},
+    )
+  }, [api])
+
   const renderMeta = useCallback(
-    (item: Item) => (item.type === 'diff' ? <FileActions path={item.fileDiff.name} /> : null),
-    [],
+    (item: Item) => {
+      if (item.type !== 'diff') return null
+      const path = item.fileDiff.name
+      const firstLine = item.fileDiff.hunks[0]?.additionStart ?? 1
+      return <FileActions path={path} onOpen={canOpen ? () => void api.open(path, firstLine) : undefined} />
+    },
+    [api, canOpen],
   )
 
   return (

@@ -4,10 +4,10 @@ import { z } from 'zod'
 import { HttpError } from './errors'
 import { iterableToStream } from './stream'
 
-export async function repoInfo(repo: string): Promise<RepoInfo> {
+export async function repoInfo(repo: string, nvim = false): Promise<RepoInfo> {
   const branch = (await runGit(['branch', '--show-current'], { cwd: repo })).trim() || null
   const head = (await runGit(['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: repo, okExitCodes: [1] })).trim()
-  return { root: repo, branch, head: head || null }
+  return { root: repo, branch, head: head || null, nvim }
 }
 
 const PatchQuery = z.object({
@@ -34,10 +34,10 @@ function requireTarget(url: URL) {
   return decodeTarget(raw)
 }
 
-export async function handleApi(repo: string, url: URL): Promise<Response> {
+export async function handleApi(repo: string, url: URL, nvim = false): Promise<Response> {
   switch (url.pathname) {
     case '/api/repo':
-      return Response.json(await repoInfo(repo))
+      return Response.json(await repoInfo(repo, nvim))
     case '/api/refs':
       return Response.json(await listRefs(repo))
     case '/api/files':
