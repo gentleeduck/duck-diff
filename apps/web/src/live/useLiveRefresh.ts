@@ -17,7 +17,7 @@ function eventsUrl(): string {
 
 // Keeps the page in step with the repo: every change the server reports becomes one coalesced reload.
 export function useLiveRefresh(): LiveState {
-  const { api, session, reviews } = useApp()
+  const { api, session, reviews, refs } = useApp()
   const [state, setState] = useState<LiveState>({ status: 'connecting', repo: null })
 
   useEffect(() => {
@@ -36,6 +36,7 @@ export function useLiveRefresh(): LiveState {
         if (event.reason === 'reviews') return void reviews.reload().catch(() => {})
         refresher.notify()
         if (event.reason === 'refs') {
+          void refs.reload()
           api.repo().then(
             (repo) => setState((prev) => ({ ...prev, repo })),
             () => {},
@@ -47,7 +48,7 @@ export function useLiveRefresh(): LiveState {
       refresher.dispose()
       dispose()
     }
-  }, [api, session, reviews])
+  }, [api, session, reviews, refs])
 
   return state
 }

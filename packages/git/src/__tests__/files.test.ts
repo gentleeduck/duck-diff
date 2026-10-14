@@ -1,6 +1,6 @@
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, describe, expect, it } from 'vitest'
-import { listFiles } from '../index'
+import { listFiles, parseDiffSummary } from '../index'
 
 describe('listFiles, local changes', () => {
   let repo: TestRepo
@@ -80,5 +80,33 @@ describe('listFiles, local changes', () => {
   it('returns an empty list for a clean tree', async () => {
     seed()
     expect(await listFiles(repo.path, { kind: 'unstaged' })).toEqual([])
+  })
+})
+
+describe('parseDiffSummary', () => {
+  it('splits one --raw --numstat -z output into both halves, renames included', () => {
+    const output = [
+      ':100644 100644 aaa bbb M',
+      'a.ts',
+      ':100644 100644 ccc ddd R090',
+      'old.ts',
+      'new.ts',
+      '3\t1\ta.ts',
+      '2\t2\t',
+      'old.ts',
+      'new.ts',
+      '-\t-\timage.png',
+      '',
+    ].join('\0')
+    const { raw, numstat } = parseDiffSummary(output)
+    expect(raw.map((entry) => [entry.path, entry.oldPath, entry.status])).toEqual([
+      ['a.ts', null, 'modified'],
+      ['new.ts', 'old.ts', 'renamed'],
+    ])
+    expect(numstat).toEqual([
+      { path: 'a.ts', additions: 3, deletions: 1 },
+      { path: 'new.ts', additions: 2, deletions: 2 },
+      { path: 'image.png', additions: null, deletions: null },
+    ])
   })
 })

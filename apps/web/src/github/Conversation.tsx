@@ -1,8 +1,7 @@
 import type { ConversationComment, GitHubUser } from '@duck-diff/protocol'
 import { Button, Textarea } from '@duck-diff/ui'
 import { MessageSquare } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
-import { Markdown } from '../markdown/Markdown'
+import { lazy, type ReactNode, Suspense, useState } from 'react'
 import { ago } from './time'
 
 export function Avatar({ user }: { user: GitHubUser }) {
@@ -17,8 +16,16 @@ export function Avatar({ user }: { user: GitHubUser }) {
   )
 }
 
+// The renderer is 150 KB, so it loads with the first comment instead of with the diff viewer.
+const Markdown = lazy(() => import('../markdown/Markdown').then((module) => ({ default: module.Markdown })))
+
 export function Body({ text }: { text: string }) {
-  return text.trim() ? <Markdown text={text} /> : <p className="text-muted-foreground">No description.</p>
+  if (!text.trim()) return <p className="text-muted-foreground">No description.</p>
+  return (
+    <Suspense fallback={<p className="whitespace-pre-wrap break-words text-foreground">{text.trim()}</p>}>
+      <Markdown text={text} />
+    </Suspense>
+  )
 }
 
 export function Comment({

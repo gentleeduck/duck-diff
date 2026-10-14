@@ -32,7 +32,7 @@ const DOING: Record<GitAction, string> = {
 }
 
 export function GitProvider({ children }: { children: ReactNode }) {
-  const { api, session, graph } = useApp()
+  const { api, session, graph, refs } = useApp()
   const [status, setStatus] = useState<SyncStatus | null>(null)
   const [busy, setBusy] = useState<GitAction | null>(null)
 
@@ -40,11 +40,13 @@ export function GitProvider({ children }: { children: ReactNode }) {
     api.sync().then(setStatus, () => setStatus(null))
   }, [api])
 
-  // Branch and counts follow every change in the repo, from this page or from the terminal.
+  // Branch and counts follow every change in the repo, from this page or from the terminal. The first
+  // read waits for the diff to load so it never slows the first paint.
   useEffect(() => {
-    refresh()
+    const settled = () => session.get().status === 'ready' || session.get().status === 'error'
+    if (settled()) refresh()
     return session.subscribe(() => {
-      if (session.get().status === 'ready') refresh()
+      if (settled()) refresh()
     })
   }, [refresh, session])
 
@@ -59,6 +61,7 @@ export function GitProvider({ children }: { children: ReactNode }) {
         else toast(done ?? `${DOING[action]} done`)
         refresh()
         void session.reload()
+        void refs.reload()
         if (graph.get().status !== 'idle') void graph.load()
         return true
       } catch (error) {
@@ -68,7 +71,7 @@ export function GitProvider({ children }: { children: ReactNode }) {
         setBusy(null)
       }
     },
-    [api, refresh, session, graph],
+    [api, refresh, session, graph, refs],
   )
 
   const value = useMemo(() => ({ status, busy, run, refresh }), [status, busy, run, refresh])

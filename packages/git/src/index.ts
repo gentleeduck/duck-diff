@@ -1,7 +1,7 @@
 export { type Commit, type CommitDetails, listCommits, readCommit } from './commits'
 export { readSide, readSideBytes, type Side } from './content'
 export { GitError, type GitErrorCode } from './errors'
-export { type ChangedFile, type FileStatus, listFiles, parseNumstat, parseRaw } from './files'
+export { type ChangedFile, type FileStatus, listFiles, parseDiffSummary, parseNumstat, parseRaw } from './files'
 export { GRAPH_FORMAT, type GraphOptions, streamGraph } from './graph'
 export { getPatch, streamDiff, streamPatch } from './patch'
 export { listRefs, type Ref, type RefKind } from './refs'

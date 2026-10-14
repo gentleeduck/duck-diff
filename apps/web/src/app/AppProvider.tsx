@@ -8,6 +8,7 @@ import { createStore, type Store } from '../lib/store'
 import { readTarget } from '../lib/target-url'
 import { readView, type View } from '../lib/view-url'
 import { createReviews, type Reviews } from '../review/reviews'
+import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
 import { createViewedStore, type Viewed } from '../state/viewed'
@@ -15,6 +16,8 @@ import { createViewedStore, type Viewed } from '../state/viewed'
 interface AppContextValue {
   api: Api
   session: Session
+  // Branches, tags and recent commits, shared by every picker.
+  refs: Refs
   settings: Store<Settings>
   reviews: Reviews
   viewed: Viewed
@@ -41,9 +44,11 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
   const viewer = useRef<DiffViewHandle | null>(null)
   const value = useMemo(() => {
     const client = api ?? createApi()
+    const session = createSession(client, readTarget(window.location.search))
     return {
       api: client,
-      session: createSession(client, readTarget(window.location.search)),
+      session,
+      refs: createRefs(client, session),
       settings: createSettingsStore(),
       reviews: createReviews(client),
       viewed: createViewedStore(),

@@ -1,10 +1,9 @@
 import type { ChangedFile } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
-import type { FileTreeVisibleRow } from '@pierre/trees'
-import { useFileTree } from '@pierre/trees/react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useEffect, useReducer, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_GLYPH } from './icons'
+import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
 const ROW_HEIGHT = 28
 
@@ -14,15 +13,13 @@ function TreeRow({
   selected,
   onClick,
 }: {
-  row: FileTreeVisibleRow
+  row: Row
   file: ChangedFile | undefined
   selected: boolean
   onClick(): void
 }) {
   const folder = row.kind === 'directory'
-  const icon = folder
-    ? { glyph: row.isExpanded ? FOLDER.open : FOLDER.closed, color: FOLDER.color }
-    : fileGlyph(row.name)
+  const icon = folder ? { glyph: row.expanded ? FOLDER.open : FOLDER.closed, color: FOLDER.color } : fileGlyph(row.name)
   const status = file ? STATUS_GLYPH[file.status] : null
   const dim = file && (file.status === 'modified' || file.status === 'type-changed')
   const name = folder
@@ -42,16 +39,16 @@ function TreeRow({
       aria-level={row.depth + 1}
       aria-selected={selected}
       onClick={onClick}
-      aria-expanded={folder ? row.isExpanded : undefined}
+      aria-expanded={folder ? row.expanded : undefined}
       aria-current={selected || undefined}
       title={row.path}
       className="h-7 w-full items-stretch justify-start gap-0 rounded-none p-0 pe-3 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
-      {(row.depth > 0 ? row.ancestorPaths.slice(-row.depth) : []).map((ancestor) => (
+      {row.ancestors.map((ancestor) => (
         // Indent guides, one per ancestor, like the editor's tree.
         <span key={ancestor} className="w-5 shrink-0 self-stretch border-tn-gutter border-s ms-[9px]" />
       ))}
       <span className="w-5 shrink-0 justify-center text-tn-comment">
-        {folder ? (row.isExpanded ? CHEVRON.open : CHEVRON.closed) : ''}
+        {folder ? (row.expanded ? CHEVRON.open : CHEVRON.closed) : ''}
       </span>
       <span className="w-6 shrink-0 justify-center" style={{ color: icon.color }}>
         {icon.glyph}
@@ -61,9 +58,7 @@ function TreeRow({
           {status.glyph}
         </span>
       ) : null}
-      <span className={`min-w-0 truncate ${name}`}>
-        {row.flattenedSegments?.length ? row.flattenedSegments.map((segment) => segment.name).join('/') : row.name}
-      </span>
+      <span className={`min-w-0 truncate ${name}`}>{row.name}</span>
     </Button>
   )
 }
@@ -77,14 +72,11 @@ interface FileTreeProps {
   onOpenFile(path: string): void
 }
 
-// @pierre/trees keeps the structure, expansion and flattening; the rows are ours, drawn like the editor's tree.
+// Every folder starts open, like the editor's tree; the set holds the ones folded since.
 export function FileTree({ label, paths, fileFor, selected, onOpenFile }: FileTreeProps) {
-  const { model } = useFileTree({ paths: [], initialExpansion: 'open', flattenEmptyDirectories: true })
-  const [, refresh] = useReducer((n: number) => n + 1, 0)
-  useEffect(() => model.subscribe(refresh), [model])
-  useEffect(() => model.resetPaths([...paths]), [model, paths])
-
-  const rows = model.getVisibleRows(0, model.getVisibleCount())
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
+  const tree = useMemo(() => buildTree(paths), [paths])
+  const rows = useMemo(() => visibleRows(tree, collapsed), [tree, collapsed])
   const scroller = useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -93,13 +85,13 @@ export function FileTree({ label, paths, fileFor, selected, onOpenFile }: FileTr
     overscan: 20,
   })
 
-  const open = (row: FileTreeVisibleRow) => {
-    if (row.kind === 'directory') {
-      const handle = model.getItem(row.path)
-      if (handle && 'toggle' in handle) handle.toggle()
-      return
-    }
-    onOpenFile(row.path)
+  const open = (row: Row) => {
+    if (row.kind === 'file') return onOpenFile(row.path)
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(row.path)) next.add(row.path)
+      return next
+    })
   }
 
   return (

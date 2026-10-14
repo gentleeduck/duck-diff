@@ -16,7 +16,6 @@
     "@duck-diff/ui": "workspace:*",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@pierre/diffs": "catalog:",
-    "@pierre/trees": "catalog:",
     "@tanstack/react-virtual": "catalog:",
     "diff": "catalog:",
     "lucide-react": "^1.57.0",
