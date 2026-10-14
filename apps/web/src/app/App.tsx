@@ -1,7 +1,10 @@
-import { TooltipProvider } from '@duck-diff/ui'
-import { lazy, Suspense } from 'react'
+import { Button, Kbd, TooltipProvider } from '@duck-diff/ui'
+import { lazy, Suspense, useState } from 'react'
 import { CompareBar } from '../compare/CompareBar'
+import { HelpDialog } from '../keyboard/HelpDialog'
+import { useKeyboard } from '../keyboard/useKeyboard'
 import type { Api } from '../lib/api'
+import { Palette } from '../palette/Palette'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
 import { AppProvider } from './AppProvider'
@@ -12,22 +15,32 @@ const Viewer = lazy(() => import('../viewer/Viewer'))
 
 function Screen() {
   useThemeClass()
+  const [palette, setPalette] = useState(false)
+  const [help, setHelp] = useState(false)
+  useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true) })
   return (
-    <Shell
-      topBar={
-        <>
-          <CompareBar />
-          <SettingsPopover />
-        </>
-      }
-      sidebar={<Sidebar />}
-      viewer={
-        <Suspense fallback={null}>
-          <Viewer />
-        </Suspense>
-      }
-      status={null}
-    />
+    <>
+      <Shell
+        topBar={
+          <>
+            <CompareBar />
+            <Button variant="ghost" size="sm" className="gap-2 text-[var(--dd-muted)]" onClick={() => setPalette(true)}>
+              Search <Kbd>Ctrl K</Kbd>
+            </Button>
+            <SettingsPopover />
+          </>
+        }
+        sidebar={<Sidebar />}
+        viewer={
+          <Suspense fallback={null}>
+            <Viewer />
+          </Suspense>
+        }
+        status={null}
+      />
+      <Palette open={palette} onOpenChange={setPalette} />
+      <HelpDialog open={help} onOpenChange={setHelp} />
+    </>
   )
 }
 
