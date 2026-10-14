@@ -1,18 +1,8 @@
+import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
 import { runGit } from './run'
 import { type DiffTarget, readsWorkTree, targetArgs } from './target'
 
-export type FileStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | 'type-changed' | 'untracked'
-
-export interface ChangedFile {
-  path: string
-  oldPath: string | null
-  status: FileStatus
-  additions: number | null
-  deletions: number | null
-  binary: boolean
-  oldSha: string | null
-  newSha: string | null
-}
+export type { ChangedFile, FileStatus }
 
 const DIFF_FLAGS = ['--no-color', '--no-ext-diff', '-M', '-z']
 const ZERO_SHA = /^0+$/
