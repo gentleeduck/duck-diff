@@ -1,9 +1,10 @@
 import type { FileContents } from '@duck-diff/protocol'
-import { Badge, Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
+import { Badge, Button } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Check, Code2, Copy, Eye, FileDiff, History, SquareArrowOutUpRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
+import { IconTool } from '../app/IconTool'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
 import { useSession } from '../hooks/useSession'
@@ -25,19 +26,6 @@ const MARKDOWN = /\.(md|markdown)$/i
 // A README's relative link, resolved against the file it sits in, as a repo path.
 function resolveLink(from: string, href: string): string {
   return decodeURIComponent(new URL(href, `http://repo/${from}`).pathname.slice(1))
-}
-
-function Tool({ label, onClick, children }: { label: string; onClick(): void; children: React.ReactNode }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button size="icon" variant="ghost" aria-label={label} onClick={onClick}>
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
 }
 
 export default function FileView() {
@@ -134,22 +122,22 @@ export default function FileView() {
               Open
             </Button>
           ) : null}
-          <Tool
+          <IconTool
             label="File history"
             onClick={() => {
               fileHistory.set(path)
               show('changes')
             }}>
             <History />
-          </Tool>
+          </IconTool>
           {markdown ? (
-            <Tool label={preview ? 'Show source' : 'Show preview'} onClick={() => setPreview(!preview)}>
+            <IconTool label={preview ? 'Show source' : 'Show preview'} onClick={() => setPreview(!preview)}>
               {preview ? <Code2 /> : <Eye />}
-            </Tool>
+            </IconTool>
           ) : null}
-          <Tool label={copied ? 'Copied' : 'Copy path'} onClick={copy}>
+          <IconTool label={copied ? 'Copied' : 'Copy path'} onClick={copy}>
             {copied ? <Check /> : <Copy />}
-          </Tool>
+          </IconTool>
         </span>
       </header>
       {failed ? (

@@ -1,18 +1,9 @@
 import type { Ref } from '@duck-diff/protocol'
-import {
-  Button,
-  Label,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Switch,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@duck-diff/ui'
+import { Button, Label, Popover, PopoverContent, PopoverTrigger, Switch } from '@duck-diff/ui'
 import { ArchiveRestore, ArrowRightLeft, GitMerge, PackageOpen, Trash2 } from 'lucide-react'
 import { useId } from 'react'
 import { useApp } from '../app/AppProvider'
+import { IconTool } from '../app/IconTool'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 import { useStore } from '../lib/store'
@@ -27,30 +18,19 @@ const GROUPS: { kind: Ref['kind']; title: string; glyph: string }[] = [
 
 const selectAll = (state: GraphState) => state.all
 
-function RowTool({ label, onClick, children }: { label: string; onClick(): void; children: React.ReactNode }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button size="icon" variant="ghost" aria-label={label} onClick={onClick}>
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
-}
-
 // Hidden until hover or focus so the list reads as names; keyboard users still tab onto them.
 function StashActions({ name }: { name: string }) {
   const { run } = useGit()
   return (
     <span className="flex opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-      <RowTool label={`Apply ${name}`} onClick={() => void run('stash-apply', { name, pop: false }, `Applied ${name}`)}>
+      <IconTool
+        label={`Apply ${name}`}
+        onClick={() => void run('stash-apply', { name, pop: false }, `Applied ${name}`)}>
         <ArchiveRestore />
-      </RowTool>
-      <RowTool label={`Pop ${name}`} onClick={() => void run('stash-apply', { name, pop: true }, `Popped ${name}`)}>
+      </IconTool>
+      <IconTool label={`Pop ${name}`} onClick={() => void run('stash-apply', { name, pop: true }, `Popped ${name}`)}>
         <PackageOpen />
-      </RowTool>
+      </IconTool>
       <Popover>
         <PopoverTrigger asChild>
           <Button size="icon" variant="ghost" aria-label={`Drop ${name}`}>
@@ -78,18 +58,18 @@ function BranchActions({ name, local }: { name: string; local: boolean }) {
   return (
     <span className="flex opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
       {local ? (
-        <RowTool
+        <IconTool
           label={`Switch to ${name}`}
           onClick={() => void run('switch', { branch: name, create: false }, `Switched to ${name}`)}>
           <ArrowRightLeft />
-        </RowTool>
+        </IconTool>
       ) : null}
       {current ? (
-        <RowTool
+        <IconTool
           label={`Merge ${name} into ${current}`}
           onClick={() => void run('merge', { ref: name }, `Merged ${name} into ${current}`)}>
           <GitMerge />
-        </RowTool>
+        </IconTool>
       ) : null}
       {local ? (
         <Popover>

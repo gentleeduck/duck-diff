@@ -13,14 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
   Textarea,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
 } from '@duck-diff/ui'
 import { GitPullRequestCreateArrow } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { IconTool } from '../app/IconTool'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 import { VISIBLE_BOX } from '../viewer/FileActions'
@@ -76,14 +74,9 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button size="icon" variant="ghost" aria-label="New pull request" onClick={() => setOpen(true)}>
-            <GitPullRequestCreateArrow />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>New pull request</TooltipContent>
-      </Tooltip>
+      <IconTool label="New pull request" onClick={() => setOpen(true)}>
+        <GitPullRequestCreateArrow />
+      </IconTool>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xl">
           <DialogTitle>New pull request</DialogTitle>

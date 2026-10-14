@@ -1,8 +1,9 @@
 import type { ChangedFile, CommitDetails } from '@duck-diff/protocol'
-import { Button, Separator, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
+import { Button, Separator } from '@duck-diff/ui'
 import { Check, Copy, FileDiff, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { IconTool } from '../app/IconTool'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
 import { fileGlyph, STATUS_GLYPH } from '../sidebar/icons'
@@ -50,14 +51,9 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
     <aside aria-label="Commit" className="flex h-full flex-col bg-card">
       <header className="flex h-11 shrink-0 items-center gap-2 border-border border-b px-3">
         <span className="text-tn-comment">{sha.slice(0, 10)}</span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button size="icon" variant="ghost" aria-label="Copy commit sha" onClick={copy}>
-              {copied ? <Check /> : <Copy />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{copied ? 'Copied' : 'Copy sha'}</TooltipContent>
-        </Tooltip>
+        <IconTool label="Copy commit sha" tip={copied ? 'Copied' : 'Copy sha'} onClick={copy}>
+          {copied ? <Check /> : <Copy />}
+        </IconTool>
         <Button size="sm" variant="outline" className="ms-auto" onClick={() => openChanges()}>
           <FileDiff />
           Show changes

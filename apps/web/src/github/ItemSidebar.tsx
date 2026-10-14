@@ -1,6 +1,7 @@
-import { Button, Skeleton, Tabs, TabsList, TabsTrigger } from '@duck-diff/ui'
+import { Skeleton, Tabs, TabsList, TabsTrigger } from '@duck-diff/ui'
 import { RefreshCw } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { IconTool } from '../app/IconTool'
 import type { ItemState } from '../lib/api'
 import type { Store } from '../lib/store'
 import { useStore } from '../lib/store'
@@ -72,9 +73,9 @@ export function ItemSidebar<T extends ListItem>({ label, load, selection, row, v
           </TabsList>
         </Tabs>
         {actions}
-        <Button size="icon" variant="ghost" aria-label={`Reload ${label.toLowerCase()}`} onClick={reload}>
+        <IconTool label={`Reload ${label.toLowerCase()}`} onClick={reload}>
           <RefreshCw />
-        </Button>
+        </IconTool>
       </div>
       <div role="listbox" aria-label={label} className="min-h-0 flex-1 overflow-y-auto p-2">
         {failed ? <p className="p-2 text-removed">{failed}</p> : null}

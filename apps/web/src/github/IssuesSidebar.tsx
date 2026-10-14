@@ -1,20 +1,10 @@
 import type { IssueSummary } from '@duck-diff/protocol'
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogTitle,
-  Input,
-  Textarea,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@duck-diff/ui'
+import { Button, Dialog, DialogContent, DialogFooter, DialogTitle, Input, Textarea } from '@duck-diff/ui'
 import { CircleCheck, CircleDot, MessageSquare, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { IconTool } from '../app/IconTool'
 import { ItemSidebar } from './ItemSidebar'
 import { Labels } from './Labels'
 import { ago } from './time'
@@ -53,14 +43,9 @@ function NewIssue({ onCreated }: { onCreated(): void }) {
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button size="icon" variant="ghost" aria-label="New issue" onClick={() => setOpen(true)}>
-            <Plus />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>New issue</TooltipContent>
-      </Tooltip>
+      <IconTool label="New issue" onClick={() => setOpen(true)}>
+        <Plus />
+      </IconTool>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xl">
           <DialogTitle>New issue</DialogTitle>
