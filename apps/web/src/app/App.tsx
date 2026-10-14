@@ -9,6 +9,7 @@ import { SyncButtons } from '../git/SyncButtons'
 import { IssuesSidebar } from '../github/IssuesSidebar'
 import { PullsSidebar } from '../github/PullsSidebar'
 import { useGitHub } from '../github/SignIn'
+import { FindCommit } from '../graph/FindCommit'
 import { GraphSidebar } from '../graph/GraphSidebar'
 import type { GraphState } from '../graph/store'
 import { useView } from '../hooks/useView'
@@ -108,7 +109,7 @@ function Screen() {
         <>
           <BranchMenu />
           <GraphTitle />
-          {search}
+          <FindCommit />
           <SyncButtons />
         </>
       ),

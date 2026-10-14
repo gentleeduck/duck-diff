@@ -105,7 +105,7 @@ export default function GraphView() {
   return (
     <ResizablePanelGroup orientation="horizontal" className="h-full">
       <ResizablePanel minSize="40%">
-        <div ref={scroller} role="listbox" aria-label="Commits" className="h-full overflow-auto" data-graph>
+        <div ref={scroller} role="listbox" aria-label="Commits" className="@container h-full overflow-auto" data-graph>
           <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
             {items.map((virtual) => {
               const entry = state.entries[virtual.index]
@@ -131,8 +131,9 @@ export default function GraphView() {
                     <RefBadges refs={entry.refs} color={laneColor(row.color) ?? ''} />
                     <span className="min-w-0 truncate">{entry.subject}</span>
                   </span>
-                  <span className="w-40 shrink-0 truncate text-muted-foreground">{entry.author}</span>
-                  <span className="w-28 shrink-0 truncate text-end text-muted-foreground">
+                  {/* Side columns drop out as the pane narrows, so the subject always keeps room. */}
+                  <span className="hidden w-36 shrink-0 truncate text-muted-foreground @3xl:block">{entry.author}</span>
+                  <span className="hidden w-28 shrink-0 truncate text-end text-muted-foreground @xl:block">
                     {relativeTime(entry.time)}
                   </span>
                   <span className="w-20 shrink-0 text-end text-tn-comment">{entry.sha.slice(0, 7)}</span>
