@@ -16,6 +16,7 @@ import { type ViewedState, viewedPaths } from '../state/viewed'
 import { useWrites } from '../writes/WritesProvider'
 import { actionsFor } from './actions'
 import { FileActions } from './FileActions'
+import { fileNote } from './file-info'
 import { type HoveredLineGetter, HunkToolbar } from './HunkToolbar'
 import { createContentLoader, viewerOptions, viewerStyle } from './options'
 import { syncItems } from './sync-items'
@@ -43,7 +44,10 @@ export default function Viewer() {
   const viewedState = useStore(viewed, selectViewed)
   const folded = useMemo(() => viewedPaths(viewedState, target, files), [viewedState, target, files])
   const annotate = useMemo(createAnnotator, [])
-  const items = useMemo(() => annotate(plain, comments, draft, folded), [annotate, plain, comments, draft, folded])
+  const items = useMemo(
+    () => annotate(plain, comments, draft, folded, files),
+    [annotate, plain, comments, draft, folded, files],
+  )
   const writes = useWrites()
   const kinds = useMemo(() => actionsFor(target), [target])
   const byPath = useMemo(() => new Map(files.map((file) => [file.path, file])), [files])
@@ -91,9 +95,10 @@ export default function Viewer() {
           viewed={folded.has(path)}
           onViewed={() => file && viewed.toggle(target, file)}
           onHistory={() => fileHistory.set(path)}
+          note={file ? fileNote(file) : null}
           onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
           writes={
-            file && kinds.length > 0 ? (
+            file && file.status !== 'conflicted' && kinds.length > 0 ? (
               <WriteButtons kinds={kinds} scope="file" onWrite={(kind) => void writes.perform(kind, file)} />
             ) : null
           }

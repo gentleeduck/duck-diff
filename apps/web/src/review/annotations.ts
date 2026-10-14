@@ -1,5 +1,6 @@
-import type { ReviewComment } from '@duck-diff/protocol'
+import type { ChangedFile, ReviewComment } from '@duck-diff/protocol'
 import type { CodeViewDiffItem, DiffLineAnnotation } from '@pierre/diffs'
+import { isImage } from '../viewer/file-info'
 import { anchorComments, type Side } from './anchor'
 
 export interface Draft {
@@ -9,7 +10,10 @@ export interface Draft {
   lineHash: string
 }
 
-export type Note = { kind: 'comment'; comment: ReviewComment; outdated: boolean } | { kind: 'draft'; draft: Draft }
+export type Note =
+  | { kind: 'comment'; comment: ReviewComment; outdated: boolean }
+  | { kind: 'draft'; draft: Draft }
+  | { kind: 'image'; file: ChangedFile }
 
 export type NoteItem = CodeViewDiffItem<Note>
 
@@ -30,7 +34,9 @@ export function createAnnotator() {
     comments: readonly ReviewComment[],
     draft: Draft | null,
     folded: ReadonlySet<string> = new Set(),
+    files: readonly ChangedFile[] = [],
   ): NoteItem[] => {
+    const images = new Map(files.filter((file) => file.binary && isImage(file.path)).map((file) => [file.path, file]))
     const byPath = new Map<string, ReviewComment[]>()
     for (const comment of comments) byPath.set(comment.path, [...(byPath.get(comment.path) ?? []), comment])
 
@@ -46,6 +52,9 @@ export function createAnnotator() {
           metadata: { kind: 'comment', comment, outdated },
         }),
       )
+      const image = images.get(path)
+      // Binary images have no lines, so their preview sits above the (empty) diff as a file-level note.
+      if (image) annotations.unshift({ side: 'additions', lineNumber: 0, metadata: { kind: 'image', file: image } })
       if (draft?.path === path) {
         annotations.push({ side: draft.side, lineNumber: draft.line, metadata: { kind: 'draft', draft } })
       }

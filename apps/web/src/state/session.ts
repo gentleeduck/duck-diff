@@ -4,11 +4,14 @@ import type { Api } from '../lib/api'
 import { cacheKeyFor, toDiffItem } from '../lib/items'
 import { readPatchStream } from '../lib/patch-stream'
 import { createStore, type Store } from '../lib/store'
+import { isImage } from '../viewer/file-info'
 
-// Binary files and huge diffs start folded so opening a large comparison stays fast.
+// Binary, generated and huge diffs start folded so opening a large comparison stays fast.
 const COLLAPSE_LINES = 5000
 function shouldCollapse(file: ChangedFile): boolean {
-  return file.binary || (file.additions ?? 0) + (file.deletions ?? 0) > COLLAPSE_LINES
+  // Images stay open: their preview is the useful part.
+  if (file.binary) return !isImage(file.path)
+  return Boolean(file.generated) || (file.additions ?? 0) + (file.deletions ?? 0) > COLLAPSE_LINES
 }
 
 export interface SessionState {
