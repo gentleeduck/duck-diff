@@ -1,13 +1,7 @@
+import type { Commit } from '@duck-diff/protocol'
 import { runGit } from './run'
 
-export interface Commit {
-  sha: string
-  parents: string[]
-  authorName: string
-  authorEmail: string
-  authoredAt: number
-  subject: string
-}
+export type { Commit }
 
 // Unit and record separators cannot appear in subjects, unlike | or tabs.
 const FIELD = '\x1f'

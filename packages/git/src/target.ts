@@ -1,11 +1,7 @@
+import type { DiffTarget } from '@duck-diff/protocol'
 import { runGit } from './run'
 
-export type DiffTarget =
-  | { kind: 'unstaged' }
-  | { kind: 'staged' }
-  | { kind: 'local' }
-  | { kind: 'range'; from: string; to: string; mode: 'two-dot' | 'merge-base' }
-  | { kind: 'commit'; sha: string }
+export type { DiffTarget }
 
 // The empty tree is what a root commit is compared against; its sha is fixed by git.
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'

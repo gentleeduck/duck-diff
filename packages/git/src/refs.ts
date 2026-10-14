@@ -1,14 +1,7 @@
+import type { Ref, RefKind } from '@duck-diff/protocol'
 import { runGit } from './run'
 
-export type RefKind = 'branch' | 'remote' | 'tag'
-
-export interface Ref {
-  name: string
-  kind: RefKind
-  sha: string
-  committedAt: number
-  current: boolean
-}
+export type { Ref, RefKind }
 
 const FORMAT = '%(refname)%1f%(objectname)%1f%(committerdate:unix)%1f%(HEAD)'
 
