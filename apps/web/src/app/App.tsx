@@ -6,6 +6,7 @@ import { useKeyboard } from '../keyboard/useKeyboard'
 import type { Api } from '../lib/api'
 import { useLiveRefresh } from '../live/useLiveRefresh'
 import { Palette } from '../palette/Palette'
+import { CommentsSheet } from '../review/CommentsSheet'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
 import { WritesProvider } from '../writes/WritesProvider'
@@ -31,6 +32,7 @@ function Screen() {
             <Button variant="ghost" size="sm" className="gap-2 text-[var(--dd-muted)]" onClick={() => setPalette(true)}>
               Search <Kbd>Ctrl K</Kbd>
             </Button>
+            <CommentsSheet />
             <SettingsPopover />
           </>
         }
