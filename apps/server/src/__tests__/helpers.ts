@@ -21,8 +21,7 @@ export async function startFixture(setup: (repo: TestRepo) => void, watch = fals
     get: (path) => fetch(`${base}${path}`, { headers }),
     post: (path) => fetch(`${base}${path}`, { method: 'POST', headers }),
     async close() {
-      // On GitHub's macOS runners a test server occasionally stops accepting and its stop never settles.
-      await Promise.race([server.stop(), Bun.sleep(2000)])
+      await server.stop()
       repo.cleanup()
     },
   }
