@@ -1,5 +1,5 @@
-import { Button, Checkbox, Label, Textarea } from '@duck-diff/ui'
-import { GitCommitHorizontal } from 'lucide-react'
+import { Button, Checkbox, Label, Textarea, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
+import { Archive, GitCommitHorizontal } from 'lucide-react'
 import { useId, useState } from 'react'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { useGit } from './GitProvider'
@@ -62,6 +62,25 @@ export function CommitBox() {
           onClick={() => void commit(true)}>
           Commit and push
         </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              aria-label="Stash changes"
+              disabled={busy !== null}
+              loading={busy === 'stash'}
+              onClick={async () => {
+                if (await run('stash', { message: message.trim(), untracked: true }, 'Stashed your changes')) {
+                  setMessage('')
+                }
+              }}>
+              <Archive />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Stash every change, new files too (the message names it)</TooltipContent>
+        </Tooltip>
       </div>
     </form>
   )

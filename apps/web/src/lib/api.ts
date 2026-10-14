@@ -103,7 +103,16 @@ export interface GitHubApi {
   setIssueState(number: number, state: ItemState): Promise<void>
 }
 
-export type GitAction = 'commit' | 'push' | 'pull' | 'fetch' | 'switch' | 'checkout'
+export type GitAction =
+  | 'commit'
+  | 'push'
+  | 'pull'
+  | 'fetch'
+  | 'switch'
+  | 'checkout'
+  | 'stash'
+  | 'stash-apply'
+  | 'stash-drop'
 
 const ContentSchema = z.object({ contents: z.string().nullable() })
 

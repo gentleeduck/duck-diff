@@ -81,6 +81,11 @@ export type SwitchRequest = z.infer<typeof SwitchRequestSchema>
 
 export const CheckoutRequestSchema = z.object({ sha: RefNameSchema })
 
+export const StashSaveSchema = z.object({ message: z.string().trim().max(1000), untracked: z.boolean() })
+export const StashNameSchema = z.string().regex(/^stash@\{\d+\}$/)
+export const StashApplySchema = z.object({ name: StashNameSchema, pop: z.boolean() })
+export const StashDropSchema = z.object({ name: StashNameSchema })
+
 export const NavigateRequestSchema = z.object({ target: DiffTargetSchema })
 export const NavigateResultSchema = z.object({ pages: z.number().int() })
 

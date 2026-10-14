@@ -21,6 +21,9 @@ const DOING: Record<GitAction, string> = {
   fetch: 'Fetch',
   switch: 'Switch branch',
   checkout: 'Checkout',
+  stash: 'Stash',
+  'stash-apply': 'Apply stash',
+  'stash-drop': 'Drop stash',
 }
 
 export function GitProvider({ children }: { children: ReactNode }) {

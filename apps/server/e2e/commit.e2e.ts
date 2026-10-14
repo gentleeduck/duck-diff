@@ -19,3 +19,22 @@ test('stages a file, commits it from the commit box, then branches', async ({ pa
   await expect(page.getByText('Created and switched to feat/next')).toBeVisible()
   expect(repo.git('branch', '--show-current')).toBe('feat/next')
 })
+
+test('stashes the changes, then pops the stash back from the graph', async ({ page, app, repo }) => {
+  await page.goto(app.url + UNSTAGED)
+  await expect(page.getByRole('banner')).toContainText('2 files')
+  const box = page.getByRole('form', { name: 'Commit' })
+  await box.getByRole('textbox', { name: 'Commit message' }).fill('half done')
+  await box.getByRole('button', { name: 'Stash changes' }).click()
+  await expect(page.getByText('Stashed your changes')).toBeVisible()
+  expect(repo.git('status', '--porcelain')).toBe('')
+
+  await page.getByRole('button', { name: 'Commit graph' }).click()
+  const stashes = page.getByRole('region', { name: 'Stashes' })
+  await expect(stashes).toContainText('half done')
+  await stashes.getByText('half done').hover()
+  await stashes.getByRole('button', { name: 'Pop stash@{0}' }).click()
+  await expect(page.getByText('Popped stash@{0}')).toBeVisible()
+  expect(repo.git('stash', 'list')).toBe('')
+  expect(repo.git('status', '--porcelain')).not.toBe('')
+})

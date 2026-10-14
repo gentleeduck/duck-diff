@@ -1,10 +1,21 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { checkoutDetached, commit, fetchAll, pull, push, readSyncStatus, switchBranch } from '../index'
+import {
+  checkoutDetached,
+  commit,
+  fetchAll,
+  pull,
+  push,
+  readSyncStatus,
+  stashApply,
+  stashDrop,
+  stashSave,
+  switchBranch,
+} from '../index'
 
 let repo: TestRepo
 let remote: string
@@ -96,5 +107,26 @@ describe('sync', () => {
     await checkoutDetached(repo.path, 'HEAD')
     expect((await readSyncStatus(repo.path)).branch).toBeNull()
     await expect(push(repo.path)).rejects.toThrow('detached')
+  })
+})
+
+describe('stash', () => {
+  it('saves with a message and untracked files, applies, pops and drops', async () => {
+    withRemote()
+    repo.write('a.txt', 'changed\n')
+    repo.write('new.txt', 'new\n')
+    await stashSave(repo.path, { message: 'wip', untracked: true })
+    expect(repo.git('status', '--porcelain')).toBe('')
+    expect(repo.git('stash', 'list', '--format=%gs')).toContain('wip')
+    await stashApply(repo.path, { name: 'stash@{0}', pop: false })
+    expect(repo.git('stash', 'list')).not.toBe('')
+    repo.git('reset', '-q', '--hard')
+    repo.git('clean', '-qfd')
+    await stashApply(repo.path, { name: 'stash@{0}', pop: true })
+    expect(repo.git('stash', 'list')).toBe('')
+    expect(readFileSync(join(repo.path, 'new.txt'), 'utf8')).toBe('new\n')
+    await stashSave(repo.path, { message: '', untracked: false })
+    await stashDrop(repo.path, 'stash@{0}')
+    expect(repo.git('stash', 'list')).toBe('')
   })
 })

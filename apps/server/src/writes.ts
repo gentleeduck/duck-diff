@@ -10,6 +10,9 @@ import {
   snapshot,
   stageFile,
   stageHunk,
+  stashApply,
+  stashDrop,
+  stashSave,
   switchBranch,
   unmergedPaths,
   unstageFile,
@@ -19,6 +22,9 @@ import {
   type ChangeReason,
   CheckoutRequestSchema,
   CommitRequestSchema,
+  StashApplySchema,
+  StashDropSchema,
+  StashSaveSchema,
   SwitchRequestSchema,
   type WriteRequest,
 } from '@duck-diff/protocol'
@@ -87,6 +93,15 @@ export async function gitAction(
       return { reason: 'refs', body: {} }
     case 'checkout':
       await checkoutDetached(repo, CheckoutRequestSchema.parse(await request.json()).sha)
+      return { reason: 'refs', body: {} }
+    case 'stash':
+      await stashSave(repo, StashSaveSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'stash-apply':
+      await stashApply(repo, StashApplySchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'stash-drop':
+      await stashDrop(repo, StashDropSchema.parse(await request.json()).name)
       return { reason: 'refs', body: {} }
     default:
       throw new HttpError(404, 'not-found', `no git action ${action}`)

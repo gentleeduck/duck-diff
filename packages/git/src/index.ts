@@ -15,6 +15,9 @@ export {
   push,
   readSyncStatus,
   type SyncStatus,
+  stashApply,
+  stashDrop,
+  stashSave,
   switchBranch,
 } from './sync'
 export { type DiffTarget, targetArgs, unmergedPaths } from './target'

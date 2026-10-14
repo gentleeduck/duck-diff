@@ -80,3 +80,19 @@ export async function switchBranch(
 export async function checkoutDetached(repo: string, sha: string): Promise<void> {
   await runGit(['switch', '--quiet', '--detach', sha], { cwd: repo })
 }
+
+export async function stashSave(repo: string, options: { message: string; untracked: boolean }): Promise<void> {
+  const args = ['stash', 'push', '--quiet']
+  if (options.untracked) args.push('--include-untracked')
+  if (options.message) args.push('-m', options.message)
+  await runGit(args, { cwd: repo })
+}
+
+// name is git's own stash@{n}, so the entry is addressed exactly as `git stash list` printed it.
+export async function stashApply(repo: string, options: { name: string; pop: boolean }): Promise<void> {
+  await runGit(['stash', options.pop ? 'pop' : 'apply', '--quiet', options.name], { cwd: repo })
+}
+
+export async function stashDrop(repo: string, name: string): Promise<void> {
+  await runGit(['stash', 'drop', '--quiet', name], { cwd: repo })
+}
