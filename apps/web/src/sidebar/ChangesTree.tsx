@@ -1,3 +1,4 @@
+import { Input } from '@duck-diff/ui'
 import { FileTree, useFileTree } from '@pierre/trees/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
@@ -12,16 +13,29 @@ const selectFiles = (state: SessionState) => state.files
 // The tree lives in a shadow root, so its colors come in through its override variables.
 const TREE_STYLE = {
   height: '100%',
-  '--trees-bg-override': 'var(--dd-surface)',
-  '--trees-bg-muted-override': 'var(--dd-base)',
-  '--trees-fg-override': 'var(--dd-text)',
-  '--trees-fg-muted-override': 'var(--dd-muted)',
-  '--trees-accent-override': 'var(--dd-accent)',
-  '--trees-focus-ring-color-override': 'var(--dd-accent)',
-  '--trees-border-color-override': 'var(--dd-line)',
-  '--trees-font-family-override': 'var(--dd-font-ui)',
+  '--trees-bg-override': 'var(--sidebar)',
+  '--trees-bg-muted-override': 'var(--sidebar-accent)',
+  '--trees-fg-override': 'var(--sidebar-foreground)',
+  '--trees-fg-muted-override': 'var(--muted-foreground)',
+  '--trees-accent-override': 'var(--sidebar-primary)',
+  '--trees-focus-ring-color-override': 'var(--sidebar-ring)',
+  '--trees-border-color-override': 'var(--sidebar-border)',
+  '--trees-font-family-override': 'var(--font-sans, ui-sans-serif, system-ui, sans-serif)',
   '--trees-font-size-override': '13px',
-  '--trees-selected-bg-override': 'color-mix(in oklab, var(--dd-accent) 22%, transparent)',
+  '--trees-border-radius-override': 'calc(var(--radius) - 2px)',
+  '--trees-selected-bg-override': 'var(--sidebar-accent)',
+  '--trees-selected-fg-override': 'var(--sidebar-accent-foreground)',
+  // Names stay in the text color; only the status letter carries meaning in color.
+  '--trees-git-added-color-override': 'var(--sidebar-foreground)',
+  '--trees-git-modified-color-override': 'var(--sidebar-foreground)',
+  '--trees-git-renamed-color-override': 'var(--sidebar-foreground)',
+  '--trees-git-untracked-color-override': 'var(--sidebar-foreground)',
+  '--trees-git-deleted-color-override': 'var(--muted-foreground)',
+  '--trees-status-added-override': 'var(--diff-added)',
+  '--trees-status-untracked-override': 'var(--diff-added)',
+  '--trees-status-deleted-override': 'var(--diff-removed)',
+  '--trees-status-modified-override': 'var(--warning)',
+  '--trees-status-renamed-override': 'var(--muted-foreground)',
 } as React.CSSProperties
 
 export function ChangesTree() {
@@ -49,14 +63,14 @@ export function ChangesTree() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-col gap-2 border-[var(--dd-line)] border-b p-3">
-        <input
+      <div className="flex flex-col gap-2 border-border border-b p-3">
+        <Input
           id="file-filter"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Filter files"
           aria-label="Filter files"
-          className="h-7 rounded-md border border-[var(--dd-line)] bg-[var(--dd-base)] px-2 text-[13px] placeholder:text-[var(--dd-muted)]"
+          className="h-8"
         />
         <StatusFilter files={files} value={statuses} onChange={setStatuses} />
       </div>
@@ -64,7 +78,7 @@ export function ChangesTree() {
         {visible.length > 0 ? (
           <FileTree model={model} style={TREE_STYLE} />
         ) : (
-          <p className="p-3 text-[13px] text-[var(--dd-muted)]">
+          <p className="p-3 text-[13px] text-muted-foreground">
             {files.length === 0 ? 'No changes in this comparison.' : 'No files match the filter.'}
           </p>
         )}

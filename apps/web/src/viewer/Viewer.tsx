@@ -126,7 +126,7 @@ export default function Viewer() {
         initialItems={[]}
         options={options}
         style={viewerStyle(settings)}
-        className="h-full overflow-y-auto [contain:strict]"
+        className="h-full overflow-y-auto px-4 [contain:strict]"
         renderHeaderMetadata={renderMeta}
         renderGutterUtility={renderGutter}
         renderAnnotation={renderNote}

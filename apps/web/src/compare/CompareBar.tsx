@@ -30,7 +30,7 @@ export function CompareBar() {
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-6">
-      <h1 className="flex items-baseline gap-1 truncate font-[var(--dd-font-code)] text-[15px]">
+      <h1 className="flex items-baseline gap-1 truncate font-mono text-[15px]">
         <RefPicker label={from} side="from" refs={refs} onPick={(end) => navigate(withSide(target, 'from', end))} />
         {operator ? (
           <Tooltip>
@@ -39,19 +39,19 @@ export function CompareBar() {
                 type="button"
                 aria-label={`Range operator ${operator}`}
                 onClick={() => navigate(toggleOperator(target))}
-                className="rounded-sm px-0.5 font-semibold text-[var(--dd-accent)]">
+                className="rounded-sm px-0.5 font-semibold text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring">
                 {operator}
               </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-64">{OPERATOR_HELP[operator]}</TooltipContent>
           </Tooltip>
         ) : (
-          <span className="px-1 text-[var(--dd-muted)]">to</span>
+          <span className="px-1 text-muted-foreground">to</span>
         )}
         <RefPicker label={to} side="to" refs={refs} onPick={(end) => navigate(withSide(target, 'to', end))} />
       </h1>
       {path ? (
-        <span className="flex min-w-0 items-center gap-1 font-[var(--dd-font-code)] text-[13px] text-[var(--dd-muted)]">
+        <span className="flex min-w-0 items-center gap-1 font-mono text-[13px] text-muted-foreground">
           <span className="truncate" title={path}>
             {path}
           </span>
@@ -65,10 +65,10 @@ export function CompareBar() {
           </Button>
         </span>
       ) : null}
-      <p className="shrink-0 text-[13px] text-[var(--dd-muted)] tabular-nums">
+      <p className="shrink-0 text-[13px] text-muted-foreground tabular-nums">
         {files} {files === '1' ? 'file' : 'files'}
-        <span className="ml-3 text-[#3fb950]">+{additions}</span>
-        <span className="ml-1.5 text-[#f85149]">-{deletions}</span>
+        <span className="ml-3 text-added">+{additions}</span>
+        <span className="ml-1.5 text-removed">-{deletions}</span>
       </p>
     </div>
   )

@@ -24,7 +24,7 @@ export function HelpDialog({ open, onOpenChange }: { open: boolean; onOpenChange
               <dt>
                 <Kbd>{keys}</Kbd>
               </dt>
-              <dd className="text-[var(--dd-muted)]">{label}</dd>
+              <dd className="text-muted-foreground">{label}</dd>
             </div>
           ))}
         </dl>

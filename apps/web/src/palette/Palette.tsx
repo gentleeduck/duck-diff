@@ -53,7 +53,7 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
               onSelect={() =>
                 run(() => viewer.current?.scrollTo({ type: 'item', id: itemId(file.path), align: 'start' }))
               }>
-              <span className="truncate font-[var(--dd-font-code)]">{file.path}</span>
+              <span className="truncate font-mono">{file.path}</span>
             </CommandItem>
           ))}
         </CommandGroup>
@@ -71,7 +71,7 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
               key={name}
               value={`compare branch ${name}`}
               onSelect={() => run(() => navigate({ kind: 'range', from: name, to: 'HEAD', mode: 'merge-base' }))}>
-              This branch against <span className="font-[var(--dd-font-code)]">{name}</span>
+              This branch against <span className="font-mono">{name}</span>
             </CommandItem>
           ))}
         </CommandGroup>

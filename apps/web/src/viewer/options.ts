@@ -6,7 +6,7 @@ import type { Api } from '../lib/api'
 import type { Note } from '../review/annotations'
 import type { Settings } from '../state/settings'
 
-const LAYOUT = { paddingTop: 8, paddingBottom: 64, gap: 12 }
+const LAYOUT = { paddingTop: 16, paddingBottom: 64, gap: 16 }
 
 export function viewerOptions(
   settings: Settings,
@@ -31,7 +31,11 @@ export function viewerOptions(
 
 export function viewerStyle(settings: Settings): CSSProperties {
   return {
-    '--diffs-font-family': 'var(--dd-font-code)',
+    '--diffs-font-family': 'var(--font-mono)',
+    '--diffs-header-font-family': 'var(--font-sans, ui-sans-serif, system-ui, sans-serif)',
+    // The diff sits on the page background instead of the syntax theme's own.
+    '--diffs-light-bg': 'var(--background)',
+    '--diffs-dark-bg': 'var(--background)',
     '--diffs-font-size': `${settings.fontSize}px`,
     '--diffs-tab-size': String(settings.tabSize),
   } as CSSProperties

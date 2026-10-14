@@ -163,7 +163,7 @@ export function SettingsPopover() {
         {toggle('expandUnchanged', 'Show unchanged lines')}
         {stepper('fontSize', 'Font size', 10, 24)}
         {stepper('tabSize', 'Tab width', 1, 8)}
-        <div className="mt-2 flex justify-end border-[var(--dd-line)] border-t pt-2">
+        <div className="mt-2 flex justify-end border-border border-t pt-2">
           <Button variant="ghost" size="sm" onClick={() => store.set(DEFAULT_SETTINGS)}>
             Reset to defaults
           </Button>

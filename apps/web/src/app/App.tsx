@@ -29,7 +29,7 @@ function Screen() {
         topBar={
           <>
             <CompareBar />
-            <Button variant="ghost" size="sm" className="gap-2 text-[var(--dd-muted)]" onClick={() => setPalette(true)}>
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => setPalette(true)}>
               Search <Kbd>Ctrl K</Kbd>
             </Button>
             <CommentsSheet />

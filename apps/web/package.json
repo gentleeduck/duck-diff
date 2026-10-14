@@ -14,7 +14,6 @@
   "dependencies": {
     "@duck-diff/protocol": "workspace:*",
     "@duck-diff/ui": "workspace:*",
-    "@fontsource/ibm-plex-sans": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@pierre/diffs": "catalog:",
     "@pierre/trees": "catalog:",

@@ -45,13 +45,13 @@ export function CommentsSheet() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2 text-[var(--dd-muted)]">
+        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
           <MessageSquare className="size-3.5" />
           Comments
-          {comments.length > 0 ? <span className="text-[var(--dd-text)]">{comments.length}</span> : null}
+          {comments.length > 0 ? <span className="text-foreground">{comments.length}</span> : null}
         </Button>
       </SheetTrigger>
-      <SheetContent side="right" className="flex w-[420px] flex-col gap-4 bg-[var(--dd-surface)]">
+      <SheetContent side="right" className="flex w-[420px] flex-col gap-4 bg-card">
         <SheetHeader>
           <SheetTitle>Comments</SheetTitle>
           <SheetDescription>
@@ -63,18 +63,18 @@ export function CommentsSheet() {
         <div className="-mx-2 flex-1 overflow-y-auto">
           {groups.map(([path, entries]) => (
             <section key={path} className="mb-4">
-              <h3 className="px-2 pb-1 font-mono text-[12px] text-[var(--dd-muted)]">{path}</h3>
+              <h3 className="px-2 pb-1 font-mono text-[12px] text-muted-foreground">{path}</h3>
               <ul>
                 {entries.map((anchored) => (
                   <li key={anchored.comment.id}>
                     <button
                       type="button"
                       onClick={() => jump(path, anchored)}
-                      className="flex w-full flex-col gap-0.5 rounded-sm px-2 py-1.5 text-left hover:bg-[var(--dd-base)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dd-accent)]">
-                      <span className="text-[12px] text-[var(--dd-muted)]">
+                      className="flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-accent focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring">
+                      <span className="text-[12px] text-muted-foreground">
                         {anchored.outdated ? 'Outdated' : `Line ${anchored.line}`}
                       </span>
-                      <span className="line-clamp-2 text-[13px] text-[var(--dd-text)]">{anchored.comment.body}</span>
+                      <span className="line-clamp-2 text-[13px] text-foreground">{anchored.comment.body}</span>
                     </button>
                   </li>
                 ))}

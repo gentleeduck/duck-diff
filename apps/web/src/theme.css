@@ -1,44 +1,20 @@
-@import "@fontsource/ibm-plex-sans/latin-400.css";
-@import "@fontsource/ibm-plex-sans/latin-500.css";
-@import "@fontsource/ibm-plex-sans/latin-600.css";
 @import "@fontsource/jetbrains-mono/latin-400.css";
 
+/* duck-ui owns the palette, radius and sans stack; the app only adds code type and the two diff colors. */
 :root {
-  --dd-base: #fafaf9;
-  --dd-surface: #ffffff;
-  --dd-line: #e6e6e3;
-  --dd-text: #1d1f23;
-  --dd-muted: #6b707a;
-  --dd-accent: #3f4cc9;
-  --dd-font-ui: "IBM Plex Sans", system-ui, sans-serif;
-  --dd-font-code: "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
+  --font-mono: "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
+  --diff-added: oklch(0.6 0.15 150);
+  --diff-removed: var(--destructive);
 }
 
 :root.dark {
-  --dd-base: #17181b;
-  --dd-surface: #1e2024;
-  --dd-line: #2c2f35;
-  --dd-text: #e4e6eb;
-  --dd-muted: #8b909a;
-  --dd-accent: #7c8cff;
+  --diff-added: oklch(0.72 0.16 150);
+  --diff-removed: oklch(0.7 0.19 22);
 }
 
-/* duck-ui reads these; pointing them at the duck-diff palette keeps every component on one set of colors. */
-:root,
-:root.dark {
-  --background: var(--dd-base);
-  --foreground: var(--dd-text);
-  --card: var(--dd-surface);
-  --card-foreground: var(--dd-text);
-  --popover: var(--dd-surface);
-  --popover-foreground: var(--dd-text);
-  --muted-foreground: var(--dd-muted);
-  --border: var(--dd-line);
-  --input: var(--dd-line);
-  --ring: var(--dd-accent);
-  --sidebar: var(--dd-surface);
-  --sidebar-foreground: var(--dd-text);
-  --sidebar-border: var(--dd-line);
+@theme inline {
+  --color-added: var(--diff-added);
+  --color-removed: var(--diff-removed);
 }
 
 html,
@@ -48,14 +24,14 @@ body,
 }
 
 body {
-  background: var(--dd-base);
-  color: var(--dd-text);
-  font-family: var(--dd-font-ui);
+  background: var(--background);
+  color: var(--foreground);
   font-size: 13px;
-  -webkit-font-smoothing: antialiased;
 }
 
-:focus-visible {
-  outline: 2px solid var(--dd-accent);
-  outline-offset: 1px;
+/* Each file reads as one card on the page, in duck-ui's border and radius. */
+diffs-container {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: clip;
 }

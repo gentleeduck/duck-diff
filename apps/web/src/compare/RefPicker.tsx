@@ -36,7 +36,7 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
         <button
           type="button"
           aria-label={side === 'from' ? `Compare from ${label}` : `Compare to ${label}`}
-          className="rounded-sm px-1 underline decoration-[var(--dd-line)] underline-offset-4 hover:decoration-[var(--dd-accent)]">
+          className="rounded-sm px-1 underline decoration-border underline-offset-4 hover:decoration-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring">
           {label}
         </button>
       </PopoverTrigger>
@@ -58,9 +58,9 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
                       key={ref.name}
                       value={`${ref.name} ${ref.subject ?? ''}`}
                       onSelect={() => pick({ kind: 'ref', name: ref.name })}>
-                      <span className="font-[var(--dd-font-code)]">{ref.name}</span>
-                      {ref.subject && <span className="truncate text-[var(--dd-muted)]">{ref.subject}</span>}
-                      {ref.current && <span className="ml-auto text-[var(--dd-muted)] text-[12px]">current</span>}
+                      <span className="font-mono">{ref.name}</span>
+                      {ref.subject && <span className="truncate text-muted-foreground">{ref.subject}</span>}
+                      {ref.current && <span className="ml-auto text-muted-foreground text-[12px]">current</span>}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -73,7 +73,7 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
                     key={commit.sha}
                     value={`${commit.sha} ${commit.subject}`}
                     onSelect={() => pick({ kind: 'ref', name: commit.sha })}>
-                    <span className="font-[var(--dd-font-code)] text-[var(--dd-muted)]">{commit.sha.slice(0, 7)}</span>
+                    <span className="font-mono text-muted-foreground">{commit.sha.slice(0, 7)}</span>
                     <span className="truncate">{commit.subject}</span>
                   </CommandItem>
                 ))}
