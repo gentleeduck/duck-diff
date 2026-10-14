@@ -1,6 +1,6 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { ChevronsUpDown, MessageSquarePlus, Minus, Plus, Undo2 } from 'lucide-react'
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, memo, useContext, useMemo } from 'react'
 import type { NoteItem } from '../review/annotations'
 import type { Settings } from '../state/settings'
 import type { WriteKind } from '../viewer/actions'
@@ -148,7 +148,8 @@ function Cell({
   )
 }
 
-export function LineRow({ item, row }: { item: NoteItem; row: DiffRow }) {
+// Memoized: scrolling re-renders the list every frame, but a row on screen rarely changes.
+export const LineRow = memo(function LineRow({ item, row }: { item: NoteItem; row: DiffRow }) {
   const { expand, settings } = useRow()
   if (row.type === 'line') {
     const side = row.line.kind === 'deletion' ? 'deletions' : 'additions'
@@ -179,4 +180,4 @@ export function LineRow({ item, row }: { item: NoteItem; row: DiffRow }) {
       </Button>
     </div>
   )
-}
+})
