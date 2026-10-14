@@ -21,7 +21,7 @@
     "build": "turbo run build --concurrency=4",
     "check": "biome check .",
     "check-types": "turbo run check-types --concurrency=4",
-    "ci": "bun run check && bun run check-types && bun run test:coverage && bun run build",
+    "ci": "bun run check && bun run check-types && bun run build && bun run test:coverage",
     "clean": "turbo run clean && rm -rf .turbo",
     "fix": "biome check --write .",
     "format": "biome format --write .",
