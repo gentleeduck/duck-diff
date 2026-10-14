@@ -28,7 +28,9 @@ describe('auth', () => {
     const response = await fetch(`http://127.0.0.1:${fixture.server.port}/?token=${fixture.server.token}`)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
-    expect(response.headers.get('set-cookie')).toContain(`duck_diff_token=${fixture.server.token}`)
+    expect(response.headers.get('set-cookie')).toContain(
+      `duck_diff_token_${fixture.server.port}=${fixture.server.token}`,
+    )
     expect(response.headers.get('set-cookie')).toContain('HttpOnly')
   })
 
