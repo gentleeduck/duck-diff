@@ -1,6 +1,6 @@
 import type { ChangedFile } from './files'
 import { type RunOptions, runGit, streamGit } from './run'
-import { type DiffTarget, readsWorkTree, targetArgs } from './target'
+import { type DiffTarget, pathArgs, readsWorkTree, targetArgs } from './target'
 
 type PatchFile = Pick<ChangedFile, 'path' | 'oldPath' | 'status'>
 
@@ -29,7 +29,7 @@ export async function* streamPatch(repo: string, target: DiffTarget, file: Patch
 }
 
 export async function* streamDiff(repo: string, target: DiffTarget): AsyncIterable<string> {
-  yield* streamGit(['diff', ...PATCH_FLAGS, ...(await targetArgs(repo, target))], { cwd: repo })
+  yield* streamGit(['diff', ...PATCH_FLAGS, ...(await targetArgs(repo, target)), ...pathArgs(target)], { cwd: repo })
   if (!readsWorkTree(target)) return
   const untracked = await runGit(['ls-files', '--others', '--exclude-standard', '-z'], { cwd: repo })
   for (const path of untracked.split('\0').filter(Boolean)) {

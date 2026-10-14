@@ -1,6 +1,6 @@
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
 import { runGit } from './run'
-import { type DiffTarget, readsWorkTree, targetArgs } from './target'
+import { type DiffTarget, pathArgs, readsWorkTree, targetArgs } from './target'
 
 export type { ChangedFile, FileStatus }
 
@@ -106,7 +106,7 @@ async function listUntracked(repo: string): Promise<ChangedFile[]> {
 }
 
 export async function listFiles(repo: string, target: DiffTarget): Promise<ChangedFile[]> {
-  const args = await targetArgs(repo, target)
+  const args = [...(await targetArgs(repo, target)), ...pathArgs(target)]
   const [raw, numstat] = await Promise.all([
     runGit(['diff', ...DIFF_FLAGS, '--raw', '--no-abbrev', ...args], { cwd: repo }),
     runGit(['diff', ...DIFF_FLAGS, '--numstat', ...args], { cwd: repo }),

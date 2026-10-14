@@ -71,6 +71,18 @@ describe('api', () => {
     expect(commits.map((c: { subject: string }) => c.subject)).toEqual(['base'])
   })
 
+  it('lists the commits that touched one file and refuses paths outside the repo', async () => {
+    fixture = await startFixture((repo) => {
+      repo.write('a.txt', 'one\n')
+      repo.commit('base')
+      repo.write('b.txt', 'other\n')
+      repo.commit('only b')
+    })
+    const commits = await (await fixture.get('/api/commits?head=main&path=a.txt')).json()
+    expect(commits.map((c: { subject: string }) => c.subject)).toEqual(['base'])
+    expect((await fixture.get('/api/commits?head=main&path=../x')).status).toBe(400)
+  })
+
   it('answers 400 for a bad target and an unknown ref', async () => {
     await edited()
     expect((await fixture.get('/api/files?target=garbage')).status).toBe(400)
