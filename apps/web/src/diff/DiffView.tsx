@@ -1,8 +1,8 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { forwardRef, type ReactNode, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { forwardRef, type ReactNode, useCallback, useImperativeHandle, useMemo, useRef } from 'react'
 import type { Note, NoteItem } from '../review/annotations'
 import type { Page, PageRow } from './page'
-import { LineRow, RowContext, type RowContextValue } from './Rows'
+import { LineRow, RowContext, type RowContextValue } from './RowViews'
 
 export type ScrollTarget =
   | { type: 'item'; id: string; align?: 'start' | 'center' }
@@ -28,15 +28,22 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
 ) {
   const scroller = useRef<HTMLDivElement>(null)
   const lineHeight = Math.round(context.settings.fontSize * 1.5)
-  const virtualizer = useVirtualizer({
-    count: page.rows.length,
-    getScrollElement: () => scroller.current,
-    estimateSize: (index) => {
+  const wrap = context.settings.overflow === 'wrap'
+  // A new key or size function makes the virtualizer re-measure every row, so both stay stable per page.
+  const estimateSize = useCallback(
+    (index: number) => {
       const row = page.rows[index]
       if (!row) return lineHeight
       return row.type === 'row' ? lineHeight : ESTIMATE[row.type]
     },
-    getItemKey: (index) => page.rows[index]?.key ?? index,
+    [page, lineHeight],
+  )
+  const getItemKey = useCallback((index: number) => page.rows[index]?.key ?? index, [page])
+  const virtualizer = useVirtualizer({
+    count: page.rows.length,
+    getScrollElement: () => scroller.current,
+    estimateSize,
+    getItemKey,
     overscan: 12,
   })
 
@@ -56,8 +63,7 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
 
   const items = virtualizer.getVirtualItems()
   // The file whose rows fill the top of the view keeps its header pinned above them.
-  const [scrollTop, setScrollTop] = useState(0)
-  const onScroll = useCallback(() => setScrollTop(scroller.current?.scrollTop ?? 0), [])
+  const scrollTop = virtualizer.scrollOffset ?? 0
   const first = items.find((virtual) => virtual.end > scrollTop)
   const firstRow = first ? page.rows[first.index] : undefined
   const pinned = firstRow && firstRow.type !== 'header' && firstRow.type !== 'end' ? firstRow.item : null
@@ -76,7 +82,6 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
     <RowContext.Provider value={context}>
       <div
         ref={scroller}
-        onScroll={onScroll}
         data-diff-view
         data-layout={context.settings.diffStyle === 'split' ? 'split' : 'unified'}
         className="relative h-full overflow-auto"
@@ -97,7 +102,8 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
             return (
               <div
                 key={virtual.key}
-                ref={virtualizer.measureElement}
+                // Unwrapped lines are exactly one line tall; measuring them would only cost resize work.
+                ref={row.type === 'row' && !wrap ? undefined : virtualizer.measureElement}
                 data-index={virtual.index}
                 data-row={row.type}
                 className="absolute inset-x-0"
