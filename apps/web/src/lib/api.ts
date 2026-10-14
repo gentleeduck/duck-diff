@@ -35,7 +35,7 @@ export interface Api {
   repo(): Promise<RepoInfo>
   refs(): Promise<Ref[]>
   files(target: DiffTarget, signal?: AbortSignal): Promise<ChangedFile[]>
-  commits(query: { head: string; base?: string; limit?: number }): Promise<Commit[]>
+  commits(query: { head: string; base?: string; limit?: number; path?: string }): Promise<Commit[]>
   diff(target: DiffTarget, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   content(target: DiffTarget, side: 'old' | 'new', file: Pick<ChangedFile, 'path' | 'oldPath'>): Promise<string | null>
   open(path: string, line: number): Promise<void>
@@ -79,6 +79,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       const params = new URLSearchParams({ head: query.head })
       if (query.base) params.set('base', query.base)
       if (query.limit) params.set('limit', String(query.limit))
+      if (query.path) params.set('path', query.path)
       return json(`/api/commits?${params}`, z.array(CommitSchema))
     },
     async diff(target, signal) {

@@ -1,9 +1,10 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
+import { X } from 'lucide-react'
 import { useRefs } from '../hooks/useRefs'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
 import type { SessionState } from '../state/session'
-import { describeTarget, toggleOperator, withSide } from './model'
+import { describeTarget, toggleOperator, withoutPath, withSide } from './model'
 import { RefPicker } from './RefPicker'
 
 const OPERATOR_HELP = {
@@ -25,7 +26,7 @@ export function CompareBar() {
   const { target, navigate } = useTarget()
   const refs = useRefs()
   const [files = '0', additions = '0', deletions = '0'] = useSession(selectStats).split(':')
-  const { from, to, operator } = describeTarget(target)
+  const { from, to, operator, path } = describeTarget(target)
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-6">
@@ -49,6 +50,21 @@ export function CompareBar() {
         )}
         <RefPicker label={to} side="to" refs={refs} onPick={(end) => navigate(withSide(target, 'to', end))} />
       </h1>
+      {path ? (
+        <span className="flex min-w-0 items-center gap-1 font-[var(--dd-font-code)] text-[13px] text-[var(--dd-muted)]">
+          <span className="truncate" title={path}>
+            {path}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-5"
+            aria-label="Show every file"
+            onClick={() => navigate(withoutPath(target))}>
+            <X className="size-3" />
+          </Button>
+        </span>
+      ) : null}
       <p className="shrink-0 text-[13px] text-[var(--dd-muted)] tabular-nums">
         {files} {files === '1' ? 'file' : 'files'}
         <span className="ml-3 text-[#3fb950]">+{additions}</span>

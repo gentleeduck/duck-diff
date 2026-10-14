@@ -1,7 +1,7 @@
 import type { Commit } from '@duck-diff/protocol'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AppProvider } from '../../app/AppProvider'
+import { AppProvider, useApp } from '../../app/AppProvider'
 import { fakeApi } from '../../test/fake-api'
 import { HistoryList } from '../HistoryList'
 import { relativeTime } from '../relative-time'
@@ -65,5 +65,62 @@ describe('HistoryList', () => {
     )
     await waitFor(() => expect(commits).toHaveBeenCalledWith({ head: 'HEAD', limit: 200 }))
     expect(await screen.findByText('No commits to show.')).toBeTruthy()
+  })
+
+  it('lists stashes under the branch history and opens one', async () => {
+    const stash = 'd'.repeat(40)
+    const api = fakeApi({
+      refs: async () => [
+        { name: 'main', kind: 'branch', sha: 'c', committedAt: 0, current: true },
+        { name: 'stash@{0}', kind: 'stash', sha: stash, committedAt: NOW, current: false, subject: 'On main: try' },
+      ],
+      commits: async () => [commit('a'.repeat(40), 'first', 5)],
+    })
+    render(
+      <AppProvider api={api}>
+        <HistoryList now={NOW} />
+      </AppProvider>,
+    )
+    fireEvent.click(await screen.findByText('On main: try'))
+    expect(window.location.search).toContain(stash)
+  })
+})
+
+describe('HistoryList for one file', () => {
+  const NEW = 'a'.repeat(40)
+  const OLD = 'b'.repeat(40)
+
+  function renderFor(path: string) {
+    const commits = vi.fn(async () => [commit(NEW, 'edit a', 5), commit(OLD, 'add a', 60)])
+    const api = fakeApi({ commits })
+    function WithPath() {
+      const { fileHistory } = useApp()
+      if (fileHistory.get() !== path) fileHistory.set(path)
+      return <HistoryList now={NOW} />
+    }
+    render(
+      <AppProvider api={api}>
+        <WithPath />
+      </AppProvider>,
+    )
+    return commits
+  }
+
+  it('lists the file log and opens one commit for that file', async () => {
+    const commits = renderFor('src/a.ts')
+    fireEvent.click(await screen.findByText('edit a'))
+    expect(commits).toHaveBeenCalledWith({ head: 'HEAD', path: 'src/a.ts', limit: 200 })
+    expect(decodeURIComponent(window.location.search)).toContain(`"sha":"${NEW}","path":"src/a.ts"`)
+  })
+
+  it('compares two versions with Shift-click and goes back to the branch', async () => {
+    renderFor('src/a.ts')
+    fireEvent.click(await screen.findByText('edit a'))
+    fireEvent.click(screen.getByText('add a'), { shiftKey: true })
+    const search = decodeURIComponent(window.location.search)
+    expect(search).toContain(`"from":"${OLD}","to":"${NEW}","mode":"two-dot","path":"src/a.ts"`)
+    await waitFor(() => expect(screen.getByText('add a').closest('button')?.getAttribute('aria-current')).toBe('true'))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to branch history' }))
+    await waitFor(() => expect(screen.queryByText('src/a.ts')).toBeNull())
   })
 })
