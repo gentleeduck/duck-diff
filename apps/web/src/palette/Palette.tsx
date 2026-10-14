@@ -1,10 +1,14 @@
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@duck-diff/ui'
+import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { presets } from '../compare/model'
+import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
+import { useView } from '../hooks/useView'
 import { itemId } from '../lib/items'
+import type { View } from '../lib/view-url'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { useWrites } from '../writes/WritesProvider'
@@ -28,9 +32,24 @@ const TOGGLES: Toggle[] = [
   { label: 'System theme', apply: (prev) => ({ ...prev, themeType: 'system' }) },
 ]
 
+const VIEWS: { view: View; label: string }[] = [
+  { view: 'changes', label: 'Changes' },
+  { view: 'graph', label: 'Commit graph' },
+  { view: 'files', label: 'Files' },
+  { view: 'prs', label: 'Pull requests' },
+  { view: 'issues', label: 'Issues' },
+]
+
 export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) {
-  const { settings, viewer } = useApp()
+  const { api, settings, viewer, fileSelection } = useApp()
   const files = useSession(selectFiles)
+  const { view, show } = useView()
+  const git = useGit()
+  // The Files view searches every file in the repo, read once when the palette first opens there.
+  const [tree, setTree] = useState<string[] | null>(null)
+  useEffect(() => {
+    if (open && view === 'files' && tree === null) api.tree().then(setTree, () => setTree([]))
+  }, [open, view, tree, api])
   const { navigate } = useTarget()
   const refs = useRefs()
   const writes = useWrites()
@@ -43,15 +62,50 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange} title="Command palette">
       <CommandInput placeholder="Jump to a file, change the comparison or a setting" />
-      <CommandList>
+      <CommandList className="max-h-[60vh]">
         <CommandEmpty>Nothing matches.</CommandEmpty>
-        <CommandGroup heading="Files">
+        <CommandGroup heading="Go to">
+          {VIEWS.filter((entry) => entry.view !== view).map((entry) => (
+            <CommandItem key={entry.view} value={`go to ${entry.label}`} onSelect={() => run(() => show(entry.view))}>
+              {entry.label}
+            </CommandItem>
+          ))}
+        </CommandGroup>
+        {view === 'files' ? (
+          <CommandGroup heading="Open file">
+            {(tree ?? []).map((path) => (
+              <CommandItem key={path} value={`open ${path}`} onSelect={() => run(() => fileSelection.set(path))}>
+                <span className="truncate font-mono">{path}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        ) : null}
+        <CommandGroup heading="Git">
+          <CommandItem value="git fetch" onSelect={() => run(() => void git.run('fetch', undefined, 'Fetched'))}>
+            Fetch every remote
+          </CommandItem>
+          <CommandItem value="git pull" onSelect={() => run(() => void git.run('pull', undefined, 'Pulled'))}>
+            Pull
+          </CommandItem>
+          <CommandItem value="git push" onSelect={() => run(() => void git.run('push', undefined, 'Pushed'))}>
+            Push
+          </CommandItem>
+          <CommandItem
+            value="git stash changes"
+            onSelect={() => run(() => void git.run('stash', { message: '', untracked: true }, 'Stashed your changes'))}>
+            Stash every change
+          </CommandItem>
+        </CommandGroup>
+        <CommandGroup heading="Changed files">
           {files.map((file) => (
             <CommandItem
               key={file.path}
               value={`file ${file.path}`}
               onSelect={() =>
-                run(() => viewer.current?.scrollTo({ type: 'item', id: itemId(file.path), align: 'start' }))
+                run(() => {
+                  show('changes')
+                  viewer.current?.scrollTo({ type: 'item', id: itemId(file.path), align: 'start' })
+                })
               }>
               <span className="truncate font-mono">{file.path}</span>
             </CommandItem>
