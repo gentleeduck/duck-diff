@@ -11,6 +11,7 @@
     "test": { "dependsOn": ["^build"], "env": ["TEST_LOGS"] },
     "test:coverage": { "dependsOn": ["^build"], "env": ["TEST_LOGS"], "outputs": ["coverage/**"] },
     "clean": { "cache": false },
-    "dev": { "cache": false, "persistent": true }
+    "dev": { "cache": false, "persistent": true },
+    "test:e2e": { "dependsOn": ["build"], "cache": false }
   }
 }

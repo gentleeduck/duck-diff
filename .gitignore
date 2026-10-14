@@ -13,3 +13,5 @@ CLAUDE.md
 AGENTS.md
 .claude/
 apps/server/src/web-assets.gen.ts
+test-results/
+playwright-report/
