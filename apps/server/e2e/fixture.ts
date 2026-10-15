@@ -50,7 +50,8 @@ export const test = base.extend<Fixtures>({
     const exited = once(child, 'exit')
     child.kill()
     await exited
-    rmSync(home, { recursive: true, force: true })
+    // A shell the page started can still be writing into home for a moment after the server exits.
+    rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   },
 })
 

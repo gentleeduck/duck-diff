@@ -54,7 +54,7 @@ export function createRepo(): TestRepo {
       return git('rev-parse', 'HEAD')
     },
     cleanup() {
-      rmSync(path, { recursive: true, force: true })
+      rmSync(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     },
   }
 }
