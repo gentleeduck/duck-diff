@@ -16,6 +16,7 @@ import { filterFiles, type TreeStatus } from './filters'
 import { HideFilter } from './HideFilter'
 import { StatusFilter } from './StatusFilter'
 import { FileMenu, FolderMenu } from './tree-menus'
+import { ViewedProgress } from './ViewedProgress'
 
 const selectFiles = (state: SessionState) => state.files
 const selectPatterns = (state: Settings) => state.hidePatterns
@@ -60,6 +61,7 @@ export function ChangesTree() {
           <HideFilter hiddenCount={files.length - shown.length} />
         </div>
         <StatusFilter files={shown} value={statuses} onChange={setStatuses} />
+        <ViewedProgress files={shown} target={target} />
       </div>
       {visible.length > 0 ? (
         <FileTree

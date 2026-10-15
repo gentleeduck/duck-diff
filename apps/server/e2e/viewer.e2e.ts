@@ -120,3 +120,16 @@ test('Show unchanged lines opens every gap in the diff', async ({ page, app, rep
   await expect(main).toContainText('line10 = 10')
   await expect(page.getByRole('button', { name: /Show \d+ unchanged lines/ })).toHaveCount(0)
 })
+
+test('counts the files viewed and goes to the next one not viewed', async ({ page, app }) => {
+  await page.goto(app.url)
+  const progress = page.getByRole('button', { name: /viewed/ }).filter({ hasText: '/ 2 viewed' })
+  await expect(progress).toContainText('0 / 2 viewed')
+  await page.locator('[data-diff-view]').getByText('notes.txt', { exact: true }).first().hover()
+  await page.getByRole('checkbox', { name: 'Viewed' }).first().click()
+  await expect(progress).toContainText('1 / 2 viewed')
+  await progress.click()
+  await expect(
+    page.getByRole('tree', { name: 'Changed files' }).getByRole('treeitem', { name: /app\.ts/ }),
+  ).toHaveAttribute('aria-selected', 'true')
+})
