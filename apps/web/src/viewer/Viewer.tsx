@@ -1,4 +1,4 @@
-import { type DiffTarget, targetKey } from '@duck-diff/protocol'
+import { type ChangedFile, type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { CodeHover } from '../code-nav/CodeHover'
@@ -33,6 +33,8 @@ import { FileActions } from './FileActions'
 import { FileHeader } from './FileHeader'
 import { fileNote } from './file-info'
 import { type CodeSelection, useLineSelection } from './line-selection'
+import { type PickedLine, pickedLines, selectedCells } from './picked-lines'
+import { SelectionBar } from './SelectionBar'
 import { visibleItems } from './visible-items'
 import { WriteButtons } from './WriteButtons'
 
@@ -73,6 +75,20 @@ function sideLines(rows: readonly DiffRow[], side: 'additions' | 'deletions', fr
     }
   }
   return [...found.keys()].sort((a, b) => a - b).map((number) => found.get(number) ?? '')
+}
+// A drag across both sides of a stacked diff marks the lines between its ends; worked out once per drag.
+const crossCache = new WeakMap<CodeSelection, Set<string>>()
+function crossKeys(selection: CodeSelection, rows: readonly DiffRow[]): Set<string> {
+  let keys = crossCache.get(selection)
+  if (!keys) {
+    keys = new Set(
+      selectedCells(rows, selection).map(
+        ({ side, line }) => `${side}:${side === 'deletions' ? line.oldNo : line.newNo}`,
+      ),
+    )
+    crossCache.set(selection, keys)
+  }
+  return keys
 }
 const sourceKey = (item: NoteItem) => item.fileDiff.cacheKey ?? item.id
 
@@ -277,7 +293,12 @@ export default function Viewer() {
   const diffRoot = useCallback(() => document.querySelector<HTMLElement>('[data-diff-view]'), [])
   // A comment on selected words covers their lines and keeps the exact columns, so the words stay highlighted.
   const commentOnSelection = useCallback(
-    (picked: CodeSelection) => {
+    (raw: CodeSelection) => {
+      // A drag from one side of a stacked diff to the other comments on the line it ended on.
+      const picked =
+        raw.side === raw.endSide
+          ? raw
+          : { ...raw, side: raw.endSide, startLine: raw.endLine, startCol: 0, endCol: Number.MAX_SAFE_INTEGER }
       const index = page.starts.get(picked.item)
       const item = index === undefined ? undefined : page.rows[index]?.item
       if (!item) return
@@ -309,7 +330,35 @@ export default function Viewer() {
   )
   useSymbolClick(diffRoot, locateSymbol)
   const selecting = useMemo(() => createStore<CodeSelection | null>(null), [])
-  useLineSelection(diffRoot, selecting.set, commentOnSelection)
+  const pageRef = useRef(page)
+  pageRef.current = page
+  const [bar, setBar] = useState<{
+    selection: CodeSelection
+    rect: DOMRect
+    picks: PickedLine[]
+    file: ChangedFile
+  } | null>(null)
+  // Where lines can be written back, a drag offers that next to commenting; elsewhere it comments at once.
+  const onPicked = useCallback(
+    (selection: CodeSelection, rect: DOMRect) => {
+      const index = page.starts.get(selection.item)
+      const item = index === undefined ? undefined : page.rows[index]?.item
+      const file = item ? byPath.get(item.fileDiff.name) : undefined
+      const picks = item && file && kinds.length ? pickedLines(page.files.get(item.id)?.rows ?? [], selection) : []
+      if (!file || !picks.length || file.status === 'untracked' || file.status === 'conflicted') {
+        commentOnSelection(selection)
+        return
+      }
+      selecting.set(selection)
+      setBar({ selection, rect, picks, file })
+    },
+    [page, byPath, kinds.length, commentOnSelection, selecting],
+  )
+  useLineSelection(diffRoot, selecting.set, onPicked)
+  const closeBar = useCallback(() => {
+    setBar(null)
+    selecting.set(null)
+  }, [selecting])
 
   const anchor = useRef(0)
   const dragging = useRef(false)
@@ -382,7 +431,15 @@ export default function Viewer() {
         if (number === null) return ''
         const path = item.fileDiff.name
         const live = selecting.get()
-        if (live && live.item === item.id && live.side === side && number >= live.startLine && number <= live.endLine) {
+        if (live && live.item === item.id && live.side !== live.endSide) {
+          if (crossKeys(live, pageRef.current.files.get(item.id)?.rows ?? []).has(`${side}:${number}`)) return 'draft'
+        } else if (
+          live &&
+          live.item === item.id &&
+          live.side === side &&
+          number >= live.startLine &&
+          number <= live.endLine
+        ) {
           const partial = live.startLine === live.endLine
           return `draft${partial ? markCols({ start: live.startLine, end: live.endLine, startCol: live.startCol, endCol: live.endCol }, number, length) : ''}`
         }
@@ -529,6 +586,22 @@ export default function Viewer() {
         onTopItem={onTopItem}
       />
       <CodeHover root={diffRoot} locate={locateSymbol} />
+      {bar ? (
+        <SelectionBar
+          rect={bar.rect}
+          count={bar.picks.length}
+          kinds={kinds}
+          onComment={() => {
+            closeBar()
+            commentOnSelection(bar.selection)
+          }}
+          onWrite={(kind) => {
+            closeBar()
+            void writes.performLines(kind, bar.file, bar.picks)
+          }}
+          onClose={closeBar}
+        />
+      ) : null}
     </div>
   )
 }

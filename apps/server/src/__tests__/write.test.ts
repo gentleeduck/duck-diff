@@ -97,3 +97,35 @@ describe('/api/undo', () => {
     expect(await (await post('/api/undo')).json()).toEqual({ restored: null })
   })
 })
+
+describe('/api/write lines', () => {
+  it('stages one line, refuses a stale one, and discards with an undo snapshot', async () => {
+    await start()
+    repo.write('a.txt', 'ONE\nextra\n')
+    const a = await file('a.txt')
+    const payload = { path: a.path, oldPath: a.oldPath, status: a.status, newSha: a.newSha }
+    const staged = await post('/api/write', {
+      action: 'stage-lines',
+      file: payload,
+      lines: [{ side: 'new', line: 2, text: 'extra' }],
+    })
+    expect(staged.status).toBe(204)
+    expect(repo.git('show', ':a.txt')).toBe('one\nextra')
+
+    const stale = await post('/api/write', {
+      action: 'stage-lines',
+      file: payload,
+      lines: [{ side: 'new', line: 1, text: 'not what is there' }],
+    })
+    expect(stale.status).toBe(409)
+
+    const discarded = await post('/api/write', {
+      action: 'discard-lines',
+      file: payload,
+      lines: [{ side: 'new', line: 1, text: 'ONE' }],
+    })
+    expect(discarded.status).toBe(204)
+    expect(repo.git('diff', '--', 'a.txt')).toContain('-one')
+    expect((await (await post('/api/undo')).json()).restored).toEqual(['a.txt'])
+  })
+})

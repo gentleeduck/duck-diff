@@ -6,12 +6,15 @@ import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ApiError } from '../lib/api'
 import { type WriteKind, writeRequest } from '../viewer/actions'
+import type { PickedLine } from '../viewer/picked-lines'
 
 interface Writes {
   perform(kind: WriteKind, file: ChangedFile, hunk?: { index: number; hunk: Hunk }): Promise<void>
   // Many files with one question and one toast, for a folder or a whole section.
   performAll(kind: WriteKind, files: ChangedFile[], what: string): Promise<void>
   undo(): Promise<void>
+  // Chosen lines of one file, from a drag over the diff.
+  performLines(kind: WriteKind, file: ChangedFile, lines: PickedLine[]): Promise<void>
 }
 
 const WritesContext = createContext<Writes | null>(null)
@@ -99,7 +102,34 @@ export function WritesProvider({ children }: { children: ReactNode }) {
     [api, session, confirm],
   )
 
-  const value = useMemo(() => ({ perform, performAll, undo }), [perform, performAll, undo])
+  const performLines = useCallback<Writes['performLines']>(
+    async (kind, file, lines) => {
+      const count = `${lines.length} ${lines.length === 1 ? 'line' : 'lines'}`
+      if (kind === 'discard' && !(await confirm(`Discard ${count} in ${file.path}? You can undo it right after.`)))
+        return
+      try {
+        await api.write({
+          action: `${kind}-lines`,
+          file: { path: file.path, oldPath: file.oldPath, status: file.status, newSha: file.newSha },
+          lines,
+        })
+        const label = `${DONE[kind]} ${count} in ${file.path}`
+        if (kind === 'discard')
+          toast(label, { duration: 10_000, action: { label: 'Undo', onClick: () => void undo() } })
+        else toast(label)
+      } catch (error) {
+        toast.error(
+          error instanceof ApiError && error.code === 'stale'
+            ? `${file.path} changed on disk, so nothing was written. Showing the latest version.`
+            : `Could not ${kind} lines in ${file.path}: ${(error as Error).message}`,
+        )
+      }
+      void session.reload()
+    },
+    [api, session, confirm, undo],
+  )
+
+  const value = useMemo(() => ({ perform, performAll, undo, performLines }), [perform, performAll, undo, performLines])
   return (
     <WritesContext.Provider value={value}>
       {children}

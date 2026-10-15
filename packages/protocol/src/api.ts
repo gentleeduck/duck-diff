@@ -53,6 +53,15 @@ export const WriteRequestSchema = z.union([
     hunkHeader: z.string().startsWith('@@ '),
   }),
   z.object({ action: z.enum(['stage-file', 'unstage-file', 'discard-file']), file: WriteFileSchema }),
+  // Single lines of a file, each named by its side and number and checked against its text.
+  z.object({
+    action: z.enum(['stage-lines', 'unstage-lines', 'discard-lines']),
+    file: WriteFileSchema,
+    lines: z
+      .array(z.object({ side: z.enum(['old', 'new']), line: z.number().int().min(1), text: z.string() }))
+      .min(1)
+      .max(50_000),
+  }),
 ])
 export type WriteRequest = z.infer<typeof WriteRequestSchema>
 export type WriteAction = WriteRequest['action']

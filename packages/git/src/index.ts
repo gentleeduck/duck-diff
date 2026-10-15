@@ -12,6 +12,7 @@ export { readSide, readSideBytes, type Side } from './content'
 export { GitError, type GitErrorCode } from './errors'
 export { type ChangedFile, type FileStatus, listFiles, parseDiffSummary, parseNumstat, parseRaw } from './files'
 export { GRAPH_FORMAT, type GraphOptions, streamGraph } from './graph'
+export { buildLinePatch, discardLines, type PickedLine, stageLines, unstageLines } from './line-patch'
 export {
   addRemote,
   type BlameLine,

@@ -12,6 +12,7 @@ import {
   deleteTag,
   discardFile,
   discardHunk,
+  discardLines,
   fetchAll,
   fetchRemote,
   forcePush,
@@ -33,6 +34,7 @@ import {
   stageAll,
   stageFile,
   stageHunk,
+  stageLines,
   stashApply,
   stashDrop,
   stashSave,
@@ -44,6 +46,7 @@ import {
   unstageAll,
   unstageFile,
   unstageHunk,
+  unstageLines,
   writeResolution,
 } from '@duck-diff/git'
 import {
@@ -105,6 +108,13 @@ export async function applyWrite(repo: string, request: WriteRequest, undoCache?
     case 'discard-file':
       await snapshot(repo, [file.path], undoCache)
       return discardFile(repo, file)
+    case 'stage-lines':
+      return stageLines(repo, file, request.lines)
+    case 'unstage-lines':
+      return unstageLines(repo, file, request.lines)
+    case 'discard-lines':
+      await snapshot(repo, [file.path], undoCache)
+      return discardLines(repo, file, request.lines)
   }
 }
 

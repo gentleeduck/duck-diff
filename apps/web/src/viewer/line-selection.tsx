@@ -5,6 +5,8 @@ export interface CodeSelection {
   side: 'additions' | 'deletions'
   startLine: number
   startCol: number
+  // A stacked diff interleaves both sides, so a drag can end on the other one.
+  endSide: 'additions' | 'deletions'
   endLine: number
   endCol: number
 }
@@ -27,25 +29,32 @@ function locate(node: Node, offset: number) {
   }
 }
 
+function endCode(node: Node): HTMLElement | null {
+  return (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>('[data-code]') ?? null
+}
+
 export function readSelection(root: HTMLElement): { selection: CodeSelection; rect: DOMRect } | null {
   const picked = window.getSelection()
-  if (!picked || picked.isCollapsed || !picked.rangeCount || !picked.anchorNode || !picked.focusNode) return null
-  if (!root.contains(picked.anchorNode) || !root.contains(picked.focusNode)) return null
-  const a = locate(picked.anchorNode, picked.anchorOffset)
-  const b = locate(picked.focusNode, picked.focusOffset)
-  if (!a || !b || a.item !== b.item || a.side !== b.side) return null
-  const [first, last] = a.line < b.line || (a.line === b.line && a.col <= b.col) ? [a, b] : [b, a]
-  if (first.line === last.line && first.col === last.col) return null
+  if (!picked || picked.isCollapsed || !picked.rangeCount) return null
+  // The range runs in page order whichever way the mouse went.
+  const range = picked.getRangeAt(0)
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return null
+  const first = locate(range.startContainer, range.startOffset)
+  const last = locate(range.endContainer, range.endOffset)
+  if (!first || !last || first.item !== last.item) return null
+  if (first.side === last.side && first.line === last.line && first.col === last.col) return null
   return {
     selection: {
       item: first.item,
       side: first.side,
       startLine: first.line,
       startCol: first.col,
+      endSide: last.side,
       endLine: last.line,
       endCol: last.col,
     },
-    rect: picked.getRangeAt(0).getBoundingClientRect(),
+    // Under the line the drag ended on; the range's own box spans both columns of a split diff.
+    rect: (endCode(range.endContainer) ?? range).getBoundingClientRect(),
   }
 }
 
@@ -54,13 +63,13 @@ export function readSelection(root: HTMLElement): { selection: CodeSelection; re
 export function useLineSelection(
   root: () => HTMLElement | null,
   onSelecting: (selection: CodeSelection | null) => void,
-  onDone: (selection: CodeSelection) => void,
+  onDone: (selection: CodeSelection, rect: DOMRect) => void,
 ) {
   const latest = useRef({ onSelecting, onDone })
   latest.current = { onSelecting, onDone }
   useEffect(() => {
     let down = false
-    let current: CodeSelection | null = null
+    let current: { selection: CodeSelection; rect: DOMRect } | null = null
     const onDown = (event: PointerEvent) => {
       const element = root()
       down = event.button === 0 && Boolean(element?.contains(event.target as Node))
@@ -69,8 +78,8 @@ export function useLineSelection(
     const onChange = () => {
       const element = root()
       if (!down || !element) return
-      current = readSelection(element)?.selection ?? null
-      latest.current.onSelecting(current)
+      current = readSelection(element)
+      latest.current.onSelecting(current?.selection ?? null)
     }
     const onUp = () => {
       if (!down) return
@@ -80,7 +89,7 @@ export function useLineSelection(
       latest.current.onSelecting(null)
       if (!picked) return
       window.getSelection()?.removeAllRanges()
-      latest.current.onDone(picked)
+      latest.current.onDone(picked.selection, picked.rect)
     }
     document.addEventListener('pointerdown', onDown, true)
     document.addEventListener('selectionchange', onChange)
