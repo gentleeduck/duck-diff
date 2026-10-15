@@ -192,6 +192,27 @@ export function createHighlighter(makeWorker: (() => Worker) | null, poolSize = 
       diffEntry(rows, path, key, true)
       return null
     },
+    // Starts the workers and loads these files' grammars before any code is on screen, so the first view
+    // of a diff is colored as soon as it shows.
+    warm(paths: readonly string[]) {
+      if (!makeWorker) return
+      start()
+      const found = [...new Set(paths.map((path) => getFiletypeFromFileName(path)))].slice(0, 6)
+      const langs = found.length ? found : ['text']
+      // Every worker gets each grammar, since either may draw the first screen.
+      for (let i = 0; i < langs.length * poolSize; i++) {
+        const lang = langs[i % langs.length] ?? 'text'
+        const key = `warm:${lang}:${i % poolSize}`
+        if (cache.has(key)) continue
+        cache.set(key, 'pending')
+        later.set(key, {
+          key,
+          request: { lang, runs: [''] },
+          done: () => cache.set(key, { old: new Map(), new: new Map() }),
+        })
+      }
+      pump()
+    },
     // Starts a file the reader is about to reach, behind anything on screen.
     prefetch(key: string, path: string, rows: readonly DiffRow[]) {
       if (!makeWorker || cache.has(key)) return

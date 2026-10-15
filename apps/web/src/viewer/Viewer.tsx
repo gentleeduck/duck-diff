@@ -306,15 +306,14 @@ export default function Viewer() {
       tokens(item, side, line) {
         const file = page.files.get(item.id)
         if (!file) return undefined
-        // The whole file, once read, colors with its full context; until then each hunk colors on its own.
-        loadSource(item, true)
+        // The hunks on screen color first, being small; the whole file follows behind them and, once ready,
+        // takes over with its full context (strings and comments that open above a hunk).
+        const hunks = highlighter.tokens(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
+        loadSource(item, false)
         const source = sources.current.get(sourceKey(item))
         const text = typeof source === 'object' ? source[side] : null
-        const full = text ? highlighter.text(`${sourceKey(item)}:${side}`, sourcePath(item, side), text) : null
-        if (full) return full.get(line)
-        return highlighter
-          .tokens(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
-          ?.[side].get(line)
+        const full = text ? highlighter.text(`${sourceKey(item)}:${side}`, sourcePath(item, side), text, false) : null
+        return (full ?? hunks?.[side])?.get(line)
       },
       prefetch(item) {
         const file = page.files.get(item.id)

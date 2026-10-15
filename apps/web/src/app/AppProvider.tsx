@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
 import type { DiffViewHandle } from '../diff/DiffView'
+import { highlighter } from '../diff/highlighter'
 import { createPullReview, type PullReview } from '../github/pull-review'
 import { createGitHub, type GitHub } from '../github/store'
 import { createGraph, type Graph } from '../graph/store'
@@ -89,7 +90,17 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
   }, [api])
 
   useEffect(() => {
+    // The highlighter starts with the page and loads the changed files' grammars while the diff is read,
+    // so the first rows arrive colored.
+    highlighter.warm([])
     void value.session.load(value.session.get().target)
+    let warmed = false
+    return value.session.subscribe(() => {
+      const files = value.session.get().files
+      if (warmed || !files.length) return
+      warmed = true
+      highlighter.warm(files.slice(0, 40).map((file) => file.path))
+    })
   }, [value])
 
   // Comments belong to a target, so they follow the session to whatever comparison it loads.

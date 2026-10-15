@@ -1,6 +1,6 @@
 import { Button, Kbd, Toaster, TooltipProvider } from '@duck-diff/ui'
 import { SearchIcon } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useState } from 'react'
+import { lazy, memo, type ReactNode, Suspense, useState } from 'react'
 import { SymbolPanel } from '../code-nav/SymbolPanel'
 import { CompareBar } from '../compare/CompareBar'
 import { FilesSidebar } from '../files/FilesSidebar'
@@ -36,9 +36,10 @@ import { StatusBar } from './StatusBar'
 import { useSizes } from './useSizes'
 import { useThemeClass } from './useThemeClass'
 
-const Viewer = lazy(() => import('../viewer/Viewer'))
-const GraphView = lazy(() => import('../graph/GraphView'))
-const FileView = lazy(() => import('../files/FileView'))
+// Memoized: the page around them re-renders for panels and badges, which these big views do not need.
+const Viewer = lazy(() => import('../viewer/Viewer').then((module) => ({ default: memo(module.default) })))
+const GraphView = lazy(() => import('../graph/GraphView').then((module) => ({ default: memo(module.default) })))
+const FileView = lazy(() => import('../files/FileView').then((module) => ({ default: memo(module.default) })))
 
 const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues', 'inbox', 'releases', 'actions']
 

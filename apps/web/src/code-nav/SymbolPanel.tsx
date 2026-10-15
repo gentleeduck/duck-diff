@@ -10,6 +10,10 @@ import { useStore } from '../lib/store'
 import { fileGlyph } from '../sidebar/icons'
 
 type Symbol = { name: string; ref: string | null } | null
+
+// Clicking back and forth between a few names answers from here instead of searching again.
+const RECENT_MS = 30_000
+const recent = new Map<string, { at: number; result: SymbolResult }>()
 const selectSymbol = (value: Symbol) => value
 
 const SECTIONS: { kind: SymbolHit['kind']; title: string }[] = [
@@ -94,9 +98,18 @@ export function SymbolPanel() {
     setFailed(null)
     setFilter('')
     if (!current) return
+    const key = `${current.name}|${current.ref ?? ''}`
+    const cached = recent.get(key)
+    if (cached && Date.now() - cached.at < RECENT_MS) {
+      setResult(cached.result)
+      return
+    }
     let alive = true
     api.symbols(current.name, current.ref).then(
-      (next) => alive && setResult(next),
+      (next) => {
+        recent.set(key, { at: Date.now(), result: next })
+        if (alive) setResult(next)
+      },
       (error: Error) => alive && setFailed(error.message),
     )
     return () => {
