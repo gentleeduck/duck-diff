@@ -164,7 +164,8 @@ export function NewIssue({ onCreated }: { onCreated(): void }) {
 
   return (
     <>
-      <Button size="sm" onClick={start}>
+      {/* GitHub's create buttons are green. */}
+      <Button size="sm" className="bg-tn-green text-background hover:bg-tn-green/85" onClick={start}>
         <Plus />
         New issue
       </Button>

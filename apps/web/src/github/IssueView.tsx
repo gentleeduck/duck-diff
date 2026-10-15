@@ -24,7 +24,7 @@ import { ThreadMenu } from './ThreadMenu'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
 import { useLive } from './useLive'
-import { EditableTitle, useThread } from './useThread'
+import { EditTitleButton, ThreadTitle, useThread } from './useThread'
 
 const CLOSE_REASONS = [
   {
@@ -178,42 +178,41 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
       <div className="mx-auto flex max-w-6xl flex-col gap-3 p-6">
         {back}
         <div className="flex items-start gap-3">
-          <EditableTitle
-            number={issue.number}
-            title={issue.title}
-            canEdit={thread?.viewer.canEdit ?? false}
-            onChanged={() => void refresh()}
-          />
-          <NewIssue onCreated={onChanged} />
-          <Button size="sm" variant="outline" asChild>
-            <a href={issue.url} target="_blank" rel="noreferrer">
-              <SquareArrowOutUpRight />
-              Open on GitHub
-            </a>
-          </Button>
-          <ThreadMenu
-            actions={[
-              issue.locked
-                ? {
-                    label: 'Unlock conversation',
-                    icon: <LockOpen />,
-                    run: () =>
-                      void api.github.setLocked(number, false).then(
-                        () => refresh(),
-                        (error: Error) => toast.error(error.message),
-                      ),
-                  }
-                : {
-                    label: 'Lock conversation',
-                    icon: <Lock />,
-                    run: () =>
-                      void api.github.setLocked(number, true).then(
-                        () => refresh(),
-                        (error: Error) => toast.error(error.message),
-                      ),
-                  },
-            ]}
-          />
+          <ThreadTitle number={issue.number} title={issue.title} />
+          <div className="mt-1 flex shrink-0 items-center gap-2">
+            {thread?.viewer.canEdit ? (
+              <EditTitleButton number={issue.number} title={issue.title} onChanged={() => void refresh()} />
+            ) : null}
+            <NewIssue onCreated={onChanged} />
+            <ThreadMenu
+              actions={[
+                {
+                  label: 'Open on GitHub',
+                  icon: <SquareArrowOutUpRight />,
+                  run: () => window.open(issue.url, '_blank', 'noreferrer'),
+                },
+                issue.locked
+                  ? {
+                      label: 'Unlock conversation',
+                      icon: <LockOpen />,
+                      run: () =>
+                        void api.github.setLocked(number, false).then(
+                          () => refresh(),
+                          (error: Error) => toast.error(error.message),
+                        ),
+                    }
+                  : {
+                      label: 'Lock conversation',
+                      icon: <Lock />,
+                      run: () =>
+                        void api.github.setLocked(number, true).then(
+                          () => refresh(),
+                          (error: Error) => toast.error(error.message),
+                        ),
+                    },
+              ]}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-border border-b pb-3 text-muted-foreground">
           <StatePill kind="issue" state={issue.state} />

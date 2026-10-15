@@ -1,10 +1,9 @@
 import type { Thread } from '@duck-diff/protocol'
-import { Pencil } from 'lucide-react'
+import { Button } from '@duck-diff/ui'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
-import { IconTool } from '../app/IconTool'
 import { createStore } from '../lib/store'
 
 // The conversation of one pull request or issue, plus a comment draft the timeline can quote into.
@@ -27,17 +26,17 @@ export function useThread(number: number, kind: 'pr' | 'issue') {
   return { thread, draft, reload }
 }
 
-export function EditableTitle({
-  number,
-  title,
-  canEdit,
-  onChanged,
-}: {
-  number: number
-  title: string
-  canEdit: boolean
-  onChanged(): void
-}) {
+// The item's title as GitHub shows it: large, with its number after it.
+export function ThreadTitle({ number, title }: { number: number; title: string }) {
+  return (
+    <h2 className="min-w-0 flex-1 font-normal text-[1.75em] text-foreground leading-tight">
+      {title} <span className="text-muted-foreground">#{number}</span>
+    </h2>
+  )
+}
+
+// GitHub's Edit button beside the title; only shown to people who may change it.
+export function EditTitleButton({ number, title, onChanged }: { number: number; title: string; onChanged(): void }) {
   const { api } = useApp()
   const rename = async () => {
     const values = await ask.prompt({
@@ -54,15 +53,8 @@ export function EditableTitle({
     }
   }
   return (
-    <h2 className="flex min-w-0 flex-1 items-start gap-1 font-normal text-[1.75em] text-foreground leading-tight">
-      <span className="min-w-0">
-        {title} <span className="text-muted-foreground">#{number}</span>
-      </span>
-      {canEdit ? (
-        <IconTool label="Edit title" onClick={() => void rename()}>
-          <Pencil />
-        </IconTool>
-      ) : null}
-    </h2>
+    <Button size="sm" variant="outline" onClick={() => void rename()}>
+      Edit
+    </Button>
   )
 }
