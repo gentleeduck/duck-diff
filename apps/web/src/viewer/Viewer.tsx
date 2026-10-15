@@ -7,10 +7,12 @@ import { buildPage } from '../diff/page'
 import type { RowContextValue } from '../diff/RowViews'
 import type { DiffLine, DiffRow } from '../diff/rows'
 import { type PullReviewState, pullOf } from '../github/pull-review'
+import { hasScrollMemory } from '../hooks/useScrollMemory'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
+import { isPopping } from '../lib/history'
 import { itemId } from '../lib/items'
 import { useStore } from '../lib/store'
 import { isTestFile } from '../lib/tests'
@@ -186,7 +188,7 @@ export default function Viewer() {
   )
 
   // A file asked for by the tree, the palette or back and forward is scrolled to once it is on the page.
-  const wanted = useRef<string | null>(diffFile.get())
+  const wanted = useRef<string | null>(hasScrollMemory(`diff:${shownKey}`, isPopping()) ? null : diffFile.get())
   const reveal = useCallback(() => {
     const path = wanted.current
     if (!path || !page.starts.has(itemId(path))) return
@@ -197,10 +199,12 @@ export default function Viewer() {
   useEffect(
     () =>
       diffFile.subscribe(() => {
+        // Back and forward put the diff where it was; the file it jumped to then is already in view.
+        if (isPopping() && hasScrollMemory(`diff:${shownKey}`, true)) return
         wanted.current = diffFile.get()
         reveal()
       }),
-    [diffFile, reveal],
+    [diffFile, reveal, shownKey],
   )
 
   const anchor = useRef(0)
@@ -380,5 +384,14 @@ export default function Viewer() {
   if (status === 'ready' && files.length === 0) {
     return <p className="p-6 text-muted-foreground">{EMPTY[target.kind]}</p>
   }
-  return <DiffView ref={viewer} page={page} context={context} renderHeader={renderHeader} renderNote={renderNote} />
+  return (
+    <DiffView
+      ref={viewer}
+      page={page}
+      context={context}
+      renderHeader={renderHeader}
+      renderNote={renderNote}
+      scrollKey={shownKey}
+    />
+  )
 }

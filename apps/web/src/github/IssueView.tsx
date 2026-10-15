@@ -1,9 +1,10 @@
 import type { IssueDetails } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
 import { ArrowLeft, CircleCheck, CircleDot, Lock, LockOpen, SquareArrowOutUpRight } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { useScrollMemory } from '../hooks/useScrollMemory'
 import { Comment, Composer } from './Conversation'
 import { ItemSidebar } from './ItemSidebar'
 import { sidebarActions } from './SidebarEditors'
@@ -39,6 +40,8 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
   }, [load])
 
   usePoll(() => Promise.all([api.github.issue(number).then(setIssue, () => {}), reloadThread(true)]), 20_000)
+  const page = useRef<HTMLElement>(null)
+  useScrollMemory(page, issue && thread ? `issue:${number}` : null)
 
   const back = (
     <button
@@ -95,7 +98,7 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
   const comments = thread?.timeline.filter((event) => event.kind === 'comment').length ?? issue.comments
 
   return (
-    <article aria-label={`Issue ${number}`} className="h-full overflow-y-auto">
+    <article ref={page} aria-label={`Issue ${number}`} className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-6xl flex-col gap-3 p-6">
         {back}
         <div className="flex items-start gap-3">

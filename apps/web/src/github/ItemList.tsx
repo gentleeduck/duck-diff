@@ -19,6 +19,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { useScrollMemory } from '../hooks/useScrollMemory'
 import type { Store } from '../lib/store'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
@@ -72,6 +73,9 @@ export function ItemList({ kind, label, selection, row, version = 0, actions, me
   const [failed, setFailed] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
   const end = useRef<HTMLDivElement>(null)
+  const page = useRef<HTMLDivElement>(null)
+  // Waits for the first page of items, so the list is tall enough to land where it was.
+  useScrollMemory(page, ready && items ? `list:${kind}:${state}:${filter}:${sort}:${query}` : null)
 
   // Typing settles for a moment before it becomes a search; GitHub limits search calls per minute.
   useEffect(() => {
@@ -157,7 +161,7 @@ export function ItemList({ kind, label, selection, row, version = 0, actions, me
 
   const totals = { open: state === 'open' ? total : otherTotal, closed: state === 'closed' ? total : otherTotal }
   return (
-    <div className="h-full overflow-y-auto">
+    <div ref={page} className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
         <div className="flex flex-wrap items-center gap-2">
           <Input

@@ -20,10 +20,11 @@ import {
   RotateCcw,
   SquareArrowOutUpRight,
 } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { useScrollMemory } from '../hooks/useScrollMemory'
 import { Avatar } from './Conversation'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
@@ -47,6 +48,8 @@ export function runState(run: Pick<WorkflowRun, 'status' | 'conclusion'>): { ico
 export function Actions() {
   const { api } = useApp()
   const ready = isReady(useGitHub())
+  const page = useRef<HTMLDivElement>(null)
+  useScrollMemory(page, ready ? 'actions' : null)
   const [items, setItems] = useState<WorkflowRun[] | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
 
@@ -79,7 +82,7 @@ export function Actions() {
 
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see workflow runs.</p>
   return (
-    <div className="h-full overflow-y-auto">
+    <div ref={page} className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
         <div className="rounded-md border border-border">
           <div className="flex items-center gap-2 border-border border-b bg-card px-4 py-1">

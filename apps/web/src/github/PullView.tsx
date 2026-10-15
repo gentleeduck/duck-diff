@@ -17,10 +17,11 @@ import {
   SquareArrowOutUpRight,
   X,
 } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
+import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useTarget } from '../hooks/useTarget'
 import type { ReviewEvent } from '../lib/api'
 import { useStore } from '../lib/store'
@@ -156,6 +157,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   const tab = useStore(pullTab, selectTab)
   const setTab = (next: Tab) => pullTab.set(next)
   const { thread, draft, reload: reloadThread } = useThread(number)
+  const page = useRef<HTMLElement>(null)
 
   const load = useCallback(
     (alive: () => boolean = () => true) =>
@@ -175,6 +177,8 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   }, [load])
 
   usePoll(() => Promise.all([api.github.pull(number).then(setPull, () => {}), reloadThread(true)]), 20_000)
+  // The conversation is ready once its thread has read; the other tabs carry their own heights.
+  useScrollMemory(page, pull && (tab !== 'conversation' || thread) ? `pull:${number}:${tab}` : null)
 
   const act = async (name: string, task: () => Promise<unknown>, done: string) => {
     setBusy(name)
@@ -234,7 +238,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   }
 
   return (
-    <article aria-label={`Pull request ${number}`} className="h-full overflow-y-auto">
+    <article ref={page} aria-label={`Pull request ${number}`} className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-6xl flex-col gap-3 p-6">
         {back}
         <div className="flex items-start gap-3">

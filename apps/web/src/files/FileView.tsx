@@ -9,6 +9,7 @@ import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
 import { useCodeScrollX } from '../diff/useCodeScrollX'
 import { useCanOpen } from '../hooks/useCanOpen'
+import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
@@ -110,6 +111,7 @@ export default function FileView() {
   const scroller = useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({
     count: contents?.text ? lines.length : 0,
+    initialOffset: () => rememberedTop(path ? `file:${path}` : null),
     getScrollElement: () => scroller.current,
     estimateSize: () => lineHeight,
     overscan: 30,
@@ -118,16 +120,17 @@ export default function FileView() {
     () =>
       new Map([
         [
-          'file',
+          `file:${path}`,
           lines.reduce(
             (max, line) => Math.max(max, line.length + (line.split('\t').length - 1) * (settings.tabSize - 1)),
             0,
           ),
         ],
       ]),
-    [lines, settings.tabSize],
+    [lines, settings.tabSize, path],
   )
   const sideways = useCodeScrollX(scroller, widest, true)
+  useScrollMemory(scroller, path && contents?.text ? `file:${path}` : null)
 
   if (!path) {
     return <p className="p-4 text-muted-foreground">Pick a file on the left to read it here.</p>
@@ -229,9 +232,9 @@ export default function FileView() {
               <div
                 key={virtual.index}
                 className="absolute inset-x-0 flex hover:bg-accent/40"
-                data-scroll-key="file"
+                data-scroll-key={`file:${path}`}
                 style={{
-                  ...sideways.rowStyle('file'),
+                  ...sideways.rowStyle(`file:${path}`),
                   height: lineHeight,
                   transform: `translateY(${virtual.start}px)`,
                 }}>
@@ -248,7 +251,7 @@ export default function FileView() {
             ))}
           </div>
           <div className="pointer-events-none sticky bottom-0 z-10 h-0">
-            {sideways.bar('file', undefined, 'pointer-events-auto absolute inset-x-0 bottom-0')}
+            {sideways.bar(`file:${path}`, undefined, 'pointer-events-auto absolute inset-x-0 bottom-0')}
           </div>
         </div>
       ) : null}

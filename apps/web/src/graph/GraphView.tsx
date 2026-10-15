@@ -13,6 +13,7 @@ import { GitBranch, Tag } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useRowHeight } from '../app/useSizes'
+import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
 import { useStore } from '../lib/store'
 import { avatarFor, useAvatars } from './avatars'
 import { CommitHover, CommitMenu } from './CommitMenu'
@@ -88,6 +89,7 @@ export default function GraphView() {
   const [branchFrom, setBranchFrom] = useState<string | null>(null)
   const selected = useStore(graphSelection, (sha: string | null) => sha)
   const scroller = useRef<HTMLDivElement>(null)
+  useScrollMemory(scroller, 'graph')
 
   useEffect(() => {
     if (graph.get().status === 'idle') void graph.load()
@@ -98,6 +100,7 @@ export default function GraphView() {
   const ROW_HEIGHT = useRowHeight(ROW)
   const virtualizer = useVirtualizer({
     count: state.entries.length,
+    initialOffset: () => rememberedTop('graph'),
     getScrollElement: () => scroller.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 20,

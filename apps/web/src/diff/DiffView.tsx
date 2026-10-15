@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { forwardRef, type ReactNode, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
 import type { Note, NoteItem } from '../review/annotations'
 import type { Page, PageRow } from './page'
 import { LineRow, RowContext, type RowContextValue } from './RowViews'
@@ -18,6 +19,8 @@ interface DiffViewProps {
   context: RowContextValue
   renderHeader(item: NoteItem): ReactNode
   renderNote(note: Note): ReactNode
+  // Names the comparison, so its scroll position comes back with it.
+  scrollKey?: string
 }
 
 const ESTIMATE: Record<PageRow['type'], number> = { header: 48, row: 22, note: 120, end: 16 }
@@ -30,7 +33,7 @@ const fixedHeight = (row: PageRow, wrap: boolean) =>
 
 // One scroll container for every file; only rows near the viewport are in the DOM.
 export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffView(
-  { page, context, renderHeader, renderNote },
+  { page, context, renderHeader, renderNote, scrollKey },
   ref,
 ) {
   const scroller = useRef<HTMLDivElement>(null)
@@ -69,9 +72,11 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
     return byFile
   }, [page, context.settings.tabSize])
   const sideways = useCodeScrollX(scroller, widest, !wrap)
+  useScrollMemory(scroller, scrollKey && page.rows.length ? `diff:${scrollKey}` : null)
   const getItemKey = useCallback((index: number) => page.rows[index]?.key ?? index, [page])
   const virtualizer = useVirtualizer({
     count: page.rows.length,
+    initialOffset: () => rememberedTop(scrollKey ? `diff:${scrollKey}` : null),
     getScrollElement: () => scroller.current,
     estimateSize,
     getItemKey,

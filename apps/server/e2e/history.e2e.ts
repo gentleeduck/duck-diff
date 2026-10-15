@@ -23,3 +23,28 @@ test('steps back and forward through views, files and the diff like a browser', 
   await page.getByRole('button', { name: 'Forward' }).click()
   await expect(page.getByRole('region', { name: 'src/app.ts' })).toBeVisible()
 })
+
+test('back returns the diff to where it was scrolled, and a view switch keeps it too', async ({ page, app, repo }) => {
+  repo.write('long.ts', Array.from({ length: 400 }, (_, i) => `export const line${i} = ${i}`).join('\n'))
+  await page.goto(app.url)
+  await expect(page.getByRole('banner')).toContainText('3 files')
+  const diff = page.locator('[data-diff-view]')
+  const top = () => diff.evaluate((element) => element.scrollTop)
+  await expect.poll(() => diff.evaluate((element) => element.scrollHeight)).toBeGreaterThan(5000)
+  // Scrolls until the diff has finished loading and stays put.
+  await expect(async () => {
+    await diff.evaluate((element) => {
+      element.scrollTop = 3000
+    })
+    await page.waitForTimeout(300)
+    expect(await top()).toBe(3000)
+  }).toPass()
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await expect(page.getByRole('tree', { name: 'All files' })).toBeVisible()
+  await page.getByRole('button', { name: 'Back' }).click()
+  await expect.poll(top).toBe(3000)
+
+  await page.getByRole('button', { name: 'Commit graph', exact: true }).click()
+  await page.getByRole('button', { name: 'Changes', exact: true }).click()
+  await expect.poll(top).toBe(3000)
+})

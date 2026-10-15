@@ -2,12 +2,15 @@ import { type CSSProperties, type RefObject, useCallback, useEffect, useRef } fr
 
 // Rows are virtual, so no row can own a native scrollbar. Each file keeps its own sideways offset, written
 // as a CSS variable on its rows (line numbers stay put), and draws its own bar along its bottom edge.
+// Module-wide, so a file keeps its sideways position when its view unmounts and comes back.
+const remembered = new Map<string, number>()
+
 export function useCodeScrollX(
   scroller: RefObject<HTMLDivElement | null>,
   widest: ReadonlyMap<string, number>,
   enabled: boolean,
 ) {
-  const offsets = useRef(new Map<string, number>())
+  const offsets = useRef(remembered)
 
   const select = useCallback(
     (selector: string, key: string) =>
@@ -59,10 +62,7 @@ export function useCodeScrollX(
   useEffect(() => {
     const root = scroller.current
     if (!root) return
-    if (!enabled) {
-      offsets.current.clear()
-      return
-    }
+    if (!enabled) return
     const keyAt = (target: EventTarget | null) =>
       (target instanceof Element ? target.closest<HTMLElement>('[data-scroll-key],[data-bar-key]') : null)?.dataset
     // Trackpads send deltaX; a mouse wheel with Shift held means sideways too.

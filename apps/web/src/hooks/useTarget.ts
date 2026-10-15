@@ -1,4 +1,4 @@
-import type { DiffTarget } from '@duck-diff/protocol'
+import { type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect } from 'react'
 import { useApp } from '../app/AppProvider'
 import { pushUrl, replaceUrl } from '../lib/history'
@@ -12,7 +12,11 @@ export function useTarget(): { target: DiffTarget; navigate(target: DiffTarget, 
   const target = useSession(selectTarget)
 
   useEffect(() => {
-    const onPop = () => void session.load(readTarget(window.location.search))
+    // Only a different comparison reloads; stepping between views of the same one keeps the page as it was.
+    const onPop = () => {
+      const next = readTarget(window.location.search)
+      if (targetKey(next) !== targetKey(session.get().target)) void session.load(next)
+    }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [session])
