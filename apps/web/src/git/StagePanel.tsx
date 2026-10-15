@@ -39,7 +39,7 @@ function Row({
   selected: boolean
   onSelect(): void
 }) {
-  const { api, fileHistory, session, viewer, diffFile } = useApp()
+  const { api, fileHistory, diffFile } = useApp()
   const { run } = useGit()
   const { target, navigate } = useTarget()
   const writes = useWrites()

@@ -47,7 +47,7 @@ const VIEWS: { view: View; label: string }[] = [
 ]
 
 export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) {
-  const { api, settings, viewer, fileSelection, diffFile } = useApp()
+  const { api, settings, fileSelection, diffFile } = useApp()
   const files = useSession(selectFiles)
   const { view, show } = useView()
   const git = useGit()

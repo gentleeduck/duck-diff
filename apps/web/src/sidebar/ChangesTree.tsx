@@ -22,7 +22,7 @@ const selectTests = (state: Settings) => state.tests
 const selectFolders = (folders: ReadonlySet<string>) => folders
 
 export function ChangesTree() {
-  const { api, viewer, fileHistory, viewed, changesFolders, diffFile } = useApp()
+  const { api, fileHistory, viewed, changesFolders, diffFile } = useApp()
   const folders = useStore(changesFolders, selectFolders)
   const { target } = useTarget()
   const kinds = useMemo(() => actionsFor(target), [target])
