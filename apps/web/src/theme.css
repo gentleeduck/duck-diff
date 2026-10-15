@@ -142,96 +142,269 @@ body {
   font-size: 0.9375rem;
 }
 
-/* GitHub's rendered comments, in the same terminal look as our own Markdown. */
+/* Markdown, ours and GitHub's rendered HTML alike, set like duck-ui's docs: a real heading scale,
+   room between blocks, framed code and tables, and GitHub's alerts as callouts. */
+.gh-markdown {
+  line-height: 1.75;
+  overflow-wrap: break-word;
+}
 .gh-markdown > :first-child {
   margin-top: 0;
 }
 .gh-markdown > :last-child {
   margin-bottom: 0;
 }
-.gh-markdown :is(p, ul, ol, blockquote, pre, table, details) {
-  margin: 0.4rem 0;
+.gh-markdown :is(p, ul, ol, blockquote, pre, table, details, .markdown-alert, .highlight) {
+  margin: 0.85rem 0;
 }
-.gh-markdown :is(h1, h2) {
-  margin: 1.1rem 0 0.5rem;
-  padding-bottom: 0.25rem;
+.gh-markdown :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: 5rem;
+  color: var(--foreground);
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+.gh-markdown h1 {
+  margin: 1.75rem 0 0.75rem;
   border-bottom: 1px solid var(--border);
-  color: var(--tn-blue);
+  padding-bottom: 0.4rem;
+  font-size: 1.6em;
 }
-.gh-markdown :is(h3, h4, h5, h6) {
-  margin: 0.9rem 0 0.3rem;
-  color: var(--tn-cyan);
+.gh-markdown h2 {
+  margin: 1.6rem 0 0.7rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.35rem;
+  font-size: 1.35em;
+}
+.gh-markdown h3 {
+  margin: 1.35rem 0 0.5rem;
+  font-size: 1.15em;
+}
+.gh-markdown :is(h4, h5, h6) {
+  margin: 1.2rem 0 0.4rem;
+  font-size: 1em;
+}
+.gh-markdown h6 {
+  color: var(--muted-foreground);
 }
 .gh-markdown a {
   color: var(--tn-blue);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--tn-blue) 40%, transparent);
+  text-underline-offset: 4px;
 }
 .gh-markdown a:hover {
-  text-decoration: underline;
+  text-decoration-color: var(--tn-blue);
+}
+.gh-markdown :is(h1, h2, h3, h4, h5, h6) a.anchor {
+  display: none;
+}
+.gh-markdown :is(strong, b) {
+  color: var(--foreground);
+  font-weight: 800;
 }
 .gh-markdown ul {
   list-style: disc;
-  padding-inline-start: 1.25rem;
+  padding-inline-start: 1.5rem;
 }
 .gh-markdown ol {
   list-style: decimal;
-  padding-inline-start: 1.25rem;
+  padding-inline-start: 1.5rem;
 }
-.gh-markdown li.task-list-item {
+.gh-markdown li + li,
+.gh-markdown li > :is(ul, ol) {
+  margin-top: 0.35rem;
+}
+.gh-markdown li > :is(ul, ol) {
+  margin-bottom: 0;
+}
+/* Loose lists wrap each item in a paragraph; the item spacing already separates them. */
+.gh-markdown li > p {
+  margin: 0;
+}
+.gh-markdown li::marker {
+  color: var(--muted-foreground);
+}
+.gh-markdown :is(li.task-list-item, .contains-task-list > li) {
   list-style: none;
 }
+.gh-markdown .contains-task-list {
+  padding-inline-start: 0.5rem;
+}
+.gh-markdown input[type="checkbox"] {
+  margin-inline-end: 0.5rem;
+  vertical-align: middle;
+  accent-color: var(--tn-green);
+}
 .gh-markdown code {
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   background: var(--muted);
-  padding: 0 0.25rem;
+  padding: 0.1rem 0.35rem;
   color: var(--tn-cyan);
+  font-size: 0.92em;
 }
 .gh-markdown pre {
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: 0.375rem;
+  border-radius: 0.5rem;
   background: var(--tn-bg-dark);
-  padding: 0.75rem;
+  padding: 0.85rem 1rem;
+  line-height: 1.6;
+}
+.gh-markdown .highlight > pre {
+  margin: 0;
 }
 .gh-markdown pre code {
   background: transparent;
   padding: 0;
+  color: var(--foreground);
+  font-size: 1em;
 }
 .gh-markdown blockquote {
   border-inline-start: 2px solid var(--border);
-  padding-inline-start: 0.75rem;
+  padding-inline-start: 1rem;
   color: var(--muted-foreground);
+  font-style: italic;
 }
 .gh-markdown table {
   display: block;
+  width: max-content;
+  max-width: 100%;
   overflow-x: auto;
-  border-collapse: collapse;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 .gh-markdown :is(th, td) {
-  border: 1px solid var(--border);
-  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.45rem 1rem;
+  text-align: start;
   vertical-align: top;
   overflow-wrap: anywhere;
+}
+.gh-markdown th {
+  background: color-mix(in oklab, var(--muted) 55%, transparent);
+  color: var(--foreground);
+  font-weight: 800;
+}
+.gh-markdown tr:last-child > td {
+  border-bottom: 0;
+}
+.gh-markdown :is(th, td)[align="center"] {
+  text-align: center;
+}
+.gh-markdown :is(th, td)[align="right"] {
+  text-align: end;
 }
 .gh-markdown img {
   display: inline;
   max-width: 100%;
+  border-radius: 0.375rem;
 }
 .gh-markdown details {
   border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  padding: 0.25rem 0.75rem;
+  border-radius: 0.5rem;
+  padding: 0.4rem 1rem;
 }
 .gh-markdown summary {
   cursor: pointer;
   color: var(--tn-blue);
 }
+.gh-markdown details[open] > summary {
+  margin-bottom: 0.5rem;
+}
 .gh-markdown hr {
-  margin: 0.75rem 0;
+  margin: 1.5rem 0;
   border-color: var(--border);
 }
 .gh-markdown .user-mention,
 .gh-markdown .issue-link {
   color: var(--tn-blue);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+/* GitHub alerts (> [!NOTE] and friends) as duck-ui's callouts, in each kind's color. */
+.gh-markdown .markdown-alert {
+  --alert: var(--tn-blue);
+  border: 1px solid color-mix(in oklab, var(--alert) 45%, transparent);
+  border-inline-start-width: 3px;
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, var(--alert) 8%, transparent);
+  padding: 0.6rem 1rem;
+}
+.gh-markdown .markdown-alert > :last-child {
+  margin-bottom: 0;
+}
+.gh-markdown .markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.35rem;
+  color: var(--alert);
+  font-weight: 800;
+}
+.gh-markdown .markdown-alert-title + * {
+  margin-top: 0;
+}
+.gh-markdown .markdown-alert-title svg {
+  fill: currentColor;
+}
+.gh-markdown .markdown-alert-tip {
+  --alert: var(--tn-green);
+}
+.gh-markdown .markdown-alert-important {
+  --alert: var(--tn-magenta);
+}
+.gh-markdown .markdown-alert-warning {
+  --alert: var(--tn-yellow);
+}
+.gh-markdown .markdown-alert-caution {
+  --alert: var(--tn-red);
+}
+
+/* GitHub's highlighted code arrives as pl-* classes; these are its token kinds in Tokyo Night. */
+.gh-markdown :is(.pl-c, .pl-c span) {
+  color: var(--tn-comment);
+  font-style: italic;
+}
+.gh-markdown :is(.pl-k, .pl-s1 .pl-k) {
+  color: var(--tn-magenta);
+}
+.gh-markdown :is(.pl-s, .pl-pds, .pl-s .pl-pse .pl-s1, .pl-sr) {
+  color: var(--tn-green);
+}
+.gh-markdown :is(.pl-en, .pl-entm) {
+  color: var(--tn-blue);
+}
+.gh-markdown :is(.pl-c1, .pl-mh, .pl-mi1) {
+  color: var(--tn-orange);
+}
+.gh-markdown :is(.pl-v, .pl-smi, .pl-smw) {
+  color: var(--tn-fg);
+}
+.gh-markdown :is(.pl-e, .pl-sr .pl-cce) {
+  color: var(--tn-cyan);
+}
+.gh-markdown :is(.pl-ent, .pl-mdr) {
+  color: var(--tn-red);
+}
+.gh-markdown :is(.pl-mh, .pl-mh .pl-en, .pl-ms) {
+  color: var(--tn-blue);
+  font-weight: 800;
+}
+.gh-markdown :is(.pl-mi, .pl-mi1) {
+  font-style: italic;
+}
+.gh-markdown .pl-mb {
+  font-weight: 800;
+}
+.gh-markdown :is(.pl-mi1, .pl-mdi) {
+  color: var(--tn-green);
+}
+.gh-markdown .pl-md {
+  color: var(--tn-red);
 }
 
 /* Dragging over code selects lines; the yellow line mark shows it, so the browser's text highlight stays hidden. */

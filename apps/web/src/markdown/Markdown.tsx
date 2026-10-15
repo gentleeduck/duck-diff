@@ -1,59 +1,101 @@
+import type { Element, ElementContent } from 'hast'
+import { type ReactNode, useSyncExternalStore } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Code } from '../diff/Code'
+import { highlighter } from '../diff/highlighter'
 
 const EXTERNAL = /^(https?:|mailto:|#)/i
-const LINK = 'text-tn-blue underline-offset-2 hover:underline'
+const ALERT = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i
+const ALERT_TITLE: Record<string, string> = {
+  note: 'Note',
+  tip: 'Tip',
+  important: 'Important',
+  warning: 'Warning',
+  caution: 'Caution',
+}
 
-// Raw HTML (bot summaries, <details>) is skipped rather than rendered or shown as text.
+// The [!KIND] that opens a GitHub alert, read from the blockquote's first text.
+function alertKind(node: Element | undefined): string | null {
+  const first = node?.children.find((child): child is Element => child.type === 'element')
+  const text = first?.children.find((child: ElementContent) => child.type === 'text')
+  if (text?.type !== 'text') return null
+  return ALERT.exec(text.value)?.[1]?.toLowerCase() ?? null
+}
+
+// Removes the [!KIND] marker from the rendered children, leaving the alert's own words.
+function withoutMarker(children: ReactNode): ReactNode {
+  let done = false
+  const strip = (node: ReactNode): ReactNode => {
+    if (done) return node
+    if (typeof node === 'string') {
+      if (!ALERT.test(node)) return node
+      done = true
+      return node.replace(ALERT, '')
+    }
+    if (Array.isArray(node)) return node.map(strip)
+    if (node && typeof node === 'object' && 'props' in node) {
+      const element = node as { props: { children?: ReactNode } } & object
+      const inner = strip(element.props.children)
+      return { ...element, props: { ...element.props, children: inner } } as ReactNode
+    }
+    return node
+  }
+  return strip(children)
+}
+
+function Fenced({ language, text }: { language: string; text: string }) {
+  useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
+  const tokens = highlighter.text(`md:${language}:${text.length}:${text.slice(0, 64)}`, `file.${language}`, text)
+  return (
+    <code>
+      {text.split('\n').map((line, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: lines of one fixed block
+        <span key={index} className="block min-h-[1.6em]">
+          <Code text={line} tokens={tokens?.get(index + 1)} />
+        </span>
+      ))}
+    </code>
+  )
+}
+
+// Raw HTML (bot summaries, <details>) is skipped rather than rendered or shown as text. The look comes from
+// .gh-markdown, shared with GitHub's own rendered HTML.
 const components: Components = {
-  // Every size is 15px here, so headings rank by color and a rule instead of by size.
-  h1: ({ node: _, ...props }) => (
-    <h3 {...props} className="mt-5 mb-2 border-border border-b pb-1 text-tn-blue first:mt-0" />
-  ),
-  h2: ({ node: _, ...props }) => (
-    <h3 {...props} className="mt-5 mb-2 border-border border-b pb-1 text-tn-blue first:mt-0" />
-  ),
-  h3: ({ node: _, ...props }) => <h4 {...props} className="mt-4 mb-1 text-tn-cyan first:mt-0" />,
-  p: ({ node: _, ...props }) => <p {...props} className="my-1.5 first:mt-0 last:mb-0" />,
-  ul: ({ node: _, ...props }) => <ul {...props} className="my-1.5 list-disc ps-5" />,
-  ol: ({ node: _, ...props }) => <ol {...props} className="my-1.5 list-decimal ps-5" />,
-  blockquote: ({ node: _, ...props }) => (
-    <blockquote {...props} className="my-1.5 border-border border-s-2 ps-3 text-muted-foreground" />
-  ),
-  code: ({ node: _, ...props }) => <code {...props} className="rounded-sm bg-muted px-1 text-tn-cyan" />,
-  pre: ({ node: _, ...props }) => (
-    <pre
-      {...props}
-      className="my-2 overflow-x-auto rounded-md border border-border bg-tn-dark p-3 [&_code]:bg-transparent [&_code]:p-0"
-    />
-  ),
-  table: ({ node: _, ...props }) => (
-    <div className="my-2 overflow-x-auto">
-      <table {...props} className="border-collapse" />
-    </div>
-  ),
-  th: ({ node: _, ...props }) => (
-    <th {...props} className="border border-border px-2 py-1 text-start align-top [overflow-wrap:anywhere]" />
-  ),
-  td: ({ node: _, ...props }) => (
-    <td {...props} className="border border-border px-2 py-1 align-top [overflow-wrap:anywhere]" />
-  ),
-  hr: () => <hr className="my-3 border-border" />,
-  img: ({ node: _, alt, ...props }) => <img {...props} alt={alt ?? ''} className="max-w-full rounded-md" />,
-  input: ({ node: _, ...props }) => <input {...props} className="me-1.5 align-middle" />,
+  blockquote: ({ node, children, ...props }) => {
+    const kind = alertKind(node)
+    if (!kind) return <blockquote {...props}>{children}</blockquote>
+    return (
+      <div className={`markdown-alert markdown-alert-${kind}`}>
+        <p className="markdown-alert-title">{ALERT_TITLE[kind]}</p>
+        {withoutMarker(children)}
+      </div>
+    )
+  },
+  code: ({ node: _, className, children, ...props }) => {
+    const language = /language-([\w+-]+)/.exec(className ?? '')?.[1]
+    const text = String(children ?? '').replace(/\n$/, '')
+    return language ? (
+      <Fenced language={language} text={text} />
+    ) : (
+      <code {...props} className={className}>
+        {children}
+      </code>
+    )
+  },
+  img: ({ node: _, alt, ...props }) => <img {...props} alt={alt ?? ''} />,
 }
 
 export function Markdown({ text, onLocalLink }: { text: string; onLocalLink?: (href: string) => void }) {
   // Relative links point into the repo; with a handler they open there instead of a broken page url.
   const a: Components['a'] = ({ node: _, href = '', ...props }) =>
     EXTERNAL.test(href) || !onLocalLink ? (
-      <a {...props} href={href} target="_blank" rel="noreferrer" className={LINK} />
+      <a {...props} href={href} target="_blank" rel="noreferrer" />
     ) : (
       <a
         {...props}
         href={href}
-        className={LINK}
         onClick={(event) => {
           event.preventDefault()
           onLocalLink(href)
@@ -61,7 +103,7 @@ export function Markdown({ text, onLocalLink }: { text: string; onLocalLink?: (h
       />
     )
   return (
-    <div className="break-words text-foreground">
+    <div className="gh-markdown text-foreground">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ ...components, a }} skipHtml>
         {text}
       </ReactMarkdown>
