@@ -32,6 +32,9 @@ export function createRepo(): TestRepo {
     execFileSync('git', args, { cwd: path, env: ENV, encoding: 'utf8' }).replace(/\n$/, '')
 
   git('init', '-q', '-b', 'main')
+  // The code under test runs git without ENV, so commits it makes need the identity in the repo itself.
+  git('config', 'user.name', 'Duck Test')
+  git('config', 'user.email', 'test@duck.local')
 
   return {
     path,
