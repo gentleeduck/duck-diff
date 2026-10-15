@@ -45,7 +45,7 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
     },
     [page, lineHeight],
   )
-  // The longest line on the page, in columns, sets how far the code can scroll sideways.
+  // Each file's longest line, in columns, sets how far that file can scroll sideways.
   const widest = useMemo(() => {
     const tab = context.settings.tabSize
     const columns = (text: string | undefined) => {
@@ -54,14 +54,19 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
       for (let i = text.indexOf('\t'); i !== -1; i = text.indexOf('\t', i + 1)) tabs++
       return text.length + tabs * (tab - 1)
     }
-    let max = 0
+    const byFile = new Map<string, number>()
     for (const row of page.rows) {
       if (row.type !== 'row') continue
       const diff = row.row
-      if (diff.type === 'line') max = Math.max(max, columns(diff.line.text))
-      else if (diff.type === 'pair') max = Math.max(max, columns(diff.left?.text), columns(diff.right?.text))
+      const width =
+        diff.type === 'line'
+          ? columns(diff.line.text)
+          : diff.type === 'pair'
+            ? Math.max(columns(diff.left?.text), columns(diff.right?.text))
+            : 0
+      if (width > (byFile.get(row.item.id) ?? 0)) byFile.set(row.item.id, width)
     }
-    return max
+    return byFile
   }, [page, context.settings.tabSize])
   const sideways = useCodeScrollX(scroller, widest, !wrap)
   const getItemKey = useCallback((index: number) => page.rows[index]?.key ?? index, [page])
@@ -157,7 +162,8 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
                 data-index={virtual.index}
                 data-row={row.type}
                 className="absolute inset-x-0"
-                style={{ transform: `translateY(${virtual.start}px)` }}>
+                {...sideways.rowProps(row.item.id)}
+                style={{ ...sideways.rowProps(row.item.id).style, transform: `translateY(${virtual.start}px)` }}>
                 {content(row)}
               </div>
             )

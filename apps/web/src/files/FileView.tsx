@@ -116,10 +116,15 @@ export default function FileView() {
   })
   const widest = useMemo(
     () =>
-      lines.reduce(
-        (max, line) => Math.max(max, line.length + (line.split('\t').length - 1) * (settings.tabSize - 1)),
-        0,
-      ),
+      new Map([
+        [
+          'file',
+          lines.reduce(
+            (max, line) => Math.max(max, line.length + (line.split('\t').length - 1) * (settings.tabSize - 1)),
+            0,
+          ),
+        ],
+      ]),
     [lines, settings.tabSize],
   )
   const sideways = useCodeScrollX(scroller, widest, true)
@@ -224,7 +229,12 @@ export default function FileView() {
               <div
                 key={virtual.index}
                 className="absolute inset-x-0 flex hover:bg-accent/40"
-                style={{ height: lineHeight, transform: `translateY(${virtual.start}px)` }}>
+                data-scroll-key="file"
+                style={{
+                  ...sideways.rowProps('file').style,
+                  height: lineHeight,
+                  transform: `translateY(${virtual.start}px)`,
+                }}>
                 {blaming ? <BlameCell blame={blame} index={virtual.index} /> : null}
                 <span className="w-14 shrink-0 select-none pe-3 text-end text-tn-gutter tabular-nums">
                   {virtual.index + 1}
