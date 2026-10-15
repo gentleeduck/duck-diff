@@ -1,6 +1,6 @@
 import type { Submodule, Worktree } from '@duck-diff/protocol'
+import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, FolderInput, Plus, RefreshCw, Scissors, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
@@ -11,6 +11,8 @@ import { useRefs } from '../hooks/useRefs'
 
 const short = (sha: string | null) => (sha ? sha.slice(0, 7) : 'none')
 const leaf = (path: string) => path.split('/').filter(Boolean).pop() ?? path
+const NO_TREES: Worktree[] = []
+const NO_MODULES: Submodule[] = []
 
 // Another checkout opens in its own tab, served by a server started for it.
 function useOpenRepo() {
@@ -30,17 +32,12 @@ function useOpenRepo() {
 }
 
 export function Worktrees() {
-  const { api } = useApp()
+  const { api, queries } = useApp()
   const { run } = useGit()
   const { refs } = useRefs()
   const canOpen = useCanOpen()
   const open = useOpenRepo()
-  const [trees, setTrees] = useState<Worktree[]>([])
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refs only signal that something changed
-  useEffect(() => {
-    api.worktrees().then(setTrees, () => setTrees([]))
-  }, [api, refs])
+  const trees = useQuery(queries.git.worktrees()).data ?? NO_TREES
 
   const add = async () => {
     const root = trees.find((tree) => tree.main)?.path ?? ''
@@ -124,22 +121,11 @@ export function Worktrees() {
 }
 
 export function Submodules() {
-  const { api } = useApp()
-  const { run, status } = useGit()
+  const { queries } = useApp()
+  const { run } = useGit()
   const open = useOpenRepo()
-  const [modules, setModules] = useState<Submodule[]>([])
-  const [root, setRoot] = useState('')
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: status only signals that something changed
-  useEffect(() => {
-    api.submodules().then(setModules, () => setModules([]))
-  }, [api, status])
-  useEffect(() => {
-    api.repo().then(
-      (info) => setRoot(info.root),
-      () => {},
-    )
-  }, [api])
+  const modules = useQuery(queries.git.submodules()).data ?? NO_MODULES
+  const root = useQuery(queries.git.repo()).data?.root ?? ''
 
   if (!modules.length) return null
   return (

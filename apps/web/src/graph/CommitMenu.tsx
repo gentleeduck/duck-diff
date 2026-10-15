@@ -11,6 +11,7 @@ import {
   HoverCard,
   HoverCardContent,
 } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import {
   Bug,
   Cherry,
@@ -29,14 +30,10 @@ import {
 } from 'lucide-react'
 import { type ReactNode, useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
-import type { GitHubState } from '../github/store'
-import { useStore } from '../lib/store'
+import { useGitHub } from '../github/SignIn'
 import { relativeTime } from '../sidebar/relative-time'
 import { useCommitActions } from './commit-actions'
-import { type HoverDetails, prefetchCommit, ready } from './commit-details'
 import type { GraphEntry } from './records'
-
-const selectStatus = (state: GitHubState) => state
 
 export function CommitMenu({
   entry,
@@ -138,21 +135,19 @@ export function CommitMenu({
   )
 }
 
+interface HoverDetails {
+  message: string
+  files: number
+  additions: number
+  deletions: number
+}
+
+// Read when the card opens, or earlier when the row was hovered; cached ones show at once.
 function useHoverDetails(sha: string, open: boolean): HoverDetails | null {
-  const { api } = useApp()
-  const [value, setValue] = useState<HoverDetails | null>(() => ready.get(sha) ?? null)
-  useEffect(() => {
-    if (!open || ready.has(sha)) return
-    let alive = true
-    prefetchCommit(api, sha).then(
-      (next) => alive && setValue(next),
-      () => {},
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, sha, open])
-  return value ?? ready.get(sha) ?? null
+  const { queries } = useApp()
+  const commit = useQuery({ ...queries.git.commit(sha), enabled: open }).data
+  const stat = useQuery({ ...queries.git.commitStat(sha), enabled: open }).data
+  return commit && stat ? { message: commit.message, ...stat } : null
 }
 
 // Git wraps messages at about 72 columns; the card joins those lines back into paragraphs, keeping
@@ -187,12 +182,7 @@ export function CommitHover({
 }) {
   const [open, setOpen] = useState(false)
   const info = useHoverDetails(entry.sha, open)
-  const { github: githubStore } = useApp()
-  const github = useStore(githubStore, selectStatus)
-  // The GitHub link needs the repo's slug, read on the first hover rather than at page load.
-  useEffect(() => {
-    if (open) void githubStore.load()
-  }, [open, githubStore])
+  const github = useGitHub()
   // A click or a right-click means the reader moved on to the row's actions; the card would cover them.
   useEffect(() => {
     if (!open) return

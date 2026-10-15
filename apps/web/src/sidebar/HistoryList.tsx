@@ -1,7 +1,8 @@
 import type { Commit, DiffTarget, Ref } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
-import { type MouseEvent, useEffect, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { useApp } from '../app/AppProvider'
 import { historyTarget } from '../compare/model'
 import { useTarget } from '../hooks/useTarget'
@@ -10,6 +11,7 @@ import { relativeTime } from './relative-time'
 
 const DEFAULT_BRANCHES = ['main', 'master', 'trunk']
 const LIMIT = 200
+const EMPTY: { commits: Commit[]; stashes: Ref[] } = { commits: [], stashes: [] }
 const selectPath = (path: string | null) => path
 
 function selectedShas(target: DiffTarget): Set<string> {
@@ -53,30 +55,24 @@ function Row({
 }
 
 function useCommits(path: string | null) {
-  const { api } = useApp()
-  const [state, setState] = useState<{ commits: Commit[]; stashes: Ref[] } | null>(null)
-  useEffect(() => {
-    let alive = true
-    setState(null)
-    api
-      .refs()
-      .then(async (refs) => {
-        const stashes = refs.filter((ref) => ref.kind === 'stash')
-        if (path) return { commits: await api.commits({ head: 'HEAD', path, limit: LIMIT }), stashes }
-        const branches = refs.filter((ref) => ref.kind === 'branch')
-        const current = branches.find((ref) => ref.current)?.name
-        // On a feature branch, history means the commits that branch adds; on the default branch, everything.
-        const base = DEFAULT_BRANCHES.find((name) => name !== current && branches.some((ref) => ref.name === name))
-        const query = base ? { head: 'HEAD', base, limit: LIMIT } : { head: 'HEAD', limit: LIMIT }
-        return { commits: await api.commits(query), stashes }
-      })
-      .then((next) => alive && setState(next))
-      .catch(() => alive && setState({ commits: [], stashes: [] }))
-    return () => {
-      alive = false
-    }
-  }, [api, path])
-  return state
+  const { queries } = useApp()
+  const refs = useQuery(queries.git.refs())
+  let query: { head: string; base?: string; path?: string; limit: number } | null = null
+  if (refs.data) {
+    const branches = refs.data.filter((ref) => ref.kind === 'branch')
+    const current = branches.find((ref) => ref.current)?.name
+    // On a feature branch, history means the commits that branch adds; on the default branch, everything.
+    const base = DEFAULT_BRANCHES.find((name) => name !== current && branches.some((ref) => ref.name === name))
+    query = path
+      ? { head: 'HEAD', path, limit: LIMIT }
+      : base
+        ? { head: 'HEAD', base, limit: LIMIT }
+        : { head: 'HEAD', limit: LIMIT }
+  }
+  const commits = useQuery({ ...queries.git.commits(query ?? { head: 'HEAD' }), enabled: query !== null })
+  if (refs.isError || commits.isError) return EMPTY
+  if (!refs.data || !commits.data) return null
+  return { commits: commits.data, stashes: refs.data.filter((ref) => ref.kind === 'stash') }
 }
 
 export function HistoryList({ now }: { now?: number }) {

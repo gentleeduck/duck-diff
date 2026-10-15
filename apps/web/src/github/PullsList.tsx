@@ -17,7 +17,7 @@ export function PullIcon({ pull }: { pull: Pick<PullSummary, 'state' | 'merged' 
   return <GitPullRequest aria-label="Open" className="size-4 shrink-0 text-added" />
 }
 
-export function PullsList({ version, onChanged }: { version: number; onChanged(): void }) {
+export function PullsList({ onChanged }: { onChanged(): void }) {
   const { api, pullSelection } = useApp()
   const { navigate } = useTarget()
   const { show } = useView()
@@ -36,7 +36,6 @@ export function PullsList({ version, onChanged }: { version: number; onChanged()
       kind="pr"
       label="Pull requests"
       selection={pullSelection}
-      version={version}
       actions={<NewPull onCreated={onChanged} />}
       menuFor={(pull) => (
         <ContextMenuItem onSelect={() => void reviewFiles(pull.number)}>

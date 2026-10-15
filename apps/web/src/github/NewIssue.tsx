@@ -107,7 +107,7 @@ function Field({ field, value, onChange }: { field: FormField; value: string; on
 
 // GitHub's "New issue": choose a template (or a blank issue), then fill it in.
 export function NewIssue({ onCreated }: { onCreated(): void }) {
-  const { api, issueSelection } = useApp()
+  const { api, issueSelection, queries, queryClient } = useApp()
   const [open, setOpen] = useState(false)
   const [templates, setTemplates] = useState<IssueTemplate[] | null>(null)
   const [chosen, setChosen] = useState<IssueTemplate | 'blank' | null>(null)
@@ -119,7 +119,7 @@ export function NewIssue({ onCreated }: { onCreated(): void }) {
   const start = () => {
     setOpen(true)
     setChosen(null)
-    api.github.templates().then(
+    queryClient.fetchQuery(queries.gh.templates()).then(
       (found) => {
         setTemplates(found.issue)
         if (!found.issue.length) pick('blank')

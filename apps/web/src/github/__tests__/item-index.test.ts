@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fakeApi } from '../../test/fake-api'
-import { createItemIndex } from '../item-index'
+import { readIndex } from '../item-index'
 
 const item = (number: number, title: string) => ({
   number,
@@ -22,36 +22,27 @@ const item = (number: number, title: string) => ({
 })
 
 describe('item index', () => {
-  beforeEach(() => window.localStorage.clear())
-
-  it('reads every open item and recent closed ones, saves them, and shows the saved list on the next start', async () => {
+  it('reads every open item and the recent closed ones, pull requests first', async () => {
     const list = vi.fn(async (query: { kind: 'pr' | 'issue'; state?: 'open' | 'closed' }) => ({
-      items: query.state === 'open' ? [item(query.kind === 'pr' ? 7 : 3, `${query.kind} open`)] : [],
+      items: query.state === 'open' ? [item(query.kind === 'pr' ? 7 : 3, `${query.kind} open`)] : [item(1, 'closed')],
       total: 1,
       cursor: null,
     }))
     const api = fakeApi()
-    const index = createItemIndex({ ...api, github: { ...api.github, list } })
-    index.open('o/r')
-    await index.refresh()
-    expect(index.get().items.map((entry) => `${entry.kind}#${entry.number}`)).toEqual(['pr#7', 'issue#3'])
-
-    // A restart shows the saved list straight away, before GitHub answers.
-    const never = vi.fn(() => new Promise<never>(() => {}))
-    const restarted = createItemIndex({ ...api, github: { ...api.github, list: never } })
-    restarted.open('o/r')
-    expect(restarted.get().items.map((entry) => entry.title)).toEqual(['pr open', 'issue open'])
-    expect(restarted.get().readAt).toBe(0)
+    const items = await readIndex({ ...api, github: { ...api.github, list } })
+    expect(items.map((entry) => `${entry.kind}#${entry.number}`)).toEqual(['pr#7', 'pr#1', 'issue#3', 'issue#1'])
+    expect(items[0]?.author).toBe('octo')
   })
 
-  it('skips a read while the last one is fresh enough', async () => {
-    const list = vi.fn(async () => ({ items: [], total: 0, cursor: null }))
+  it('follows the cursor for open items, up to three pages', async () => {
+    const list = vi.fn(async (query: { state?: 'open' | 'closed'; after?: string }) => ({
+      items: [],
+      total: 0,
+      cursor: query.state === 'open' ? `next${query.after ?? ''}` : null,
+    }))
     const api = fakeApi()
-    const index = createItemIndex({ ...api, github: { ...api.github, list } })
-    index.open('o/r')
-    await index.refresh()
-    const calls = list.mock.calls.length
-    await index.refresh(60_000)
-    expect(list.mock.calls.length).toBe(calls)
+    await readIndex({ ...api, github: { ...api.github, list } })
+    // Three open pages and one closed page, for each kind.
+    expect(list).toHaveBeenCalledTimes(8)
   })
 })

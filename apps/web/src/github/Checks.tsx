@@ -1,11 +1,14 @@
 import type { CheckRun } from '@duck-diff/protocol'
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { CircleCheck, CircleDashed, CircleMinus, CircleX, RotateCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 
 type Outcome = 'passed' | 'failed' | 'running' | 'skipped'
+
+const NO_RUNS: CheckRun[] = []
 
 export function outcome(run: CheckRun): Outcome {
   if (run.status !== 'completed') return 'running'
@@ -32,19 +35,9 @@ function summary(runs: CheckRun[]): { look: Outcome; text: string } {
 }
 
 export function Checks({ number }: { number: number }) {
-  const { api } = useApp()
-  const [runs, setRuns] = useState<CheckRun[] | null>(null)
-
-  useEffect(() => {
-    let alive = true
-    api.github.checks(number).then(
-      (next) => alive && setRuns(next),
-      () => alive && setRuns([]),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, number])
+  const { queries } = useApp()
+  const { data, isError } = useQuery(queries.gh.checks(number))
+  const runs = isError ? NO_RUNS : (data ?? null)
 
   if (!runs?.length) return null
   const { look, text } = summary(runs)
@@ -85,18 +78,9 @@ export function Checks({ number }: { number: number }) {
 
 // Every run on the head commit, for the pull request's Checks tab.
 export function ChecksList({ number }: { number: number }) {
-  const { api } = useApp()
-  const [runs, setRuns] = useState<CheckRun[] | null>(null)
-  useEffect(() => {
-    let alive = true
-    api.github.checks(number).then(
-      (next) => alive && setRuns(next),
-      () => alive && setRuns([]),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, number])
+  const { queries } = useApp()
+  const { data, isError } = useQuery(queries.gh.checks(number))
+  const runs = isError ? NO_RUNS : (data ?? null)
   if (!runs) return <p className="p-4 text-muted-foreground">Reading checks...</p>
   if (!runs.length) return <p className="p-4 text-muted-foreground">No checks ran on this pull request.</p>
   const { text } = summary(runs)
@@ -114,15 +98,14 @@ export function ChecksList({ number }: { number: number }) {
 
 // A failed Actions job opens to the end of its log and can run again, as on GitHub's Checks tab.
 function CheckRow({ run }: { run: CheckRun }) {
-  const { api } = useApp()
-  const [log, setLog] = useState<string | null>(null)
+  const { api, queries } = useApp()
   const [open, setOpen] = useState(false)
+  const { data: text, error } = useQuery({ ...queries.gh.jobLog(run.jobId ?? 0), enabled: open && run.jobId !== null })
+  const log = error ? `Could not read the log: ${error.message}` : (text ?? null)
   const state = LOOK[outcome(run)]
   const failed = outcome(run) === 'failed'
   const toggle = () => {
     setOpen(!open)
-    if (!open && log === null && run.jobId !== null)
-      api.github.jobLog(run.jobId).then(setLog, (error: Error) => setLog(`Could not read the log: ${error.message}`))
   }
   return (
     <li className="border-border border-b last:border-b-0">

@@ -1,5 +1,6 @@
 import type { SymbolHit } from '@duck-diff/protocol'
 import { Input, Skeleton } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
@@ -9,14 +10,11 @@ import { openFile } from '../files/open-file'
 import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
 import { fileGlyph } from '../sidebar/icons'
-import { type Found, loadSymbol, sourceLabel } from './load-symbol'
+import { sourceLabel } from './load-symbol'
 import type { SymbolTarget } from './symbol-at'
 
 type Symbol = SymbolTarget | null
 
-// Clicking back and forth between a few names answers from here instead of searching again.
-const RECENT_MS = 30_000
-const recent = new Map<string, { at: number; result: Found }>()
 const selectSymbol = (value: Symbol) => value
 
 const SECTIONS: { kind: SymbolHit['kind']; title: string }[] = [
@@ -90,38 +88,17 @@ const PANEL = { key: 'duck-diff:symbol-panel-width', initial: 384, min: 280, max
 
 export function SymbolPanel() {
   const app = useApp()
-  const { api, symbol } = app
+  const { symbol, queries } = app
   const current = useStore(symbol, selectSymbol)
   const { show } = useView()
-  const [result, setResult] = useState<Found | null>(null)
   const [width, setWidth] = useStoredWidth(PANEL)
-  const [failed, setFailed] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   useHighlight(current?.name ?? null)
-
-  useEffect(() => {
-    setResult(null)
-    setFailed(null)
-    setFilter('')
-    if (!current) return
-    const key = `${current.name}|${current.ref ?? ''}|${current.at ? `${current.at.path}:${current.at.line}:${current.at.column}` : ''}`
-    const cached = recent.get(key)
-    if (cached && Date.now() - cached.at < RECENT_MS) {
-      setResult(cached.result)
-      return
-    }
-    let alive = true
-    loadSymbol(api, current).then(
-      (next) => {
-        recent.set(key, { at: Date.now(), result: next })
-        if (alive) setResult(next)
-      },
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, current])
+  const found = useQuery({ ...queries.git.symbol(current ?? { name: '', ref: null }), enabled: current !== null })
+  const result = current ? (found.data ?? null) : null
+  const failed = found.error ? found.error.message : null
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new name starts with no filter
+  useEffect(() => setFilter(''), [current])
 
   useEffect(() => {
     if (!current) return

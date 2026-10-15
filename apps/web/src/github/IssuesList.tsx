@@ -15,14 +15,13 @@ export function IssueIcon({ state }: { state: IssueSummary['state'] }) {
   )
 }
 
-export function IssuesList({ version, onChanged }: { version: number; onChanged(): void }) {
+export function IssuesList({ onChanged }: { onChanged(): void }) {
   const { api, issueSelection } = useApp()
   return (
     <ItemList
       kind="issue"
       label="Issues"
       selection={issueSelection}
-      version={version}
       actions={<NewIssue onCreated={onChanged} />}
       menuFor={(issue, reload) => (
         <ContextMenuItem

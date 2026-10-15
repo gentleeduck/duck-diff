@@ -1,7 +1,7 @@
-import type { ChangedFile, CommitDetails } from '@duck-diff/protocol'
 import { Button, Separator } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { Check, Copy, FileDiff, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useTarget } from '../hooks/useTarget'
@@ -10,31 +10,15 @@ import { fileGlyph, STATUS_MARK } from '../sidebar/icons'
 import { relativeTime } from '../sidebar/relative-time'
 import { CommitActions } from './CommitActions'
 
-interface Loaded {
-  details: CommitDetails
-  files: ChangedFile[]
-}
-
 export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) {
-  const { api, graphSelection, diffFile } = useApp()
+  const { graphSelection, diffFile, queries } = useApp()
   const { navigate } = useTarget()
   const { show } = useView()
-  const [loaded, setLoaded] = useState<Loaded | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
+  const details = useQuery(queries.git.commit(sha))
+  const files = useQuery(queries.git.commitFiles(sha))
+  const loaded = details.data && files.data ? { details: details.data, files: files.data } : null
+  const failed = (details.error ?? files.error)?.message ?? null
   const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    let alive = true
-    setLoaded(null)
-    setFailed(null)
-    Promise.all([api.commit(sha), api.files({ kind: 'commit', sha })]).then(
-      ([details, files]) => alive && setLoaded({ details, files }),
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, sha])
 
   // The whole commit opens, scrolled to the file clicked, so it reads with the rest of what the commit did.
   const openChanges = (path?: string) => {

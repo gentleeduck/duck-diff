@@ -178,7 +178,7 @@ describe('GitHub views', () => {
     await waitFor(() =>
       expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'pr', query: 'label:bug' })),
     )
-    expect(screen.getByText('· Approved')).toBeTruthy()
+    expect(await screen.findByText('· Approved')).toBeTruthy()
   })
 
   it('filters by author and label from the header menus, writing them into the search', async () => {

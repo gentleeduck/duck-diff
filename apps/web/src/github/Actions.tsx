@@ -10,6 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import {
   CircleCheck,
   CircleDashed,
@@ -20,7 +21,7 @@ import {
   RotateCcw,
   SquareArrowOutUpRight,
 } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
@@ -29,7 +30,6 @@ import { Avatar } from './Conversation'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
-import { useLive } from './useLive'
 
 const SKELETONS = ['a', 'b', 'c', 'd', 'e']
 
@@ -46,34 +46,18 @@ export function runState(run: Pick<WorkflowRun, 'status' | 'conclusion'>): { ico
 }
 
 export function Actions() {
-  const { api } = useApp()
+  const { api, queries } = useApp()
   const ready = isReady(useGitHub())
   const page = useRef<HTMLDivElement>(null)
   useScrollMemory(page, ready ? 'actions' : null)
-  const [items, setItems] = useState<WorkflowRun[] | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
-
-  const load = useCallback(
-    () =>
-      api.github.runs().then(
-        (found) => {
-          setItems(found)
-          setFailed(null)
-        },
-        (error: Error) => setFailed(error.message),
-      ),
-    [api],
-  )
-  useEffect(() => {
-    if (ready) void load()
-  }, [ready, load])
-  useLive('runs', load)
+  const { data: items = null, error, refetch } = useQuery({ ...queries.gh.runs(), enabled: ready })
+  const failed = error ? error.message : null
 
   const act = async (run: WorkflowRun, action: 'rerun' | 'rerun-failed' | 'cancel') => {
     try {
       await api.github.runAction(run.id, action)
       toast(action === 'cancel' ? `Cancelling ${run.name}` : `Re-running ${run.name}`)
-      await load()
+      await refetch()
     } catch (error) {
       toast.error((error as Error).message)
     }
@@ -86,7 +70,7 @@ export function Actions() {
         <div className="rounded-md border border-border">
           <div className="flex items-center gap-2 border-border border-b bg-card px-4 py-1">
             <span className="flex-1">{items ? `${items.length} workflow runs` : 'Workflow runs'}</span>
-            <IconTool label="Reload workflow runs" onClick={() => void load()}>
+            <IconTool label="Reload workflow runs" onClick={() => void refetch()}>
               <RefreshCw />
             </IconTool>
           </div>

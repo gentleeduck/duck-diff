@@ -1,5 +1,5 @@
-import type { PullCommit, PullDetails } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft,
   Copy,
@@ -16,7 +16,7 @@ import {
   MessageSquare,
   SquareArrowOutUpRight,
 } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
@@ -38,7 +38,6 @@ import { StatePill } from './StatePill'
 import { ThreadMenu } from './ThreadMenu'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
-import { useLive } from './useLive'
 import { EditTitleButton, ThreadTitle, useThread } from './useThread'
 
 const Viewer = lazy(() => import('../viewer/Viewer'))
@@ -94,18 +93,9 @@ function TabButton({
 }
 
 function Commits({ number }: { number: number }) {
-  const { api, graphSelection } = useApp()
-  const [commits, setCommits] = useState<PullCommit[] | null>(null)
-  useEffect(() => {
-    let alive = true
-    api.github.pullCommits(number).then(
-      (next) => alive && setCommits(next),
-      () => alive && setCommits([]),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, number])
+  const { queries, graphSelection } = useApp()
+  const { data: commits, isError } = useQuery(queries.gh.pullCommits(number))
+  if (isError) return <p className="p-4 text-removed">Could not read the commits.</p>
   if (!commits) return <p className="p-4 text-muted-foreground">Reading commits...</p>
   return (
     <ul className="rounded-md border border-border">
@@ -166,10 +156,10 @@ function Files({ number }: { number: number }) {
 const selectTab = (tab: PullTab) => tab
 
 export default function PullView({ number, onChanged }: { number: number; onChanged(): void }) {
-  const { api, pullSelection } = useApp()
+  const { api, pullSelection, queries, queryClient } = useApp()
   const github = useGitHub()
-  const [pull, setPull] = useState<PullDetails | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
+  const { data: pull, error } = useQuery(queries.gh.pull(number))
+  const failed = error ? error.message : null
   const [busy, setBusy] = useState<string | null>(null)
   const { pullTab, diffFile } = useApp()
   const tab = useStore(pullTab, selectTab)
@@ -182,24 +172,6 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   }, [pullReview, number])
   const page = useRef<HTMLElement>(null)
 
-  const load = useCallback(
-    (alive: () => boolean = () => true) =>
-      api.github.pull(number).then(
-        (next) => alive() && setPull(next),
-        (error: Error) => alive() && setFailed(error.message),
-      ),
-    [api, number],
-  )
-
-  useEffect(() => {
-    let alive = true
-    void load(() => alive)
-    return () => {
-      alive = false
-    }
-  }, [load])
-
-  useLive(`item:${number}`, () => Promise.all([api.github.pull(number).then(setPull, () => {}), reloadThread(true)]))
   // The conversation is ready once its thread has read; the other tabs carry their own heights.
   useScrollMemory(page, pull && (tab !== 'conversation' || thread) ? `pull:${number}:${tab}` : null)
 
@@ -208,7 +180,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
     try {
       await task()
       toast(done)
-      await Promise.all([load(), reloadThread()])
+      await reloadThread()
       onChanged()
       return true
     } catch (error) {
@@ -250,12 +222,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
 
   const _review = (event: ReviewEvent, body: string, clear: () => void, done: string) =>
     act(event, () => api.github.review(number, event, body).then(clear), done)
-  const refreshAll = async () => {
-    await Promise.all([load(), reloadThread()])
-    onChanged()
-  }
   const reload = () => {
-    void load()
     void reloadThread()
     onChanged()
   }
@@ -425,7 +392,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
                 <Comment author={pull.author} createdAt={pull.createdAt} body={pull.body} />
               )}
               {pull.state === 'open' ? (
-                <MergeBox pull={pull} repo={github.status?.repo ?? ''} onChanged={() => refreshAll()} />
+                <MergeBox pull={pull} repo={github.status?.repo ?? ''} onChanged={reload} />
               ) : null}
               {pull.merged && pull.sameRepo ? (
                 <section
@@ -488,13 +455,13 @@ export default function PullView({ number, onChanged }: { number: number; onChan
               milestone={pull.milestone}
               number={number}
               actions={sidebarActions({
-                api,
+                app: { api, queries, queryClient },
                 number,
                 assignees: pull.assignees,
                 labels: pull.labels,
                 milestone: pull.milestone,
                 reviewers: pull.reviewers,
-                reload: () => void load(),
+                reload,
               })}
             />
           </div>

@@ -1,23 +1,17 @@
 import type { Remote } from '@duck-diff/protocol'
+import { useQuery } from '@tanstack/react-query'
 import { Download, Plus, Tags, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { IconTool } from '../app/IconTool'
 import { useGit } from '../git/GitProvider'
-import { useRefs } from '../hooks/useRefs'
 
 // The repo's remotes, reread whenever the refs change (a fetch, an add, a remove).
+const NO_REMOTES: Remote[] = []
 export function Remotes() {
-  const { api } = useApp()
+  const { queries } = useApp()
   const { run } = useGit()
-  const { refs } = useRefs()
-  const [remotes, setRemotes] = useState<Remote[]>([])
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refs only signal that something changed
-  useEffect(() => {
-    api.remotes().then(setRemotes, () => setRemotes([]))
-  }, [api, refs])
+  const remotes = useQuery(queries.git.remotes()).data ?? NO_REMOTES
 
   const add = async () => {
     const values = await ask.prompt({

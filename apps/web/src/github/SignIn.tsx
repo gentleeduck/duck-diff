@@ -1,23 +1,32 @@
 import { Button, Input, Kbd } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { useApp } from '../app/AppProvider'
-import { useStore } from '../lib/store'
 import { type GitHubState, isReady } from './store'
 
-const selectState = (state: GitHubState) => state
-
 export function useGitHub(): GitHubState {
-  const { github } = useApp()
-  const state = useStore(github, selectState)
-  useEffect(() => {
-    void github.load()
-  }, [github])
-  return state
+  const { queries } = useApp()
+  const { data, isFetching, error } = useQuery(queries.gh.status())
+  return { status: data ?? null, loading: isFetching, error: error ? error.message : null }
+}
+
+// Signing in answers with the new status; checking again reads it fresh.
+function useSignIn() {
+  const { api, queries, queryClient } = useApp()
+  const key = queries.gh.status().queryKey
+  return {
+    signIn: (token: string) =>
+      api.github.signIn(token).then(
+        (status) => queryClient.setQueryData(key, status),
+        () => queryClient.invalidateQueries({ queryKey: key }),
+      ),
+    check: () => queryClient.invalidateQueries({ queryKey: key }),
+  }
 }
 
 function SignInPanel({ state }: { state: GitHubState }) {
-  const { github } = useApp()
+  const github = useSignIn()
   const [token, setToken] = useState('')
   const noRemote = state.status !== null && state.status.repo === null
 
@@ -54,7 +63,7 @@ function SignInPanel({ state }: { state: GitHubState }) {
         variant="outline"
         className="self-start"
         loading={state.loading}
-        onClick={() => void github.load(true)}>
+        onClick={() => void github.check()}>
         <RefreshCw />
         Check again
       </Button>

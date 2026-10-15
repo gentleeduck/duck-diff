@@ -11,8 +11,9 @@ import {
   Label,
   Skeleton,
 } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { Plus, RefreshCw, SquareArrowOutUpRight, Tag } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
@@ -192,27 +193,13 @@ function NewRelease({ onCreated }: { onCreated(): void }) {
 }
 
 export function Releases() {
-  const { api } = useApp()
+  const { queries } = useApp()
   const ready = isReady(useGitHub())
   const page = useRef<HTMLDivElement>(null)
   useScrollMemory(page, ready ? 'releases' : null)
-  const [items, setItems] = useState<Release[] | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
-
-  const load = useCallback(
-    () =>
-      api.github.releases().then(
-        (found) => {
-          setItems(found)
-          setFailed(null)
-        },
-        (error: Error) => setFailed(error.message),
-      ),
-    [api],
-  )
-  useEffect(() => {
-    if (ready) void load()
-  }, [ready, load])
+  const { data: items = null, error, refetch } = useQuery({ ...queries.gh.releases(), enabled: ready })
+  const failed = error ? error.message : null
+  const load = () => void refetch()
 
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see releases.</p>
   return (

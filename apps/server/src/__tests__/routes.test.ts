@@ -34,6 +34,15 @@ describe('auth', () => {
     expect(response.headers.get('set-cookie')).toContain('HttpOnly')
   })
 
+  it('tells the page which repo it shows, for its per-repo cache', async () => {
+    await edited()
+    const response = await fetch(`http://127.0.0.1:${fixture.server.port}/?token=${fixture.server.token}`)
+    const cookies = response.headers.getSetCookie()
+    const repo = cookies.find((cookie) => cookie.startsWith(`duck_diff_repo_${fixture.server.port}=`))
+    expect(repo).toMatch(/=[\w-]{6,};/)
+    expect(repo).not.toContain('HttpOnly')
+  })
+
   it('binds to localhost only', async () => {
     await edited()
     expect(fixture.server.url.startsWith('http://127.0.0.1:')).toBe(true)

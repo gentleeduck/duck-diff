@@ -1,10 +1,9 @@
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
 import type { SymbolTarget } from '../code-nav/symbol-at'
 import type { DiffViewHandle } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
-import { createItemIndex, type ItemIndex } from '../github/item-index'
 import { createPullReview, type PullReview } from '../github/pull-review'
-import { createGitHub, type GitHub, isReady } from '../github/store'
 import { createGraph, type Graph } from '../graph/store'
 import { createKeyOverrides, createKeyState, type KeyOverrides, type KeyState } from '../keys/state'
 import { type Api, createApi } from '../lib/api'
@@ -13,6 +12,10 @@ import { readTarget } from '../lib/target-url'
 import { type PullTab, readView, type View } from '../lib/view-url'
 import { createJobs, type Jobs } from '../panel/jobs'
 import { createPanel, type Panel } from '../panel/panel'
+import { invalidateTopic } from '../query/client'
+import { type GitQueries, gitQueries } from '../query/git'
+import { type GitHubQueries, githubQueries } from '../query/github'
+import { QueryProvider } from '../query/QueryProvider'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
@@ -48,7 +51,6 @@ export interface AppContextValue {
   fileAt: Store<string | null>
   // The name clicked in code, whose definitions and uses the symbol panel lists.
   symbol: Store<SymbolTarget | null>
-  github: GitHub
   // The pull request and issue open in their views.
   pullSelection: Store<number | null>
   issueSelection: Store<number | null>
@@ -64,11 +66,12 @@ export interface AppContextValue {
   diffTop: Store<string | null>
   // The diffs open side by side above the viewer; the first is always the working tree.
   tabs: Tabs
-  // Every pull request and issue, saved per repo, for the palette's search.
-  items: ItemIndex
   // GitHub's review threads for the pull request the diff shows.
   pullReview: PullReview
   viewer: RefObject<DiffViewHandle | null>
+  // Every read as a TanStack Query, by source, and the cache they share for reads made outside a component.
+  queries: { gh: GitHubQueries; git: GitQueries }
+  queryClient: QueryClient
   // The git actions run from any page, with their commands and output.
   jobs: Jobs
   // The bottom panel: output and terminals.
@@ -82,15 +85,29 @@ export interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null)
 
-export function AppProvider({ api, children }: { api?: Api; children: ReactNode }) {
+// persist: the real page keeps answers between reloads (QueryProvider); tests start empty.
+export function AppProvider({ api, persist, children }: { api?: Api; persist?: boolean; children: ReactNode }) {
+  return (
+    <QueryProvider persist={persist}>
+      <AppState api={api}>{children}</AppState>
+    </QueryProvider>
+  )
+}
+
+function AppState({ api, children }: { api?: Api; children: ReactNode }) {
   const viewer = useRef<DiffViewHandle | null>(null)
+  const queryClient = useQueryClient()
   const value = useMemo(() => {
     const client = api ?? createApi()
     const session = createSession(client, readTarget(window.location.search))
+    const queries = { gh: githubQueries(client), git: gitQueries(client) }
     return {
       api: client,
       session,
-      refs: createRefs(client, session),
+      refs: createRefs(client, session, {
+        refs: () => queryClient.fetchQuery(queries.git.refs()),
+        commits: () => queryClient.fetchQuery(queries.git.commits({ head: 'HEAD', limit: 50 })),
+      }),
       stage: createStage(client, session),
       settings: createSettingsStore(),
       reviews: createReviews(client),
@@ -105,7 +122,6 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       fileAt: createStore<string | null>(null),
       symbol: createStore<SymbolTarget | null>(null),
       changesFolders: createStore<ReadonlySet<string>>(new Set()),
-      github: createGitHub(client),
       pullSelection: createStore<number | null>(null),
       issueSelection: createStore<number | null>(null),
       pullTab: createStore<PullTab>('conversation'),
@@ -114,16 +130,21 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       diffTop: createStore<string | null>(null),
       blameFiles: createStore<ReadonlySet<string>>(new Set()),
       tabs: createTabs(readTarget(window.location.search)),
-      pullReview: createPullReview(client),
-      items: createItemIndex(client),
+      pullReview: createPullReview(client, {
+        pull: (number) => queryClient.fetchQuery(queries.gh.pull(number)),
+        reviewState: (number) => queryClient.fetchQuery(queries.gh.reviewState(number)),
+        changed: (number) => invalidateTopic(queryClient, `item:${number}`),
+      }),
       viewer,
+      queries,
+      queryClient,
       jobs: createJobs(client),
       panel: createPanel(),
       terminalTabs: createTerminalTabs(client),
       keys: createKeyState(),
       keyOverrides: createKeyOverrides(),
     }
-  }, [api])
+  }, [api, queryClient])
 
   useEffect(() => {
     value.jobs.load().catch(() => {})
@@ -161,17 +182,6 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       // Language servers start with the page, so the first go-to-definition is answered by a warm one.
       value.api.lsp.warm(files.slice(0, 50).map((file) => file.path)).catch(() => {})
     })
-  }, [value])
-
-  // The saved pull requests and issues show as soon as the repo is known, then refresh from GitHub.
-  useEffect(() => {
-    const { github, items } = value
-    const sync = () => {
-      const state = github.get()
-      if (isReady(state) && state.status?.repo) items.open(state.status.repo)
-    }
-    sync()
-    return github.subscribe(sync)
   }, [value])
 
   // Comments belong to a target, so they follow the session to whatever comparison it loads.

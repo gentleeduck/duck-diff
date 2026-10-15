@@ -1,17 +1,19 @@
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { presets } from '../compare/model'
 import { openFile } from '../files/open-file'
 import { useGit } from '../git/GitProvider'
 import { IssueIcon } from '../github/IssuesList'
-import type { IndexedItem, ItemIndexState } from '../github/item-index'
+import type { IndexedItem } from '../github/item-index'
 import { PullIcon } from '../github/PullsList'
+import { useGitHub } from '../github/SignIn'
+import { isReady } from '../github/store'
 import { useRefs } from '../hooks/useRefs'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
-import { useStore } from '../lib/store'
 import type { View } from '../lib/view-url'
 import { fileGlyph } from '../sidebar/icons'
 import type { SessionState } from '../state/session'
@@ -22,9 +24,9 @@ import { Preview, type PreviewTarget } from './Preview'
 import { parseSearch, rank } from './rank'
 
 const selectFiles = (state: SessionState) => state.files
-const selectItems = (state: ItemIndexState) => state.items
 // The saved list is read again when the palette opens and it is older than this.
-const STALE_MS = 60_000
+const NO_ITEMS: IndexedItem[] = []
+const NO_PATHS: string[] = []
 
 type Toggle = { label: string; apply(prev: Settings): Settings }
 
@@ -130,9 +132,10 @@ export function Palette({
   initial?: string
 }) {
   const app = useApp()
-  const { api, settings, diffFile, pullSelection, issueSelection, items } = app
+  const { settings, diffFile, pullSelection, issueSelection } = app
   const changed = useSession(selectFiles)
-  const indexed = useStore(items, selectItems)
+  const ready = isReady(useGitHub())
+  const indexed = useQuery({ ...app.queries.gh.index(), enabled: open && ready }).data ?? NO_ITEMS
   const { view, show } = useView()
   const git = useGit()
   const { navigate } = useTarget()
@@ -140,22 +143,19 @@ export function Palette({
   const writes = useWrites()
   const [input, setInput] = useState('')
   const [active, setActive] = useState('')
-  const [tree, setTree] = useState<string[] | null>(null)
+  // Every file in the repo, read as the palette opens so file: has them by the first keystroke.
+  const files = useQuery({ ...app.queries.git.tree(), enabled: open })
+  const tree = files.data ?? (files.isError ? NO_PATHS : null)
   // Ranking runs on a deferred copy, so typing never waits for a large repo's file list.
   const { scope, term } = parseSearch(useDeferredValue(input))
 
   useEffect(() => {
     if (!open) return
     setInput(initial)
-    void items.refresh(STALE_MS)
-  }, [open, items, initial])
+  }, [open, initial])
   useEffect(() => {
     if (input) lastSearch = input
   }, [input])
-  // Every file in the repo, read as the palette opens so file: has them by the first keystroke.
-  useEffect(() => {
-    if (open && tree === null) api.tree().then(setTree, () => setTree([]))
-  }, [open, tree, api])
 
   // Read through a ref so the result list below is rebuilt only when what it shows changes.
   const latest = useRef({ onOpenChange, pullSelection, issueSelection })

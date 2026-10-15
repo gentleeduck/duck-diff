@@ -1,4 +1,4 @@
-import type { PlanCommit, RebaseAction } from '@duck-diff/protocol'
+import type { RebaseAction } from '@duck-diff/protocol'
 import {
   Button,
   Dialog,
@@ -14,6 +14,7 @@ import {
   SelectValue,
   Skeleton,
 } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, GripVertical } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
@@ -32,30 +33,18 @@ const TONE: Record<RebaseAction, string> = {
 
 // Git's rebase todo as a list: drag or move commits to reorder them and pick what happens to each.
 export function RebaseDialog({ base, onClose }: { base: string | null; onClose(): void }) {
-  const { api } = useApp()
+  const { queries } = useApp()
   const { run, busy } = useGit()
-  const [commits, setCommits] = useState<PlanCommit[] | null>(null)
+  const plan = useQuery({ ...queries.git.rebasePlan(base ?? ''), enabled: Boolean(base) })
+  const commits = plan.data ?? null
+  const failed = plan.error ? plan.error.message : null
   const [rows, setRows] = useState<PlanRow[]>([])
-  const [failed, setFailed] = useState<string | null>(null)
   const [dragging, setDragging] = useState<number | null>(null)
 
+  // The rows start as the plan and are the user's to edit from there.
   useEffect(() => {
-    setCommits(null)
-    setFailed(null)
-    if (!base) return
-    let alive = true
-    api.rebasePlan(base).then(
-      (next) => {
-        if (!alive) return
-        setCommits(next)
-        setRows(toRows(next))
-      },
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, base])
+    if (plan.data) setRows(toRows(plan.data))
+  }, [plan.data])
 
   const update = (index: number, patch: Partial<PlanRow>) =>
     setRows((now) => now.map((row, at) => (at === index ? { ...row, ...patch } : row)))

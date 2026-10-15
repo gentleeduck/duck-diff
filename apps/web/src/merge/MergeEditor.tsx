@@ -1,5 +1,6 @@
 import type { ConflictBlock, ConflictFile } from '@duck-diff/protocol'
 import { Badge, Button, Skeleton, Textarea } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftToLine, ArrowRightToLine, Check, ChevronsUpDown, ExternalLink, Pencil, RotateCcw } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
@@ -335,28 +336,15 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
 // both, the base, or a hand edit, and Mark resolved writes the result and stages it.
 export default function MergeEditor() {
   const app = useApp()
-  const { api, mergeFile, stage } = app
+  const { mergeFile, stage, queries } = app
   const { show } = useView()
   const path = useStore(mergeFile, selectPath)
   const conflictKey = useStore(stage, selectConflicts)
-  const [file, setFile] = useState<ConflictFile | null | undefined>(undefined)
-  const [failed, setFailed] = useState<string | null>(null)
   useEffect(() => stage.load(), [stage])
   const shown = path ?? conflictKey.split('\n')[0] ?? null
-
-  useEffect(() => {
-    setFile(undefined)
-    setFailed(null)
-    if (!shown) return
-    let alive = true
-    api.conflict(shown).then(
-      (next) => alive && setFile(next),
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, shown])
+  const conflict = useQuery({ ...queries.git.conflict(shown ?? ''), enabled: Boolean(shown) })
+  const file = conflict.data
+  const failed = conflict.error ? conflict.error.message : null
 
   const after = useMemo(
     () => () => {

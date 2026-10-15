@@ -1,27 +1,20 @@
 import type { ChangedFile, PlanCommit } from '@duck-diff/protocol'
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useApp } from '../app/AppProvider'
 import { relativeTime } from '../sidebar/relative-time'
 
 const SHOWN = 8
 const short = (sha: string | null) => (sha ? sha.slice(0, 7) : '')
+const NO_LOG: PlanCommit[] = []
 
 // A submodule change is one pointer moving, so it reads as old to new commit with the commits between.
 export function SubmoduleSummary({ file }: { file: ChangedFile }) {
-  const { api } = useApp()
-  const [log, setLog] = useState<PlanCommit[] | null>(null)
-  useEffect(() => {
-    setLog(null)
-    if (!file.newSha) return
-    let alive = true
-    api.submoduleLog(file.path, file.oldSha, file.newSha).then(
-      (next) => alive && setLog(next),
-      () => alive && setLog([]),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, file.path, file.oldSha, file.newSha])
+  const { queries } = useApp()
+  const read = useQuery({
+    ...queries.git.submoduleLog(file.path, file.oldSha, file.newSha ?? ''),
+    enabled: Boolean(file.newSha),
+  })
+  const log = read.isError ? NO_LOG : (read.data ?? null)
 
   let headline: string
   if (!file.oldSha) headline = `Submodule added at ${short(file.newSha)}`

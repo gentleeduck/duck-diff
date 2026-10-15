@@ -12,6 +12,7 @@ import type { RowContextValue } from '../diff/RowViews'
 import type { DiffLine, DiffRow } from '../diff/rows'
 import { openFile } from '../files/open-file'
 import { type PullReviewState, pullOf } from '../github/pull-review'
+import { useCanOpen } from '../hooks/useCanOpen'
 import { hasScrollMemory } from '../hooks/useScrollMemory'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
@@ -145,6 +146,8 @@ export default function Viewer() {
     diffTop,
     keys,
     blameFiles,
+    queries,
+    queryClient,
   } = useApp()
   const { show } = useView()
   const plain = useSession(selectItems)
@@ -225,13 +228,13 @@ export default function Viewer() {
         if (blames.has(key)) continue
         setBlames((prev) => new Map(prev).set(key, at ? null : []))
         if (!at) continue
-        api.blame(blamedPath, at.ref, at.mergeBase).then(
+        queryClient.fetchQuery(queries.git.blame(blamedPath, at.ref, at.mergeBase)).then(
           (lines) => setBlames((prev) => new Map(prev).set(key, lines)),
           () => setBlames((prev) => new Map(prev).set(key, [])),
         )
       }
     }
-  }, [blamed, blames, setBlames, api, target, byPath])
+  }, [blamed, blames, setBlames, queries, queryClient, target, byPath])
 
   const layout = settings.diffStyle === 'split' ? 'split' : 'unified'
   const page = useMemo(
@@ -565,14 +568,7 @@ export default function Viewer() {
     ],
   )
 
-  // Only a server started from Neovim can open files there, so the button follows repo info.
-  const [canOpen, setCanOpen] = useState(false)
-  useEffect(() => {
-    api.repo().then(
-      (info) => setCanOpen(info.nvim),
-      () => {},
-    )
-  }, [api])
+  const canOpen = useCanOpen()
 
   // Folding a file read halfway brings its header back to the top, with the next file right after it.
   const revealFile = useCallback((id: string) => requestAnimationFrame(() => viewer.current?.reveal(id)), [viewer])

@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
   Skeleton,
 } from '@duck-diff/ui'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { Check, ChevronDown, CircleDot, Copy, FileText, RefreshCw, Search, SquareArrowOutUpRight } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -23,15 +24,12 @@ import type { Store } from '../lib/store'
 import { ListFilters } from './ListFilters'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
-import { useLive } from './useLive'
 
 interface Props {
   kind: ListQuery['kind']
   label: string
   selection: Store<number | null>
   row(item: ListItem): ReactNode
-  // Bumped by the page after it changes an item, so the list shows the new state.
-  version?: number
   actions?: ReactNode
   // Extra right-click items, above the shared open and copy ones.
   menuFor?(item: ListItem, reload: () => void): ReactNode
@@ -51,8 +49,8 @@ async function copy(text: string, what: string) {
   toast(`Copied the ${what}`)
 }
 
-export function ItemList({ kind, label, selection, row, version = 0, actions, menuFor }: Props) {
-  const { api } = useApp()
+export function ItemList({ kind, label, selection, row, actions, menuFor }: Props) {
+  const { queries } = useApp()
   const github = useGitHub()
   const ready = isReady(github)
   const [state, setState] = useState<ListQuery['state']>('open')
@@ -60,12 +58,17 @@ export function ItemList({ kind, label, selection, row, version = 0, actions, me
   const [sort, setSort] = useState<ListQuery['sort']>('updated')
   const [typed, setTyped] = useState('')
   const [query, setQuery] = useState('')
-  const [items, setItems] = useState<ListItem[] | null>(null)
-  const [total, setTotal] = useState(0)
-  const [cursor, setCursor] = useState<string | null>(null)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [failed, setFailed] = useState<string | null>(null)
-  const [nonce, setNonce] = useState(0)
+  const list = useInfiniteQuery({ ...queries.gh.list({ kind, state, filter, sort, query }), enabled: ready })
+  // The other state's first page gives its total for the Open / Closed switch, and makes switching instant.
+  const other = useInfiniteQuery({
+    ...queries.gh.list({ kind, state: state === 'open' ? 'closed' : 'open', filter, sort, query }),
+    enabled: ready,
+  })
+  const items = list.data?.pages.flatMap((page) => page.items) ?? null
+  const total = list.data?.pages[0]?.total ?? 0
+  const otherTotal = other.data?.pages[0]?.total ?? null
+  const failed = list.error ? list.error.message : null
+  const loadingMore = list.isFetchingNextPage
   const end = useRef<HTMLDivElement>(null)
   const page = useRef<HTMLDivElement>(null)
   // Waits for the first page of items, so the list is tall enough to land where it was.
@@ -77,79 +80,20 @@ export function ItemList({ kind, label, selection, row, version = 0, actions, me
     return () => clearTimeout(timer)
   }, [typed])
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: version and nonce exist only to trigger a reload
-  useEffect(() => {
-    if (!ready) return
-    let alive = true
-    setFailed(null)
-    setItems(null)
-    api.github.list({ kind, state, filter, sort, query }).then(
-      (page) => {
-        if (!alive) return
-        setItems(page.items)
-        setTotal(page.total)
-        setCursor(page.cursor)
-      },
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [ready, api, kind, state, filter, sort, query, version, nonce])
-
-  const more = useCallback(async () => {
-    if (!cursor || loadingMore) return
-    setLoadingMore(true)
-    try {
-      const page = await api.github.list({ kind, state, filter, sort, query, after: cursor })
-      setItems((prev) => [...(prev ?? []), ...page.items])
-      setCursor(page.cursor)
-    } catch (error) {
-      toast.error((error as Error).message)
-    } finally {
-      setLoadingMore(false)
-    }
-  }, [api, cursor, loadingMore, kind, state, filter, sort, query])
-
   // The next page loads as the end of the list scrolls into view.
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = list
   useEffect(() => {
     const target = end.current
-    if (!target || !cursor) return
+    if (!target || !hasNextPage) return
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) void more()
+      if (entries.some((entry) => entry.isIntersecting) && !isFetchingNextPage) void fetchNextPage()
     })
     observer.observe(target)
     return () => observer.disconnect()
-  }, [cursor, more])
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  const reload = useCallback(() => setNonce((n) => n + 1), [])
-
-  // Quietly swaps in the first page when something changed, keeping the list in place while it reads.
-  useLive(kind === 'pr' ? 'pulls' : 'issues', async () => {
-    if (!ready) return
-    const page = await api.github.list({ kind, state, filter, sort, query }).catch(() => null)
-    if (!page) return
-    setTotal(page.total)
-    setItems((prev) =>
-      prev && prev.length > page.items.length ? [...page.items, ...prev.slice(page.items.length)] : page.items,
-    )
-  })
-
-  // The other state's total, for the Open / Closed switch in the box header.
-  const [otherTotal, setOtherTotal] = useState<number | null>(null)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: version and nonce exist only to trigger a reload
-  useEffect(() => {
-    if (!ready) return
-    let alive = true
-    const other = state === 'open' ? 'closed' : 'open'
-    api.github.list({ kind, state: other, filter, sort, query }).then(
-      (page) => alive && setOtherTotal(page.total),
-      () => alive && setOtherTotal(null),
-    )
-    return () => {
-      alive = false
-    }
-  }, [ready, api, kind, state, filter, sort, query, version, nonce])
+  const refetch = list.refetch
+  const reload = useCallback(() => void refetch(), [refetch])
 
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see {label.toLowerCase()}.</p>
 

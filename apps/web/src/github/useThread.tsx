@@ -1,28 +1,23 @@
-import type { Thread } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { createStore } from '../lib/store'
+import { useRefresh } from '../query/useRefresh'
 
 // The conversation of one pull request or issue, plus a comment draft the timeline can quote into.
 export function useThread(number: number, kind: 'pr' | 'issue') {
-  const { api } = useApp()
-  const [thread, setThread] = useState<Thread | null>(null)
+  const { queries } = useApp()
+  const refresh = useRefresh()
+  const { data: thread = null } = useQuery(queries.gh.thread(number, kind))
   const draft = useMemo(() => createStore(''), [])
-  // A quiet reload (from a poll) keeps the last good thread when GitHub cannot be reached for a moment.
+  // After a change made here: everything about the item is read again, here and in the lists.
   const reload = useCallback(
-    (quiet = false) =>
-      api.github.thread(number, kind).then(setThread, (error: Error) => {
-        if (!quiet) toast.error(`Could not read the conversation: ${error.message}`)
-      }),
-    [api, number, kind],
+    () => refresh(`item:${number}`, kind === 'pr' ? 'pulls' : 'issues'),
+    [refresh, number, kind],
   )
-  useEffect(() => {
-    setThread(null)
-    void reload()
-  }, [reload])
   return { thread, draft, reload }
 }
 

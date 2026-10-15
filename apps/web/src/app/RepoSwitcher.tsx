@@ -8,24 +8,24 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { Check, FolderGit2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import type { RepoEntry } from '../lib/api'
 import { useApp } from './AppProvider'
 
+const NO_REPOS: RepoEntry[] = []
+
 // Every repository opened before, one page each: picking one opens it in its own tab, served by a server
 // this one starts, so each keeps its own history and saved lists.
 export function RepoSwitcher() {
-  const { api } = useApp()
+  const { api, queries } = useApp()
   const [open, setOpen] = useState(false)
-  const [repos, setRepos] = useState<RepoEntry[]>([])
+  const list = useQuery({ ...queries.git.repos(), enabled: open })
+  const repos = list.data ?? NO_REPOS
   const [path, setPath] = useState('')
   const [adding, setAdding] = useState(false)
-
-  useEffect(() => {
-    if (open) api.repos().then(setRepos, () => setRepos([]))
-  }, [api, open])
 
   const go = async (target: string) => {
     const tab = window.open('about:blank', '_blank')
@@ -44,7 +44,7 @@ export function RepoSwitcher() {
     try {
       await api.addRepo(path.trim())
       setPath('')
-      setRepos(await api.repos())
+      await list.refetch()
     } catch (error) {
       toast.error((error as Error).message)
     } finally {
@@ -53,7 +53,7 @@ export function RepoSwitcher() {
   }
   const forget = async (target: string) => {
     await api.removeRepo(target).catch(() => {})
-    setRepos(await api.repos())
+    await list.refetch()
   }
 
   return (

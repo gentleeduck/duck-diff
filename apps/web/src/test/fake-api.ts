@@ -40,7 +40,6 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     terminals: async () => [],
     closeTerminal: async () => {},
     clearCache: async () => {},
-    invalidate: () => {},
     remotes: async () => [],
     lastMessage: async () => '',
     symbols: async (name) => ({ name, hits: [], truncated: false }),

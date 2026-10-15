@@ -16,13 +16,13 @@ const IssueView = lazy(() => import('./IssueView'))
 const selectNumber = (value: number | null) => value
 
 // Like GitHub: the list is a page, and an item opens as its own page with nothing beside it.
-export function PullsPage({ version, onChanged }: { version: number; onChanged(): void }) {
+export function PullsPage({ onChanged }: { onChanged(): void }) {
   const { pullSelection } = useApp()
   const number = useStore(pullSelection, selectNumber)
   return (
     <GitHubGate>
       {number === null ? (
-        <PullsList version={version} onChanged={onChanged} />
+        <PullsList onChanged={onChanged} />
       ) : (
         <PullView key={number} number={number} onChanged={onChanged} />
       )}
@@ -30,13 +30,13 @@ export function PullsPage({ version, onChanged }: { version: number; onChanged()
   )
 }
 
-export function IssuesPage({ version, onChanged }: { version: number; onChanged(): void }) {
+export function IssuesPage({ onChanged }: { onChanged(): void }) {
   const { issueSelection } = useApp()
   const number = useStore(issueSelection, selectNumber)
   return (
     <GitHubGate>
       {number === null ? (
-        <IssuesList version={version} onChanged={onChanged} />
+        <IssuesList onChanged={onChanged} />
       ) : (
         <IssueView key={number} number={number} onChanged={onChanged} />
       )}

@@ -1,11 +1,13 @@
 import type { RepoInfo } from '@duck-diff/protocol'
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { connectEvents, type EventsStatus } from '../lib/events'
 import { pushUrl } from '../lib/history'
 import { writeTarget } from '../lib/target-url'
+import { invalidateTopic, topicsOf, watchedTopics } from '../query/client'
 import { createRefresher } from './refresher'
-import { setTopicSender, topicChanged } from './topics'
+import { setQueryTopics, setTopicSender } from './topics'
 
 export interface LiveState {
   status: EventsStatus
@@ -21,17 +23,32 @@ function eventsUrl(): string {
 export function useLiveRefresh(): LiveState {
   const { api, session, reviews, refs, jobs } = useApp()
   const [state, setState] = useState<LiveState>({ status: 'connecting', repo: null })
+  const client = useQueryClient()
+
+  // The server polls GitHub only for what some page on screen follows.
+  useEffect(() => {
+    const update = () => setQueryTopics(watchedTopics(client))
+    update()
+    return client.getQueryCache().subscribe(update)
+  }, [client])
 
   useEffect(() => {
     const refresher = createRefresher(() => session.reload())
     let build: string | undefined
+    let dropped = false
     const dispose = connectEvents({
       url: eventsUrl(),
       onStatus: (status) => {
         setState((prev) => ({ ...prev, status }))
+        if (status === 'closed') dropped = true
         if (status !== 'open') setTopicSender(null)
       },
-      onOpen: setTopicSender,
+      onOpen: (sender) => {
+        // Events sent while the socket was down are lost; whatever follows one is read again.
+        if (dropped) void client.invalidateQueries({ predicate: (query) => topicsOf(query).length > 0 })
+        dropped = false
+        setTopicSender(sender)
+      },
       onEvent: (event) => {
         if (event.type === 'hello') {
           // A new server build took over on the same port; the page it serves is new too.
@@ -41,10 +58,7 @@ export function useLiveRefresh(): LiveState {
           jobs.load().catch(() => {})
           return setState((prev) => ({ ...prev, repo: event.repo }))
         }
-        if (event.type === 'github') {
-          api.invalidate(event.topic)
-          return topicChanged(event.topic)
-        }
+        if (event.type === 'github') return void invalidateTopic(client, event.topic)
         if (event.type === 'job' || event.type === 'job-output') return jobs.apply(event)
         if (event.type === 'navigate') {
           pushUrl(writeTarget(event.target, window.location.search))
@@ -52,6 +66,8 @@ export function useLiveRefresh(): LiveState {
           window.focus()
           return
         }
+        // A save is a working tree change; every other reason names the reads it makes stale.
+        void invalidateTopic(client, event.reason === 'saved' ? 'worktree' : event.reason)
         if (event.reason === 'reviews') return void reviews.reload().catch(() => {})
         refresher.notify()
         if (event.reason === 'refs') {
@@ -67,7 +83,7 @@ export function useLiveRefresh(): LiveState {
       refresher.dispose()
       dispose()
     }
-  }, [api, session, reviews, refs, jobs])
+  }, [api, session, reviews, refs, jobs, client])
 
   return state
 }

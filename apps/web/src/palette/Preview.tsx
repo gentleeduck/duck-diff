@@ -1,6 +1,6 @@
-import type { FileContents } from '@duck-diff/protocol'
 import { Badge } from '@duck-diff/ui'
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
@@ -11,6 +11,7 @@ import { Labels } from '../github/Labels'
 import { PullIcon } from '../github/PullsList'
 import { ago } from '../github/time'
 import { useSettings } from '../hooks/useSettings'
+import { useSettled } from '../hooks/useSettled'
 import { fileGlyph } from '../sidebar/icons'
 import type { Settings } from '../state/settings'
 
@@ -20,31 +21,14 @@ const LINES = 80
 const selectSize = (settings: Settings) => settings.fontSize
 const selectTab = (settings: Settings) => settings.tabSize
 // Read once per palette session; moving up and down the results should not refetch.
-const files = new Map<string, Promise<FileContents | null>>()
-const bodies = new Map<number, Promise<string | null>>()
 
 function FilePreview({ path }: { path: string }) {
-  const { api } = useApp()
-  const [contents, setContents] = useState<FileContents | null | undefined>(undefined)
+  const { queries } = useApp()
+  // Cached files show at once; others wait until the selection stops moving.
+  const file = useQuery({ ...queries.git.file(path), enabled: useSettled(path, 90) === path })
+  const contents = file.isError ? null : file.data
   useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
   const code = { size: useSettings(selectSize), tab: useSettings(selectTab) }
-  useEffect(() => {
-    let alive = true
-    setContents(undefined)
-    // A short pause so racing down the list does not read every file on the way.
-    const timer = setTimeout(() => {
-      let read = files.get(path)
-      if (!read) {
-        read = api.file(path).catch(() => null)
-        files.set(path, read)
-      }
-      void read.then((next) => alive && setContents(next))
-    }, 90)
-    return () => {
-      alive = false
-      clearTimeout(timer)
-    }
-  }, [api, path])
   const icon = fileGlyph(path.split('/').pop() ?? path)
   const text = contents?.text ?? null
   const shown = text ? text.split('\n').slice(0, LINES).join('\n') : null
@@ -80,27 +64,9 @@ function FilePreview({ path }: { path: string }) {
 }
 
 function ItemPreview({ item }: { item: IndexedItem }) {
-  const { api } = useApp()
-  const [body, setBody] = useState<string | null | undefined>(undefined)
-  useEffect(() => {
-    let alive = true
-    setBody(undefined)
-    const timer = setTimeout(() => {
-      let read = bodies.get(item.number)
-      if (!read) {
-        read = api.github.issue(item.number).then(
-          (found) => found.body,
-          () => null,
-        )
-        bodies.set(item.number, read)
-      }
-      void read.then((next) => alive && setBody(next))
-    }, 120)
-    return () => {
-      alive = false
-      clearTimeout(timer)
-    }
-  }, [api, item.number])
+  const { queries } = useApp()
+  const issue = useQuery({ ...queries.gh.issue(item.number), enabled: useSettled(item.number, 120) === item.number })
+  const body = issue.isError ? null : issue.data?.body
   return (
     <div className="flex h-full flex-col gap-2 p-3">
       <p className="flex items-start gap-2">

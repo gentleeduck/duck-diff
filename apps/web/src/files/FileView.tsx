@@ -1,5 +1,6 @@
-import type { BlameLine, FileContents } from '@duck-diff/protocol'
+import type { BlameLine } from '@duck-diff/protocol'
 import { Badge, Button } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Check, Code2, Copy, Eye, FileDiff, History, SquareArrowOutUpRight, UserSearch } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -29,6 +30,7 @@ const selectPath = (path: string | null) => path
 const selectFiles = (state: SessionState) => state.files
 const selectSettings = (state: Settings) => state
 const MARKDOWN = /\.(md|markdown)$/i
+const NO_BLAME: BlameLine[] = []
 
 // A repository image as the page loads it, at the revision the file is shown at.
 function rawUrl(path: string, at: string | null): string {
@@ -47,7 +49,7 @@ const selectLine = (line: number | null) => line
 
 export default function FileView() {
   const app = useApp()
-  const { api, fileSelection, fileHistory, fileLine, fileAt } = app
+  const { api, fileSelection, fileHistory, fileLine, fileAt, queries } = app
   const path = useStore(fileSelection, selectPath)
   const at = useStore(fileAt, selectAt)
   const line = useStore(fileLine, selectLine)
@@ -55,42 +57,17 @@ export default function FileView() {
   const settings = useSettings(selectSettings)
   const { navigate } = useTarget()
   const { show } = useView()
-  const [contents, setContents] = useState<FileContents | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const canOpen = useCanOpen()
   const [preview, setPreview] = useState(true)
   const [blaming, setBlaming] = useState(false)
-  const [blame, setBlame] = useState<BlameLine[] | null>(null)
-  useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
-
-  useEffect(() => {
-    if (!path) return
-    let alive = true
-    setContents(null)
-    setFailed(null)
-    api.file(path, at ?? undefined).then(
-      (next) => alive && setContents(next),
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, path, at])
-
+  const file = useQuery({ ...queries.git.file(path ?? '', at ?? undefined), enabled: Boolean(path) })
+  const contents = file.data ?? null
+  const failed = file.error ? file.error.message : null
   // Read once per file while blame is on; untracked files have none and show a plain gutter.
-  useEffect(() => {
-    setBlame(null)
-    if (!path || !blaming) return
-    let alive = true
-    api.blame(path, at ?? undefined).then(
-      (next) => alive && setBlame(next),
-      () => alive && setBlame([]),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, path, blaming, at])
+  const blamed = useQuery({ ...queries.git.blame(path ?? '', at ?? undefined), enabled: Boolean(path) && blaming })
+  const blame = blaming ? (blamed.data ?? (blamed.isError ? NO_BLAME : null)) : null
+  useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
 
   const lines = useMemo(() => (contents?.text ?? '').replace(/\n$/, '').split('\n'), [contents])
   const tokens =

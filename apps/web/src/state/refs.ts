@@ -16,12 +16,22 @@ export interface Refs extends Store<RefList> {
 
 // One list for every picker and menu. The first read waits for the diff's own first load, so these
 // git commands never compete with the request that paints the first row.
-export function createRefs(api: Api, session: Session): Refs {
+// Reads go through the query cache when the page passes it, so the pickers and the history share one read.
+export interface RefReads {
+  refs(): Promise<Ref[]>
+  commits(): Promise<Commit[]>
+}
+
+export function createRefs(
+  api: Api,
+  session: Session,
+  reads: RefReads = { refs: () => api.refs(), commits: () => api.commits({ head: 'HEAD', limit: 50 }) },
+): Refs {
   const store = createStore<RefList>({ refs: [], commits: [] })
   let started = false
 
   const read = async () => {
-    const [refs, commits] = await Promise.all([api.refs(), api.commits({ head: 'HEAD', limit: 50 }).catch(() => [])])
+    const [refs, commits] = await Promise.all([reads.refs(), reads.commits().catch(() => [])])
     store.set({ refs, commits })
   }
 

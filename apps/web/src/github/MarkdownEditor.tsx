@@ -78,7 +78,7 @@ export function MarkdownEditor({
   autoFocus?: boolean
   placeholder?: string
 }) {
-  const { api } = useApp()
+  const { queries, queryClient } = useApp()
   const area = useRef<HTMLTextAreaElement>(null)
   const picker = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState('write')
@@ -96,7 +96,7 @@ export function MarkdownEditor({
     let alive = true
     const word = typed.toLowerCase()
     if (sign === '@') {
-      api.github.mentions().then(
+      queryClient.fetchQuery(queries.gh.mentions()).then(
         (users) =>
           alive &&
           setSuggestions(
@@ -116,7 +116,7 @@ export function MarkdownEditor({
     } else {
       // Searching waits for a pause, as GitHub limits search calls.
       const timer = setTimeout(() => {
-        api.github.references(/^\d+$/.test(word) ? word : `${word} in:title`).then(
+        queryClient.fetchQuery(queries.gh.references(/^\d+$/.test(word) ? word : `${word} in:title`)).then(
           (found) =>
             alive &&
             setSuggestions(
@@ -143,7 +143,7 @@ export function MarkdownEditor({
     return () => {
       alive = false
     }
-  }, [api, sign, typed, dismissed])
+  }, [queries, queryClient, sign, typed, dismissed])
 
   // GitHub's API has no upload for attachments (github.com uses the browser session), so text files
   // go in as code blocks and anything else is refused with that reason.

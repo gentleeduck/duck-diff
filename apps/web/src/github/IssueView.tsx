@@ -1,5 +1,5 @@
-import type { IssueDetails } from '@duck-diff/protocol'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft,
   Check,
@@ -11,7 +11,7 @@ import {
   LockOpen,
   SquareArrowOutUpRight,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { useScrollMemory } from '../hooks/useScrollMemory'
@@ -23,7 +23,6 @@ import { StatePill } from './StatePill'
 import { ThreadMenu } from './ThreadMenu'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
-import { useLive } from './useLive'
 import { EditTitleButton, ThreadTitle, useThread } from './useThread'
 
 const CLOSE_REASONS = [
@@ -92,30 +91,12 @@ function CloseIssue({ busy, onClose }: { busy: boolean; onClose(reason: 'complet
 }
 
 export default function IssueView({ number, onChanged }: { number: number; onChanged(): void }) {
-  const { api, issueSelection } = useApp()
-  const [issue, setIssue] = useState<IssueDetails | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
+  const { api, issueSelection, queries, queryClient } = useApp()
+  const { data: issue, error } = useQuery(queries.gh.issue(number))
+  const failed = error ? error.message : null
   const [busy, setBusy] = useState(false)
   const { thread, draft, reload: reloadThread } = useThread(number, 'issue')
 
-  const load = useCallback(
-    (alive: () => boolean = () => true) =>
-      api.github.issue(number).then(
-        (next) => alive() && setIssue(next),
-        (error: Error) => alive() && setFailed(error.message),
-      ),
-    [api, number],
-  )
-
-  useEffect(() => {
-    let alive = true
-    void load(() => alive)
-    return () => {
-      alive = false
-    }
-  }, [load])
-
-  useLive(`item:${number}`, () => Promise.all([api.github.issue(number).then(setIssue, () => {}), reloadThread(true)]))
   const page = useRef<HTMLElement>(null)
   useScrollMemory(page, issue && thread ? `issue:${number}` : null)
 
@@ -146,7 +127,7 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
 
   const open = issue.state === 'open'
   const refresh = async () => {
-    await Promise.all([load(), reloadThread()])
+    await reloadThread()
     onChanged()
   }
   const toggle = async (reason?: 'completed' | 'not_planned') => {
@@ -247,13 +228,12 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
             milestone={issue.milestone}
             number={number}
             actions={sidebarActions({
-              api,
+              app: { api, queries, queryClient },
               number,
               assignees: issue.assignees,
               labels: issue.labels,
               milestone: issue.milestone,
-
-              reload: () => void load(),
+              reload: () => void reloadThread(),
             })}
           />
         </div>

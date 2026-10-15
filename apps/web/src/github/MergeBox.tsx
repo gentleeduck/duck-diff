@@ -1,5 +1,6 @@
-import type { CheckRun, MergeInfo, MergeQueue, PullCommit, PullDetails } from '@duck-diff/protocol'
+import type { CheckRun, MergeInfo, PullCommit, PullDetails } from '@duck-diff/protocol'
 import { Button, Checkbox, Input, Label, Popover, PopoverContent, PopoverTrigger, Textarea } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import {
   Check,
   ChevronDown,
@@ -12,14 +13,16 @@ import {
   RotateCw,
   SquareArrowOutUpRight,
 } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import type { MergeMethod } from '../lib/api'
+import { useRefresh } from '../query/useRefresh'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { LOOK, outcome } from './Checks'
-import { useLive } from './useLive'
+
+const NO_RUNS: CheckRun[] = []
 
 const METHODS: Record<MergeMethod, { label: string; short: string; detail: string }> = {
   merge: {
@@ -175,9 +178,12 @@ export function MergeBox({
   repo: string
   onChanged(): Promise<void> | void
 }) {
-  const { api } = useApp()
-  const [info, setInfo] = useState<MergeInfo | null>(null)
-  const [runs, setRuns] = useState<CheckRun[]>([])
+  const { api, queries } = useApp()
+  const number = pull.number
+  const info = useQuery(queries.gh.mergeInfo(number)).data ?? null
+  const runs = useQuery(queries.gh.checks(number)).data ?? NO_RUNS
+  const queue = useQuery(queries.gh.mergeQueue(number)).data ?? null
+  const refresh = useRefresh()
   const [method, setMethod] = useState<MergeMethod | null>(null)
   const [confirming, setConfirming] = useState(false)
   const [title, setTitle] = useState('')
@@ -188,24 +194,6 @@ export function MergeBox({
   const [showChecks, setShowChecks] = useState(false)
   const [showReviews, setShowReviews] = useState(false)
   const [showCli, setShowCli] = useState(false)
-  const [queue, setQueue] = useState<MergeQueue | null>(null)
-
-  const number = pull.number
-  const load = useCallback(
-    () =>
-      Promise.all([
-        api.github.mergeInfo(number).then(setInfo, () => {}),
-        api.github.checks(number).then(setRuns, () => {}),
-        api.github.mergeQueue(number).then(setQueue, () => setQueue(null)),
-      ]),
-    [api, number],
-  )
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a new head sha means new checks and merge state
-  useEffect(() => {
-    void load()
-  }, [load, pull.headSha])
-  // The item moves when its checks finish; the runs list moves while they run.
-  useLive([`item:${number}`, 'runs'], load)
 
   useEffect(() => {
     if (info && method === null) setMethod(info.defaultMethod)
@@ -225,7 +213,7 @@ export function MergeBox({
     try {
       await task()
       toast(done)
-      await Promise.all([load(), onChanged()])
+      await Promise.all([refresh(`item:${number}`), onChanged()])
       return true
     } catch (error) {
       toast.error((error as Error).message)

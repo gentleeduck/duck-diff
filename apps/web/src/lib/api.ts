@@ -107,7 +107,6 @@ import {
   type WriteRequest,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
-import { createQueryCache } from './query-cache'
 
 function lspParams(query: LspQuery): URLSearchParams {
   const params = new URLSearchParams({ path: query.path, line: String(query.line), column: String(query.column) })
@@ -183,8 +182,6 @@ export interface Api {
     // Starts the language servers these files need, ahead of the first lookup.
     warm(paths: string[]): Promise<void>
   }
-  // A GitHub topic changed on the server; reads that follow it are read again next time.
-  invalidate(topic: string): void
   git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean; stopped?: boolean }>
   // The actions run lately, newest first, and what one printed.
   jobs(): Promise<Job[]>
@@ -345,11 +342,8 @@ export type GitAction =
 const ContentSchema = z.object({ contents: z.string().nullable() })
 
 export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
-  const cache = createQueryCache()
   async function request(path: string, signal?: AbortSignal, init: RequestInit = {}): Promise<Response> {
     const response = await fetcher(`${base}${path}`, { ...init, signal })
-    // A write to GitHub can change any read, so every kept answer goes.
-    if (response.ok && init.method && init.method !== 'GET' && path.startsWith('/api/github/')) cache.clear()
     if (response.ok) return response
     const parsed = ErrorBodySchema.safeParse(await response.json().catch(() => null))
     if (parsed.success) throw new ApiError(response.status, parsed.data.error.code, parsed.data.error.message)
@@ -357,8 +351,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
   }
 
   async function json<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
-    const read = async () => schema.parse(await (await request(path, signal)).json())
-    return path.startsWith('/api/github/') ? cache.get(path, read) : read()
+    return schema.parse(await (await request(path, signal)).json())
   }
 
   async function send<T>(method: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
@@ -557,7 +550,6 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       if (mergeBase) params.set('mergeBase', mergeBase)
       return json(`/api/blame?${params}`, z.array(BlameLineSchema))
     },
-    invalidate: (topic) => cache.invalidate(topic),
     git: (action, body) =>
       send(
         'POST',

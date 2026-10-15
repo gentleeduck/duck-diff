@@ -57,9 +57,9 @@ export function ListFilters({
   sort: ListQuery['sort']
   onSort(next: ListQuery['sort']): void
 }) {
-  const { api } = useApp()
+  const app = useApp()
   const people = async (): Promise<Choice[]> =>
-    (await options(api)).people.map((user) => ({ value: user.login, label: user.login, icon: <Avatar user={user} /> }))
+    (await options(app)).people.map((user) => ({ value: user.login, label: user.login, icon: <Avatar user={user} /> }))
   const single = (key: string) => (next: string[]) => onQuery(setQualifier(query, key, next[0] ?? null))
   const menu = (title: string, label: string, active: boolean, picker: (trigger: ReactNode) => ReactNode) =>
     picker(<MenuButton label={label} active={active} aria-label={`Filter by ${title.toLowerCase()}`} />)
@@ -84,7 +84,7 @@ export function ListFilters({
           trigger={trigger}
           live
           load={async () =>
-            (await options(api)).labels.map((entry) => ({
+            (await options(app)).labels.map((entry) => ({
               value: entry.name,
               label: entry.name,
               detail: entry.description || undefined,
@@ -109,7 +109,7 @@ export function ListFilters({
           single
           live
           load={async () =>
-            (await options(api)).milestones.map((entry) => ({
+            (await options(app)).milestones.map((entry) => ({
               value: entry.title,
               label: entry.title,
               icon: <Milestone className="size-4 shrink-0" />,

@@ -21,7 +21,6 @@ import { BisectBanner } from './BisectBanner'
 import { CommitHover, CommitMenu } from './CommitMenu'
 import { CommitPanel } from './CommitPanel'
 import { useCommitActions } from './commit-actions'
-import { prefetchCommit } from './commit-details'
 import { matchesCommit } from './FindCommit'
 import { GraphLines, LANE_WIDTH, laneColor } from './GraphLines'
 import type { GraphRow } from './layout'
@@ -87,7 +86,7 @@ function RefBadges({ refs, color }: { refs: RefLabel[]; color: string }) {
 }
 
 export default function GraphView() {
-  const { api, graph, graphSelection, graphQuery } = useApp()
+  const { graph, graphSelection, graphQuery, queries, queryClient } = useApp()
   const state = useStore(graph, selectGraph)
   const needle = useStore(graphQuery, selectQuery).trim().toLowerCase()
   const avatars = useAvatars()
@@ -212,7 +211,10 @@ export default function GraphView() {
                           tabIndex={-1}
                           aria-selected={isSelected}
                           // The hover card's details start loading as the pointer arrives, ahead of its delay.
-                          onPointerEnter={() => void prefetchCommit(api, entry.sha).catch(() => {})}
+                          onPointerEnter={() => {
+                            void queryClient.prefetchQuery(queries.git.commit(entry.sha))
+                            void queryClient.prefetchQuery(queries.git.commitStat(entry.sha))
+                          }}
                           onClick={(event) => {
                             const from = selected ? index.get(selected) : undefined
                             if (event.shiftKey && from !== undefined) {

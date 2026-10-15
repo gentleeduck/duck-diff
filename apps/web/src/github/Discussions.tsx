@@ -1,7 +1,7 @@
-import type { Discussion, DiscussionSummary } from '@duck-diff/protocol'
 import { Badge, Button, Input, Skeleton } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, CircleCheck, MessagesSquare, Reply, SquareArrowOutUpRight } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { Avatar, Body } from './Conversation'
@@ -13,26 +13,15 @@ import { ago } from './time'
 const SKELETONS = ['a', 'b', 'c', 'd']
 
 function DiscussionView({ number, onBack }: { number: number; onBack(): void }) {
-  const { api } = useApp()
-  const [discussion, setDiscussion] = useState<Discussion | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
+  const { api, queries } = useApp()
+  const { data: discussion = null, error, refetch } = useQuery(queries.gh.discussion(number))
+  const failed = error ? error.message : null
   const [draft, setDraft] = useState('')
   const [replying, setReplying] = useState<string | null>(null)
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const load = useCallback(
-    () =>
-      api.github.discussion(number).then(
-        (next) => {
-          setDiscussion(next)
-          setFailed(null)
-        },
-        (error: Error) => setFailed(error.message),
-      ),
-    [api, number],
-  )
-  useEffect(() => void load(), [load])
+  const load = refetch
 
   const send = async (body: string, replyTo?: string) => {
     setBusy(true)
@@ -179,16 +168,11 @@ function DiscussionView({ number, onBack }: { number: number; onBack(): void }) 
 
 // GitHub Discussions: the list, newest activity first, and one discussion as its own page.
 export function Discussions() {
-  const { api } = useApp()
+  const { queries } = useApp()
   const ready = isReady(useGitHub())
-  const [items, setItems] = useState<DiscussionSummary[] | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
+  const { data: items = null, error } = useQuery({ ...queries.gh.discussions(), enabled: ready })
+  const failed = error ? error.message : null
   const [open, setOpen] = useState<number | null>(null)
-
-  useEffect(() => {
-    if (!ready) return
-    api.github.discussions().then(setItems, (error: Error) => setFailed(error.message))
-  }, [api, ready])
 
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see discussions.</p>
   if (open !== null) return <DiscussionView number={open} onBack={() => setOpen(null)} />

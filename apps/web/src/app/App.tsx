@@ -27,6 +27,7 @@ import { useLiveRefresh } from '../live/useLiveRefresh'
 import { MergeSidebar } from '../merge/MergeSidebar'
 import { Palette, previousSearch } from '../palette/Palette'
 import { BottomPanel } from '../panel/BottomPanel'
+import { useRefresh } from '../query/useRefresh'
 import { CommentsSheet } from '../review/CommentsSheet'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
@@ -121,19 +122,10 @@ function Screen() {
   const live = useLiveRefresh()
   useDesktopNotices()
   useUrlSync()
-  // Bumped when a page changes an item, so its list reloads.
-  const [pullsVersion, setPullsVersion] = useState(0)
-  const [issuesVersion, setIssuesVersion] = useState(0)
-  const { items } = useApp()
-  // A change made here is a change the palette's saved list should see too.
-  const pullsChanged = () => {
-    setPullsVersion((n) => n + 1)
-    void items.refresh()
-  }
-  const issuesChanged = () => {
-    setIssuesVersion((n) => n + 1)
-    void items.refresh()
-  }
+  const refresh = useRefresh()
+  // A change made here is a change the lists and the palette's index should see too.
+  const pullsChanged = () => void refresh('pulls')
+  const issuesChanged = () => void refresh('issues')
   const search = (
     <Button
       size="sm"
@@ -209,7 +201,7 @@ function Screen() {
       ),
       side: null,
       label: 'Pull requests',
-      main: <PullsPage version={pullsVersion} onChanged={pullsChanged} />,
+      main: <PullsPage onChanged={pullsChanged} />,
     },
     issues: {
       top: (
@@ -222,7 +214,7 @@ function Screen() {
       ),
       side: null,
       label: 'Issues',
-      main: <IssuesPage version={issuesVersion} onChanged={issuesChanged} />,
+      main: <IssuesPage onChanged={issuesChanged} />,
     },
     inbox: {
       top: (
@@ -341,9 +333,9 @@ function Screen() {
   )
 }
 
-export function App({ api }: { api?: Api }) {
+export function App({ api, persist = false }: { api?: Api; persist?: boolean }) {
   return (
-    <AppProvider api={api}>
+    <AppProvider api={api} persist={persist}>
       <TooltipProvider>
         <WritesProvider>
           <GitProvider>

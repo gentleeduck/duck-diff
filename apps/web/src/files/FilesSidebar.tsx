@@ -1,4 +1,5 @@
 import { Input } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useCanOpen } from '../hooks/useCanOpen'
@@ -14,34 +15,25 @@ import { openFile } from './open-file'
 
 const selectFiles = (state: SessionState) => state.files
 const selectPath = (path: string | null) => path
+const NO_PATHS: string[] = []
 
 export function FilesSidebar() {
   const app = useApp()
-  const { api, fileSelection, fileHistory } = app
+  const { api, fileSelection, fileHistory, queries } = app
   const { navigate } = useTarget()
   const { show } = useView()
   const canOpen = useCanOpen()
   const changed = useSession(selectFiles)
   const selected = useStore(fileSelection, selectPath)
-  const [paths, setPaths] = useState<string[] | null>(null)
+  const tree = useQuery(queries.git.tree())
+  const paths = tree.data ?? (tree.isError ? NO_PATHS : null)
   const [query, setQuery] = useState('')
 
+  // Like a repo's home page on GitHub, the README is what opens first.
   useEffect(() => {
-    let alive = true
-    api.tree().then(
-      (list) => {
-        if (!alive) return
-        setPaths(list)
-        // Like a repo's home page on GitHub, the README is what opens first.
-        const readme = list.find((path) => /^readme(\.md|\.txt)?$/i.test(path))
-        if (readme && fileSelection.get() === null) withoutHistory(() => fileSelection.set(readme))
-      },
-      () => alive && setPaths([]),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, fileSelection])
+    const readme = tree.data?.find((path) => /^readme(\.md|\.txt)?$/i.test(path))
+    if (readme && fileSelection.get() === null) withoutHistory(() => fileSelection.set(readme))
+  }, [tree.data, fileSelection])
 
   const byPath = useMemo(() => new Map(changed.map((file) => [file.path, file])), [changed])
   const fileFor = useCallback((path: string) => byPath.get(path), [byPath])

@@ -1,15 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useApp } from '../app/AppProvider'
 
 // Only a server started from Neovim can open files there.
 export function useCanOpen(): boolean {
-  const { api } = useApp()
-  const [canOpen, setCanOpen] = useState(false)
-  useEffect(() => {
-    api.repo().then(
-      (info) => setCanOpen(info.nvim),
-      () => {},
-    )
-  }, [api])
-  return canOpen
+  const { queries } = useApp()
+  return useQuery(queries.git.repo()).data?.nvim ?? false
 }

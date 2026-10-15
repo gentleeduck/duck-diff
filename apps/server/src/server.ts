@@ -315,6 +315,8 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
         if (response.headers.get('content-type')?.startsWith('text/html')) {
           response.headers.set('set-cookie', `${tokenCookie(port)}=${token}; HttpOnly; SameSite=Strict; Path=/`)
+          // Readable by the page: its saved answers are kept per repo, since another repo may serve this port later.
+          response.headers.append('set-cookie', `duck_diff_repo_${port}=${repoId(repo)}; SameSite=Strict; Path=/`)
         }
         return response
       } catch (error) {
