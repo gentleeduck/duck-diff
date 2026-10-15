@@ -866,6 +866,7 @@ interface RawReviewComment extends RawComment {
   path: string
   line: number | null
   start_line?: number | null
+  pull_request_review_id?: number | null
   side?: 'LEFT' | 'RIGHT'
   in_reply_to_id?: number
 }
@@ -913,6 +914,7 @@ function reviewComment(raw: RawReviewComment): GitHubReviewComment {
     path: raw.path,
     line: raw.line,
     startLine: raw.start_line ?? null,
+    reviewId: raw.pull_request_review_id ?? null,
     side: raw.side ?? 'RIGHT',
     inReplyTo: raw.in_reply_to_id ?? null,
   }

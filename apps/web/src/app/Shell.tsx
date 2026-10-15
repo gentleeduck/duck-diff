@@ -2,6 +2,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@duck-diff
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { IconTool } from './IconTool'
+import { NavButtons } from './NavButtons'
 
 interface ShellProps {
   rail: ReactNode
@@ -21,6 +22,7 @@ export function Shell({ rail, topBar, sidebar, sidebarLabel, panelShown, onToggl
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-12 shrink-0 items-center gap-4 border-border border-b bg-card px-4">
+        <NavButtons />
         {sidebar !== null && !panelShown ? (
           <IconTool
             label={`Show ${sidebarLabel.toLowerCase()}`}

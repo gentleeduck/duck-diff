@@ -1,4 +1,4 @@
-import type { Thread, TimelineEvent } from '@duck-diff/protocol'
+import type { GitHubReviewComment, Thread, TimelineEvent } from '@duck-diff/protocol'
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
 import {
   ArrowDown,
@@ -8,6 +8,7 @@ import {
   Copy,
   Ellipsis,
   Eye,
+  FileCode,
   GitCommitHorizontal,
   GitMerge,
   MessageSquareQuote,
@@ -211,11 +212,16 @@ export function ThreadView({
   thread,
   draft,
   onChanged,
+  reviewComments = [],
+  onOpenFile,
 }: {
   thread: Thread
   // The page's comment box, so a quote reply lands where the reader will type.
   draft: Store<string>
   onChanged(): void
+  // A pull request's line comments, shown under the review that sent them.
+  reviewComments?: GitHubReviewComment[]
+  onOpenFile?(path: string): void
 }) {
   const { api } = useApp()
   const me = thread.viewer.login
@@ -292,6 +298,33 @@ export function ThreadView({
                   <Body text={event.body} html={event.html} />
                 </div>
               ) : null}
+              {reviewComments
+                .filter((comment) => comment.reviewId === event.id && comment.inReplyTo === null)
+                .map((comment) => (
+                  <div key={comment.id} className="ms-12 rounded-md border border-border bg-card">
+                    <header className="flex items-center gap-2 border-border border-b px-3 py-1.5">
+                      <FileCode className="size-4 shrink-0 text-muted-foreground" />
+                      <button
+                        type="button"
+                        disabled={!onOpenFile}
+                        title={`Open ${comment.path} in Files changed`}
+                        onClick={() => onOpenFile?.(comment.path)}
+                        className="min-w-0 cursor-pointer truncate text-tn-blue hover:underline disabled:cursor-default disabled:text-foreground disabled:no-underline">
+                        {comment.path}
+                      </button>
+                      <span className="shrink-0 text-muted-foreground">
+                        {comment.line === null
+                          ? 'outdated'
+                          : comment.startLine && comment.startLine < comment.line
+                            ? `lines ${comment.startLine} to ${comment.line}`
+                            : `line ${comment.line}`}
+                      </span>
+                    </header>
+                    <div className="px-3 py-2">
+                      <Body text={comment.body} />
+                    </div>
+                  </div>
+                ))}
             </div>
           )
         }

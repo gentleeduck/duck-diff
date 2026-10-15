@@ -23,6 +23,8 @@ import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { useTarget } from '../hooks/useTarget'
 import type { ReviewEvent } from '../lib/api'
+import { useStore } from '../lib/store'
+import type { PullTab } from '../lib/view-url'
 import { ChecksList } from './Checks'
 import { Avatar, Comment, Composer } from './Conversation'
 import { ItemSidebar } from './ItemSidebar'
@@ -39,7 +41,7 @@ import { EditableTitle, useThread } from './useThread'
 
 const Viewer = lazy(() => import('../viewer/Viewer'))
 
-type Tab = 'conversation' | 'commits' | 'checks' | 'files'
+type Tab = PullTab
 
 function TabButton({
   id,
@@ -121,7 +123,8 @@ function Files({ number }: { number: number }) {
     api.github.fetchPull(number).then(
       (refs) => {
         if (!alive) return
-        navigate({ kind: 'range', from: refs.base, to: refs.head, mode: 'merge-base' })
+        // Replaces rather than pushes: the tab already has its history entry.
+        navigate({ kind: 'range', from: refs.base, to: refs.head, mode: 'merge-base' }, true)
         setReady(true)
       },
       (error: Error) => alive && setFailed(error.message),
@@ -141,13 +144,17 @@ function Files({ number }: { number: number }) {
   )
 }
 
+const selectTab = (tab: PullTab) => tab
+
 export default function PullView({ number, onChanged }: { number: number; onChanged(): void }) {
   const { api, pullSelection } = useApp()
   const github = useGitHub()
   const [pull, setPull] = useState<PullDetails | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('conversation')
+  const { pullTab, diffFile } = useApp()
+  const tab = useStore(pullTab, selectTab)
+  const setTab = (next: Tab) => pullTab.set(next)
   const { thread, draft, reload: reloadThread } = useThread(number)
 
   const load = useCallback(
@@ -368,7 +375,16 @@ export default function PullView({ number, onChanged }: { number: number; onChan
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
             <div className="flex min-w-0 flex-col gap-4">
               {thread ? (
-                <ThreadView thread={thread} draft={draft} onChanged={() => void reloadThread()} />
+                <ThreadView
+                  thread={thread}
+                  draft={draft}
+                  onChanged={() => void reloadThread()}
+                  reviewComments={pull.reviewComments}
+                  onOpenFile={(path) => {
+                    pullTab.set('files')
+                    diffFile.set(path)
+                  }}
+                />
               ) : (
                 <Comment author={pull.author} createdAt={pull.createdAt} body={pull.body} />
               )}

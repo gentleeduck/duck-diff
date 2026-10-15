@@ -10,6 +10,8 @@ import { type PullReviewState, pullOf } from '../github/pull-review'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
+import { useView } from '../hooks/useView'
+import { itemId } from '../lib/items'
 import { useStore } from '../lib/store'
 import { isTestFile } from '../lib/tests'
 import { lineHash } from '../review/anchor'
@@ -82,7 +84,8 @@ const emptyContents = () => new Map<string, readonly string[]>() as ReadonlyMap<
 const emptyExpanded = () => new Map<string, ReadonlySet<number>>() as ReadonlyMap<string, ReadonlySet<number>>
 
 export default function Viewer() {
-  const { api, viewer, reviews, viewed, fileHistory, pullReview, changesFolders } = useApp()
+  const { api, viewer, reviews, viewed, fileHistory, pullReview, changesFolders, diffFile, fileSelection } = useApp()
+  const { show } = useView()
   const plain = useSession(selectItems)
   const files = useSession(selectFiles)
   const status = useSession(selectStatus)
@@ -180,6 +183,24 @@ export default function Viewer() {
       })
     },
     [api, target, byPath, sourcePath],
+  )
+
+  // A file asked for by the tree, the palette or back and forward is scrolled to once it is on the page.
+  const wanted = useRef<string | null>(diffFile.get())
+  const reveal = useCallback(() => {
+    const path = wanted.current
+    if (!path || !page.starts.has(itemId(path))) return
+    wanted.current = null
+    requestAnimationFrame(() => viewer.current?.scrollTo({ type: 'item', id: itemId(path), align: 'start' }))
+  }, [page, viewer])
+  useEffect(() => reveal(), [reveal])
+  useEffect(
+    () =>
+      diffFile.subscribe(() => {
+        wanted.current = diffFile.get()
+        reveal()
+      }),
+    [diffFile, reveal],
   )
 
   const anchor = useRef(0)
@@ -300,7 +321,19 @@ export default function Viewer() {
       const collapsed = Boolean(item.collapsed)
       const toggle = () => setToggled((prev) => new Map(prev).set(path, !collapsed))
       return (
-        <FileHeader path={path} file={file} collapsed={collapsed} onToggle={toggle}>
+        <FileHeader
+          path={path}
+          file={file}
+          collapsed={collapsed}
+          onToggle={toggle}
+          onOpen={
+            pull === null && file?.status !== 'deleted'
+              ? () => {
+                  fileSelection.set(path)
+                  show('files')
+                }
+              : undefined
+          }>
           <FileActions
             path={path}
             viewed={folded.has(path)}
@@ -323,7 +356,23 @@ export default function Viewer() {
         </FileHeader>
       )
     },
-    [api, canOpen, byPath, kinds, writes, folded, viewed, target, fileHistory, setToggled, files, pull, pullReview],
+    [
+      api,
+      canOpen,
+      byPath,
+      kinds,
+      writes,
+      folded,
+      viewed,
+      target,
+      fileHistory,
+      setToggled,
+      files,
+      pull,
+      pullReview,
+      fileSelection,
+      show,
+    ],
   )
 
   const renderNote = useCallback((note: Note) => <ReviewNote note={note} />, [])

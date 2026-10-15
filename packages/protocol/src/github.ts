@@ -44,6 +44,8 @@ export const GitHubReviewCommentSchema = ConversationCommentSchema.extend({
   startLine: z.number().int().nullable().default(null),
   side: z.enum(['LEFT', 'RIGHT']),
   inReplyTo: z.number().int().nullable(),
+  // The review it was sent with, so the conversation can show it under that review.
+  reviewId: z.number().int().nullable().default(null),
 })
 export type GitHubReviewComment = z.infer<typeof GitHubReviewCommentSchema>
 

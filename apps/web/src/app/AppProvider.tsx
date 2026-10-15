@@ -6,7 +6,7 @@ import { createGraph, type Graph } from '../graph/store'
 import { type Api, createApi } from '../lib/api'
 import { createStore, type Store } from '../lib/store'
 import { readTarget } from '../lib/target-url'
-import { readView, type View } from '../lib/view-url'
+import { type PullTab, readView, type View } from '../lib/view-url'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
@@ -40,6 +40,10 @@ interface AppContextValue {
   // The pull request and issue open in their views.
   pullSelection: Store<number | null>
   issueSelection: Store<number | null>
+  // The open pull request's tab.
+  pullTab: Store<PullTab>
+  // The file last jumped to in the diff, so back and forward can return to it.
+  diffFile: Store<string | null>
   // GitHub's review threads for the pull request the diff shows.
   pullReview: PullReview
   viewer: RefObject<DiffViewHandle | null>
@@ -70,6 +74,8 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       github: createGitHub(client),
       pullSelection: createStore<number | null>(null),
       issueSelection: createStore<number | null>(null),
+      pullTab: createStore<PullTab>('conversation'),
+      diffFile: createStore<string | null>(null),
       pullReview: createPullReview(client),
       viewer,
     }

@@ -5,6 +5,7 @@ import { useCanOpen } from '../hooks/useCanOpen'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
+import { withoutHistory } from '../lib/history'
 import { useStore } from '../lib/store'
 import { FileTree } from '../sidebar/FileTree'
 import { CopyItems, FileMenu } from '../sidebar/tree-menus'
@@ -31,7 +32,7 @@ export function FilesSidebar() {
         setPaths(list)
         // Like a repo's home page on GitHub, the README is what opens first.
         const readme = list.find((path) => /^readme(\.md|\.txt)?$/i.test(path))
-        if (readme && fileSelection.get() === null) fileSelection.set(readme)
+        if (readme && fileSelection.get() === null) withoutHistory(() => fileSelection.set(readme))
       },
       () => alive && setPaths([]),
     )

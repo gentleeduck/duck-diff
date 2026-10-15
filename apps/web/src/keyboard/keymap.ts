@@ -25,6 +25,8 @@ export type Action =
   | 'font-bigger'
   | 'font-smaller'
   | 'font-reset'
+  | 'back'
+  | 'forward'
 
 interface KeyLike {
   key: string
@@ -70,6 +72,8 @@ export function resolveKey(event: KeyLike): Action | null {
   if ((event.ctrlKey || event.metaKey) && (event.key === '=' || event.key === '+')) return 'font-bigger'
   if ((event.ctrlKey || event.metaKey) && event.key === '-') return 'font-smaller'
   if ((event.ctrlKey || event.metaKey) && event.key === '0') return 'font-reset'
+  if (event.altKey && !event.ctrlKey && !event.metaKey && event.key === 'ArrowLeft') return 'back'
+  if (event.altKey && !event.ctrlKey && !event.metaKey && event.key === 'ArrowRight') return 'forward'
   if (event.ctrlKey || event.metaKey || event.altKey || isTyping(event.target)) return null
   return PLAIN[event.key] ?? null
 }

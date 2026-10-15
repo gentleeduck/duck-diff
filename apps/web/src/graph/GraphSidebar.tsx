@@ -28,7 +28,7 @@ function StashActions({ name, sha }: { name: string; sha: string }) {
   const commit = useCommitActions()
   return (
     <span className="flex opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
-      <IconTool label={`Show the changes in ${name}`} tip="Show changes" onClick={() => commit.showChanges(sha)}>
+      <IconTool label={`Open ${name}`} tip="Show its changes" onClick={() => commit.showChanges(sha)}>
         <FileDiff />
       </IconTool>
       <IconTool

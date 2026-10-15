@@ -12,8 +12,8 @@ import { useGitHub } from '../github/SignIn'
 import { FindCommit } from '../graph/FindCommit'
 import { GraphSidebar } from '../graph/GraphSidebar'
 import type { GraphState } from '../graph/store'
-import { useItemUrl } from '../hooks/useItemUrl'
 import { useSettings } from '../hooks/useSettings'
+import { useUrlSync } from '../hooks/useUrlSync'
 import { useView } from '../hooks/useView'
 import { HelpDialog } from '../keyboard/HelpDialog'
 import { useKeyboard } from '../keyboard/useKeyboard'
@@ -77,7 +77,7 @@ function Screen() {
   const { view, show } = useView()
   useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true), show })
   const live = useLiveRefresh()
-  useItemUrl()
+  useUrlSync()
   // Bumped when a page changes an item, so its list reloads.
   const [pullsVersion, setPullsVersion] = useState(0)
   const [issuesVersion, setIssuesVersion] = useState(0)

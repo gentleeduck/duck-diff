@@ -1,12 +1,13 @@
 import type { DiffTarget } from '@duck-diff/protocol'
 import { useCallback, useEffect } from 'react'
 import { useApp } from '../app/AppProvider'
+import { pushUrl, replaceUrl } from '../lib/history'
 import { readTarget, writeTarget } from '../lib/target-url'
 import { useSession } from './useSession'
 
 const selectTarget = (state: { target: DiffTarget }) => state.target
 
-export function useTarget(): { target: DiffTarget; navigate(target: DiffTarget): void } {
+export function useTarget(): { target: DiffTarget; navigate(target: DiffTarget, replace?: boolean): void } {
   const { session } = useApp()
   const target = useSession(selectTarget)
 
@@ -17,8 +18,10 @@ export function useTarget(): { target: DiffTarget; navigate(target: DiffTarget):
   }, [session])
 
   const navigate = useCallback(
-    (next: DiffTarget) => {
-      window.history.pushState(null, '', writeTarget(next, window.location.search))
+    (next: DiffTarget, replace = false) => {
+      const search = writeTarget(next, window.location.search)
+      if (replace) replaceUrl(search)
+      else pushUrl(search)
       void session.load(next)
     },
     [session],

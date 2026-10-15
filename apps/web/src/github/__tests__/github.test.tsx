@@ -293,6 +293,23 @@ describe('GitHub views', () => {
     expect(((await screen.findByRole('button', { name: /bypass/ })) as HTMLButtonElement).disabled).toBe(false)
   })
 
+  it('steps back to the list and forward to the pull request with the page buttons', async () => {
+    render(<App api={fakeApi({ github: githubApi() })} />)
+    fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
+    expect(await screen.findByText('Why this exists')).toBeTruthy()
+    expect(window.location.search).toContain('number=7')
+    fireEvent.click(screen.getByRole('tab', { name: /Commits/ }))
+    await waitFor(() => expect(window.location.search).toContain('tab=commits'))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await waitFor(() => expect(window.location.search).not.toContain('tab='))
+    expect(await screen.findByText('Why this exists')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect(await screen.findByRole('option', { name: /Add things/ })).toBeTruthy()
+    expect(window.location.search).not.toContain('number=')
+    fireEvent.click(screen.getByRole('button', { name: 'Forward' }))
+    expect(await screen.findByText('Why this exists')).toBeTruthy()
+  })
+
   it('says so when the repo has no GitHub remote', async () => {
     render(
       <App

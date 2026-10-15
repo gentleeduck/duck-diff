@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { back, forward } from '../lib/history'
 import type { View } from '../lib/view-url'
 import { lineHash, lineText } from '../review/anchor'
 import { resize } from '../settings/FontSizeMenu'
@@ -29,6 +30,8 @@ const ANYWHERE = new Set<Action>([
   'font-bigger',
   'font-smaller',
   'font-reset',
+  'back',
+  'forward',
   ...(Object.keys(VIEWS) as Action[]),
 ])
 const WRITES: Partial<Record<Action, WriteKind>> = { stage: 'stage', unstage: 'unstage', discard: 'discard' }
@@ -58,6 +61,8 @@ export function useKeyboard(open: { palette(): void; help(): void; show(view: Vi
       if (view.get() !== 'changes' && !ANYWHERE.has(action)) return
       event.preventDefault()
       if (action === 'palette') return handlers.current.palette()
+      if (action === 'back') return void back()
+      if (action === 'forward') return void forward()
       if (action === 'help') return handlers.current.help()
       if (action === 'toggle-sidebar') return settings.set((prev) => ({ ...prev, sidebar: !prev.sidebar }))
       if (action === 'font-bigger') return settings.set((prev) => resize(prev, 'both', 1))

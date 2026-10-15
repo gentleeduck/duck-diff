@@ -7,7 +7,6 @@ import { useRefs } from '../hooks/useRefs'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
-import { itemId } from '../lib/items'
 import type { View } from '../lib/view-url'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
@@ -48,7 +47,7 @@ const VIEWS: { view: View; label: string }[] = [
 ]
 
 export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) {
-  const { api, settings, viewer, fileSelection } = useApp()
+  const { api, settings, viewer, fileSelection, diffFile } = useApp()
   const files = useSession(selectFiles)
   const { view, show } = useView()
   const git = useGit()
@@ -111,7 +110,7 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
               onSelect={() =>
                 run(() => {
                   show('changes')
-                  viewer.current?.scrollTo({ type: 'item', id: itemId(file.path), align: 'start' })
+                  diffFile.set(file.path)
                 })
               }>
               <span className="truncate font-mono">{file.path}</span>

@@ -5,7 +5,6 @@ import { useCanOpen } from '../hooks/useCanOpen'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
-import { itemId } from '../lib/items'
 import { useStore } from '../lib/store'
 import { isTestFile } from '../lib/tests'
 import type { SessionState } from '../state/session'
@@ -23,7 +22,7 @@ const selectTests = (state: Settings) => state.tests
 const selectFolders = (folders: ReadonlySet<string>) => folders
 
 export function ChangesTree() {
-  const { api, viewer, fileHistory, viewed, changesFolders } = useApp()
+  const { api, viewer, fileHistory, viewed, changesFolders, diffFile } = useApp()
   const folders = useStore(changesFolders, selectFolders)
   const { target } = useTarget()
   const kinds = useMemo(() => actionsFor(target), [target])
@@ -44,7 +43,7 @@ export function ChangesTree() {
   const fileFor = useCallback((path: string) => byPath.get(path), [byPath])
   const open = (path: string) => {
     setSelected(path)
-    viewer.current?.scrollTo({ type: 'item', id: itemId(path), align: 'start' })
+    diffFile.set(path)
   }
 
   return (

@@ -6,7 +6,6 @@ import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useCanOpen } from '../hooks/useCanOpen'
 import { useTarget } from '../hooks/useTarget'
-import { itemId } from '../lib/items'
 import { useStore } from '../lib/store'
 import { fileGlyph } from '../sidebar/icons'
 import { FileMenu } from '../sidebar/tree-menus'
@@ -40,7 +39,7 @@ function Row({
   selected: boolean
   onSelect(): void
 }) {
-  const { api, fileHistory, session, viewer } = useApp()
+  const { api, fileHistory, session, viewer, diffFile } = useApp()
   const { run } = useGit()
   const { target, navigate } = useTarget()
   const writes = useWrites()
@@ -55,14 +54,8 @@ function Row({
   // The diff switches to this side of the index, then scrolls to the file once it has loaded.
   const open = () => {
     onSelect()
-    const reveal = () => viewer.current?.scrollTo({ type: 'item', id: itemId(file.path), align: 'start' })
-    if (target.kind === side && session.get().status === 'ready') return reveal()
     if (target.kind !== side) navigate({ kind: side })
-    const stop = session.subscribe(() => {
-      if (session.get().status !== 'ready') return
-      stop()
-      requestAnimationFrame(reveal)
-    })
+    diffFile.set(file.path)
   }
 
   return (
