@@ -221,8 +221,15 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         return [sideways.bar(id, { position: 'absolute', insetInline: 0, transform: `translateY(${y}px)` })]
       })
 
-  const topItem =
-    firstRow?.type === 'end' ? (page.rows[(first?.index ?? 0) + 1]?.item ?? null) : (firstRow?.item ?? null)
+  // Scrolled to the end, the last file is the one being read even though it never reaches the top.
+  const viewHeight = scroller.current?.clientHeight ?? 0
+  const totalHeight = virtualizer.getTotalSize()
+  const atEnd = page.rows.length > 0 && totalHeight > viewHeight + 2 && scrollTop + viewHeight >= totalHeight - 2
+  const topItem = atEnd
+    ? (page.rows.at(-1)?.item ?? null)
+    : firstRow?.type === 'end'
+      ? (page.rows[(first?.index ?? 0) + 1]?.item ?? null)
+      : (firstRow?.item ?? null)
   useEffect(() => onTopItem?.(topItem), [onTopItem, topItem])
 
   const content = useMemo(

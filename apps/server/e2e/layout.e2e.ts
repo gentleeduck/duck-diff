@@ -57,3 +57,22 @@ test('each view hides its own left panel, and views without one show no toggle',
   await page.getByRole('button', { name: 'Releases', exact: true }).click()
   await expect(page.getByRole('button', { name: /^(Hide|Show) / })).toHaveCount(0)
 })
+
+test('scrolled to the end, the tree marks the last file even though it never reaches the top', async ({
+  page,
+  app,
+  repo,
+}) => {
+  const long = Array.from({ length: 200 }, (_, i) => `export const a${i} = ${i}`)
+  repo.write('a/long.ts', `${long.join('\n')}\n`)
+  repo.commit('long')
+  repo.write('a/long.ts', `${long.map((line) => `${line} // changed`).join('\n')}\n`)
+  repo.write('z/last.ts', 'export const last = 1\n')
+  await page.goto(app.url)
+  const tree = page.getByRole('tree', { name: 'Changed files' })
+  await expect(tree.getByRole('treeitem', { name: /long\.ts/ })).toHaveAttribute('aria-selected', 'true')
+  await page.locator('[data-diff-view]').evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  await expect(tree.getByRole('treeitem', { name: /last\.ts/ })).toHaveAttribute('aria-selected', 'true')
+})
