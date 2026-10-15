@@ -13,10 +13,12 @@ import type {
   ListPage,
   ListQuery,
   Options,
+  PendingComment,
   PullCommit,
   PullDetails,
   PullSummary,
   Reviewer,
+  ReviewState,
   Thread,
   TimelineEvent,
 } from '@duck-diff/protocol'
@@ -423,11 +425,38 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         }),
       )
     },
-    async submitReview(number: number, event: string, body: string): Promise<void> {
+    async submitReview(number: number, event: string, body: string, comments: PendingComment[] = []): Promise<void> {
       await call(`${await repoPath()}/pulls/${number}/reviews`, {
         method: 'POST',
-        body: JSON.stringify({ event, body: body || undefined }),
+        body: JSON.stringify({ event, body: body || undefined, comments: comments.length ? comments : undefined }),
       })
+    },
+    async reviewState(number: number): Promise<ReviewState> {
+      const name = await repoSlug()
+      if (!name) throw new HttpError(409, 'bad-request', 'this repository has no GitHub remote named origin')
+      const [owner, repo] = name.split('/')
+      const data = await graphql<RawReviewState>(REVIEW_STATE, { owner, repo, number })
+      const pull = data.repository.pullRequest
+      return {
+        threads: pull.reviewThreads.nodes.flatMap((thread) => {
+          const root = thread.comments.nodes[0]?.databaseId
+          return root ? [{ id: thread.id, resolved: thread.isResolved, outdated: thread.isOutdated, root }] : []
+        }),
+        viewed: pull.files.nodes.filter((file) => file.viewerViewedState === 'VIEWED').map((file) => file.path),
+      }
+    },
+    async resolveThread(thread: string, resolved: boolean): Promise<void> {
+      const mutation = resolved
+        ? 'mutation($id: ID!) { resolveReviewThread(input: { threadId: $id }) { clientMutationId } }'
+        : 'mutation($id: ID!) { unresolveReviewThread(input: { threadId: $id }) { clientMutationId } }'
+      await graphql(mutation, { id: thread })
+    },
+    async setViewed(number: number, path: string, viewed: boolean): Promise<void> {
+      const { nodeId } = await this.pull(number)
+      const mutation = viewed
+        ? 'mutation($id: ID!, $path: String!) { markFileAsViewed(input: { pullRequestId: $id, path: $path }) { clientMutationId } }'
+        : 'mutation($id: ID!, $path: String!) { unmarkFileAsViewed(input: { pullRequestId: $id, path: $path }) { clientMutationId } }'
+      await graphql(mutation, { id: nodeId, path })
     },
     async merge(number: number, method: string): Promise<void> {
       await call(`${await repoPath()}/pulls/${number}/merge`, {
@@ -777,4 +806,25 @@ function timelineEvent(raw: RawTimeline): TimelineEvent[] {
       createdAt: raw.created_at ?? '',
     },
   ]
+}
+
+// Thread ids and resolved state, plus the viewer's viewed files, live only in GraphQL.
+const REVIEW_STATE = `query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) { nodes { id isResolved isOutdated comments(first: 1) { nodes { databaseId } } } }
+      files(first: 100) { nodes { path viewerViewedState } }
+    }
+  }
+}`
+
+interface RawReviewState {
+  repository: {
+    pullRequest: {
+      reviewThreads: {
+        nodes: { id: string; isResolved: boolean; isOutdated: boolean; comments: { nodes: { databaseId: number }[] } }[]
+      }
+      files: { nodes: { path: string; viewerViewedState: string }[] }
+    }
+  }
 }

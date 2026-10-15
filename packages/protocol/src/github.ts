@@ -114,7 +114,27 @@ export const PostReviewCommentSchema = PostCommentSchema.extend({
   side: z.enum(['LEFT', 'RIGHT']),
 })
 export const ReplySchema = PostCommentSchema.extend({ inReplyTo: z.number().int() })
-export const SubmitReviewSchema = z.object({ event: ReviewEventSchema, body: z.string().max(65_000) })
+export const PendingCommentSchema = z.object({
+  path: z.string().min(1),
+  line: z.number().int().min(1),
+  side: z.enum(['LEFT', 'RIGHT']),
+  body: z.string().trim().min(1).max(65_000),
+})
+export type PendingComment = z.infer<typeof PendingCommentSchema>
+// A review carries the line comments gathered before it, as GitHub's "Start a review" does.
+export const SubmitReviewSchema = z.object({
+  event: ReviewEventSchema,
+  body: z.string().max(65_000),
+  comments: z.array(PendingCommentSchema).max(200).default([]),
+})
+export const ReviewStateSchema = z.object({
+  threads: z.array(z.object({ id: z.string(), resolved: z.boolean(), outdated: z.boolean(), root: z.number().int() })),
+  // Files the signed-in user marked viewed on GitHub.
+  viewed: z.array(z.string()),
+})
+export type ReviewState = z.infer<typeof ReviewStateSchema>
+export const ResolveThreadSchema = z.object({ thread: z.string().min(1), resolved: z.boolean() })
+export const ViewedSchema = z.object({ path: z.string().min(1), viewed: z.boolean() })
 export const MergePullSchema = z.object({ method: z.enum(['merge', 'squash', 'rebase']) })
 export const CreatePullSchema = z.object({
   title: z.string().trim().min(1).max(256),

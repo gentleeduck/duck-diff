@@ -12,9 +12,11 @@ import {
   type PullRefs,
   ReactSchema,
   ReplySchema,
+  ResolveThreadSchema,
   ReviewersSchema,
   SetTokenSchema,
   SubmitReviewSchema,
+  ViewedSchema,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
 import { HttpError } from './errors'
@@ -105,6 +107,17 @@ export async function handleGitHub(
     if (action === undefined) return Response.json(await github.pull(number))
     if (action === 'checks') return Response.json(await github.checks(number))
     if (action === 'commits') return Response.json(await github.pullCommits(number))
+    if (action === 'review-state') return Response.json(await github.reviewState(number))
+    if (action === 'resolve' && post) {
+      const { thread, resolved } = ResolveThreadSchema.parse(await body())
+      await github.resolveThread(thread, resolved)
+      return new Response(null, { status: 204 })
+    }
+    if (action === 'viewed' && post) {
+      const { path, viewed } = ViewedSchema.parse(await body())
+      await github.setViewed(number, path, viewed)
+      return new Response(null, { status: 204 })
+    }
     if (action === 'reviewers' && post) {
       await github.requestReviewers(number, ReviewersSchema.parse(await body()))
       return new Response(null, { status: 204 })
@@ -129,8 +142,8 @@ export async function handleGitHub(
       return Response.json(await github.reply(number, inReplyTo, text))
     }
     if (action === 'reviews' && post) {
-      const { event, body: text } = SubmitReviewSchema.parse(await body())
-      await github.submitReview(number, event, text)
+      const { event, body: text, comments } = SubmitReviewSchema.parse(await body())
+      await github.submitReview(number, event, text, comments)
       return new Response(null, { status: 204 })
     }
     if (action === 'merge' && post) {

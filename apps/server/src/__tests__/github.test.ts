@@ -111,6 +111,34 @@ function fakeGitHub(calls: Call[]) {
     if (path === '/repos/o/r/pulls/7/requested_reviewers') return Response.json({})
     if (path === '/repos/o/r/issues/9' && method === 'PATCH') return Response.json({})
     if (path === '/repos/o/r/issues/9/lock') return new Response(null, { status: 204 })
+    if (
+      path === '/graphql' &&
+      String((JSON.parse(String(init?.body)) as { query: string }).query).includes('reviewThreads')
+    ) {
+      return Response.json({
+        data: {
+          repository: {
+            pullRequest: {
+              reviewThreads: {
+                nodes: [{ id: 'T1', isResolved: false, isOutdated: false, comments: { nodes: [{ databaseId: 2 }] } }],
+              },
+              files: {
+                nodes: [
+                  { path: 'a.ts', viewerViewedState: 'VIEWED' },
+                  { path: 'b.ts', viewerViewedState: 'UNVIEWED' },
+                ],
+              },
+            },
+          },
+        },
+      })
+    }
+    if (
+      path === '/graphql' &&
+      String((JSON.parse(String(init?.body)) as { query: string }).query).startsWith('mutation')
+    ) {
+      return Response.json({ data: {} })
+    }
     if (path === '/graphql') {
       return Response.json({
         data: {
@@ -381,6 +409,31 @@ describe('/api/github', () => {
     })
     expect((await call('POST', '/api/github/threads/9/lock', { locked: true })).status).toBe(204)
     expect(calls.some((entry) => entry.method === 'PUT' && entry.path === '/repos/o/r/issues/9/lock')).toBe(true)
+  })
+
+  it('reads review threads and viewed files, resolves threads and submits a review with its comments', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    expect(await (await call('GET', '/api/github/pulls/7/review-state')).json()).toEqual({
+      threads: [{ id: 'T1', resolved: false, outdated: false, root: 2 }],
+      viewed: ['a.ts'],
+    })
+    expect((await call('POST', '/api/github/pulls/7/resolve', { thread: 'T1', resolved: true })).status).toBe(204)
+    const mutation = calls.filter((entry) => entry.path === '/graphql').at(-1)?.body as {
+      query: string
+      variables: unknown
+    }
+    expect(mutation.query).toContain('resolveReviewThread')
+    expect(mutation.variables).toEqual({ id: 'T1' })
+    const comments = [{ path: 'a.ts', line: 3, side: 'RIGHT', body: 'nit' }]
+    expect((await call('POST', '/api/github/pulls/7/reviews', { event: 'COMMENT', body: 'ok', comments })).status).toBe(
+      204,
+    )
+    expect(calls.findLast((entry) => entry.path === '/repos/o/r/pulls/7/reviews')?.body).toEqual({
+      event: 'COMMENT',
+      body: 'ok',
+      comments,
+    })
   })
 
   it('lists issues without the pull requests GitHub mixes in', async () => {
