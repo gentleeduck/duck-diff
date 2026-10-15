@@ -18,6 +18,7 @@ import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 export type { Row as TreeRow }
 
 const ROW = 28
+const SETTLE_MS = 800
 
 type Mark = { glyph: string; color: string; title: string }
 
@@ -185,11 +186,28 @@ export function FileTree({
     estimateSize: () => ROW_HEIGHT,
     overscan: 20,
   })
-  // The selected file stays in sight: picked in search, opened by link, or reached by scrolling the diff.
-  const shownIndex = selected ? rows.findIndex((row) => row.path === selected) : -1
+  // A newly selected file is brought into sight once (picked in search, opened by a link, reached by
+  // scrolling the diff), and only when it is out of view. Clicks, folding and other rows moving never
+  // pull the tree back to it; a selection whose row is not there yet waits until it appears.
+  const reveal = useRef<string | null>(null)
+  // A selection that follows from the reader's own click or key in the tree (folding a folder moves the
+  // diff, which moves its top file) is marked but not scrolled to: they are already where they want to be.
+  const touched = useRef(0)
   useEffect(() => {
-    if (shownIndex >= 0) virtualizer.scrollToIndex(shownIndex, { align: 'auto' })
-  }, [shownIndex, virtualizer])
+    reveal.current = Date.now() - touched.current < SETTLE_MS ? null : selected
+  }, [selected])
+  useEffect(() => {
+    const path = reveal.current
+    if (!path) return
+    const index = rows.findIndex((row) => row.path === path)
+    if (index < 0) return
+    reveal.current = null
+    const element = scroller.current
+    if (!element) return
+    const top = index * ROW_HEIGHT
+    const visible = top >= element.scrollTop && top + ROW_HEIGHT <= element.scrollTop + element.clientHeight
+    if (!visible) virtualizer.scrollToIndex(index, { align: 'center' })
+  })
   // A new interface size changes every row's height at once.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the height is the trigger
   useEffect(() => virtualizer.measure(), [virtualizer, ROW_HEIGHT])
@@ -204,7 +222,17 @@ export function FileTree({
   }
 
   return (
-    <div ref={scroller} role="tree" aria-label={label} className="min-h-0 flex-1 overflow-y-auto py-1">
+    <div
+      ref={scroller}
+      role="tree"
+      aria-label={label}
+      className="min-h-0 flex-1 overflow-y-auto py-1"
+      onPointerDown={() => {
+        touched.current = Date.now()
+      }}
+      onKeyDown={() => {
+        touched.current = Date.now()
+      }}>
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtual) => {
           const row = rows[virtual.index]

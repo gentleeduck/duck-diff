@@ -26,3 +26,37 @@ test('a file picked in search is marked and opened in the files tree', async ({ 
   await page.keyboard.press('Enter')
   await expect(tree.getByRole('treeitem', { name: /app\.ts/ })).toHaveAttribute('aria-current', 'true')
 })
+
+test('folding and clicking leave the tree where it is; only a new active file brings it into view', async ({
+  page,
+  app,
+  repo,
+}) => {
+  for (let i = 0; i < 40; i++) repo.write(`pkg${String(i).padStart(2, '0')}/file.ts`, `export const v${i} = ${i}\n`)
+  await page.goto(app.url)
+  await expect(page.getByRole('banner')).toContainText('42 files')
+  const tree = page.getByRole('tree', { name: 'Changed files' })
+  const top = () => tree.evaluate((element) => element.scrollTop)
+  await tree.evaluate((element) => {
+    element.scrollTop = 400
+  })
+  await expect.poll(top).toBe(400)
+  // A folder already on screen, so the click itself needs no scrolling.
+  const folders = await tree.locator('[role=treeitem][aria-expanded]').all()
+  let folder = folders[0]
+  for (const candidate of folders) {
+    const box = await candidate.boundingBox()
+    const area = await tree.boundingBox()
+    if (box && area && box.y > area.y + 40 && box.y + box.height < area.y + area.height - 40) {
+      folder = candidate
+      break
+    }
+  }
+  if (!folder) throw new Error('no folder on screen')
+  await folder.click()
+  await page.waitForTimeout(300)
+  expect(await top()).toBe(400)
+  await folder.click()
+  await page.waitForTimeout(300)
+  expect(await top()).toBe(400)
+})
