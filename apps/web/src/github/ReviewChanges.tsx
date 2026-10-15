@@ -3,6 +3,7 @@ import { Check, MessageSquare, ScanEye, X } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { COMPARE } from '../app/fit'
 import type { ReviewEvent } from '../lib/api'
 import { fitRows } from '../lib/fit-rows'
 import { useStore } from '../lib/store'
@@ -18,7 +19,8 @@ const EVENTS: { event: ReviewEvent; label: string; icon: typeof Check }[] = [
 ]
 
 // GitHub's "Review changes": a summary and a verdict, sent with every comment gathered on the diff.
-export function ReviewChanges() {
+// fit: in the compare bar, where the button folds to its icon as the bar narrows.
+export function ReviewChanges({ fit = false }: { fit?: boolean }) {
   const { pullReview } = useApp()
   const pending = useStore(pullReview, selectCount)
   const number = useStore(pullReview, selectNumber)
@@ -44,10 +46,18 @@ export function ReviewChanges() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button size="sm" className="shrink-0">
+        <Button
+          size="sm"
+          aria-label="Review changes"
+          title="Review changes"
+          className={`shrink-0 ${fit ? COMPARE.icon : ''}`}>
           <ScanEye />
-          Review changes
-          {pending ? <span className="rounded-full bg-background/30 px-1.5 tabular-nums">{pending}</span> : null}
+          <span className={fit ? COMPARE.label : undefined}>Review changes</span>
+          {pending ? (
+            <span className={`rounded-full bg-background/30 px-1.5 tabular-nums ${fit ? COMPARE.count : ''}`}>
+              {pending}
+            </span>
+          ) : null}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="flex w-[28rem] flex-col gap-3">

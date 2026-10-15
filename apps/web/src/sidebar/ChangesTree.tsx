@@ -13,6 +13,7 @@ import { actionsFor } from '../viewer/actions'
 import { useWrites } from '../writes/WritesProvider'
 import { FileTree } from './FileTree'
 import { filterFiles, type TreeStatus } from './filters'
+import { HiddenNotice } from './HiddenNotice'
 import { HideFilter } from './HideFilter'
 import { StatusFilter } from './StatusFilter'
 import { FileMenu, FolderMenu } from './tree-menus'
@@ -100,6 +101,8 @@ export function ChangesTree() {
             )
           }}
         />
+      ) : files.length > 0 && shown.length === 0 ? (
+        <HiddenNotice count={files.length} />
       ) : (
         <p className="p-3 text-tn-comment">
           {files.length === 0 ? 'No changes in this comparison.' : 'No files match the filter.'}

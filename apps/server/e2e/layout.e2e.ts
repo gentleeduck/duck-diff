@@ -81,3 +81,18 @@ test('scrolled to the end, the tree marks the last file even though it never rea
     })
     .toBe('true')
 })
+
+test('when the patterns hide every file, the tree and the diff say so and can turn them off', async ({ page, app }) => {
+  await page.goto(app.url)
+  const tree = page.getByRole('tree', { name: 'Changed files' })
+  await expect(tree).toBeVisible()
+  await page.getByRole('button', { name: 'Hide files' }).click()
+  await page.getByRole('textbox', { name: 'New pattern name' }).fill('Everything')
+  await page.getByRole('textbox', { name: 'New hide pattern' }).fill('.')
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Escape')
+  await expect(page.getByText('All 2 changed files are hidden by your Hide files patterns.')).toHaveCount(2)
+  await page.getByRole('button', { name: 'Turn the patterns off' }).first().click()
+  await expect(tree.getByRole('treeitem', { name: /app\.ts/ })).toBeVisible()
+  await expect(page.locator('main')).toContainText('export const answer = 42')
+})

@@ -1,6 +1,7 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { GitPullRequest, X } from 'lucide-react'
 import { useApp } from '../app/AppProvider'
+import { COMPARE } from '../app/fit'
 import { pullOf } from '../github/pull-review'
 import { ReviewChanges } from '../github/ReviewChanges'
 import { useRefs } from '../hooks/useRefs'
@@ -36,7 +37,8 @@ export function CompareBar() {
   const { show } = useView()
 
   return (
-    <div className="@container flex min-w-0 flex-1 items-center gap-4">
+    // Clipped at its edge: whatever cannot fold must not slide under the search box beside it.
+    <div className="@container flex min-w-0 flex-1 items-center gap-4 overflow-hidden py-2">
       <h1 className="flex min-w-0 items-center gap-2">
         <RefPicker label={from} side="from" refs={refs} onPick={(end) => navigate(withSide(target, 'from', end))} />
         {operator ? (
@@ -75,17 +77,19 @@ export function CompareBar() {
         <Button
           size="sm"
           variant="outline"
-          className="shrink-0"
+          aria-label="Conversation"
+          title="Conversation"
+          className={`shrink-0 ${COMPARE.icon}`}
           onClick={() => {
             pullSelection.set(pull)
             show('prs')
           }}>
           <GitPullRequest />
-          Conversation
+          <span className={COMPARE.label}>Conversation</span>
         </Button>
       ) : null}
-      {pull !== null ? <ReviewChanges /> : null}
-      <p className="hidden shrink-0 text-muted-foreground tabular-nums @md:block">
+      {pull !== null ? <ReviewChanges fit /> : null}
+      <p className="hidden shrink-0 text-muted-foreground tabular-nums @3xl:block">
         {files} {files === '1' ? 'file' : 'files'}
         <span className="ml-3 text-added">+{additions}</span>
         <span className="ml-1.5 text-removed">-{deletions}</span>

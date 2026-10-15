@@ -6,6 +6,14 @@ export const ICON_ONLY = {
   wide: '@max-7xl/top:size-7 @max-7xl/top:px-0!',
   mid: '@max-6xl/top:size-7 @max-6xl/top:px-0!',
 }
+// The same, measured against the compare section of the bar (its own container), which shares the bar
+// with the search box and buttons.
+export const COMPARE = {
+  label: 'hidden @4xl:inline',
+  icon: '@max-4xl:size-7 @max-4xl:px-0!',
+  count:
+    '@max-4xl:absolute @max-4xl:-end-1.5 @max-4xl:-top-1.5 @max-4xl:rounded-full @max-4xl:bg-tn-yellow @max-4xl:px-1 @max-4xl:text-[0.7em] @max-4xl:text-background @max-4xl:leading-[1.4]',
+}
 export const COUNT = {
   mid: '@max-6xl/top:absolute @max-6xl/top:-end-1.5 @max-6xl/top:-top-1.5 @max-6xl/top:rounded-full @max-6xl/top:bg-tn-yellow @max-6xl/top:px-1 @max-6xl/top:text-[0.7em] @max-6xl/top:text-background @max-6xl/top:leading-[1.4]',
 }

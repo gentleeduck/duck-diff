@@ -26,6 +26,7 @@ import { lineHash } from '../review/anchor'
 import { createAnnotator, type Note, type NoteItem } from '../review/annotations'
 import { ReviewNote } from '../review/ReviewNote'
 import type { ReviewsState } from '../review/reviews'
+import { HiddenNotice } from '../sidebar/HiddenNotice'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { type ViewedState, viewedPaths } from '../state/viewed'
@@ -672,6 +673,7 @@ export default function Viewer() {
   if (status === 'ready' && files.length === 0) {
     return <p className="p-6 text-muted-foreground">{EMPTY[target.kind]}</p>
   }
+  if (status === 'ready' && plain.length > 0 && shown.length === 0) return <HiddenNotice count={plain.length} />
   return (
     <div className="relative h-full">
       <DiffView

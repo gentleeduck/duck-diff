@@ -230,11 +230,18 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         return [sideways.bar(id, { position: 'absolute', insetInline: 0, transform: `translateY(${y}px)` })]
       })
 
-  // Scrolled to the end, the last file is the one being read even though it never reaches the top.
+  // Scrolled down to the end, the last file is the one being read even though it never reaches the top.
+  // Only the reader's own scroll counts: a page that shrinks (a folder folded) and so ends on screen does not.
   const viewHeight = scroller.current?.clientHeight ?? 0
   // The element's own height, which rows measured since the last estimate have already changed.
   const totalHeight = scroller.current?.scrollHeight ?? virtualizer.getTotalSize()
-  const atEnd = page.rows.length > 0 && totalHeight > viewHeight + 2 && scrollTop + viewHeight >= totalHeight - 2
+  const endVisible = page.rows.length > 0 && totalHeight > viewHeight + 2 && scrollTop + viewHeight >= totalHeight - 2
+  const lastTop = useRef(scrollTop)
+  const reachedEnd = useRef(false)
+  if (!endVisible || scrollTop < lastTop.current) reachedEnd.current = false
+  else if (scrollTop > lastTop.current) reachedEnd.current = true
+  lastTop.current = scrollTop
+  const atEnd = reachedEnd.current
   const topItem = atEnd
     ? (page.rows.at(-1)?.item ?? null)
     : firstRow?.type === 'end'
