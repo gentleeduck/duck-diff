@@ -46,7 +46,8 @@ describe('terminals', () => {
     session.attach(socket)
     session.input('echo "tty=$(tty | cut -c1-8) cwd=$PWD"; echo $TERM\n')
     await until(() => text().includes('xterm-256color'))
-    expect(text()).toContain('tty=/dev/pts')
+    // Linux names ptys /dev/pts/N, macOS /dev/ttysNNN.
+    expect(text()).toMatch(/tty=\/dev\/(pts|tty)/)
     expect(text()).toContain(`cwd=${dir}`)
   })
 
