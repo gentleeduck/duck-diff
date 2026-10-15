@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { forwardRef, type ReactNode, useCallback, useImperativeHandle, useMemo, useRef } from 'react'
+import { forwardRef, type ReactNode, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import type { Note, NoteItem } from '../review/annotations'
 import type { Page, PageRow } from './page'
 import { LineRow, RowContext, type RowContextValue } from './RowViews'
@@ -20,6 +20,9 @@ interface DiffViewProps {
 }
 
 const ESTIMATE: Record<PageRow['type'], number> = { header: 48, row: 22, note: 120, end: 16 }
+
+const PREFETCH_ROWS = 600
+const PREFETCH_FILES = 4
 
 const fixedHeight = (row: PageRow, wrap: boolean) =>
   !wrap && row.type === 'row' && (row.row.type === 'line' || row.row.type === 'pair')
@@ -65,6 +68,19 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
   )
 
   const items = virtualizer.getVirtualItems()
+  // The next few files below the viewport get their colors started, so fast scrolling lands on them ready.
+  const lastIndex = items.at(-1)?.index ?? 0
+  useEffect(() => {
+    let seen = 0
+    let previous: string | null = null
+    for (let i = lastIndex; i < page.rows.length && i < lastIndex + PREFETCH_ROWS && seen < PREFETCH_FILES; i++) {
+      const item = page.rows[i]?.item
+      if (!item || item.id === previous) continue
+      previous = item.id
+      seen++
+      context.prefetch(item)
+    }
+  }, [lastIndex, page, context])
   // The file whose rows fill the top of the view keeps its header pinned above them.
   const scrollTop = virtualizer.scrollOffset ?? 0
   const first = items.find((virtual) => virtual.end > scrollTop)

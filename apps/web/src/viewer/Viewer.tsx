@@ -1,5 +1,5 @@
 import { type DiffTarget, targetKey } from '@duck-diff/protocol'
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { DiffView } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
@@ -74,7 +74,6 @@ export default function Viewer() {
   const writes = useWrites()
   const kinds = useMemo(() => actionsFor(target), [target])
   const byPath = useMemo(() => new Map(files.map((file) => [file.path, file])), [files])
-  useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
 
   // Paths the header chevron folded (true) or opened (false), on top of the viewed marks.
   const [toggled, setToggled] = usePerTarget(shownKey, emptyToggles)
@@ -118,6 +117,10 @@ export default function Viewer() {
         return highlighter
           .tokens(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
           ?.[side].get(line)
+      },
+      prefetch(item) {
+        const file = page.files.get(item.id)
+        if (file) highlighter.prefetch(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
       },
       kinds(item) {
         const file = byPath.get(item.fileDiff.name)
