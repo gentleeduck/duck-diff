@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
-import { resolveRepo } from '@duck-diff/git'
+import { resolveRepo, runGit } from '@duck-diff/git'
 import type { Handshake } from '@duck-diff/protocol'
 import { type Command, parseArgs, VERSION } from './args'
+import { startBanner } from './banner'
 import { clearCaches, dataHome } from './disk-cache'
 import { help, say } from './help'
 import { instanceFile, liveInstance, openBrowser, pageUrl, removeInstance, writeInstance } from './instance'
@@ -105,10 +106,11 @@ async function main(): Promise<number> {
     process.stdin.resume()
   } else if (!takeover.port) {
     const url = pageUrl(server, command.path)
-    console.info(`${say.bold('duck-diff')} ${say.dim(VERSION)} serving ${say.blue(repo)}`)
-    console.info(`  ${say.green(url)}`)
-    console.info(say.dim('  Ctrl-C stops it; it also stops on its own once no page has been open for a while.'))
-    if (command.browser && !openBrowser(url)) console.info(say.dim('  No browser to open; use the link above.'))
+    const branch = (
+      await runGit(['symbolic-ref', '--short', 'HEAD'], { cwd: repo, okExitCodes: [128] }).catch(() => '')
+    ).trim()
+    console.info(startBanner({ version: VERSION, repo, branch: branch || null, url }))
+    if (command.browser && !openBrowser(url)) console.info(say.dim('No browser to open; use the link above.'))
   }
 
   // A new build installed over this binary takes over in place: same process, so Neovim's pipe and the
