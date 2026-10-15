@@ -64,7 +64,7 @@ function ChartContainer({ id, className, children, config, ref, dir, ...props }:
 ChartContainer.displayName = 'ChartContainer'
 
 function ChartStyle({ id, config }: IChartStyleProps) {
-  // SEC-003: `id` is interpolated into a CSS selector — drop it entirely if unsafe.
+  // SEC-003: `id` is interpolated into a CSS selector, so drop it entirely if unsafe.
   if (!isSafeCssIdent(id)) {
     return null
   }

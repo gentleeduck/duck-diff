@@ -12,7 +12,7 @@ const SAFE_CSS_COLOR_STRUCTURED = /^(?:#[0-9a-fA-F]{3,8}|(?:rgb|rgba|hsl|hsla)\(
 /**
  * Finite allowlist of CSS named colors permitted as bare identifiers. Sourced
  * from CSS Color Module Level 4 (incl. `currentColor` / `transparent`). New
- * named colors require an explicit addition — no `[a-zA-Z]+` catch-all.
+ * named colors require an explicit addition, with no `[a-zA-Z]+` catch-all.
  */
 const CSS_NAMED_COLORS = new Set<string>([
   'aliceblue',
@@ -183,7 +183,7 @@ const SAFE_CSS_IDENT = /^[a-zA-Z0-9_-]+$/
  *   - var(--foo)
  *   - finite allowlist of CSS named colors (see `CSS_NAMED_COLORS`)
  *
- * Bare unknown identifiers are rejected — this is intentionally stricter than
+ * Bare unknown identifiers are rejected; this is intentionally stricter than
  * the previous `[a-zA-Z]+` catch-all so future CSS-wide keywords cannot ship
  * an injection path.
  */
