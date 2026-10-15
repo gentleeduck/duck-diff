@@ -304,7 +304,10 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
             }}
             placeholder="Search files, pull requests and issues, or > for commands"
           />
-          <div ref={results} className="flex min-h-0 flex-1">
+          <div
+            ref={results}
+            // CommandList wraps itself in a scroll area; that wrapper is what has to fill the row.
+            className="flex min-h-0 w-full flex-1 [&>[data-slot=scroll-area]]:min-w-0 [&>[data-slot=scroll-area]]:flex-1">
             <CommandList className="max-h-none min-w-0 flex-1 overflow-y-auto">
               <CommandEmpty>
                 {scope === 'file' && tree === null ? 'Reading the file list...' : 'Nothing matches.'}

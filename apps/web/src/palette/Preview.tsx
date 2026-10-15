@@ -10,11 +10,15 @@ import type { IndexedItem } from '../github/item-index'
 import { Labels } from '../github/Labels'
 import { PullIcon } from '../github/PullsList'
 import { ago } from '../github/time'
+import { useSettings } from '../hooks/useSettings'
 import { fileGlyph } from '../sidebar/icons'
+import type { Settings } from '../state/settings'
 
 export type PreviewTarget = { kind: 'file'; path: string } | { kind: 'item'; item: IndexedItem } | null
 
 const LINES = 80
+const selectSize = (settings: Settings) => settings.fontSize
+const selectTab = (settings: Settings) => settings.tabSize
 // Read once per palette session; moving up and down the results should not refetch.
 const files = new Map<string, Promise<FileContents | null>>()
 const bodies = new Map<number, Promise<string | null>>()
@@ -23,6 +27,7 @@ function FilePreview({ path }: { path: string }) {
   const { api } = useApp()
   const [contents, setContents] = useState<FileContents | null | undefined>(undefined)
   useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
+  const code = { size: useSettings(selectSize), tab: useSettings(selectTab) }
   useEffect(() => {
     let alive = true
     setContents(undefined)
@@ -55,7 +60,10 @@ function FilePreview({ path }: { path: string }) {
         <p className="p-3 text-muted-foreground">{contents?.binary ? 'Binary file.' : 'Nothing to show.'}</p>
       ) : null}
       {shown ? (
-        <pre className="min-h-0 flex-1 overflow-hidden px-3 py-2 text-[0.9em] leading-snug">
+        <pre
+          className="min-h-0 flex-1 overflow-hidden px-3 py-2"
+          // The code size and line height the diff and file views use, so a preview reads the same.
+          style={{ fontSize: code.size, lineHeight: `${Math.round(code.size * 1.5)}px`, tabSize: code.tab }}>
           {shown.split('\n').map((line, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: lines of one fixed text
             <div key={index} className="flex whitespace-pre">
