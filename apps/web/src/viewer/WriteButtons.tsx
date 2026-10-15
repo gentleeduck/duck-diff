@@ -23,8 +23,8 @@ export function WriteButtons({
       <Tooltip key={kind}>
         <TooltipTrigger asChild>
           <Button
-            variant="outline"
-            size="sm"
+            variant={scope === 'file' ? 'ghost' : 'outline'}
+            size={scope === 'file' ? 'icon' : 'sm'}
             className={kind === 'discard' ? 'text-destructive hover:text-destructive' : undefined}
             aria-label={`${label} ${scope}`}
             onClick={(event) => {
@@ -32,7 +32,8 @@ export function WriteButtons({
               onWrite(kind)
             }}>
             <Icon />
-            {label}
+            {/* The file header is a row of icons; a change keeps its words beside the code. */}
+            {scope === 'change' ? label : null}
           </Button>
         </TooltipTrigger>
         <TooltipContent>{`${label} ${scope}`}</TooltipContent>

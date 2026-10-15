@@ -255,7 +255,7 @@ export default function FileView() {
       ) : null}
       {contents?.text && markdown && preview ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <article className="mx-auto max-w-4xl p-6">
+          <article className="w-full p-6">
             <Markdown
               text={contents.text}
               onLocalLink={(href) => openFile(app, resolveLink(path, href))}

@@ -1,5 +1,6 @@
 import type { DiffIndicators, HunkSeparators, LineDiffTypes, ThemeTypes } from '@pierre/diffs'
 import { z } from 'zod'
+import { DEFAULT_HIDE, type HidePattern } from '../lib/hide'
 import { createStore, type Store } from '../lib/store'
 
 export interface Settings {
@@ -17,9 +18,14 @@ export interface Settings {
   fontSize: number
   // Everything else: text, buttons, rows and spacing scale together from this.
   uiFontSize: number
+  // One weight and one style for every piece of text, code and terminals included.
+  fontWeight: 400 | 500 | 600 | 700
+  italic: boolean
   tabSize: number
   // Test files in a comparison: shown as usual, folded under their headers, or left out of diff and tree.
   tests: 'show' | 'fold' | 'hide'
+  // Files left out of the tree and the diff, by path; the tests pattern comes first.
+  hidePatterns: HidePattern[]
   // The left panel (tree, branches, files), hidden for a wider diff.
   sidebar: boolean
   // Browser notifications for review requests and failed runs of mine; off until asked for.
@@ -40,8 +46,11 @@ export const DEFAULT_SETTINGS: Settings = {
   themes: { light: 'tokyo-night', dark: 'tokyo-night' },
   fontSize: 15,
   uiFontSize: 15,
+  fontWeight: 700,
+  italic: true,
   tabSize: 2,
   tests: 'show',
+  hidePatterns: DEFAULT_HIDE,
   sidebar: true,
   desktopNotices: false,
 }
@@ -62,8 +71,13 @@ const FIELDS = {
   themes: z.object({ light: z.string(), dark: z.string() }),
   fontSize: z.number().int().min(10).max(24),
   uiFontSize: z.number().int().min(10).max(24),
+  fontWeight: z.union([z.literal(400), z.literal(500), z.literal(600), z.literal(700)]),
+  italic: z.boolean(),
   tabSize: z.number().int().min(1).max(8),
   tests: z.enum(['show', 'fold', 'hide']),
+  hidePatterns: z
+    .array(z.object({ id: z.string(), label: z.string(), pattern: z.string(), enabled: z.boolean() }))
+    .max(50),
   sidebar: z.boolean(),
   desktopNotices: z.boolean(),
 } satisfies { [K in keyof Settings]: z.ZodType<Settings[K]> }
@@ -79,6 +93,13 @@ function load(storage: Pick<Storage, 'getItem'> | null): Settings {
   for (const key of Object.keys(FIELDS) as (keyof Settings)[]) {
     const parsed = FIELDS[key].safeParse(stored[key])
     if (parsed.success) result[key] = parsed.data
+  }
+  // Hiding tests used to be a choice of its own; it is now the tests pattern, switched on.
+  if (result.tests === 'hide') {
+    result.tests = 'show'
+    result.hidePatterns = (result.hidePatterns as HidePattern[]).map((entry) =>
+      entry.id === 'tests' ? { ...entry, enabled: true } : entry,
+    )
   }
   return result as unknown as Settings
 }

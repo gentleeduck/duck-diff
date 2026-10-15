@@ -43,6 +43,8 @@ import {
   IssueSummarySchema,
   type ItemExtras,
   ItemExtrasSchema,
+  type Job,
+  JobSchema,
   type ListPage,
   ListPageSchema,
   type ListQuery,
@@ -105,6 +107,7 @@ import {
   type WriteRequest,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
+import { createQueryCache } from './query-cache'
 
 function lspParams(query: LspQuery): URLSearchParams {
   const params = new URLSearchParams({ path: query.path, line: String(query.line), column: String(query.column) })
@@ -177,8 +180,20 @@ export interface Api {
     definition(query: LspQuery): Promise<LspLocations>
     references(query: LspQuery): Promise<LspLocations>
     hover(query: LspQuery): Promise<LspHover>
+    // Starts the language servers these files need, ahead of the first lookup.
+    warm(paths: string[]): Promise<void>
   }
+  // A GitHub topic changed on the server; reads that follow it are read again next time.
+  invalidate(topic: string): void
   git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean; stopped?: boolean }>
+  // The actions run lately, newest first, and what one printed.
+  jobs(): Promise<Job[]>
+  jobOutput(id: string): Promise<string>
+  // Shells running on the server, which a reloaded page reattaches to.
+  terminals(): Promise<{ id: string; title: string; cwd: string }[]>
+  closeTerminal(id: string): Promise<void>
+  // Empties what the server keeps on disk: GitHub answers, commits, the graph and the output history.
+  clearCache(): Promise<void>
   github: GitHubApi
 }
 
@@ -329,8 +344,11 @@ export type GitAction =
 const ContentSchema = z.object({ contents: z.string().nullable() })
 
 export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
+  const cache = createQueryCache()
   async function request(path: string, signal?: AbortSignal, init: RequestInit = {}): Promise<Response> {
     const response = await fetcher(`${base}${path}`, { ...init, signal })
+    // A write to GitHub can change any read, so every kept answer goes.
+    if (response.ok && init.method && init.method !== 'GET' && path.startsWith('/api/github/')) cache.clear()
     if (response.ok) return response
     const parsed = ErrorBodySchema.safeParse(await response.json().catch(() => null))
     if (parsed.success) throw new ApiError(response.status, parsed.data.error.code, parsed.data.error.message)
@@ -338,7 +356,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
   }
 
   async function json<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
-    return schema.parse(await (await request(path, signal)).json())
+    const read = async () => schema.parse(await (await request(path, signal)).json())
+    return path.startsWith('/api/github/') ? cache.get(path, read) : read()
   }
 
   async function send<T>(method: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
@@ -529,12 +548,14 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       definition: (query) => json(`/api/lsp/definition?${lspParams(query)}`, LspLocationsSchema),
       references: (query) => json(`/api/lsp/references?${lspParams(query)}`, LspLocationsSchema),
       hover: (query) => json(`/api/lsp/hover?${lspParams(query)}`, LspHoverSchema),
+      warm: (paths) => post('/api/lsp/warm', { paths }),
     },
     blame(path, ref) {
       const params = new URLSearchParams({ path })
       if (ref) params.set('ref', ref)
       return json(`/api/blame?${params}`, z.array(BlameLineSchema))
     },
+    invalidate: (topic) => cache.invalidate(topic),
     git: (action, body) =>
       send(
         'POST',
@@ -542,6 +563,11 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
         body ?? {},
         z.object({ sha: z.string().optional(), conflicts: z.boolean().optional(), stopped: z.boolean().optional() }),
       ),
+    jobs: () => json('/api/jobs', z.array(JobSchema)),
+    terminals: () => json('/api/terminals', z.array(z.object({ id: z.string(), title: z.string(), cwd: z.string() }))),
+    clearCache: () => sendEmpty('POST', '/api/cache/clear'),
+    closeTerminal: (id) => sendEmpty('DELETE', `/api/terminals/${encodeURIComponent(id)}`),
+    jobOutput: async (id) => (await request(`/api/jobs/${encodeURIComponent(id)}/output`)).text(),
     commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),
     commitStat: (sha) => json(`/api/commit-stat?sha=${encodeURIComponent(sha)}`, CommitStatSchema),
     reviews: (target) => json(`/api/reviews?target=${encodeTarget(target)}`, z.array(ReviewCommentSchema)),

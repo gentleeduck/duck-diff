@@ -217,7 +217,7 @@ export function Releases() {
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see releases.</p>
   return (
     <div ref={page} className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
+      <div className="flex w-full flex-col gap-4 p-6">
         <div className="flex items-center gap-2">
           <span className="flex-1 text-muted-foreground">
             {items ? `${items.length} ${items.length === 1 ? 'release' : 'releases'}` : null}

@@ -35,9 +35,11 @@ export function BranchMenu() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button size="sm" variant="outline" aria-label="Branch" loading={busy === 'switch'}>
+        <Button size="sm" variant="outline" aria-label="Branch" loading={busy === 'switch'} className="justify-start">
           <GitBranch />
-          <span className="max-w-56 truncate">{status ? (status.branch ?? 'detached HEAD') : '...'}</span>
+          <span className="min-w-0 max-w-28 truncate pe-0.5 @6xl/top:max-w-56">
+            {status ? (status.branch ?? 'detached HEAD') : '...'}
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96 p-0">

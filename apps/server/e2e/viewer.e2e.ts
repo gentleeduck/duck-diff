@@ -89,3 +89,34 @@ test('a file header and its gaps all act: unchanged lines open above and below, 
   await viewed.click()
   await expect(page.getByRole('button', { name: 'Show long.ts' })).toBeVisible()
 })
+
+test('a viewed file that changes again opens and counts as not viewed', async ({ page, app, repo }) => {
+  await page.goto(app.url)
+  const main = page.getByRole('main')
+  await expect(main).toContainText('answer = 42')
+  await page.locator('[data-diff-view]').getByText('src/app.ts', { exact: true }).first().hover()
+  await page.getByRole('checkbox', { name: 'Viewed' }).first().click()
+  await expect(page.getByRole('button', { name: 'Show src/app.ts' })).toBeVisible()
+
+  repo.write('src/app.ts', 'export const answer = 43\nexport const name = "duck"\n')
+  await expect(main).toContainText('answer = 43')
+  await expect(page.getByRole('button', { name: 'Hide src/app.ts' })).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: 'Viewed' }).first()).toHaveAttribute('aria-checked', 'false')
+})
+
+test('Show unchanged lines opens every gap in the diff', async ({ page, app, repo }) => {
+  const lines = Array.from({ length: 80 }, (_, i) => `export const line${i} = ${i}`)
+  repo.write('long.ts', `${lines.join('\n')}\n`)
+  repo.commit('long')
+  lines[40] = 'export const line40 = 4000'
+  repo.write('long.ts', `${lines.join('\n')}\n`)
+  await page.goto(app.url)
+  const main = page.locator('main')
+  await expect(main).toContainText('line40 = 4000')
+  await expect(page.getByRole('button', { name: /Show \d+ unchanged lines/ }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Diff settings' }).click()
+  await page.getByRole('switch', { name: 'Show unchanged lines' }).click()
+  await page.keyboard.press('Escape')
+  await expect(main).toContainText('line10 = 10')
+  await expect(page.getByRole('button', { name: /Show \d+ unchanged lines/ })).toHaveCount(0)
+})

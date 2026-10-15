@@ -17,16 +17,29 @@ test('the diff follows the tree order and folds with a folded folder', async ({ 
   await expect(page.getByRole('button', { name: 'Hide notes.txt' })).toBeVisible()
 })
 
-test('test files can be folded or hidden from the tree and the diff', async ({ page, app, repo }) => {
+test('files are hidden by pattern, tests first, and emptied folders leave the tree', async ({ page, app, repo }) => {
   repo.write('src/app.test.ts', 'it("works", () => {})\n')
+  repo.write('docs/guide.md', '# guide\n')
   await page.goto(app.url)
   const tree = page.getByRole('tree', { name: 'Changed files' })
   await expect(tree.getByRole('treeitem', { name: /app\.test\.ts/ })).toBeVisible()
-  await page.getByRole('button', { name: 'Test files shown: click to fold them' }).click()
-  await expect(page.getByRole('button', { name: 'Show src/app.test.ts' })).toBeVisible()
-  await page.getByRole('button', { name: 'Test files folded: click to hide them' }).click()
+  await page.getByRole('button', { name: 'Hide files' }).click()
+  await page.getByRole('switch', { name: 'Hide Test files' }).click()
   await expect(tree.getByRole('treeitem', { name: /app\.test\.ts/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /src\/app\.test\.ts/ })).toHaveCount(0)
+
+  await page.getByRole('textbox', { name: 'New pattern name' }).fill('Docs')
+  await page.getByRole('textbox', { name: 'New hide pattern' }).fill('^docs/')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('list', { name: 'Hide patterns' })).toContainText('^docs/')
+  await expect(tree.getByRole('treeitem', { name: /^docs/ })).toHaveCount(0)
+  await expect(tree.getByRole('treeitem', { name: /guide\.md/ })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Edit Docs' }).click()
+  await page.getByRole('textbox', { name: 'Pattern for Docs' }).fill('^nothing/')
+  await page.keyboard.press('Enter')
+  await expect(tree.getByRole('treeitem', { name: /guide\.md/ })).toBeVisible()
+  await page.getByRole('button', { name: 'Remove Docs' }).click()
+  await expect(page.getByRole('list', { name: 'Hide patterns' })).not.toContainText('^nothing/')
 })
 
 test('each view hides its own left panel, and views without one show no toggle', async ({ page, app }) => {
@@ -43,4 +56,28 @@ test('each view hides its own left panel, and views without one show no toggle',
   await expect(panel).toBeVisible()
   await page.getByRole('button', { name: 'Releases', exact: true }).click()
   await expect(page.getByRole('button', { name: /^(Hide|Show) / })).toHaveCount(0)
+})
+
+test('scrolled to the end, the tree marks the last file even though it never reaches the top', async ({
+  page,
+  app,
+  repo,
+}) => {
+  const long = Array.from({ length: 200 }, (_, i) => `export const a${i} = ${i}`)
+  repo.write('a/long.ts', `${long.join('\n')}\n`)
+  repo.commit('long')
+  repo.write('a/long.ts', `${long.map((line) => `${line} // changed`).join('\n')}\n`)
+  repo.write('z/last.ts', 'export const last = 1\n')
+  await page.goto(app.url)
+  const tree = page.getByRole('tree', { name: 'Changed files' })
+  await expect(tree.getByRole('treeitem', { name: /long\.ts/ })).toHaveAttribute('aria-selected', 'true')
+  // Rows measured on the way can grow the page, so keep going to the end as a reader would.
+  await expect
+    .poll(async () => {
+      await page.locator('[data-diff-view]').evaluate((element) => {
+        element.scrollTop = element.scrollHeight
+      })
+      return tree.getByRole('treeitem', { name: /last\.ts/ }).getAttribute('aria-selected')
+    })
+    .toBe('true')
 })

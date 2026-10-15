@@ -62,6 +62,20 @@ describe('navigator', () => {
     expect(setupResult.calls[0]?.expr).toContain('"kind":"references","line":1,"character":10')
   })
 
+  it('asks Neovim only about files it already has open with a server, without waiting', async () => {
+    const { calls } = setup(() => null)
+    await navigator.hover({ path: 'src/a.ts', line: 1, column: 1 })
+    expect(calls[0]?.expr).toContain('"attached":true')
+  })
+
+  it('answers from its own server once it is warm, without asking Neovim', async () => {
+    const { calls } = setup(() => ({ server: 'ts_ls', encoding: 'utf-16', result: { contents: 'nvim' } }))
+    await navigator.warm(['src/a.ts', 'README.md'])
+    const found = await navigator.hover({ path: 'src/a.ts', line: 1, column: 1 })
+    expect(found).toMatchObject({ source: 'server', server: 'fake' })
+    expect(calls).toEqual([])
+  })
+
   it('falls back to its own servers when Neovim has no client', async () => {
     setup(() => null)
     const found = await navigator.hover({ path: 'src/a.ts', line: 1, column: 1 })
@@ -118,6 +132,12 @@ describe('lsp routes', () => {
       expect((await get('/api/lsp/hover?path=src/a.ts&line=0&column=7')).status).toBe(400)
       expect((await get('/api/lsp/hover?path=../x.ts&line=1&column=1')).status).toBe(400)
       expect((await get('/api/lsp/rename?path=src/a.ts&line=1&column=1')).status).toBe(404)
+      const warm = await fetch(`http://127.0.0.1:${server.port}/api/lsp/warm`, {
+        method: 'POST',
+        headers: { 'x-duck-diff-token': server.token, 'content-type': 'application/json' },
+        body: JSON.stringify({ paths: ['src/a.ts'] }),
+      })
+      expect(warm.status).toBe(204)
     } finally {
       await server.stop()
     }

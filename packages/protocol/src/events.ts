@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { RepoInfoSchema } from './api'
 import { DiffTargetSchema } from './git'
+import { JobSchema } from './jobs'
 
 export const ServerEventSchema = z.discriminatedUnion('type', [
   // build changes when a new server binary has taken over, which tells an open page to reload.
@@ -10,6 +11,9 @@ export const ServerEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('navigate'), target: DiffTargetSchema }),
   // Something a page watches on GitHub changed; the page reads it again.
   z.object({ type: z.literal('github'), topic: z.string() }),
+  // A user action started or ended; its output follows in job-output events, in order.
+  z.object({ type: z.literal('job'), job: JobSchema }),
+  z.object({ type: z.literal('job-output'), id: z.string(), data: z.string() }),
 ])
 export type ServerEvent = z.infer<typeof ServerEventSchema>
 export type ChangeReason = Extract<ServerEvent, { type: 'changed' }>['reason']

@@ -16,6 +16,7 @@ import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
+import { compileHidden } from '../lib/hide'
 import { isPopping } from '../lib/history'
 import { itemId } from '../lib/items'
 import { createStore, useStore } from '../lib/store'
@@ -136,6 +137,7 @@ export default function Viewer() {
     fileLine,
     fileAt,
     diffTop,
+    keys,
   } = useApp()
   const { show } = useView()
   const plain = useSession(selectItems)
@@ -180,7 +182,8 @@ export default function Viewer() {
       for (const file of files) if (file.path.startsWith(`${folder}/`)) paths.add(file.path)
     return paths
   }, [viewedSet, files, toggled, settings.tests, foldedFolders])
-  const shown = useMemo(() => visibleItems(plain, settings.tests), [plain, settings.tests])
+  const hidden = useMemo(() => compileHidden(settings.hidePatterns), [settings.hidePatterns])
+  const shown = useMemo(() => visibleItems(plain, hidden), [plain, hidden])
   const opened = useMemo(() => new Set([...toggled].filter(([, fold]) => !fold).map(([path]) => path)), [toggled])
   const annotate = useMemo(createAnnotator, [])
   const items = useMemo(
@@ -239,6 +242,25 @@ export default function Viewer() {
       })
     },
     [api, target, byPath, sourcePath],
+  )
+
+  // With "Show unchanged lines" on, each file's full text is read as it nears the screen, which opens every gap.
+  const asked = useRef(new Set<string>())
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the comparison's key is the trigger
+  useEffect(() => asked.current.clear(), [shownKey])
+  const readUnchanged = useCallback(
+    (item: NoteItem) => {
+      const path = item.fileDiff.name
+      if (!settings.expandUnchanged || contents.has(path) || asked.current.has(path)) return
+      const file = byPath.get(path)
+      if (!file || file.binary || file.status === 'deleted') return
+      asked.current.add(path)
+      api.content(target, 'new', { path, oldPath: file.oldPath }).then(
+        (text) => setContents((prev) => new Map(prev).set(path, (text ?? '').split('\n'))),
+        () => asked.current.delete(path),
+      )
+    },
+    [settings.expandUnchanged, contents, byPath, api, target, setContents],
   )
 
   // A file asked for by the tree, the palette or back and forward is scrolled to once it is on the page.
@@ -358,6 +380,10 @@ export default function Viewer() {
     [page, byPath, kinds.length, commentOnSelection, selecting],
   )
   useLineSelection(diffRoot, selecting.set, onPicked)
+  useEffect(
+    () => keys.set((state) => (state.visual === Boolean(bar) ? state : { ...state, visual: Boolean(bar) })),
+    [bar, keys],
+  )
   const closeBar = useCallback(() => {
     setBar(null)
     selecting.set(null)
@@ -383,6 +409,7 @@ export default function Viewer() {
         // takes over with its full context (strings and comments that open above a hunk).
         const hunks = highlighter.tokens(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
         loadSource(item, false)
+        readUnchanged(item)
         const source = sources.current.get(sourceKey(item))
         const text = typeof source === 'object' ? source[side] : null
         const full = text ? highlighter.text(`${sourceKey(item)}:${side}`, sourcePath(item, side), text, false) : null
@@ -392,6 +419,7 @@ export default function Viewer() {
         const file = page.files.get(item.id)
         if (file) highlighter.prefetch(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
         loadSource(item, false)
+        readUnchanged(item)
       },
       kinds(item) {
         const file = byPath.get(item.fileDiff.name)
@@ -486,6 +514,7 @@ export default function Viewer() {
       setExpanded,
       setContents,
       loadSource,
+      readUnchanged,
       sourcePath,
       pullReview,
       selecting,

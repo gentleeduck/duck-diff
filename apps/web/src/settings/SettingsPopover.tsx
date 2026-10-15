@@ -23,10 +23,16 @@ const selectAll = (state: Settings) => state
 
 type Options<K extends keyof Settings> = { value: Settings[K]; label: string }[]
 
+const WEIGHTS: { value: Settings['fontWeight']; label: string }[] = [
+  { value: 400, label: 'Regular' },
+  { value: 500, label: 'Medium' },
+  { value: 600, label: 'Semibold' },
+  { value: 700, label: 'Bold' },
+]
+
 const TESTS: Options<'tests'> = [
   { value: 'show', label: 'Show' },
   { value: 'fold', label: 'Fold' },
-  { value: 'hide', label: 'Hide' },
 ]
 
 const INDICATORS: Options<'diffIndicators'> = [
@@ -58,7 +64,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export function SettingsPopover() {
-  const { settings: store } = useApp()
+  const { settings: store, api } = useApp()
   const settings = useSettings(selectAll)
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => store.set((prev) => ({ ...prev, [key]: value }))
 
@@ -181,6 +187,30 @@ export function SettingsPopover() {
         {toggle('expandUnchanged', 'Show unchanged lines')}
         {stepper('fontSize', 'Code size', 10, 24)}
         {stepper('uiFontSize', 'Interface size', 10, 24)}
+        <Row label="Font weight">
+          <Select
+            value={String(settings.fontWeight)}
+            onValueChange={(value: string) => set('fontWeight', Number(value) as Settings['fontWeight'])}>
+            <SelectTrigger aria-label="Font weight" className="h-7 w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {WEIGHTS.map((option) => (
+                <SelectItem key={option.value} value={String(option.value)}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Row>
+        <Row label="Italic">
+          <Switch
+            className="border-muted-foreground"
+            aria-label="Italic"
+            checked={settings.italic}
+            onCheckedChange={(next: boolean) => set('italic', next)}
+          />
+        </Row>
         {stepper('tabSize', 'Tab width', 1, 8)}
         <Row label="Desktop notifications">
           <Switch
@@ -190,7 +220,18 @@ export function SettingsPopover() {
             onCheckedChange={(next: boolean) => void setNotices(next)}
           />
         </Row>
-        <div className="mt-2 flex justify-end border-border border-t pt-2">
+        <div className="mt-2 grid grid-cols-2 gap-2 border-border border-t pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              api.clearCache().then(
+                () => toast('Cleared the saved GitHub answers, commits and graph'),
+                (error: Error) => toast.error(error.message),
+              )
+            }>
+            Clear cache
+          </Button>
           <Button variant="outline" size="sm" onClick={() => store.set(DEFAULT_SETTINGS)}>
             Reset to defaults
           </Button>

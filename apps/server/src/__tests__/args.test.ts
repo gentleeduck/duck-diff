@@ -10,6 +10,7 @@ describe('parseArgs', () => {
       port: 0,
       idleTimeoutMs: 600_000,
       nvim: null,
+      terminal: true,
     })
   })
 
@@ -19,7 +20,25 @@ describe('parseArgs', () => {
         ['serve', '--repo', '/r', '--port', '4100', '--idle-timeout-ms', '5000', '--nvim', '/tmp/nvim.sock'],
         '/work',
       ),
-    ).toEqual({ name: 'serve', more: [], repo: '/r', port: 4100, idleTimeoutMs: 5000, nvim: '/tmp/nvim.sock' })
+    ).toEqual({
+      name: 'serve',
+      more: [],
+      repo: '/r',
+      port: 4100,
+      idleTimeoutMs: 5000,
+      nvim: '/tmp/nvim.sock',
+      terminal: true,
+    })
+  })
+
+  it('reads cache clear, for one repo or every one', () => {
+    expect(parseArgs(['cache', 'clear'], '/w')).toEqual({ name: 'cache-clear', repo: null })
+    expect(parseArgs(['cache', 'clear', '--repo', 'r'], '/w')).toEqual({ name: 'cache-clear', repo: '/w/r' })
+    expect(() => parseArgs(['cache', 'drop'], '/w')).toThrow(/usage/)
+  })
+
+  it('turns the page terminals off', () => {
+    expect(parseArgs(['serve', '--no-terminal', '--port', '1'], '/w')).toMatchObject({ port: 1, terminal: false })
   })
 
   it('handles version and help', () => {

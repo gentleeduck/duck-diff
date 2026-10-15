@@ -6,10 +6,13 @@ import { createItemIndex, type ItemIndex } from '../github/item-index'
 import { createPullReview, type PullReview } from '../github/pull-review'
 import { createGitHub, type GitHub, isReady } from '../github/store'
 import { createGraph, type Graph } from '../graph/store'
+import { createKeyOverrides, createKeyState, type KeyOverrides, type KeyState } from '../keys/state'
 import { type Api, createApi } from '../lib/api'
 import { createStore, type Store } from '../lib/store'
 import { readTarget } from '../lib/target-url'
 import { type PullTab, readView, type View } from '../lib/view-url'
+import { createJobs, type Jobs } from '../panel/jobs'
+import { createPanel, type Panel } from '../panel/panel'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
@@ -17,6 +20,7 @@ import { createSettingsStore, type Settings } from '../state/settings'
 import { createStage, type Stage } from '../state/stage'
 import { createTabs, type Tabs } from '../state/tabs'
 import { createViewedStore, type Viewed } from '../state/viewed'
+import { createTerminalTabs, type TerminalTabs } from '../terminal/tabs'
 
 export interface AppContextValue {
   api: Api
@@ -63,6 +67,15 @@ export interface AppContextValue {
   // GitHub's review threads for the pull request the diff shows.
   pullReview: PullReview
   viewer: RefObject<DiffViewHandle | null>
+  // The git actions run from any page, with their commands and output.
+  jobs: Jobs
+  // The bottom panel: output and terminals.
+  panel: Panel
+  // The shells open in the bottom panel.
+  terminalTabs: TerminalTabs
+  // Vim-style keys: the mode, keys typed so far, and the user's own bindings.
+  keys: Store<KeyState>
+  keyOverrides: KeyOverrides
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -101,8 +114,18 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       pullReview: createPullReview(client),
       items: createItemIndex(client),
       viewer,
+      jobs: createJobs(client),
+      panel: createPanel(),
+      terminalTabs: createTerminalTabs(client),
+      keys: createKeyState(),
+      keyOverrides: createKeyOverrides(),
     }
   }, [api])
+
+  useEffect(() => {
+    value.jobs.load().catch(() => {})
+    value.terminalTabs.load().catch(() => {})
+  }, [value])
 
   // Tabs are saved per repository, so they come back once the page knows which one it shows.
   useEffect(() => {
@@ -132,6 +155,8 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       if (warmed || !files.length) return
       warmed = true
       highlighter.warm(files.slice(0, 40).map((file) => file.path))
+      // Language servers start with the page, so the first go-to-definition is answered by a warm one.
+      value.api.lsp.warm(files.slice(0, 50).map((file) => file.path)).catch(() => {})
     })
   }, [value])
 

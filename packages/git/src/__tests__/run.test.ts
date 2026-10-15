@@ -1,6 +1,7 @@
+import { execFileSync } from 'node:child_process'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
-import { afterEach, describe, expect, it } from 'vitest'
-import { GitError, runGit, streamGit } from '../index'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { GitError, runGit, streamGit, withOutput } from '../index'
 
 describe('runGit', () => {
   let repo: TestRepo
@@ -69,5 +70,44 @@ describe('streamGit', () => {
     await new Promise((resolve) => setTimeout(resolve, 200))
     process.off('unhandledRejection', onUnhandled)
     expect(unhandled).toEqual([])
+  })
+})
+
+describe('withOutput', () => {
+  let repo: TestRepo
+  afterEach(() => repo.cleanup())
+
+  it('reports each command and the output of git and its hooks to the sink', async () => {
+    repo = createRepo()
+    repo.write('a.txt', 'a\n')
+    repo.git('add', 'a.txt')
+    repo.write('.git/hooks/pre-commit', '#!/bin/sh\necho "hook ran color=$FORCE_COLOR"\necho "to stderr" >&2\n')
+    execFileSync('chmod', ['+x', `${repo.path}/.git/hooks/pre-commit`])
+    const commands: string[][] = []
+    let output = ''
+    await withOutput({ command: (args) => commands.push(args), output: (chunk) => (output += chunk) }, () =>
+      runGit(['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-m', 'x'], { cwd: repo.path }),
+    )
+    expect(commands).toEqual([['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-m', 'x']])
+    expect(output).toContain('hook ran color=1')
+    expect(output).toContain('to stderr')
+  })
+
+  it('reports nothing outside a sink and keeps returning stdout', async () => {
+    repo = createRepo()
+    const sink = { command: vi.fn(), output: vi.fn() }
+    await withOutput(sink, async () => {})
+    expect(await runGit(['rev-parse', '--is-inside-work-tree'], { cwd: repo.path })).toBe('true\n')
+    expect(sink.command).not.toHaveBeenCalled()
+  })
+
+  it('leaves out the stdout of plumbing reads, which only the code parses', async () => {
+    repo = createRepo()
+    let output = ''
+    const out = await withOutput({ command: () => {}, output: (chunk) => (output += chunk) }, () =>
+      runGit(['rev-parse', '--is-inside-work-tree'], { cwd: repo.path }),
+    )
+    expect(out).toBe('true\n')
+    expect(output).toBe('')
   })
 })

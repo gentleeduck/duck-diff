@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises'
+import { lstat, readFile, readlink, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
 import { runGit } from './run'
@@ -92,11 +92,21 @@ export function parseDiffSummary(output: string): { raw: RawEntry[]; numstat: Nu
   return { raw: parseRaw(parts.slice(0, i).join('\0')), numstat: parseNumstat(parts.slice(i).join('\0')) }
 }
 
+// hash-object follows a symlink and fails on one to a folder; git keeps a link as its target text, so that
+// text is what is hashed for one.
 async function hashWorkTreeFiles(repo: string, paths: string[]): Promise<Map<string, string>> {
   if (paths.length === 0) return new Map()
-  const out = await runGit(['hash-object', '--', ...paths], { cwd: repo })
+  const kinds = await Promise.all(paths.map((path) => lstat(join(repo, path)).catch(() => null)))
+  const plain = paths.filter((_, i) => kinds[i]?.isFile())
+  const links = paths.filter((_, i) => kinds[i]?.isSymbolicLink())
+  const out = plain.length ? await runGit(['hash-object', '--', ...plain], { cwd: repo }) : ''
   const shas = out.trim().split('\n')
-  return new Map(paths.map((path, i) => [path, shas[i] ?? '']))
+  const found = new Map(plain.map((path, i) => [path, shas[i] ?? '']))
+  for (const path of links) {
+    const target = await readlink(join(repo, path))
+    found.set(path, (await runGit(['hash-object', '--stdin'], { cwd: repo, input: target })).trim())
+  }
+  return found
 }
 
 // Counted here rather than with one `git diff --no-index` per file: with many new files the processes

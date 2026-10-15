@@ -122,3 +122,20 @@ describe('file history and stashes', () => {
     expect(RefSchema.parse(ref)).toEqual(ref)
   })
 })
+
+describe('jobs', () => {
+  it('parses a job and its output events', () => {
+    const job = {
+      id: 'j1',
+      title: 'Commit',
+      command: 'git commit --file=-',
+      startedAt: 1,
+      endedAt: null,
+      status: 'running',
+      error: null,
+    }
+    expect(ServerEventSchema.parse({ type: 'job', job })).toEqual({ type: 'job', job })
+    expect(ServerEventSchema.parse({ type: 'job-output', id: 'j1', data: 'hi' }).type).toBe('job-output')
+    expect(() => ServerEventSchema.parse({ type: 'job', job: { ...job, status: 'maybe' } })).toThrow()
+  })
+})

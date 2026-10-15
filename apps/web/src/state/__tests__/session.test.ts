@@ -88,3 +88,67 @@ describe('session', () => {
     expect(b2).not.toBe(b1)
   })
 })
+
+describe('session cache', () => {
+  function counting() {
+    const asked: string[] = []
+    const api = fakeApi({
+      files: async (target) => {
+        asked.push(target.kind === 'commit' ? `commit:${target.sha}` : target.kind)
+        return FILES
+      },
+    })
+    return { asked, api }
+  }
+
+  it('shows a commit seen before at once and never reads it again', async () => {
+    const { asked, api } = counting()
+    const session = createSession(api, { kind: 'local' })
+    await session.load({ kind: 'local' })
+    await session.load({ kind: 'commit', sha: 'abc1234' })
+    const first = session.get().items
+    await session.load({ kind: 'local' })
+    const back = session.load({ kind: 'commit', sha: 'abc1234' })
+    // Ready before the promise settles: nothing is fetched.
+    expect(session.get()).toMatchObject({ status: 'ready', target: { kind: 'commit', sha: 'abc1234' } })
+    expect(session.get().items).toBe(first)
+    await back
+    expect(asked.filter((entry) => entry === 'commit:abc1234')).toHaveLength(1)
+  })
+
+  it('shows the working tree from memory, then refreshes it in one step', async () => {
+    const { asked, api } = counting()
+    const session = createSession(api, { kind: 'local' })
+    await session.load({ kind: 'local' })
+    await session.load({ kind: 'commit', sha: 'abc1234' })
+    const states: string[] = []
+    const stop = session.subscribe(() => states.push(`${session.get().status}:${session.get().items.length}`))
+    await session.load({ kind: 'local' })
+    stop()
+    expect(asked.filter((entry) => entry === 'local')).toHaveLength(2)
+    // Never loading, never a half list: the cached diff, then the refreshed one.
+    expect(states.every((state) => state === 'ready:2')).toBe(true)
+  })
+})
+
+describe('session prefetch', () => {
+  it('reads a diff ahead so opening it later needs nothing', async () => {
+    const asked: string[] = []
+    const api = fakeApi({
+      files: async (target) => {
+        asked.push(target.kind)
+        return FILES
+      },
+    })
+    const session = createSession(api, { kind: 'local' })
+    await session.load({ kind: 'local' })
+    session.prefetch({ kind: 'commit', sha: 'abc1234' })
+    session.prefetch({ kind: 'local' })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(asked).toEqual(['local', 'commit'])
+    void session.load({ kind: 'commit', sha: 'abc1234' })
+    expect(session.get()).toMatchObject({ status: 'ready', target: { kind: 'commit', sha: 'abc1234' } })
+    expect(session.get().items).toHaveLength(2)
+    expect(asked).toEqual(['local', 'commit'])
+  })
+})

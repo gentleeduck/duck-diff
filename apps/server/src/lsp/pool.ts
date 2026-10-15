@@ -20,6 +20,11 @@ export interface LspPool {
   hover(query: LspQuery): Promise<LspHover>
   // The servers running now, for tests and the health line.
   running(): string[]
+  // Whether the server for this file is up, so a question gets a quick answer.
+  ready(path: string): boolean
+  // Starts the servers these files need and opens one file each, so the project is loaded before the
+  // first question rather than during it.
+  warm(paths: readonly string[]): Promise<void>
   stop(): Promise<void>
 }
 
@@ -188,6 +193,26 @@ export function createLspPool(repo: string, options: LspPoolOptions = {}): LspPo
       return { source: 'server', server: answer.server.name, contents }
     },
     running: () => [...running.keys()],
+    ready(path) {
+      const found = specFor(path, specs)
+      return Boolean(found && running.get(found.spec.name)?.rpc.alive)
+    },
+    async warm(paths) {
+      const first = new Map<string, { path: string; languageId: string; spec: ServerSpec }>()
+      for (const path of paths) {
+        const found = specFor(path, specs)
+        if (found && !first.has(found.spec.name)) first.set(found.spec.name, { path, ...found })
+      }
+      await Promise.all(
+        [...first.values()].map(async ({ path, languageId, spec }) => {
+          const server = await start(spec)
+          const text = server ? await sourceText(path, null) : null
+          if (!server || text === null) return
+          server.lastUsed = Date.now()
+          await sync(server, pathToFileURL(join(repo, path)).href, languageId, text)
+        }),
+      )
+    },
     async stop() {
       clearInterval(sweep)
       await Promise.all([...running.values()].map(close))

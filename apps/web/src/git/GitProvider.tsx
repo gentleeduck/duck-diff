@@ -66,7 +66,7 @@ const DOING: Record<GitAction, string> = {
 }
 
 export function GitProvider({ children }: { children: ReactNode }) {
-  const { api, session, graph, refs } = useApp()
+  const { api, session, graph, refs, panel } = useApp()
   const [status, setStatus] = useState<SyncStatus | null>(null)
   const [busy, setBusy] = useState<GitAction | null>(null)
 
@@ -84,6 +84,8 @@ export function GitProvider({ children }: { children: ReactNode }) {
     })
   }, [refresh, session])
 
+  const showOutput = useMemo(() => ({ label: 'Show output', onClick: () => panel.show('output', null) }), [panel])
+
   const run = useCallback<Git['run']>(
     async (action, body, done) => {
       setBusy(action)
@@ -92,20 +94,22 @@ export function GitProvider({ children }: { children: ReactNode }) {
         // A stop on conflicts is not a failure: the files wait in the changes view for resolving.
         if (result.conflicts) toast.warning(`${DOING[action]} stopped on conflicts. Resolve them, then continue.`)
         else if (result.stopped) toast(`${DOING[action]} stopped to let you edit a commit. Continue when ready.`)
-        else toast(done ?? `${DOING[action]} done`)
+        else toast(done ?? `${DOING[action]} done`, { action: showOutput })
         refresh()
         void session.reload()
         void refs.reload()
         if (graph.get().status !== 'idle') void graph.load()
         return true
       } catch (error) {
+        // A failure opens what git and the hooks printed, which usually says why.
+        panel.show('output', null)
         toast.error(`${DOING[action]} failed: ${(error as Error).message}`)
         return false
       } finally {
         setBusy(null)
       }
     },
-    [api, refresh, session, graph, refs],
+    [api, refresh, session, graph, refs, panel, showOutput],
   )
 
   const value = useMemo(() => ({ status, busy, run, refresh }), [status, busy, run, refresh])

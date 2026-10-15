@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { spawn } from 'node:child_process'
 import { classify, GitError } from './errors'
 
@@ -18,8 +19,44 @@ const DEFAULT_TIMEOUT_MS = 30_000
 // GIT_OPTIONAL_LOCKS=0 keeps reads from rewriting .git/index (the repo may be a receive-only sync copy).
 const ENV = { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0' }
 
+// Where a user action's commands and output go, so the page can show what ran instead of working headless.
+export interface OutputSink {
+  // plumbing marks internal reads, shown dimmer than the commands the action is about.
+  command(args: string[], plumbing: boolean): void
+  output(chunk: string, stream: 'stdout' | 'stderr'): void
+}
+
+const sinks = new AsyncLocalStorage<OutputSink>()
+
+// Every git command started inside task, however deep, reports to sink.
+export function withOutput<T>(sink: OutputSink, task: () => Promise<T>): Promise<T> {
+  return sinks.run(sink, task)
+}
+
+// Reads whose stdout only the code parses; their errors still show.
+const PLUMBING = new Set([
+  'cat-file',
+  'diff',
+  'for-each-ref',
+  'log',
+  'ls-files',
+  'merge-base',
+  'remote',
+  'rev-list',
+  'rev-parse',
+  'show',
+  'status',
+  'symbolic-ref',
+])
+
+const subcommand = (args: string[]) => args.find((arg, at) => !arg.startsWith('-') && args[at - 1] !== '-c')
+
 function spawnGit(args: string[], options: RunOptions) {
-  const env = options.env ? { ...ENV, ...options.env } : ENV
+  const sink = sinks.getStore()
+  // Hooks run under git with pipes, not a terminal; most tools still print color when asked.
+  const env = sink ? { ...ENV, ...options.env, FORCE_COLOR: '1' } : options.env ? { ...ENV, ...options.env } : ENV
+  const plumbing = PLUMBING.has(subcommand(args) ?? '')
+  sink?.command(args, plumbing)
   const child = spawn('git', args, { cwd: options.cwd, env, stdio: ['pipe', 'pipe', 'pipe'] })
   if (options.input !== undefined) child.stdin.end(options.input)
   else if (!options.holdStdin) child.stdin.end()
@@ -28,7 +65,11 @@ function spawnGit(args: string[], options: RunOptions) {
   child.stderr.setEncoding('utf8')
   child.stderr.on('data', (chunk: string) => {
     stderr += chunk
+    sink?.output(chunk, 'stderr')
   })
+  if (sink && !plumbing) {
+    child.stdout.on('data', (chunk: Buffer | string) => sink.output(String(chunk), 'stdout'))
+  }
   const timer = setTimeout(() => {
     timedOut = true
     child.kill('SIGKILL')

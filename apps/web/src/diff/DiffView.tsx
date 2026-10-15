@@ -1,8 +1,18 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { forwardRef, type ReactNode, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import {
+  forwardRef,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from 'react'
 import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
+import { glide } from '../lib/glide'
 import type { Note, NoteItem } from '../review/annotations'
-import type { Page, PageRow } from './page'
+import { anchorId, type Page, type PageRow } from './page'
 import { LineRow, RowContext, type RowContextValue } from './RowViews'
 import { useCodeScrollX } from './useCodeScrollX'
 
@@ -93,7 +103,13 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
           target.type === 'item'
             ? page.starts.get(target.id)
             : (page.lines.get(`${target.id}:${target.side}:${target.lineNumber}`) ?? page.starts.get(target.id))
-        if (index !== undefined) virtualizer.scrollToIndex(index, { align: target.align ?? 'start' })
+        if (index === undefined) return
+        const align = target.align ?? 'start'
+        const offset = virtualizer.getOffsetForIndex(index, align)?.[0]
+        const element = scroller.current
+        if (offset === undefined || !element) return virtualizer.scrollToIndex(index, { align })
+        // Glides there, then settles on the row once rows measured on the way have moved it.
+        void glide(element, offset).then(() => virtualizer.scrollToIndex(index, { align }))
       },
     }),
     [page, virtualizer],
@@ -113,20 +129,74 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
       context.prefetch(item)
     }
   }, [lastIndex, page, context])
-  // The file at the top keeps its header pinned. It takes over as soon as the file's own header starts to
-  // scroll away (not once it is gone), so there is never a frame without one; the gap after a file
-  // already belongs to the next.
+  // The file at the top keeps its header pinned from the moment its own header starts to scroll away, so
+  // there is never a frame without one. The next file's header pushes it up and out, as section headers
+  // do in a long list, instead of sliding under it.
   const scrollTop = virtualizer.scrollOffset ?? 0
   const first = items.find((virtual) => virtual.end > scrollTop)
   const firstRow = first ? page.rows[first.index] : undefined
-  const pinned =
-    !first || !firstRow
-      ? null
-      : firstRow.type === 'end'
-        ? (page.rows[first.index + 1]?.item ?? null)
-        : firstRow.type === 'header' && first.start >= scrollTop
-          ? null
-          : firstRow.item
+  const pinned = !first || !firstRow || (firstRow.type === 'header' && first.start >= scrollTop) ? null : firstRow.item
+  // When the page is rebuilt under the reader (a file's full text arrives and its gaps open, the files
+  // reload), the row at the top of the screen stays where it was, instead of everything above it pushing
+  // the reading place down. Only within one comparison; another one returns to its own remembered place.
+  const anchor = useRef<{ rows: { id: string; delta: number }[]; scrollKey: string | undefined } | null>(null)
+  const shownPage = useRef(page)
+  useLayoutEffect(() => {
+    if (shownPage.current === page) return
+    shownPage.current = page
+    const held = anchor.current
+    const element = scroller.current
+    if (!held || !element || held.scrollKey !== scrollKey) return
+    // The first of the rows that were on screen that still exists; a gap bar that just opened does not.
+    const where = new Map(page.rows.map((row, index) => [anchorId(row), index]))
+    for (const { id, delta } of held.rows) {
+      const index = where.get(id)
+      const start = index === undefined ? undefined : virtualizer.measurementsCache[index]?.start
+      if (start === undefined) continue
+      const top = start - delta
+      if (Math.abs(element.scrollTop - top) > 1) element.scrollTop = top
+      return
+    }
+  }, [page, scrollKey, virtualizer])
+  useLayoutEffect(() => {
+    const element = scroller.current
+    if (!element) return
+    const top = element.scrollTop
+    const rows = virtualizer
+      .getVirtualItems()
+      .filter((virtual) => virtual.start >= top)
+      .flatMap((virtual) => {
+        const row = page.rows[virtual.index]
+        return row && !(row.type === 'row' && row.row.type === 'gap')
+          ? [{ id: anchorId(row), delta: virtual.start - top }]
+          : []
+      })
+      .slice(0, 8)
+    if (rows.length) anchor.current = { rows, scrollKey }
+  })
+
+  // Header rows in page order, for finding the one after the pinned file.
+  const headers = useMemo(() => [...page.starts.values()].sort((a, b) => a - b), [page])
+  const pinnedBox = useRef<HTMLDivElement>(null)
+  const pinnedId = pinned?.id ?? null
+  // The push is written straight to the element on every scroll event, in the same frame the browser moves
+  // the rows; a React render would land a frame late and the header would jitter against the next one.
+  useLayoutEffect(() => {
+    const element = scroller.current
+    const box = pinnedBox.current
+    if (!element || !box || pinnedId === null) return
+    const own = page.starts.get(pinnedId) ?? -1
+    const next = headers.find((index) => index > own)
+    const place = () => {
+      const height = virtualizer.measurementsCache[own]?.size ?? ESTIMATE.header
+      const start = next === undefined ? undefined : virtualizer.measurementsCache[next]?.start
+      const offset = start === undefined ? 0 : Math.min(0, start - element.scrollTop - height)
+      box.style.transform = offset ? `translateY(${offset}px)` : ''
+    }
+    place()
+    element.addEventListener('scroll', place, { passive: true })
+    return () => element.removeEventListener('scroll', place)
+  })
 
   // Where each file's code ends, so its sideways bar can sit on the file: at the bottom of the screen while
   // the file runs past it, then in the gap under its last line.
@@ -151,8 +221,16 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         return [sideways.bar(id, { position: 'absolute', insetInline: 0, transform: `translateY(${y}px)` })]
       })
 
-  const topItem =
-    firstRow?.type === 'end' ? (page.rows[(first?.index ?? 0) + 1]?.item ?? null) : (firstRow?.item ?? null)
+  // Scrolled to the end, the last file is the one being read even though it never reaches the top.
+  const viewHeight = scroller.current?.clientHeight ?? 0
+  // The element's own height, which rows measured since the last estimate have already changed.
+  const totalHeight = scroller.current?.scrollHeight ?? virtualizer.getTotalSize()
+  const atEnd = page.rows.length > 0 && totalHeight > viewHeight + 2 && scrollTop + viewHeight >= totalHeight - 2
+  const topItem = atEnd
+    ? (page.rows.at(-1)?.item ?? null)
+    : firstRow?.type === 'end'
+      ? (page.rows[(first?.index ?? 0) + 1]?.item ?? null)
+      : (firstRow?.item ?? null)
   useEffect(() => onTopItem?.(topItem), [onTopItem, topItem])
 
   const content = useMemo(
@@ -180,7 +258,9 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         {sideways.probe}
         {pinned ? (
           <div className="sticky top-0 z-20 h-0">
-            <div className="bg-card shadow-[0_1px_0_var(--border)]">{renderHeader(pinned)}</div>
+            <div ref={pinnedBox} className="bg-card shadow-[0_1px_0_var(--border)] will-change-transform">
+              {renderHeader(pinned)}
+            </div>
           </div>
         ) : null}
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>

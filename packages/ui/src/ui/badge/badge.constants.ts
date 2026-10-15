@@ -1,7 +1,7 @@
 import { cva } from '@gentleduck/variants'
 
 export const badgeVariants = cva(
-  'inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-md px-2 py-0.5 font-medium transition-colors [&_svg]-size-3 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none',
+  'inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-md ps-2 pe-2.5 py-0.5 font-medium transition-colors [&_svg]-size-3 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none',
   {
     defaultVariants: { border: 'default', size: 'default', variant: 'default' },
     variants: {
@@ -13,10 +13,11 @@ export const badgeVariants = cva(
         warning: 'border border-warning/40 bg-warning/40 hover:border-warning hover:bg-warning/65',
       },
       size: {
-        default: 'px-2.5 py-0.5 text-sm',
+        // The page is set in italic, which leans right; a little more room at the end keeps the word centered.
+        default: 'ps-2.5 pe-3 py-0.5 text-sm',
         icon: 'size-[1.6rem] items-center justify-center rounded-full p-0 [&_*]:size-[.9rem]',
-        lg: 'px-3.5 py-0.9 text-lg',
-        sm: 'h-6 gap-1 px-1.5 py-0 text-sm leading-none',
+        lg: 'ps-3.5 pe-4 py-0.9 text-lg',
+        sm: 'h-6 gap-1 ps-1.5 pe-2 py-0 text-sm leading-none',
       },
       variant: {
         nothing: '!px-0 text-accent-foreground',

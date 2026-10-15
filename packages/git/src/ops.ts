@@ -49,13 +49,13 @@ export async function forcePush(repo: string) {
   const slash = upstream.indexOf('/')
   if (!upstream || slash < 0) throw new GitError('failed', null, '', 'this branch tracks nothing to force-push to')
   await runGit(
-    ['push', '--quiet', '--force-with-lease', upstream.slice(0, slash), `HEAD:${upstream.slice(slash + 1)}`],
+    ['push', '--force-with-lease', upstream.slice(0, slash), `HEAD:${upstream.slice(slash + 1)}`],
     network(repo),
   )
 }
 
 export async function deleteRemoteBranch(repo: string, options: { remote: string; branch: string }) {
-  await runGit(['push', '--quiet', options.remote, '--delete', options.branch], network(repo))
+  await runGit(['push', options.remote, '--delete', options.branch], network(repo))
 }
 
 // origin/feature becomes a local feature that tracks it.
@@ -75,10 +75,7 @@ export async function deleteTag(repo: string, name: string) {
 }
 
 export async function pushTags(repo: string, options: { remote: string; name: string | null }) {
-  await runGit(
-    ['push', '--quiet', options.remote, options.name ? `refs/tags/${options.name}` : '--tags'],
-    network(repo),
-  )
+  await runGit(['push', options.remote, options.name ? `refs/tags/${options.name}` : '--tags'], network(repo))
 }
 
 export interface Remote {
@@ -105,7 +102,7 @@ export async function removeRemote(repo: string, name: string) {
 }
 
 export async function fetchRemote(repo: string, options: { remote: string; prune: boolean }) {
-  await runGit(['fetch', '--quiet', ...(options.prune ? ['--prune'] : []), options.remote], network(repo))
+  await runGit(['fetch', ...(options.prune ? ['--prune'] : []), options.remote], network(repo))
 }
 
 export function rebaseOnto(repo: string, onto: string): Promise<{ conflicts: boolean }> {

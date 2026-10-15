@@ -112,7 +112,7 @@ export function Inbox() {
   const unread = items?.filter((entry) => entry.unread).length ?? 0
   return (
     <div ref={page} className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
+      <div className="flex w-full flex-col gap-4 p-6">
         <div className="flex flex-wrap items-center gap-2">
           <div role="tablist" aria-label="Show" className="flex items-center gap-1">
             {([false, true] as const).map((value) => (

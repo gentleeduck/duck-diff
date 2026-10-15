@@ -131,7 +131,7 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
 
   if (failed || !issue) {
     return (
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 p-6">
+      <div className="flex w-full flex-col gap-3 p-6">
         {back}
         {failed ? (
           <p className="text-removed">
@@ -175,7 +175,7 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
 
   return (
     <article ref={page} aria-label={`Issue ${number}`} className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 p-6">
+      <div className="flex w-full flex-col gap-3 p-6">
         {back}
         <div className="flex items-start gap-3">
           <ThreadTitle number={issue.number} title={issue.title} />

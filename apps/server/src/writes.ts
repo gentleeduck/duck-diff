@@ -72,6 +72,7 @@ import {
   MessageSchema,
   NameSchema,
   PathRequestSchema,
+  PullSchema,
   RebaseSchema,
   RefRequestSchema,
   RemoteAddSchema,
@@ -155,7 +156,7 @@ export async function gitAction(
       await push(repo)
       return { reason: 'refs', body: {} }
     case 'pull':
-      await pull(repo)
+      await pull(repo, PullSchema.parse(await request.json().catch(() => ({}))))
       return { reason: 'refs', body: {} }
     case 'fetch':
       await fetchAll(repo)

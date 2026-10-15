@@ -15,6 +15,7 @@ export interface Navigator {
   definition(query: LspQuery): Promise<LspLocations>
   references(query: LspQuery): Promise<LspLocations>
   hover(query: LspQuery): Promise<LspHover>
+  warm(paths: readonly string[]): Promise<void>
   stop(): Promise<void>
 }
 
@@ -23,7 +24,8 @@ type NvimResult = { server: string; encoding: Encoding; result: unknown }
 
 const IMPORT_LINE = /^\s*(import\b|export\s+(\*|\{[^}]*\})\s+from\b)/
 
-// Neovim's own clients first (same answers as the editor, no second server), then servers started here.
+// duck-diff's own servers answer once they are warm. Until then Neovim is asked, but only about a file it
+// already has open with a server attached, so it never loads a buffer or waits on a server to start.
 // A commit's version of a file is not what Neovim has open, so those go straight to the pool.
 export function createNavigator(repo: string, options: NavigatorOptions = {}): Navigator {
   const pool = options.pool ?? createLspPool(repo, options)
@@ -36,6 +38,8 @@ export function createNavigator(repo: string, options: NavigatorOptions = {}): N
       kind,
       line: query.line - 1,
       character: query.column - 1,
+      attached: true,
+      timeout: 1500,
     })
     try {
       const out = JSON.parse(await evaluate(options.nvim, luaCall('duck-diff.lsp', 'query', argument)))
@@ -49,6 +53,12 @@ export function createNavigator(repo: string, options: NavigatorOptions = {}): N
     (await readFile(join(repo, path), 'utf8').catch(() => null))?.split('\n') ?? null
 
   async function locations(kind: 'definition' | 'references', query: LspQuery): Promise<LspLocations> {
+    const own = () => (kind === 'definition' ? pool.definition(query) : pool.references(query))
+    const warm = pool.ready(query.path)
+    if (warm) {
+      const answer = await own()
+      if (answer.locations.length) return answer
+    }
     const answers = await fromNvim(kind, query)
     const found: LspLocations = { source: 'nvim', server: null, locations: [] }
     for (const answer of answers) {
@@ -59,8 +69,8 @@ export function createNavigator(repo: string, options: NavigatorOptions = {}): N
       // One client's definition is the answer; references from several clients add up.
       if (kind === 'definition') break
     }
-    if (found.locations.length) return found
-    return kind === 'definition' ? pool.definition(query) : pool.references(query)
+    if (found.locations.length || warm) return found
+    return own()
   }
 
   async function definition(query: LspQuery, hops = 1): Promise<LspLocations> {
@@ -77,12 +87,18 @@ export function createNavigator(repo: string, options: NavigatorOptions = {}): N
     definition: (query) => definition(query),
     references: (query) => locations('references', query),
     async hover(query) {
+      const warm = pool.ready(query.path)
+      if (warm) {
+        const own = await pool.hover(query)
+        if (own.contents) return own
+      }
       for (const answer of await fromNvim('hover', query)) {
         const contents = hoverText((answer.result as { contents?: unknown } | null)?.contents)
         if (contents) return { source: 'nvim', server: answer.server, contents }
       }
-      return pool.hover(query)
+      return warm ? { source: null, server: null, contents: null } : pool.hover(query)
     },
+    warm: (paths) => pool.warm(paths),
     stop: () => pool.stop(),
   }
 }

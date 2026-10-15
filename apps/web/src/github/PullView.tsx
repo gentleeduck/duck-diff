@@ -231,7 +231,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
 
   if (failed) {
     return (
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 p-6">
+      <div className="flex w-full flex-col gap-3 p-6">
         {back}
         <p className="text-removed">
           Could not read #{number}: {failed}
@@ -241,7 +241,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   }
   if (!pull) {
     return (
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 p-6">
+      <div className="flex w-full flex-col gap-3 p-6">
         {back}
         <p className="text-muted-foreground">Loading #{number}...</p>
       </div>
@@ -262,7 +262,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
 
   return (
     <article ref={page} aria-label={`Pull request ${number}`} className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 p-6">
+      <div className="flex w-full flex-col gap-3 p-6">
         {back}
         <div className="flex items-start gap-3">
           <ThreadTitle number={pull.number} title={pull.title} />
