@@ -155,6 +155,8 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       if (warmed || !files.length) return
       warmed = true
       highlighter.warm(files.slice(0, 40).map((file) => file.path))
+      // Language servers start with the page, so the first go-to-definition is answered by a warm one.
+      value.api.lsp.warm(files.slice(0, 50).map((file) => file.path)).catch(() => {})
     })
   }, [value])
 

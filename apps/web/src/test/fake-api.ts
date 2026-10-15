@@ -66,6 +66,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       definition: async () => ({ source: null, server: null, locations: [] }),
       references: async () => ({ source: null, server: null, locations: [] }),
       hover: async () => ({ source: null, server: null, contents: null }),
+      warm: async () => {},
     },
     blame: async () => [],
     github: {

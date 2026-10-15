@@ -31,6 +31,7 @@ describe('loadSymbol', () => {
           ],
         }),
         hover: async () => ({ source: null, server: null, contents: null }),
+        warm: async () => {},
       },
       symbols: async () => {
         throw new Error('should not search text')

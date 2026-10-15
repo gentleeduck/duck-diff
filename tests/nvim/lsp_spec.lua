@@ -69,6 +69,15 @@ return {
     client:stop(true)
   end,
 
+  ['attached only: answers nothing for a file Neovim does not have open, at once'] = function()
+    local path = file({ 'local x = 1' }, '.lua')
+    local started = vim.uv.hrtime()
+    local out = vim.json.decode(lsp.query(vim.json.encode({ file = path, kind = 'definition', line = 0, character = 6, attached = true })))
+    eq({}, out.results)
+    eq(-1, vim.fn.bufnr(path))
+    eq(true, (vim.uv.hrtime() - started) / 1e6 < 200)
+  end,
+
   ['answers nothing when no client handles the file'] = function()
     local path = file({ 'plain' }, '.duckless')
     local out = vim.json.decode(lsp.query(vim.json.encode({ file = path, kind = 'definition', line = 0, character = 0, wait = 50 })))

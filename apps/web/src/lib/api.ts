@@ -180,6 +180,8 @@ export interface Api {
     definition(query: LspQuery): Promise<LspLocations>
     references(query: LspQuery): Promise<LspLocations>
     hover(query: LspQuery): Promise<LspHover>
+    // Starts the language servers these files need, ahead of the first lookup.
+    warm(paths: string[]): Promise<void>
   }
   // A GitHub topic changed on the server; reads that follow it are read again next time.
   invalidate(topic: string): void
@@ -546,6 +548,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       definition: (query) => json(`/api/lsp/definition?${lspParams(query)}`, LspLocationsSchema),
       references: (query) => json(`/api/lsp/references?${lspParams(query)}`, LspLocationsSchema),
       hover: (query) => json(`/api/lsp/hover?${lspParams(query)}`, LspHoverSchema),
+      warm: (paths) => post('/api/lsp/warm', { paths }),
     },
     blame(path, ref) {
       const params = new URLSearchParams({ path })

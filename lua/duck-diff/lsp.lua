@@ -21,6 +21,19 @@ function M.query(json)
   if not method or vim.fn.filereadable(q.file) == 0 then
     return vim.json.encode({ results = {} })
   end
+  -- attached: answer only from a buffer already open with a server on it; duck-diff has its own servers
+  -- for the rest, so Neovim never loads a file or waits for a server just for the page.
+  if q.attached then
+    local open
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_get_name(b) == q.file then
+        open = b
+      end
+    end
+    if not open or #supporting(open, method) == 0 then
+      return vim.json.encode({ results = {} })
+    end
+  end
   local buf = vim.fn.bufadd(q.file)
   vim.fn.bufload(buf)
   -- A buffer loaded off screen has no filetype yet, and the filetype is what attaches clients.

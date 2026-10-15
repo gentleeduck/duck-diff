@@ -22,6 +22,7 @@ function app(locations: LspLocation[]) {
         definition: async () => ({ source: 'server', server: 'typescript', locations }),
         references: async () => ({ source: null, server: null, locations: [] }),
         hover: async () => ({ source: null, server: null, contents: null }),
+        warm: async () => {},
       },
     }),
     symbol: createStore<SymbolTarget | null>(null),

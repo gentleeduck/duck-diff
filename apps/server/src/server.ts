@@ -94,6 +94,7 @@ const HOST = '127.0.0.1'
 
 type SocketData = { kind: 'events' } | { kind: 'pty'; id: string; peer: TerminalPeer | null }
 
+const LspWarmSchema = z.object({ paths: z.array(z.string().max(4096)).max(50) })
 const PtyQuerySchema = z.object({
   id: z.string().max(64).optional(),
   cols: z.coerce.number().int().min(2).max(1000).default(80),
@@ -194,6 +195,12 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         if (url.pathname === '/api/blame') {
           const { path, ref } = BlameQuerySchema.parse(Object.fromEntries(url.searchParams))
           return Response.json(await blame(repo, path, ref))
+        }
+        if (url.pathname === '/api/lsp/warm' && request.method === 'POST') {
+          const { paths } = LspWarmSchema.parse(await request.json())
+          // Started in the background; the page does not wait for a server to come up.
+          void navigator.warm(paths).catch(() => {})
+          return new Response(null, { status: 204 })
         }
         if (url.pathname.startsWith('/api/lsp/')) {
           const query = LspQuerySchema.parse(Object.fromEntries(url.searchParams))
