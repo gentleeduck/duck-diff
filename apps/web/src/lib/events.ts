@@ -6,6 +6,8 @@ interface EventsOptions {
   url: string
   onEvent(event: ServerEvent): void
   onStatus?(status: EventsStatus): void
+  // Called on every (re)connect with a way to talk back, for telling the server what the page watches.
+  onOpen?(send: (data: string) => void): void
   socketFactory?: (url: string) => WebSocket
   retryMs?: { min: number; max: number }
 }
@@ -21,9 +23,11 @@ export function connectEvents(options: EventsOptions): () => void {
   function open() {
     options.onStatus?.('connecting')
     socket = factory(options.url)
+    const current = socket
     socket.onopen = () => {
       delay = retry.min
       options.onStatus?.('open')
+      options.onOpen?.((data) => current.readyState === 1 && current.send(data))
     }
     socket.onmessage = (message) => {
       let data: unknown

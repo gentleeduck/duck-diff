@@ -1,4 +1,6 @@
 import {
+  type BisectState,
+  BisectStateSchema,
   type BlameLine,
   BlameLineSchema,
   type ChangedFile,
@@ -9,11 +11,19 @@ import {
   type CommitDetails,
   CommitDetailsSchema,
   CommitSchema,
+  type CommitStat,
+  CommitStatSchema,
+  type ConflictFile,
+  ConflictFileSchema,
   type ConversationComment,
   ConversationCommentSchema,
   type CreatePull,
   type CreateReview,
   type DiffTarget,
+  type Discussion,
+  DiscussionSchema,
+  type DiscussionSummary,
+  DiscussionSummarySchema,
   ErrorBodySchema,
   type ErrorCode,
   encodeTarget,
@@ -25,6 +35,8 @@ import {
   GitHubStatusSchema,
   type GitHubUser,
   GitHubUserSchema,
+  type Insights,
+  InsightsSchema,
   type IssueDetails,
   IssueDetailsSchema,
   type IssueSummary,
@@ -34,13 +46,22 @@ import {
   type ListPage,
   ListPageSchema,
   type ListQuery,
+  type LspHover,
+  LspHoverSchema,
+  type LspLocations,
+  LspLocationsSchema,
+  type LspQuery,
   type MergeInfo,
   MergeInfoSchema,
+  type MergeQueue,
+  MergeQueueSchema,
   type Notification,
   NotificationSchema,
   type Options,
   OptionsSchema,
   type PendingComment,
+  type PlanCommit,
+  PlanCommitSchema,
   type PullCommit,
   PullCommitSchema,
   type PullDetails,
@@ -62,6 +83,11 @@ import {
   ReviewCommentSchema,
   type ReviewState,
   ReviewStateSchema,
+  type SecurityAlert,
+  type SecurityAlerts,
+  SecurityAlertsSchema,
+  type Submodule,
+  SubmoduleSchema,
   type SymbolResult,
   SymbolResultSchema,
   type SyncStatus,
@@ -74,9 +100,20 @@ import {
   UndoResultSchema,
   type WorkflowRun,
   WorkflowRunSchema,
+  type Worktree,
+  WorktreeSchema,
   type WriteRequest,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
+
+function lspParams(query: LspQuery): URLSearchParams {
+  const params = new URLSearchParams({ path: query.path, line: String(query.line), column: String(query.column) })
+  if (query.ref) params.set('ref', query.ref)
+  return params
+}
+
+const RepoEntrySchema = z.object({ path: z.string(), name: z.string(), current: z.boolean() })
+export type RepoEntry = z.infer<typeof RepoEntrySchema>
 
 export class ApiError extends Error {
   constructor(
@@ -105,16 +142,43 @@ export interface Api {
   deleteReview(id: string): Promise<void>
   graph(query: { all: boolean; limit: number }, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   commit(sha: string): Promise<CommitDetails>
+  // Files and lines a commit changed, without listing them.
+  commitStat(sha: string): Promise<CommitStat>
   // Without a ref these read the working tree.
   tree(ref?: string): Promise<string[]>
   file(path: string, ref?: string): Promise<FileContents>
+  // The commits a rebase onto base replays, oldest first.
+  rebasePlan(base: string): Promise<PlanCommit[]>
+  // Contributors and weekly commits over the last days, from local history.
+  insights(days: number): Promise<Insights>
+  worktrees(): Promise<Worktree[]>
+  submodules(): Promise<Submodule[]>
+  // The commits a submodule pointer move brings in, newest first.
+  submoduleLog(path: string, from: string | null, to: string): Promise<PlanCommit[]>
+  // Repositories in the switcher, this one marked current; adding checks the folder is a repository.
+  repos(): Promise<RepoEntry[]>
+  addRepo(path: string): Promise<string>
+  removeRepo(path: string): Promise<void>
+  // Starts a server for a worktree or submodule and gives its page url.
+  openRepo(path: string): Promise<string>
+  // Points Neovim's current tab at another checkout.
+  tcd(path: string): Promise<void>
+  bisect(): Promise<BisectState>
+  // A conflicted file as blocks, with what each side had.
+  conflict(path: string): Promise<ConflictFile>
   sync(): Promise<SyncStatus>
   remotes(): Promise<Remote[]>
   lastMessage(): Promise<string>
   blame(path: string, ref?: string): Promise<BlameLine[]>
   // Where a name is defined and used; ref null searches the working tree.
   symbols(name: string, ref: string | null): Promise<SymbolResult>
-  git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean }>
+  // Precise answers from a language server; source null means none handles the file.
+  lsp: {
+    definition(query: LspQuery): Promise<LspLocations>
+    references(query: LspQuery): Promise<LspLocations>
+    hover(query: LspQuery): Promise<LspHover>
+  }
+  git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean; stopped?: boolean }>
   github: GitHubApi
 }
 
@@ -135,7 +199,8 @@ export interface GitHubApi {
   avatars(): Promise<Record<string, string>>
   pull(number: number): Promise<PullDetails>
   // Description, timeline and what the viewer may edit, for a pull request or an issue.
-  thread(number: number): Promise<Thread>
+  // GitLab numbers merge requests and issues apart, so the server is told which this is.
+  thread(number: number, kind: 'pr' | 'issue'): Promise<Thread>
   editThread(
     number: number,
     input: { title?: string; body?: string; assignees?: string[]; labels?: string[]; milestone?: number | null },
@@ -182,6 +247,14 @@ export interface GitHubApi {
   // One thread, or every notification of this repo when null.
   markRead(id: string | null): Promise<void>
   releases(): Promise<Release[]>
+  discussions(): Promise<DiscussionSummary[]>
+  discussion(number: number): Promise<Discussion>
+  replyDiscussion(number: number, body: string, replyTo?: string): Promise<void>
+  markAnswer(comment: string, answer: boolean): Promise<void>
+  security(): Promise<SecurityAlerts>
+  dismissAlert(input: { kind: SecurityAlert['kind']; number: number; reason: string; comment?: string }): Promise<void>
+  mergeQueue(number: number): Promise<MergeQueue>
+  setQueued(number: number, queued: boolean): Promise<void>
   createRelease(input: {
     tag: string
     target: string
@@ -222,6 +295,18 @@ export type GitAction =
   | 'unstage-all'
   | 'resolve'
   | 'mark-resolved'
+  | 'resolve-text'
+  | 'rebase-interactive'
+  | 'fixup'
+  | 'cherry-pick-range'
+  | 'bisect-mark'
+  | 'bisect-run'
+  | 'bisect-reset'
+  | 'worktree-add'
+  | 'worktree-remove'
+  | 'worktree-prune'
+  | 'submodule-update'
+  | 'submodule-sync'
   | 'undo-commit'
   | 'reset'
   | 'branch-rename'
@@ -286,7 +371,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     signIn: (token) => send('POST', '/api/github/token', { token }, GitHubStatusSchema),
     pulls: (state) => json(`/api/github/pulls?state=${state}`, z.array(PullSummarySchema)),
     pull: (number) => json(`/api/github/pulls/${number}`, PullDetailsSchema),
-    thread: (number) => json(`/api/github/threads/${number}`, ThreadSchema),
+    thread: (number, kind) => json(`/api/github/threads/${number}?kind=${kind}`, ThreadSchema),
     editThread: (number, input) => sendEmpty('PATCH', `/api/github/threads/${number}`, input),
     options: () => json('/api/github/options', OptionsSchema),
     requestReviewers: (number, change) => post(`/api/github/pulls/${number}/reviewers`, change),
@@ -345,6 +430,15 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     notifications: (all) => json(`/api/github/notifications?all=${all}`, z.array(NotificationSchema)),
     markRead: (id) => post('/api/github/notifications', { id }),
     releases: () => json('/api/github/releases', z.array(ReleaseSchema)),
+    discussions: () => json('/api/github/discussions', z.array(DiscussionSummarySchema)),
+    discussion: (number) => json(`/api/github/discussions/${number}`, DiscussionSchema),
+    replyDiscussion: (number, body, replyTo) =>
+      sendEmpty('POST', `/api/github/discussions/${number}/reply`, replyTo ? { body, replyTo } : { body }),
+    markAnswer: (comment, answer) => sendEmpty('POST', `/api/github/discussions/0/answer`, { comment, answer }),
+    security: () => json('/api/github/security', SecurityAlertsSchema),
+    dismissAlert: (input) => sendEmpty('POST', '/api/github/security', input),
+    mergeQueue: (number) => json(`/api/github/pulls/${number}/queue`, MergeQueueSchema),
+    setQueued: (number, queued) => sendEmpty('POST', `/api/github/pulls/${number}/queue`, { queued }),
     createRelease: (input) => send('POST', '/api/github/releases', input, ReleaseSchema),
     runs: () => json('/api/github/runs', z.array(WorkflowRunSchema)),
     runAction: (runId, action) => post('/api/github/runs', { runId, action }),
@@ -396,6 +490,28 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       return response.body
     },
     tree: (ref) => json(`/api/tree${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`, z.array(z.string())),
+    rebasePlan: (base) => json(`/api/rebase-plan?${new URLSearchParams({ base })}`, z.array(PlanCommitSchema)),
+    bisect: () => json('/api/bisect', BisectStateSchema),
+    insights: (days) => json(`/api/insights?days=${days}`, InsightsSchema),
+    worktrees: () => json('/api/worktrees', z.array(WorktreeSchema)),
+    submodules: () => json('/api/submodules', z.array(SubmoduleSchema)),
+    submoduleLog(path, from, to) {
+      const params = new URLSearchParams({ path, to })
+      if (from) params.set('from', from)
+      return json(`/api/submodule-log?${params}`, z.array(PlanCommitSchema))
+    },
+    repos: () => json('/api/repos', z.array(RepoEntrySchema)),
+    async addRepo(path) {
+      return (await send('POST', '/api/repos', { path }, z.object({ path: z.string() }))).path
+    },
+    removeRepo: (path) => sendEmpty('DELETE', `/api/repos?${new URLSearchParams({ path })}`),
+    async openRepo(path) {
+      return (await send('POST', '/api/open-repo', { path }, z.object({ url: z.string() }))).url
+    },
+    async tcd(path) {
+      await sendEmpty('POST', '/api/nvim/tcd', { path })
+    },
+    conflict: (path) => json(`/api/conflict?${new URLSearchParams({ path })}`, ConflictFileSchema),
     file(path, ref) {
       const params = new URLSearchParams({ path })
       if (ref) params.set('ref', ref)
@@ -409,6 +525,11 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       if (ref) params.set('ref', ref)
       return json(`/api/symbols?${params}`, SymbolResultSchema)
     },
+    lsp: {
+      definition: (query) => json(`/api/lsp/definition?${lspParams(query)}`, LspLocationsSchema),
+      references: (query) => json(`/api/lsp/references?${lspParams(query)}`, LspLocationsSchema),
+      hover: (query) => json(`/api/lsp/hover?${lspParams(query)}`, LspHoverSchema),
+    },
     blame(path, ref) {
       const params = new URLSearchParams({ path })
       if (ref) params.set('ref', ref)
@@ -419,9 +540,10 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
         'POST',
         `/api/git/${action}`,
         body ?? {},
-        z.object({ sha: z.string().optional(), conflicts: z.boolean().optional() }),
+        z.object({ sha: z.string().optional(), conflicts: z.boolean().optional(), stopped: z.boolean().optional() }),
       ),
     commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),
+    commitStat: (sha) => json(`/api/commit-stat?sha=${encodeURIComponent(sha)}`, CommitStatSchema),
     reviews: (target) => json(`/api/reviews?target=${encodeTarget(target)}`, z.array(ReviewCommentSchema)),
     createReview: (input) => send('POST', '/api/reviews', input, ReviewCommentSchema),
     updateReview: (id, body) => send('PATCH', `/api/reviews/${encodeURIComponent(id)}`, { body }, ReviewCommentSchema),

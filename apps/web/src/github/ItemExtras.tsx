@@ -9,7 +9,7 @@ import { useView } from '../hooks/useView'
 import { IssueIcon } from './IssuesList'
 import { Section } from './ItemSidebar'
 import { PullIcon } from './PullsList'
-import { usePoll } from './usePoll'
+import { useLive } from './useLive'
 
 // The lower half of GitHub's sidebar: linked work, projects, notifications, and the issue-only actions.
 export function ItemExtras({ number }: { number: number }) {
@@ -22,7 +22,7 @@ export function ItemExtras({ number }: { number: number }) {
   useEffect(() => {
     void load()
   }, [load])
-  usePoll(load, 60_000)
+  useLive(`item:${number}`, load)
 
   if (!extras) return null
 

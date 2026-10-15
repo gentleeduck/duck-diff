@@ -83,3 +83,24 @@ test('finds commits by message and steps through the matches', async ({ page, ap
   await expect(page.getByRole('banner')).toContainText('2 of 2')
   await expect(panel).toContainText('fix the parser')
 })
+
+test("a file in a commit's list opens the whole commit, scrolled to that file", async ({ page, app, repo }) => {
+  repo.commit('edit')
+  for (const name of ['a', 'b', 'c'])
+    repo.write(`many/${name}.ts`, `${Array(80).fill(`export const ${name} = 1`).join('\n')}\n`)
+  repo.commit('add three files')
+  await page.goto(`${app.url}&view=graph`)
+  await page
+    .getByRole('listbox', { name: 'Commits' })
+    .getByRole('option', { name: /add three files/ })
+    .click()
+  const panel = page.getByRole('complementary', { name: 'Commit' })
+  await panel.getByRole('button', { name: /many\/c\.ts/ }).click()
+  await expect(page).toHaveURL(/path=many%2Fc\.ts/)
+  await expect(page.getByRole('banner')).toContainText('3 files')
+  // The changes tree marks the file the diff is showing at its top.
+  await expect(page.getByRole('tree', { name: 'Changed files' }).locator('[aria-current="true"]')).toHaveAttribute(
+    'title',
+    /many\/c\.ts/,
+  )
+})

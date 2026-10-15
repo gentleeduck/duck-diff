@@ -1,22 +1,41 @@
-import { blame, lastMessage, listRemotes, readSyncStatus, resolveRepo } from '@duck-diff/git'
+import { join } from 'node:path'
+import {
+  blame,
+  lastMessage,
+  listRemotes,
+  listSubmodules,
+  listWorktrees,
+  readSyncStatus,
+  resolveRepo,
+} from '@duck-diff/git'
 import {
   BlameQuerySchema,
   type ChangeReason,
+  ClientMessageSchema,
   CreateReviewSchema,
   decodeTarget,
+  LspQuerySchema,
   NavigateRequestSchema,
+  OpenRepoSchema,
   OpenRequestSchema,
   UpdateReviewSchema,
   WriteRequestSchema,
 } from '@duck-diff/protocol'
+import type { ServerWebSocket } from 'bun'
 import { createToken, isAuthorized, tokenCookie } from './auth'
 import { errorResponse, HttpError } from './errors'
-import { createGitHub, type GitHubOptions } from './github'
+import { createForge } from './forge'
+import type { GitHubOptions } from './github'
 import { handleGitHub } from './github-routes'
+import { createGitHubWatch } from './github-watch'
+import type { GitLabOptions } from './gitlab'
 import { Hub } from './hub'
-import { type NvimRunner, openKeys, runNvim } from './nvim'
+import { createNavigator, type NavigatorOptions } from './lsp/navigator'
+import { type NvimRunner, openKeys, runNvim, tcdKeys } from './nvim'
+import { createRepoList } from './repos'
 import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
+import { createSiblings, type StartServer, startSibling } from './siblings'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
@@ -36,8 +55,20 @@ export interface ServerOptions {
   undoCache?: string
   // Where review comments are kept; tests point it at a temp folder.
   dataDir?: string
-  // GitHub access; tests swap in a fake fetch and token.
+  // GitHub and GitLab access; tests swap in a fake fetch and token.
   github?: GitHubOptions
+  gitlab?: GitLabOptions
+  // Language servers; tests swap in a fake one.
+  lsp?: NavigatorOptions
+  // How a worktree or submodule gets its own server; tests swap in a fake.
+  startSibling?: StartServer
+  // The build this server runs; pages reload when it changes under them.
+  build?: string
+  // More repositories for the switcher, from repeated --repo; given means remember this one too.
+  repos?: string[]
+  // How often the GitHub watcher looks at what is due, and seconds between asks per topic; tests make both quick.
+  githubTickMs?: number
+  githubEvery?: Partial<Record<string, number>>
 }
 
 export interface RunningServer {
@@ -61,7 +92,22 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
   const enqueue = createWriteQueue()
   const reviews = createReviewStore(repo, options.dataDir)
-  const github = createGitHub(repo, options.github)
+  const github = createForge(repo, { github: options.github, gitlab: options.gitlab })
+  const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
+  const repoList = createRepoList(options.dataDir)
+  // Started from the command line (which always passes repos), this repo goes to the top of the switcher
+  // with the extra ones after it; a server made in a test leaves the shared list alone.
+  if (options.repos) {
+    for (const extra of [...options.repos].reverse()) await repoList.add(extra).catch(() => {})
+    await repoList.add(repo).catch(() => {})
+  }
+  const siblings = createSiblings(options.startSibling ?? startSibling(options.nvim ?? null))
+  const watch = createGitHubWatch<ServerWebSocket<unknown>>(
+    github,
+    (socket, topic) => socket.send(JSON.stringify({ type: 'github', topic })),
+    options.githubEvery,
+  )
+  const watching = setInterval(() => void watch.tick(), options.githubTickMs ?? 5000)
 
   const server = Bun.serve({
     hostname: HOST,
@@ -86,6 +132,14 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         if (url.pathname === '/api/blame') {
           const { path, ref } = BlameQuerySchema.parse(Object.fromEntries(url.searchParams))
           return Response.json(await blame(repo, path, ref))
+        }
+        if (url.pathname.startsWith('/api/lsp/')) {
+          const query = LspQuerySchema.parse(Object.fromEntries(url.searchParams))
+          const kind = url.pathname.slice('/api/lsp/'.length)
+          if (kind === 'definition') return Response.json(await navigator.definition(query))
+          if (kind === 'references') return Response.json(await navigator.references(query))
+          if (kind === 'hover') return Response.json(await navigator.hover(query))
+          throw new HttpError(404, 'not-found', `no ${url.pathname}`)
         }
         if (url.pathname.startsWith('/api/github/')) return await handleGitHub(github, repo, url, request, enqueue)
         if (url.pathname.startsWith('/api/git/') && request.method === 'POST') {
@@ -134,6 +188,40 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
             return new Response(null, { status: 204 })
           }
         }
+        if (url.pathname === '/api/repos') {
+          if (request.method === 'POST') {
+            const { path } = OpenRepoSchema.parse(await request.json())
+            return Response.json({ path: await repoList.add(path) })
+          }
+          if (request.method === 'DELETE') {
+            await repoList.remove(OpenRepoSchema.parse(Object.fromEntries(url.searchParams)).path)
+            return new Response(null, { status: 204 })
+          }
+          return Response.json((await repoList.all()).map((entry) => ({ ...entry, current: entry.path === repo })))
+        }
+        if (url.pathname === '/api/open-repo' && request.method === 'POST') {
+          const { path } = OpenRepoSchema.parse(await request.json())
+          // Only checkouts this page knows: worktrees, submodules, and repositories in the switcher.
+          const [trees, modules, listed] = await Promise.all([
+            listWorktrees(repo),
+            listSubmodules(repo),
+            repoList.all(),
+          ])
+          const known = [
+            ...trees.map((tree) => tree.path),
+            ...modules.map((module) => join(repo, module.path)),
+            ...listed.map((entry) => entry.path),
+          ]
+          if (!known.includes(path))
+            throw new HttpError(404, 'not-found', `${path} is not a worktree or submodule here`)
+          return Response.json({ url: await siblings.open(path) })
+        }
+        if (url.pathname === '/api/nvim/tcd' && request.method === 'POST') {
+          if (!options.nvim) throw new HttpError(409, 'bad-request', 'no Neovim attached to this server')
+          const { path } = OpenRepoSchema.parse(await request.json())
+          await (options.runNvim ?? runNvim)(['--server', options.nvim, '--remote-send', tcdKeys(path)])
+          return new Response(null, { status: 204 })
+        }
         if (url.pathname === '/api/open' && request.method === 'POST') {
           if (!options.nvim) throw new HttpError(409, 'bad-request', 'no Neovim attached to this server')
           const { path, line } = OpenRequestSchema.parse(await request.json())
@@ -145,7 +233,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           ])
           return new Response(null, { status: 204 })
         }
-        if (url.pathname.startsWith('/api/')) return await handleApi(repo, url, Boolean(options.nvim))
+        if (url.pathname.startsWith('/api/')) return await handleApi(repo, url, Boolean(options.nvim), options.build)
         const response = serveWeb(url.pathname)
         // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
         if (response.headers.get('content-type')?.startsWith('text/html')) {
@@ -160,13 +248,25 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
       async open(socket) {
         hub.add(socket)
         // The repo can disappear under a running server; a missing hello is better than a crash.
-        const info = await repoInfo(repo, Boolean(options.nvim)).catch(() => null)
-        if (info) socket.send(JSON.stringify({ type: 'hello', repo: info }))
+        const info = await repoInfo(repo, Boolean(options.nvim), options.build).catch(() => null)
+        if (info) socket.send(JSON.stringify({ type: 'hello', repo: info, build: options.build }))
       },
       close(socket) {
         hub.remove(socket)
+        watch.unsubscribe(socket)
       },
-      message() {},
+      message(socket, raw) {
+        let data: unknown
+        try {
+          data = JSON.parse(String(raw))
+        } catch {
+          return
+        }
+        const parsed = ClientMessageSchema.safeParse(data)
+        if (!parsed.success) return
+        watch.subscribe(socket, parsed.data.topics)
+        void watch.tick()
+      },
     },
   })
 
@@ -179,7 +279,10 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     notify,
     async stop() {
       stopWatching()
+      clearInterval(watching)
       hub.dispose()
+      await navigator.stop()
+      await siblings.stop()
       await server.stop(true)
     },
   }

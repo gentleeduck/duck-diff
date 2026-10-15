@@ -1,4 +1,5 @@
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
+import type { SymbolTarget } from '../code-nav/symbol-at'
 import type { DiffViewHandle } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
 import { createItemIndex, type ItemIndex } from '../github/item-index'
@@ -14,9 +15,10 @@ import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
 import { createStage, type Stage } from '../state/stage'
+import { createTabs, type Tabs } from '../state/tabs'
 import { createViewedStore, type Viewed } from '../state/viewed'
 
-interface AppContextValue {
+export interface AppContextValue {
   api: Api
   session: Session
   // Branches, tags and recent commits, shared by every picker.
@@ -41,7 +43,7 @@ interface AppContextValue {
   fileLine: Store<number | null>
   fileAt: Store<string | null>
   // The name clicked in code, whose definitions and uses the symbol panel lists.
-  symbol: Store<{ name: string; ref: string | null } | null>
+  symbol: Store<SymbolTarget | null>
   github: GitHub
   // The pull request and issue open in their views.
   pullSelection: Store<number | null>
@@ -50,8 +52,12 @@ interface AppContextValue {
   pullTab: Store<PullTab>
   // The file last jumped to in the diff, so back and forward can return to it.
   diffFile: Store<string | null>
+  // The conflicted file open in the merge editor.
+  mergeFile: Store<string | null>
   // The file at the top of the diff as it scrolls, which the changes tree highlights.
   diffTop: Store<string | null>
+  // The diffs open side by side above the viewer; the first is always the working tree.
+  tabs: Tabs
   // Every pull request and issue, saved per repo, for the palette's search.
   items: ItemIndex
   // GitHub's review threads for the pull request the diff shows.
@@ -82,19 +88,29 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       fileSelection: createStore<string | null>(null),
       fileLine: createStore<number | null>(null),
       fileAt: createStore<string | null>(null),
-      symbol: createStore<{ name: string; ref: string | null } | null>(null),
+      symbol: createStore<SymbolTarget | null>(null),
       changesFolders: createStore<ReadonlySet<string>>(new Set()),
       github: createGitHub(client),
       pullSelection: createStore<number | null>(null),
       issueSelection: createStore<number | null>(null),
       pullTab: createStore<PullTab>('conversation'),
       diffFile: createStore<string | null>(null),
+      mergeFile: createStore<string | null>(null),
       diffTop: createStore<string | null>(null),
+      tabs: createTabs(readTarget(window.location.search)),
       pullReview: createPullReview(client),
       items: createItemIndex(client),
       viewer,
     }
   }, [api])
+
+  // Tabs are saved per repository, so they come back once the page knows which one it shows.
+  useEffect(() => {
+    value.api.repo().then(
+      (info) => value.tabs.restore(info.root),
+      () => {},
+    )
+  }, [value])
 
   useEffect(() => {
     // The highlighter starts with the page and loads the changed files' grammars while the diff is read,

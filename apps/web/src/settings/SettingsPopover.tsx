@@ -14,6 +14,7 @@ import {
 } from '@duck-diff/ui'
 import { Minus, Plus, Settings2 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { useSettings } from '../hooks/useSettings'
 import { DEFAULT_SETTINGS, type Settings } from '../state/settings'
@@ -81,6 +82,17 @@ export function SettingsPopover() {
       </Select>
     </Row>
   )
+
+  // The browser asks the reader once; a refusal leaves the switch off.
+  const setNotices = async (next: boolean) => {
+    if (next && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+      if ((await Notification.requestPermission()) !== 'granted') {
+        toast.error('The browser did not allow notifications for this page.')
+        return
+      }
+    }
+    set('desktopNotices', next)
+  }
 
   const toggle = (key: 'overflow' | 'lineNumbers' | 'backgrounds' | 'expandUnchanged', label: string) => {
     const checked = key === 'overflow' ? settings.overflow === 'wrap' : settings[key]
@@ -170,6 +182,14 @@ export function SettingsPopover() {
         {stepper('fontSize', 'Code size', 10, 24)}
         {stepper('uiFontSize', 'Interface size', 10, 24)}
         {stepper('tabSize', 'Tab width', 1, 8)}
+        <Row label="Desktop notifications">
+          <Switch
+            className="border-muted-foreground"
+            aria-label="Desktop notifications"
+            checked={settings.desktopNotices}
+            onCheckedChange={(next: boolean) => void setNotices(next)}
+          />
+        </Row>
         <div className="mt-2 flex justify-end border-border border-t pt-2">
           <Button variant="outline" size="sm" onClick={() => store.set(DEFAULT_SETTINGS)}>
             Reset to defaults

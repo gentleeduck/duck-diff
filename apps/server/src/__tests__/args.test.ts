@@ -6,6 +6,7 @@ describe('parseArgs', () => {
     expect(parseArgs(['serve'], '/work')).toEqual({
       name: 'serve',
       repo: '/work',
+      more: [],
       port: 0,
       idleTimeoutMs: 600_000,
       nvim: null,
@@ -18,7 +19,7 @@ describe('parseArgs', () => {
         ['serve', '--repo', '/r', '--port', '4100', '--idle-timeout-ms', '5000', '--nvim', '/tmp/nvim.sock'],
         '/work',
       ),
-    ).toEqual({ name: 'serve', repo: '/r', port: 4100, idleTimeoutMs: 5000, nvim: '/tmp/nvim.sock' })
+    ).toEqual({ name: 'serve', more: [], repo: '/r', port: 4100, idleTimeoutMs: 5000, nvim: '/tmp/nvim.sock' })
   })
 
   it('handles version and help', () => {

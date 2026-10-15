@@ -6,6 +6,7 @@ import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { Body as GitHubBody, Comment as GitHubComment } from '../github/Conversation'
 import type { PullReviewState } from '../github/pull-review'
+import { fitRows } from '../lib/fit-rows'
 import { useStore } from '../lib/store'
 import { relativeTime } from '../sidebar/relative-time'
 import type { Draft, Note } from './annotations'
@@ -140,7 +141,7 @@ function Editor({
         autoFocus
         aria-label={label}
         value={body}
-        rows={3}
+        rows={fitRows(body, 6)}
         onChange={(event) => setBody(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Escape') onCancel()

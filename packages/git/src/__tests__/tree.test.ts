@@ -1,6 +1,6 @@
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, describe, expect, it } from 'vitest'
-import { listTree, readTreeFile } from '../index'
+import { listTree, readTreeBytes, readTreeFile } from '../index'
 
 let repo: TestRepo
 afterEach(() => repo.cleanup())
@@ -29,5 +29,18 @@ describe('file tree', () => {
     expect(await readTreeFile(repo.path, 'HEAD', 'src/a.ts')).toEqual({ text: 'one\n', size: 4, binary: false })
     expect(await readTreeFile(repo.path, 'HEAD', 'logo.bin')).toEqual({ text: null, size: 3, binary: true })
     expect(await readTreeFile(repo.path, 'HEAD', 'missing.ts')).toBeNull()
+  })
+})
+
+describe('readTreeBytes', () => {
+  it('reads bytes from the working tree and from a commit, and nothing for a folder', async () => {
+    repo = createRepo()
+    repo.write('img/a.bin', new Uint8Array([0, 1, 2, 255]))
+    const sha = repo.commit('bytes')
+    repo.write('img/a.bin', new Uint8Array([9]))
+    expect([...((await readTreeBytes(repo.path, null, 'img/a.bin'))?.bytes ?? [])]).toEqual([9])
+    expect([...((await readTreeBytes(repo.path, sha, 'img/a.bin'))?.bytes ?? [])]).toEqual([0, 1, 2, 255])
+    expect(await readTreeBytes(repo.path, null, 'img')).toBeNull()
+    expect(await readTreeBytes(repo.path, sha, 'img')).toBeNull()
   })
 })

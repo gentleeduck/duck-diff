@@ -7,6 +7,11 @@ export interface TreeRow {
   // Paths of the visible rows above this one, outermost first; one indent guide each.
   ancestors: string[]
   expanded: boolean
+  // The last item in its folder, where the folder's guide ends in an elbow.
+  last: boolean
+  // For each ancestor, whether it is the last item of its own folder; past such a folder its parent's
+  // guide has nothing left to reach, so it is not drawn.
+  ancestorsLast: boolean[]
 }
 
 interface Dir {
@@ -41,8 +46,10 @@ export function buildTree(paths: readonly string[]): Dir {
 // `toggled` are the ones flipped since.
 export function visibleRows(root: Dir, toggled: ReadonlySet<string>, open = true): TreeRow[] {
   const rows: TreeRow[] = []
-  const walk = (dir: Dir, ancestors: string[]) => {
-    for (const name of [...dir.dirs.keys()].sort(compare)) {
+  const walk = (dir: Dir, ancestors: string[], ancestorsLast: boolean[]) => {
+    const dirNames = [...dir.dirs.keys()].sort(compare)
+    const lastDir = dir.files.length === 0 ? dirNames.at(-1) : undefined
+    for (const name of dirNames) {
       let child = dir.dirs.get(name) as Dir
       let label = name
       while (child.files.length === 0 && child.dirs.size === 1) {
@@ -51,15 +58,34 @@ export function visibleRows(root: Dir, toggled: ReadonlySet<string>, open = true
         child = only
       }
       const expanded = open !== toggled.has(child.path)
-      rows.push({ path: child.path, name: label, kind: 'directory', depth: ancestors.length, ancestors, expanded })
-      if (expanded) walk(child, [...ancestors, child.path])
+      rows.push({
+        path: child.path,
+        name: label,
+        kind: 'directory',
+        depth: ancestors.length,
+        ancestors,
+        expanded,
+        last: name === lastDir,
+        ancestorsLast,
+      })
+      if (expanded) walk(child, [...ancestors, child.path], [...ancestorsLast, name === lastDir])
     }
-    for (const name of [...dir.files].sort(compare)) {
+    const files = [...dir.files].sort(compare)
+    for (const [index, name] of files.entries()) {
       const path = dir.path ? `${dir.path}/${name}` : name
-      rows.push({ path, name, kind: 'file', depth: ancestors.length, ancestors, expanded: false })
+      rows.push({
+        path,
+        name,
+        kind: 'file',
+        depth: ancestors.length,
+        ancestors,
+        expanded: false,
+        last: index === files.length - 1,
+        ancestorsLast,
+      })
     }
   }
-  walk(root, [])
+  walk(root, [], [])
   return rows
 }
 

@@ -460,3 +460,84 @@ export const TransferSchema = z.object({
     .trim()
     .regex(/^[\w.-]+\/[\w.-]+$/, 'owner/name'),
 })
+
+// Discussions, security alerts and the merge queue.
+export const DiscussionSummarySchema = z.object({
+  number: z.number().int(),
+  title: z.string(),
+  author: GitHubUserSchema,
+  category: z.string(),
+  emoji: z.string(),
+  answered: z.boolean(),
+  comments: z.number().int(),
+  updatedAt: z.string(),
+  url: z.string(),
+})
+export type DiscussionSummary = z.infer<typeof DiscussionSummarySchema>
+export const DiscussionReplySchema = z.object({
+  id: z.string(),
+  author: GitHubUserSchema,
+  body: z.string(),
+  createdAt: z.string(),
+})
+export const DiscussionCommentSchema = DiscussionReplySchema.extend({
+  answer: z.boolean(),
+  replies: z.array(DiscussionReplySchema),
+})
+export type DiscussionComment = z.infer<typeof DiscussionCommentSchema>
+export const DiscussionSchema = DiscussionSummarySchema.extend({
+  id: z.string(),
+  body: z.string(),
+  createdAt: z.string(),
+  // Only Q&A categories take an answer.
+  answerable: z.boolean(),
+  thread: z.array(DiscussionCommentSchema),
+})
+export type Discussion = z.infer<typeof DiscussionSchema>
+export const DiscussionReplyInputSchema = z.object({
+  body: z.string().trim().min(1).max(65_000),
+  replyTo: z.string().max(200).optional(),
+})
+export const MarkAnswerSchema = z.object({ comment: z.string().min(1).max(200), answer: z.boolean() })
+
+export const SecurityAlertSchema = z.object({
+  kind: z.enum(['dependabot', 'code-scanning']),
+  number: z.number().int(),
+  severity: z.string(),
+  summary: z.string(),
+  // The package for Dependabot, the rule for code scanning.
+  subject: z.string(),
+  path: z.string().nullable(),
+  createdAt: z.string(),
+  url: z.string(),
+})
+export type SecurityAlert = z.infer<typeof SecurityAlertSchema>
+export const SecurityAlertsSchema = z.object({
+  alerts: z.array(SecurityAlertSchema),
+  // Why a kind could not be read: not enabled, or the token lacks the scope.
+  unavailable: z.array(z.object({ kind: z.enum(['dependabot', 'code-scanning']), reason: z.string() })),
+})
+export type SecurityAlerts = z.infer<typeof SecurityAlertsSchema>
+export const DismissAlertSchema = z.object({
+  kind: z.enum(['dependabot', 'code-scanning']),
+  number: z.number().int().min(1),
+  reason: z.enum([
+    'fix_started',
+    'inaccurate',
+    'no_bandwidth',
+    'not_used',
+    'tolerable_risk',
+    'false positive',
+    "won't fix",
+    'used in tests',
+  ]),
+  comment: z.string().max(280).default(''),
+})
+
+export const MergeQueueSchema = z.object({
+  // The base branch merges through a queue.
+  enabled: z.boolean(),
+  position: z.number().int().nullable(),
+  state: z.string().nullable(),
+})
+export type MergeQueue = z.infer<typeof MergeQueueSchema>

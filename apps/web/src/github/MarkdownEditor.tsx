@@ -21,6 +21,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { fitRows } from '../lib/fit-rows'
 import { Avatar } from './Conversation'
 import { applyFormat, type Format } from './markdown-format'
 
@@ -251,7 +252,7 @@ export function MarkdownEditor({
             ref={area}
             aria-label={label}
             placeholder={placeholder}
-            rows={rows}
+            rows={fitRows(value, rows)}
             autoFocus={autoFocus}
             value={value}
             onChange={(event) => {

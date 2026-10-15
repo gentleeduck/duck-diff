@@ -6,7 +6,7 @@ import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
-import { fileGlyph, STATUS_LETTER } from '../sidebar/icons'
+import { fileGlyph, STATUS_MARK } from '../sidebar/icons'
 import { relativeTime } from '../sidebar/relative-time'
 import { CommitActions } from './CommitActions'
 
@@ -16,7 +16,7 @@ interface Loaded {
 }
 
 export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) {
-  const { api, graphSelection } = useApp()
+  const { api, graphSelection, diffFile } = useApp()
   const { navigate } = useTarget()
   const { show } = useView()
   const [loaded, setLoaded] = useState<Loaded | null>(null)
@@ -36,9 +36,11 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
     }
   }, [api, sha])
 
+  // The whole commit opens, scrolled to the file clicked, so it reads with the rest of what the commit did.
   const openChanges = (path?: string) => {
-    navigate(path ? { kind: 'commit', sha, path } : { kind: 'commit', sha })
+    navigate({ kind: 'commit', sha })
     show('changes')
+    if (path) diffFile.set(path)
   }
   const copy = async () => {
     await navigator.clipboard.writeText(sha)
@@ -109,7 +111,7 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
           <ul>
             {loaded.files.map((file) => {
               const icon = fileGlyph(file.path.split('/').pop() ?? file.path)
-              const status = STATUS_LETTER[file.status]
+              const status = STATUS_MARK[file.status]
               return (
                 <li key={file.path}>
                   <Button
@@ -119,14 +121,10 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
                     title={`${file.path} (${status.title})`}
                     onClick={() => openChanges(file.path)}>
                     <span style={{ color: icon.color }}>{icon.glyph}</span>
-                    <span className="min-w-0 flex-1 truncate text-start" style={{ color: status.color }}>
-                      {file.path}
-                    </span>
+                    <span style={{ color: status.color }}>{status.glyph}</span>
+                    <span className="min-w-0 flex-1 truncate text-start">{file.path}</span>
                     {file.additions !== null ? <span className="text-added">+{file.additions}</span> : null}
                     {file.deletions !== null ? <span className="text-removed">-{file.deletions}</span> : null}
-                    <span className="w-3 text-end" style={{ color: status.color }}>
-                      {status.letter}
-                    </span>
                   </Button>
                 </li>
               )

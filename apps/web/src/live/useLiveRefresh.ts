@@ -5,6 +5,7 @@ import { connectEvents, type EventsStatus } from '../lib/events'
 import { pushUrl } from '../lib/history'
 import { writeTarget } from '../lib/target-url'
 import { createRefresher } from './refresher'
+import { setTopicSender, topicChanged } from './topics'
 
 export interface LiveState {
   status: EventsStatus
@@ -23,11 +24,22 @@ export function useLiveRefresh(): LiveState {
 
   useEffect(() => {
     const refresher = createRefresher(() => session.reload())
+    let build: string | undefined
     const dispose = connectEvents({
       url: eventsUrl(),
-      onStatus: (status) => setState((prev) => ({ ...prev, status })),
+      onStatus: (status) => {
+        setState((prev) => ({ ...prev, status }))
+        if (status !== 'open') setTopicSender(null)
+      },
+      onOpen: setTopicSender,
       onEvent: (event) => {
-        if (event.type === 'hello') return setState((prev) => ({ ...prev, repo: event.repo }))
+        if (event.type === 'hello') {
+          // A new server build took over on the same port; the page it serves is new too.
+          if (event.build && build && event.build !== build) return window.location.reload()
+          build = event.build ?? build
+          return setState((prev) => ({ ...prev, repo: event.repo }))
+        }
+        if (event.type === 'github') return topicChanged(event.topic)
         if (event.type === 'navigate') {
           pushUrl(writeTarget(event.target, window.location.search))
           void session.load(event.target)

@@ -20,12 +20,15 @@ import { useKeyboard } from '../keyboard/useKeyboard'
 import type { Api } from '../lib/api'
 import { useStore } from '../lib/store'
 import type { View } from '../lib/view-url'
+import { useDesktopNotices } from '../live/useDesktopNotices'
 import { useLiveRefresh } from '../live/useLiveRefresh'
+import { MergeSidebar } from '../merge/MergeSidebar'
 import { Palette } from '../palette/Palette'
 import { CommentsSheet } from '../review/CommentsSheet'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
 import type { Settings } from '../state/settings'
+import { DiffTabs } from '../viewer/DiffTabs'
 import { WritesProvider } from '../writes/WritesProvider'
 import { ActivityRail } from './ActivityRail'
 import { AppProvider, useApp } from './AppProvider'
@@ -38,6 +41,7 @@ import { useThemeClass } from './useThemeClass'
 // Memoized: the page around them re-renders for panels and badges, which these big views do not need.
 const Viewer = lazy(() => import('../viewer/Viewer').then((module) => ({ default: memo(module.default) })))
 const GraphView = lazy(() => import('../graph/GraphView').then((module) => ({ default: memo(module.default) })))
+const MergeEditor = lazy(() => import('../merge/MergeEditor'))
 const FileView = lazy(() => import('../files/FileView').then((module) => ({ default: memo(module.default) })))
 // GitHub pages load when first opened, keeping them out of the bundle every view waits for.
 const pages = () => import('../github/Pages')
@@ -45,9 +49,24 @@ const PullsPage = lazy(() => pages().then((module) => ({ default: module.PullsPa
 const IssuesPage = lazy(() => pages().then((module) => ({ default: module.IssuesPage })))
 const InboxPage = lazy(() => pages().then((module) => ({ default: module.InboxPage })))
 const ReleasesPage = lazy(() => pages().then((module) => ({ default: module.ReleasesPage })))
+const DiscussionsPage = lazy(() => pages().then((module) => ({ default: module.DiscussionsPage })))
+const SecurityPage = lazy(() => pages().then((module) => ({ default: module.SecurityPage })))
+const Insights = lazy(() => import('../insights/Insights'))
 const ActionsPage = lazy(() => pages().then((module) => ({ default: module.ActionsPage })))
 
-const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues', 'inbox', 'releases', 'actions']
+const SHIPPED: View[] = [
+  'changes',
+  'graph',
+  'files',
+  'prs',
+  'issues',
+  'inbox',
+  'releases',
+  'actions',
+  'discussions',
+  'security',
+  'insights',
+]
 
 const selectCommitCount = (state: GraphState) => state.entries.length
 const selectPanel = (state: Settings) => state.sidebar
@@ -84,6 +103,7 @@ function Screen() {
   const { view, show } = useView()
   useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true), show })
   const live = useLiveRefresh()
+  useDesktopNotices()
   useUrlSync()
   // Bumped when a page changes an item, so its list reloads.
   const [pullsVersion, setPullsVersion] = useState(0)
@@ -124,7 +144,14 @@ function Screen() {
       ),
       side: <Sidebar />,
       label: 'Changed files',
-      main: <Viewer />,
+      main: (
+        <div className="flex h-full flex-col">
+          <DiffTabs />
+          <div className="min-h-0 flex-1">
+            <Viewer />
+          </div>
+        </div>
+      ),
     },
     graph: {
       top: (
@@ -215,6 +242,56 @@ function Screen() {
       side: null,
       label: 'Actions',
       main: <ActionsPage />,
+    },
+    discussions: {
+      top: (
+        <>
+          <GitHubTitle title="Discussions" />
+          {search}
+          <SettingsPopover />
+        </>
+      ),
+      side: null,
+      label: 'Discussions',
+      main: <DiscussionsPage />,
+    },
+    security: {
+      top: (
+        <>
+          <GitHubTitle title="Security" />
+          {search}
+          <SettingsPopover />
+        </>
+      ),
+      side: null,
+      label: 'Security',
+      main: <SecurityPage />,
+    },
+    insights: {
+      top: (
+        <>
+          <BranchMenu />
+          <h1 className="min-w-0 flex-1">Insights</h1>
+          {search}
+          <SettingsPopover />
+        </>
+      ),
+      side: null,
+      label: 'Insights',
+      main: <Insights />,
+    },
+    merge: {
+      top: (
+        <>
+          <BranchMenu />
+          <h1 className="min-w-0 flex-1">Resolve conflicts</h1>
+          {search}
+          <SettingsPopover />
+        </>
+      ),
+      side: <MergeSidebar />,
+      label: 'Conflicted files',
+      main: <MergeEditor />,
     },
   }
   const screen = screens[view]

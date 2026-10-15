@@ -39,9 +39,13 @@ export function createGraph(api: Api): Graph {
       const entries: GraphEntry[] = []
       const rows: GraphRow[] = []
       let timer: ReturnType<typeof setTimeout> | null = null
+      // A reload keeps the list on screen until the new one is as long; swapping in the first few records
+      // would shrink the page and throw the scroll position away.
+      const shown = store.get().entries.length
       const flush = () => {
         timer = null
-        if (!controller.signal.aborted) store.set((prev) => ({ ...prev, entries: [...entries], rows: [...rows] }))
+        if (controller.signal.aborted || entries.length < shown) return
+        store.set((prev) => ({ ...prev, entries: [...entries], rows: [...rows] }))
       }
       const reader = createRecordReader((entry) => {
         entries.push(entry)

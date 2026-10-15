@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import type { ReviewEvent } from '../lib/api'
+import { fitRows } from '../lib/fit-rows'
 import { useStore } from '../lib/store'
 import type { PullReviewState } from './pull-review'
 
@@ -54,7 +55,7 @@ export function ReviewChanges() {
         <Textarea
           aria-label="Review summary"
           placeholder="Leave a comment"
-          rows={4}
+          rows={fitRows(body, 6, 18)}
           value={body}
           onChange={(event) => setBody(event.target.value)}
         />

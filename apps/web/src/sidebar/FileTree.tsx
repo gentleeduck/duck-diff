@@ -12,28 +12,48 @@ import {
   useState,
 } from 'react'
 import { useRowHeight } from '../app/useSizes'
-import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_LETTER } from './icons'
+import { CHEVRON, FOLDER, FOLDER_DIRTY, FOLDER_NEW, fileGlyph, isSpecialFile, STATUS_MARK, SUBMODULE } from './icons'
 import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
 export type { Row as TreeRow }
 
 const ROW = 28
+const SETTLE_MS = 800
 
-// Extra props come from a context-menu trigger wrapping the row.
+type Mark = { glyph: string; color: string; title: string }
+
+const LINE = 'before:absolute before:inset-y-0 before:start-[9px] before:w-px before:bg-tn-gutter'
+const ELBOW =
+  'before:absolute before:top-0 before:h-1/2 before:start-[9px] before:w-px before:bg-tn-gutter after:absolute after:top-1/2 after:start-[9px] after:end-0 after:h-px after:bg-tn-gutter'
+
+// One row in nvim-tree's look: guides through each folder's chevron, ending in an elbow at a folder's
+// last item; then chevron, icon, git marks and name. Extra props come from a context-menu trigger.
 function TreeItem({
   row,
   file,
+  marks,
   selected,
   onClick,
   ...rest
-}: { row: Row; file: ChangedFile | undefined; selected: boolean; onClick(): void } & Omit<
+}: { row: Row; file: ChangedFile | undefined; marks: Mark[]; selected: boolean; onClick(): void } & Omit<
   ComponentProps<typeof Button>,
   'onClick'
 >) {
   const folder = row.kind === 'directory'
-  const icon = folder ? { glyph: row.expanded ? FOLDER.open : FOLDER.closed, color: FOLDER.color } : fileGlyph(row.name)
-  const status = file ? STATUS_LETTER[file.status] : null
+  const icon = folder
+    ? { glyph: row.expanded ? FOLDER.open : FOLDER.closed, color: FOLDER.color }
+    : file?.submodule
+      ? SUBMODULE
+      : fileGlyph(row.name)
   const special = !folder && isSpecialFile(row.name)
+  const deleted = file?.status === 'deleted'
+  const name = folder
+    ? 'text-tn-blue'
+    : special
+      ? 'text-tn-pink underline'
+      : deleted
+        ? 'text-tn-comment line-through'
+        : 'text-foreground'
   return (
     <Button
       {...rest}
@@ -45,31 +65,33 @@ function TreeItem({
       onClick={onClick}
       aria-expanded={folder ? row.expanded : undefined}
       aria-current={selected || undefined}
-      title={status ? `${row.path} (${status.title})` : row.path}
-      className="h-7 w-full items-stretch justify-start gap-0 rounded-none p-0 ps-1 pe-2 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
-      {row.ancestors.map((ancestor) => (
-        // One guide per ancestor, drawn through the middle of that folder's chevron, like the editor's tree.
+      title={marks.length ? `${row.path} (${marks.map((mark) => mark.title).join(', ')})` : row.path}
+      className="h-7 w-full items-stretch justify-start gap-0 rounded-none p-0 ps-1 pe-3 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
+      {row.ancestors.map((ancestor, column) => (
+        // A folder's guide runs in the column under its icon, where its items' arrows sit; it is drawn
+        // only while that folder still has items further down.
         <span
           key={ancestor}
-          className="relative w-4 shrink-0 self-stretch before:absolute before:inset-y-0 before:start-[7px] before:w-px before:bg-tn-gutter"
+          className={`relative w-5 shrink-0 self-stretch ${column > 0 && !row.ancestorsLast[column] ? LINE : ''}`}
         />
       ))}
-      <span className="w-4 shrink-0 justify-center text-tn-comment">
-        {folder ? (row.expanded ? CHEVRON.open : CHEVRON.closed) : ''}
-      </span>
+      {folder ? (
+        <span className="w-5 shrink-0 justify-center text-tn-comment">
+          {row.expanded ? CHEVRON.open : CHEVRON.closed}
+        </span>
+      ) : (
+        // A file stands on its folder's guide: a straight piece, or the elbow when it is the last item.
+        <span className={`relative w-5 shrink-0 self-stretch ${row.depth === 0 ? '' : row.last ? ELBOW : LINE}`} />
+      )}
       <span className="w-5 shrink-0 justify-center" style={{ color: icon.color }}>
         {icon.glyph}
       </span>
-      <span
-        className={`ms-1 min-w-0 flex-1 truncate ${folder ? 'text-tn-blue' : special ? 'text-tn-pink underline' : 'text-foreground'} ${file?.status === 'deleted' ? 'line-through' : ''}`}
-        style={status && !folder ? { color: status.color } : undefined}>
-        {row.name}
-      </span>
-      {status ? (
-        <span className="w-4 shrink-0 justify-end ps-1" style={{ color: status.color }}>
-          {status.letter}
+      {marks.map((mark) => (
+        <span key={mark.glyph} className="w-5 shrink-0 justify-center" style={{ color: mark.color }}>
+          {mark.glyph}
         </span>
-      ) : null}
+      ))}
+      <span className={`ms-0.5 min-w-0 truncate ${name}`}>{row.name}</span>
     </Button>
   )
 }
@@ -123,6 +145,32 @@ export function FileTree({
     [toggled, onToggled],
   )
   const tree = useMemo(() => buildTree(paths), [paths])
+  // Every folder's marks come from the files under it: a change anywhere, a new file anywhere, or both.
+  const folderMarks = useMemo(() => {
+    const marks = new Map<string, { dirty: boolean; fresh: boolean }>()
+    for (const path of paths) {
+      const status = fileFor(path)?.status
+      if (!status) continue
+      const fresh = status === 'added' || status === 'untracked' || status === 'copied'
+      const parts = path.split('/')
+      for (let i = 1; i < parts.length; i++) {
+        const folder = parts.slice(0, i).join('/')
+        const entry = marks.get(folder) ?? { dirty: false, fresh: false }
+        if (fresh) entry.fresh = true
+        else entry.dirty = true
+        marks.set(folder, entry)
+      }
+    }
+    return marks
+  }, [paths, fileFor])
+  const marksFor = (row: Row): Mark[] => {
+    if (row.kind === 'file') {
+      const status = fileFor(row.path)?.status
+      return status ? [STATUS_MARK[status]] : []
+    }
+    const entry = folderMarks.get(row.path)
+    return [...(entry?.dirty ? [FOLDER_DIRTY] : []), ...(entry?.fresh ? [FOLDER_NEW] : [])]
+  }
   const rows = useMemo(() => visibleRows(tree, toggled, !collapsed), [tree, toggled, collapsed])
 
   // A file picked elsewhere (the palette, the README on load) gets its folders opened so it shows.
@@ -136,15 +184,34 @@ export function FileTree({
   const ROW_HEIGHT = useRowHeight(ROW)
   const virtualizer = useVirtualizer({
     count: rows.length,
+    // Keyed by path, so folding a folder never hands one row's place to another mid-update.
+    getItemKey: (index) => rows[index]?.path ?? index,
     getScrollElement: () => scroller.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 20,
   })
-  // The selected file stays in sight: picked in search, opened by link, or reached by scrolling the diff.
-  const shownIndex = selected ? rows.findIndex((row) => row.path === selected) : -1
+  // A newly selected file is brought into sight once (picked in search, opened by a link, reached by
+  // scrolling the diff), and only when it is out of view. Clicks, folding and other rows moving never
+  // pull the tree back to it; a selection whose row is not there yet waits until it appears.
+  const reveal = useRef<string | null>(null)
+  // A selection that follows from the reader's own click or key in the tree (folding a folder moves the
+  // diff, which moves its top file) is marked but not scrolled to: they are already where they want to be.
+  const touched = useRef(0)
   useEffect(() => {
-    if (shownIndex >= 0) virtualizer.scrollToIndex(shownIndex, { align: 'auto' })
-  }, [shownIndex, virtualizer])
+    reveal.current = Date.now() - touched.current < SETTLE_MS ? null : selected
+  }, [selected])
+  useEffect(() => {
+    const path = reveal.current
+    if (!path) return
+    const index = rows.findIndex((row) => row.path === path)
+    if (index < 0) return
+    reveal.current = null
+    const element = scroller.current
+    if (!element) return
+    const top = index * ROW_HEIGHT
+    const visible = top >= element.scrollTop && top + ROW_HEIGHT <= element.scrollTop + element.clientHeight
+    if (!visible) virtualizer.scrollToIndex(index, { align: 'center' })
+  })
   // A new interface size changes every row's height at once.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the height is the trigger
   useEffect(() => virtualizer.measure(), [virtualizer, ROW_HEIGHT])
@@ -159,17 +226,31 @@ export function FileTree({
   }
 
   return (
-    <div ref={scroller} role="tree" aria-label={label} className="min-h-0 flex-1 overflow-y-auto py-1">
+    <div
+      ref={scroller}
+      role="tree"
+      aria-label={label}
+      className="min-h-0 flex-1 overflow-y-auto py-1"
+      onPointerDown={() => {
+        touched.current = Date.now()
+      }}
+      onKeyDown={() => {
+        touched.current = Date.now()
+      }}>
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((virtual) => {
           const row = rows[virtual.index]
           if (!row) return null
           return (
-            <div key={row.path} className="absolute inset-x-0" style={{ transform: `translateY(${virtual.start}px)` }}>
+            <div
+              key={virtual.key}
+              className="absolute inset-x-0"
+              style={{ transform: `translateY(${virtual.start}px)` }}>
               <WithMenu items={menuFor?.(row)}>
                 <TreeItem
                   row={row}
                   file={fileFor(row.path)}
+                  marks={marksFor(row)}
                   selected={row.path === selected}
                   onClick={() => open(row)}
                 />

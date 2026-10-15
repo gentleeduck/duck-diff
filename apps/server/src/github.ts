@@ -4,6 +4,8 @@ import type {
   CheckRun,
   ConversationComment,
   CreatePull,
+  Discussion,
+  DiscussionSummary,
   GitHubReviewComment,
   GitHubStatus,
   GitHubUser,
@@ -15,6 +17,7 @@ import type {
   ListPage,
   ListQuery,
   MergeInfo,
+  MergeQueue,
   Notification,
   Options,
   PendingComment,
@@ -24,17 +27,25 @@ import type {
   Release,
   Reviewer,
   ReviewState,
+  SecurityAlert,
+  SecurityAlerts,
   Thread,
   TimelineEvent,
   WorkflowRun,
 } from '@duck-diff/protocol'
 import { HttpError } from './errors'
+import { apiBases, parseRemote, type RemoteHost } from './forge-host'
 import { applyEdits, type SuggestionEdit, suggestionLines } from './suggestions'
+
+interface RawItemTime {
+  updatedAt: string
+  commits?: { nodes?: { commit?: { statusCheckRollup?: { state?: string } | null } }[] }
+}
 
 export interface GitHubOptions {
   fetch?: typeof fetch
-  // Where the token comes from when the page has not supplied one; tests replace it.
-  findToken?: () => Promise<{ token: string; source: 'env' | 'gh' } | null>
+  // Where the token comes from when the page has not supplied one, by host; tests replace it.
+  findToken?: (host: string) => Promise<{ token: string; source: 'env' | 'gh' } | null>
   apiBase?: string
 }
 
@@ -56,11 +67,24 @@ function runGh(args: string[]): Promise<string | null> {
   })
 }
 
-async function defaultFindToken() {
-  const env = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN
+// github.com reads GH_TOKEN and gh's default login; an Enterprise host its own variables and gh login.
+async function defaultFindToken(host = 'github.com') {
+  const env =
+    host === 'github.com'
+      ? (process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN)
+      : (process.env.GH_ENTERPRISE_TOKEN ?? process.env.GITHUB_ENTERPRISE_TOKEN)
   if (env) return { token: env, source: 'env' as const }
-  const token = await runGh(['auth', 'token'])
+  const token = await runGh(host === 'github.com' ? ['auth', 'token'] : ['auth', 'token', '--hostname', host])
   return token ? { token, source: 'gh' as const } : null
+}
+
+// origin's host and path, with `git config duck-diff.forge` deciding the kind for an unusual host name.
+export async function readRemote(repo: string): Promise<RemoteHost | null> {
+  const [url, configured] = await Promise.all([
+    runGit(['remote', 'get-url', 'origin'], { cwd: repo }).catch(() => ''),
+    runGit(['config', '--get', 'duck-diff.forge'], { cwd: repo, okExitCodes: [1] }).catch(() => ''),
+  ])
+  return url.trim() ? parseRemote(url, configured.trim() || null) : null
 }
 
 interface RawUser {
@@ -87,10 +111,87 @@ const comment = (raw: RawComment): ConversationComment => ({
   createdAt: raw.created_at,
 })
 
+interface RawGraphUser {
+  login: string
+  avatarUrl: string
+}
+interface RawDiscussion {
+  number: number
+  title: string
+  url: string
+  updatedAt: string
+  author: RawGraphUser | null
+  category: { name: string; emoji: string }
+  answer: { id: string } | null
+  comments: { totalCount: number }
+}
+interface RawDiscussionReply {
+  id: string
+  body: string
+  createdAt: string
+  author: RawGraphUser | null
+}
+interface RawDiscussionFull extends Omit<RawDiscussion, 'category' | 'comments'> {
+  id: string
+  body: string
+  createdAt: string
+  category: { name: string; emoji: string; isAnswerable: boolean }
+  comments: {
+    totalCount: number
+    nodes: (RawDiscussionReply & { isAnswer: boolean; replies: { nodes: RawDiscussionReply[] } })[]
+  }
+}
+interface RawDependabotAlert {
+  number: number
+  created_at: string
+  html_url: string
+  security_advisory?: { severity?: string; summary?: string }
+  dependency?: { package?: { name?: string }; manifest_path?: string }
+}
+interface RawScanningAlert {
+  number: number
+  created_at: string
+  html_url: string
+  rule?: { id?: string; description?: string; severity?: string; security_severity_level?: string | null }
+  most_recent_instance?: { location?: { path?: string } }
+}
+
+const DISCUSSION_FIELDS =
+  'number title url updatedAt author { login avatarUrl } category { name emoji } answer { id } comments { totalCount }'
+const graphUser = (raw: RawGraphUser | null): GitHubUser => ({
+  login: raw?.login ?? 'ghost',
+  avatarUrl: raw?.avatarUrl ?? '',
+})
+const discussionSummary = (raw: RawDiscussion): DiscussionSummary => ({
+  number: raw.number,
+  title: raw.title,
+  author: graphUser(raw.author),
+  category: raw.category.name,
+  emoji: raw.category.emoji,
+  answered: Boolean(raw.answer),
+  comments: raw.comments.totalCount,
+  updatedAt: raw.updatedAt,
+  url: raw.url,
+})
+
 export function createGitHub(repo: string, options: GitHubOptions = {}) {
   const fetcher = options.fetch ?? fetch
   const findToken = options.findToken ?? defaultFindToken
-  const apiBase = options.apiBase ?? 'https://api.github.com'
+  let remote: Promise<RemoteHost | null> | null = null
+  const origin = () => {
+    remote ??= readRemote(repo)
+    return remote
+  }
+  // Enterprise servers answer under /api/v3 and /api/graphql on their own host.
+  const bases = async () => {
+    if (options.apiBase) return { rest: options.apiBase, graphql: `${options.apiBase}/graphql` }
+    const found = await origin()
+    return found?.kind === 'github' ? apiBases(found) : apiBases({ kind: 'github', host: 'github.com', slug: '' })
+  }
+  const urlFor = async (path: string) => {
+    const { rest, graphql } = await bases()
+    return path === '/graphql' ? graphql : `${rest}${path}`
+  }
   let pasted: string | null = null
   let avatarMap: Promise<Record<string, string>> | null = null
   let mentionList: Promise<GitHubUser[]> | null = null
@@ -114,7 +215,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   let slug: Promise<string | null> | null = null
 
   const repoSlug = () => {
-    slug ??= runGit(['remote', 'get-url', 'origin'], { cwd: repo }).then(parseGitHubRemote, () => null)
+    slug ??= origin().then((found) => (found?.kind === 'github' ? found.slug : null))
     return slug
   }
 
@@ -123,10 +224,12 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   let found: Promise<{ token: string; source: GitHubStatus['source'] } | null> | null = null
   async function token(): Promise<{ token: string; source: GitHubStatus['source'] } | null> {
     if (pasted) return { token: pasted, source: 'token' }
-    found ??= findToken().then((result) => {
-      if (!result) found = null
-      return result
-    })
+    found ??= origin()
+      .then((at) => findToken(at?.kind === 'github' ? at.host : 'github.com'))
+      .then((result) => {
+        if (!result) found = null
+        return result
+      })
     return found
   }
 
@@ -142,7 +245,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     const key = `${path} ${JSON.stringify(init.headers ?? {})}`
     const cached = read ? etags.get(key) : undefined
     if (!auth) throw new HttpError(401, 'unauthorized', 'not signed in to GitHub')
-    const response = await fetcher(`${apiBase}${path}`, {
+    const response = await fetcher(await urlFor(path), {
       ...init,
       headers: {
         accept: 'application/vnd.github+json',
@@ -206,7 +309,198 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     return `/repos/${name}`
   }
 
+  // The watcher's own ETags, apart from the pages' so a probe never answers a page from stale memory.
+  const probeTags = new Map<string, string>()
+  const PROBES: Record<string, string> = {
+    notifications: '/notifications?all=false&per_page=50',
+    pulls: '/pulls?state=all&sort=updated&direction=desc&per_page=20',
+    issues: '/issues?state=all&sort=updated&direction=desc&per_page=20',
+    runs: '/actions/runs?per_page=20',
+  }
+
   return {
+    kind: 'github' as const,
+    async discussions(): Promise<DiscussionSummary[]> {
+      const [owner, name] = await ownerAndName()
+      const data = await graphql<{ repository: { discussions: { nodes: RawDiscussion[] } } }>(
+        `query($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { discussions(first: 40, orderBy: { field: UPDATED_AT, direction: DESC }) { nodes { ${DISCUSSION_FIELDS} } } } }`,
+        { owner, repo: name },
+      )
+      return data.repository.discussions.nodes.map(discussionSummary)
+    },
+    async discussion(number: number): Promise<Discussion> {
+      const [owner, name] = await ownerAndName()
+      const data = await graphql<{ repository: { discussion: RawDiscussionFull | null } }>(
+        `query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { discussion(number: $number) { ${DISCUSSION_FIELDS} id body createdAt category { isAnswerable } comments(first: 60) { nodes { id body createdAt isAnswer author { login avatarUrl } replies(first: 30) { nodes { id body createdAt author { login avatarUrl } } } } } } } }`,
+        { owner, repo: name, number },
+      )
+      const raw = data.repository.discussion
+      if (!raw) throw new HttpError(404, 'not-found', `no discussion #${number}`)
+      const reply = (entry: RawDiscussionReply) => ({
+        id: entry.id,
+        author: graphUser(entry.author),
+        body: entry.body,
+        createdAt: entry.createdAt,
+      })
+      return {
+        ...discussionSummary(raw),
+        id: raw.id,
+        body: raw.body,
+        createdAt: raw.createdAt,
+        answerable: raw.category.isAnswerable,
+        thread: raw.comments.nodes.map((entry) => ({
+          ...reply(entry),
+          answer: entry.isAnswer,
+          replies: entry.replies.nodes.map(reply),
+        })),
+      }
+    },
+    async replyDiscussion(number: number, input: { body: string; replyTo?: string }): Promise<void> {
+      const { id } = await this.discussion(number)
+      await graphql(
+        'mutation($id: ID!, $body: String!, $replyTo: ID) { addDiscussionComment(input: { discussionId: $id, body: $body, replyToId: $replyTo }) { comment { id } } }',
+        { id, body: input.body, replyTo: input.replyTo ?? null },
+      )
+    },
+    async markAnswer(comment: string, answer: boolean): Promise<void> {
+      const mutation = answer ? 'markDiscussionCommentAsAnswer' : 'unmarkDiscussionCommentAsAnswer'
+      await graphql(`mutation($id: ID!) { ${mutation}(input: { id: $id }) { discussion { id } } }`, { id: comment })
+    },
+
+    // Each kind needs its own feature and token scope; one missing is reported, not fatal.
+    async securityAlerts(): Promise<SecurityAlerts> {
+      const base = await repoPath()
+      const unavailable: SecurityAlerts['unavailable'] = []
+      const read = async <T>(kind: 'dependabot' | 'code-scanning', path: string): Promise<T[]> =>
+        call<T[]>(path).catch((error: Error) => {
+          unavailable.push({ kind, reason: error.message })
+          return []
+        })
+      const [dependabot, scanning] = await Promise.all([
+        read<RawDependabotAlert>('dependabot', `${base}/dependabot/alerts?state=open&per_page=50`),
+        read<RawScanningAlert>('code-scanning', `${base}/code-scanning/alerts?state=open&per_page=50`),
+      ])
+      const alerts: SecurityAlert[] = [
+        ...dependabot.map((alert) => ({
+          kind: 'dependabot' as const,
+          number: alert.number,
+          severity: alert.security_advisory?.severity ?? 'unknown',
+          summary: alert.security_advisory?.summary ?? '',
+          subject: alert.dependency?.package?.name ?? '',
+          path: alert.dependency?.manifest_path ?? null,
+          createdAt: alert.created_at,
+          url: alert.html_url,
+        })),
+        ...scanning.map((alert) => ({
+          kind: 'code-scanning' as const,
+          number: alert.number,
+          severity: alert.rule?.security_severity_level ?? alert.rule?.severity ?? 'unknown',
+          summary: alert.rule?.description ?? '',
+          subject: alert.rule?.id ?? '',
+          path: alert.most_recent_instance?.location?.path ?? null,
+          createdAt: alert.created_at,
+          url: alert.html_url,
+        })),
+      ]
+      return { alerts, unavailable }
+    },
+    async dismissAlert(input: {
+      kind: 'dependabot' | 'code-scanning'
+      number: number
+      reason: string
+      comment: string
+    }): Promise<void> {
+      const base = await repoPath()
+      const body = { state: 'dismissed', dismissed_reason: input.reason, dismissed_comment: input.comment || undefined }
+      await call(`${base}/${input.kind}/alerts/${input.number}`, { method: 'PATCH', body: JSON.stringify(body) })
+    },
+
+    async mergeQueue(number: number): Promise<MergeQueue> {
+      const [owner, name] = await ownerAndName()
+      const data = await graphql<{
+        repository: {
+          pullRequest: { baseRefName: string; mergeQueueEntry: { position: number; state: string } | null } | null
+        }
+      }>(
+        'query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $number) { baseRefName mergeQueueEntry { position state } } } }',
+        { owner, repo: name, number },
+      )
+      const pull = data.repository.pullRequest
+      if (!pull) throw new HttpError(404, 'not-found', `no pull request #${number}`)
+      const queue = await graphql<{ repository: { mergeQueue: { id: string } | null } }>(
+        'query($owner: String!, $repo: String!, $branch: String!) { repository(owner: $owner, name: $repo) { mergeQueue(branch: $branch) { id } } }',
+        { owner, repo: name, branch: pull.baseRefName },
+      ).catch(() => ({ repository: { mergeQueue: null } }))
+      return {
+        enabled: Boolean(queue.repository.mergeQueue),
+        position: pull.mergeQueueEntry?.position ?? null,
+        state: pull.mergeQueueEntry?.state ?? null,
+      }
+    },
+    async setQueued(number: number, queued: boolean): Promise<void> {
+      const id = await nodeIdOf(number)
+      if (queued)
+        await graphql(
+          'mutation($id: ID!) { enqueuePullRequest(input: { pullRequestId: $id }) { mergeQueueEntry { id } } }',
+          { id },
+        )
+      else
+        await graphql('mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { mergeQueueEntry { id } } }', {
+          id,
+        })
+    },
+
+    async pullRefspec(number: number): Promise<string> {
+      return `pull/${number}/head`
+    },
+    async probe(topic: string): Promise<{ changed: boolean | null; pollSeconds?: number }> {
+      const suffix = PROBES[topic]
+      const auth = await token()
+      if (!suffix || !auth) return { changed: false }
+      const path = `${await repoPath()}${suffix}`
+      const before = probeTags.get(path)
+      const response = await fetcher(await urlFor(path), {
+        headers: {
+          accept: 'application/vnd.github+json',
+          authorization: `Bearer ${auth.token}`,
+          'x-github-api-version': '2022-11-28',
+          ...(before ? { 'if-none-match': before } : {}),
+        },
+      })
+      const poll = Number(response.headers.get('x-poll-interval'))
+      const pollSeconds = Number.isFinite(poll) && poll > 0 ? poll : undefined
+      if (response.status === 304) return { changed: false, pollSeconds }
+      if (!response.ok) return { changed: false, pollSeconds }
+      await response.arrayBuffer()
+      const etag = response.headers.get('etag')
+      if (etag) probeTags.set(path, etag)
+      return { changed: before === undefined ? null : etag !== before, pollSeconds }
+    },
+
+    // A pull request's checks finishing does not move its updatedAt, so the head's check state counts too.
+    async itemsUpdatedAt(numbers: number[]): Promise<Map<number, string>> {
+      if (!numbers.length || !(await token())) return new Map()
+      const [owner, name] = await ownerAndName()
+      const fields = numbers
+        .map(
+          (number) =>
+            `i${number}: issueOrPullRequest(number: ${number}) { ... on Issue { updatedAt } ... on PullRequest { updatedAt commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }`,
+        )
+        .join(' ')
+      const data = await graphql<{ repository: Record<string, RawItemTime | null> }>(
+        `query($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { ${fields} } }`,
+        { owner, repo: name },
+      )
+      const times = new Map<number, string>()
+      for (const number of numbers) {
+        const item = data.repository[`i${number}`]
+        if (!item) continue
+        const checks = item.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? ''
+        times.set(number, `${item.updatedAt}|${checks}`)
+      }
+      return times
+    },
+
     async status(): Promise<GitHubStatus> {
       const [name, auth] = await Promise.all([repoSlug(), token()])
       if (!auth) return { repo: name, user: null, source: null }
@@ -591,7 +885,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     async jobLog(jobId: number): Promise<string> {
       const auth = await token()
       if (!auth) throw new HttpError(401, 'unauthorized', 'not signed in to GitHub')
-      const response = await fetcher(`${apiBase}${await repoPath()}/actions/jobs/${jobId}/logs`, {
+      const response = await fetcher(await urlFor(`${await repoPath()}/actions/jobs/${jobId}/logs`), {
         headers: { authorization: `Bearer ${auth.token}`, 'x-github-api-version': '2022-11-28' },
       })
       if (!response.ok) throw new HttpError(502, 'failed', `GitHub: could not read the log (${response.status})`)

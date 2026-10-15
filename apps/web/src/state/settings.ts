@@ -22,6 +22,8 @@ export interface Settings {
   tests: 'show' | 'fold' | 'hide'
   // The left panel (tree, branches, files), hidden for a wider diff.
   sidebar: boolean
+  // Browser notifications for review requests and failed runs of mine; off until asked for.
+  desktopNotices: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -41,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tabSize: 2,
   tests: 'show',
   sidebar: true,
+  desktopNotices: false,
 }
 
 const KEY = 'duck-diff:settings'
@@ -62,6 +65,7 @@ const FIELDS = {
   tabSize: z.number().int().min(1).max(8),
   tests: z.enum(['show', 'fold', 'hide']),
   sidebar: z.boolean(),
+  desktopNotices: z.boolean(),
 } satisfies { [K in keyof Settings]: z.ZodType<Settings[K]> }
 
 function load(storage: Pick<Storage, 'getItem'> | null): Settings {

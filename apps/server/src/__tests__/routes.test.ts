@@ -148,3 +148,27 @@ describe('api', () => {
     expect((await fixture.get('/api/nope')).status).toBe(404)
   })
 })
+
+describe('/api/raw', () => {
+  it('serves repository images with locked-down headers and refuses other files', async () => {
+    const { startFixture } = await import('./helpers')
+    const fixture = await startFixture((repo) => {
+      repo.write('logo.png', new Uint8Array([137, 80, 78, 71]))
+      repo.write('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
+      repo.write('secret.txt', 'no')
+    })
+    try {
+      const png = await fixture.get('/api/raw?path=logo.png')
+      expect(png.status).toBe(200)
+      expect(png.headers.get('content-type')).toBe('image/png')
+      expect([...new Uint8Array(await png.arrayBuffer())]).toEqual([137, 80, 78, 71])
+      const svg = await fixture.get('/api/raw?path=logo.svg')
+      expect(svg.headers.get('content-security-policy')).toContain('sandbox')
+      expect((await fixture.get('/api/raw?path=secret.txt')).status).toBe(415)
+      expect((await fixture.get('/api/raw?path=missing.png')).status).toBe(404)
+      expect((await fixture.get('/api/raw?path=../x.png')).status).toBe(400)
+    } finally {
+      await fixture.close()
+    }
+  })
+})

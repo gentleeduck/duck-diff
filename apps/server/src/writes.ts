@@ -1,8 +1,13 @@
 import {
   abortOperation,
   addRemote,
+  addWorktree,
+  bisectMark,
+  bisectReset,
+  bisectRun,
   checkoutDetached,
   cherryPick,
+  cherryPickRange,
   cleanUntracked,
   commit,
   continueOperation,
@@ -12,16 +17,21 @@ import {
   deleteTag,
   discardFile,
   discardHunk,
+  discardLines,
   fetchAll,
   fetchRemote,
+  fixupInto,
   forcePush,
+  interactiveRebase,
   markResolved,
   mergeRef,
+  pruneWorktrees,
   pull,
   push,
   pushTags,
   rebaseOnto,
   removeRemote,
+  removeWorktree,
   renameBranch,
   resetTo,
   resolveConflict,
@@ -33,24 +43,32 @@ import {
   stageAll,
   stageFile,
   stageHunk,
+  stageLines,
   stashApply,
   stashDrop,
   stashSave,
   stashStaged,
   switchBranch,
+  syncSubmodules,
   trackRemote,
   undoCommit,
   unmergedPaths,
   unstageAll,
   unstageFile,
   unstageHunk,
+  unstageLines,
+  updateSubmodules,
+  writeResolution,
 } from '@duck-diff/git'
 import {
+  BisectMarkSchema,
+  BisectRunSchema,
   type ChangeReason,
   CheckoutRequestSchema,
   CommitRequestSchema,
   DeleteBranchSchema,
   FetchRemoteSchema,
+  InteractiveRebaseSchema,
   MessageSchema,
   NameSchema,
   PathRequestSchema,
@@ -61,13 +79,18 @@ import {
   RenameBranchSchema,
   ResetSchema,
   ResolveSchema,
+  ResolveTextSchema,
+  ShaListSchema,
   StashApplySchema,
   StashDropSchema,
   StashSaveSchema,
+  SubmoduleUpdateSchema,
   SwitchRequestSchema,
   TagCreateSchema,
   TagPushSchema,
   UpstreamSchema,
+  WorktreeAddSchema,
+  WorktreeRemoveSchema,
   type WriteRequest,
 } from '@duck-diff/protocol'
 import { HttpError } from './errors'
@@ -103,6 +126,13 @@ export async function applyWrite(repo: string, request: WriteRequest, undoCache?
     case 'discard-file':
       await snapshot(repo, [file.path], undoCache)
       return discardFile(repo, file)
+    case 'stage-lines':
+      return stageLines(repo, file, request.lines)
+    case 'unstage-lines':
+      return unstageLines(repo, file, request.lines)
+    case 'discard-lines':
+      await snapshot(repo, [file.path], undoCache)
+      return discardLines(repo, file, request.lines)
   }
 }
 
@@ -157,6 +187,45 @@ export async function gitAction(
     case 'resolve':
       await resolveConflict(repo, ResolveSchema.parse(await request.json()))
       return { reason: 'index', body: {} }
+    case 'resolve-text': {
+      const { path, text } = ResolveTextSchema.parse(await request.json())
+      await writeResolution(repo, path, text)
+      return { reason: 'index', body: {} }
+    }
+    case 'rebase-interactive': {
+      const { base, steps } = InteractiveRebaseSchema.parse(await request.json())
+      return { reason: 'refs', body: await interactiveRebase(repo, base, steps) }
+    }
+    case 'fixup':
+      return { reason: 'refs', body: await fixupInto(repo, CheckoutRequestSchema.parse(await request.json()).sha) }
+    case 'cherry-pick-range':
+      return { reason: 'refs', body: await cherryPickRange(repo, ShaListSchema.parse(await request.json()).shas) }
+    case 'bisect-mark': {
+      const { kind, sha } = BisectMarkSchema.parse(await request.json())
+      await bisectMark(repo, kind, sha)
+      return { reason: 'refs', body: {} }
+    }
+    case 'bisect-run':
+      await bisectRun(repo, BisectRunSchema.parse(await request.json()).command)
+      return { reason: 'refs', body: {} }
+    case 'bisect-reset':
+      await bisectReset(repo)
+      return { reason: 'refs', body: {} }
+    case 'worktree-add':
+      await addWorktree(repo, WorktreeAddSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'worktree-remove':
+      await removeWorktree(repo, WorktreeRemoveSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'worktree-prune':
+      await pruneWorktrees(repo)
+      return { reason: 'refs', body: {} }
+    case 'submodule-update':
+      await updateSubmodules(repo, SubmoduleUpdateSchema.parse(await request.json()))
+      return { reason: 'worktree', body: {} }
+    case 'submodule-sync':
+      await syncSubmodules(repo)
+      return { reason: 'worktree', body: {} }
     case 'mark-resolved':
       await markResolved(repo, PathRequestSchema.parse(await request.json()).path)
       return { reason: 'index', body: {} }

@@ -51,3 +51,29 @@ describe('readCommit', () => {
     expect(details.message).toBe('subject line\n\nbody with | pipes\nand lines')
   })
 })
+
+describe('readCommitStat', () => {
+  it('counts files and lines in one go, for root, plain and merge commits', async () => {
+    const { readCommitStat } = await import('../index')
+    const local = createRepo()
+    try {
+      local.write('a.txt', 'one\ntwo\n')
+      const root = local.commit('root')
+      local.write('a.txt', 'one\nTWO\nthree\n')
+      local.write('b.txt', 'b\n')
+      const plain = local.commit('plain')
+      local.git('checkout', '-q', '-b', 'side', root)
+      local.write('c.txt', 'c\nc\n')
+      local.commit('side')
+      local.git('checkout', '-q', 'main')
+      local.git('merge', '-q', '--no-ff', '-m', 'merge', 'side')
+      const merge = local.git('rev-parse', 'HEAD')
+      expect(await readCommitStat(local.path, root)).toEqual({ files: 1, additions: 2, deletions: 0 })
+      expect(await readCommitStat(local.path, plain)).toEqual({ files: 2, additions: 3, deletions: 1 })
+      // A merge counts what it brought into the first parent.
+      expect(await readCommitStat(local.path, merge)).toEqual({ files: 1, additions: 2, deletions: 0 })
+    } finally {
+      local.cleanup()
+    }
+  })
+})

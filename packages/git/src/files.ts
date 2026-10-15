@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
 import { runGit } from './run'
 import { type DiffTarget, excludeArgs, headOrEmpty, pathArgs, readsWorkTree, targetArgs, unmergedPaths } from './target'
+import { submoduleHead } from './worktrees'
 
 export type { ChangedFile, FileStatus }
 
@@ -25,6 +26,8 @@ interface RawEntry {
   status: FileStatus
   oldSha: string | null
   newSha: string | null
+  // A gitlink: the change is a submodule's recorded commit.
+  submodule?: boolean
 }
 
 // `--raw -z`: ":oldmode newmode oldsha newsha STATUS\0path\0", plus a second path for R and C.
@@ -35,7 +38,7 @@ export function parseRaw(output: string): RawEntry[] {
   while (i < parts.length) {
     const header = parts[i++]
     if (!header?.startsWith(':')) continue
-    const [, , oldSha = '', newSha = '', code = ''] = header.slice(1).split(' ')
+    const [oldMode = '', newMode = '', oldSha = '', newSha = '', code = ''] = header.slice(1).split(' ')
     const letter = code.charAt(0)
     const twoPaths = letter === 'R' || letter === 'C'
     const first = parts[i++] ?? ''
@@ -46,6 +49,7 @@ export function parseRaw(output: string): RawEntry[] {
       status: STATUS[letter] ?? 'modified',
       oldSha: ZERO_SHA.test(oldSha) ? null : oldSha,
       newSha: ZERO_SHA.test(newSha) ? null : newSha,
+      ...(oldMode === '160000' || newMode === '160000' ? { submodule: true } : {}),
     })
   }
   return entries
@@ -227,9 +231,13 @@ export async function listFiles(repo: string, target: DiffTarget): Promise<Chang
   files.push(...extra)
   const hashing = async () => {
     if (!worktree) return
-    const present = files.filter((file) => file.status !== 'deleted').map((file) => file.path)
+    // A submodule is a folder; its side of the change is the commit it has checked out.
+    const present = files.filter((file) => file.status !== 'deleted' && !file.submodule).map((file) => file.path)
     const shas = await hashWorkTreeFiles(repo, present)
-    for (const file of files) file.newSha = shas.get(file.path) ?? file.newSha
+    for (const file of files) {
+      if (file.submodule && file.status !== 'deleted') file.newSha = await submoduleHead(repo, file.path)
+      else file.newSha = shas.get(file.path) ?? file.newSha
+    }
   }
   await Promise.all([hashing(), fillSizes(repo, target, files), markGenerated(repo, files)])
   return files.sort((a, b) => a.path.localeCompare(b.path))

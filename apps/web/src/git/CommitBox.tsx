@@ -3,6 +3,7 @@ import { Archive, ArchiveX, Brush, Ellipsis, GitCommitHorizontal, Undo2, Upload 
 import { type ReactNode, useId, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
+import { BisectBanner } from '../graph/BisectBanner'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { useGit } from './GitProvider'
 import { OperationBanner } from './OperationBanner'
@@ -57,6 +58,7 @@ export function CommitBox() {
         if (ready) void commit(false)
       }}>
       <OperationBanner />
+      <BisectBanner />
       <Textarea
         aria-label="Commit message"
         placeholder={

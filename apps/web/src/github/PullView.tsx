@@ -38,8 +38,8 @@ import { StatePill } from './StatePill'
 import { ThreadMenu } from './ThreadMenu'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
-import { usePoll } from './usePoll'
-import { EditableTitle, useThread } from './useThread'
+import { useLive } from './useLive'
+import { EditTitleButton, ThreadTitle, useThread } from './useThread'
 
 const Viewer = lazy(() => import('../viewer/Viewer'))
 
@@ -174,7 +174,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   const { pullTab, diffFile } = useApp()
   const tab = useStore(pullTab, selectTab)
   const setTab = (next: Tab) => pullTab.set(next)
-  const { thread, draft, reload: reloadThread } = useThread(number)
+  const { thread, draft, reload: reloadThread } = useThread(number, 'pr')
   // Review changes works from every tab, so the pull request's review state reads with the page.
   const { pullReview } = useApp()
   useEffect(() => {
@@ -199,7 +199,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
     }
   }, [load])
 
-  usePoll(() => Promise.all([api.github.pull(number).then(setPull, () => {}), reloadThread(true)]), 20_000)
+  useLive(`item:${number}`, () => Promise.all([api.github.pull(number).then(setPull, () => {}), reloadThread(true)]))
   // The conversation is ready once its thread has read; the other tabs carry their own heights.
   useScrollMemory(page, pull && (tab !== 'conversation' || thread) ? `pull:${number}:${tab}` : null)
 
@@ -265,65 +265,66 @@ export default function PullView({ number, onChanged }: { number: number; onChan
       <div className="mx-auto flex max-w-6xl flex-col gap-3 p-6">
         {back}
         <div className="flex items-start gap-3">
-          <EditableTitle
-            number={pull.number}
-            title={pull.title}
-            canEdit={thread?.viewer.canEdit ?? false}
-            onChanged={reload}
-          />
-          <Button size="sm" variant="outline" asChild>
-            <a href={pull.url} target="_blank" rel="noreferrer">
-              <SquareArrowOutUpRight />
-              Open on GitHub
-            </a>
-          </Button>
-          <CodeMenu pull={pull} />
-          <ThreadMenu
-            actions={[
-              ...(pull.state === 'open'
-                ? [
-                    pull.draft
-                      ? {
-                          label: 'Ready for review',
-                          icon: <Eye />,
-                          run: () =>
-                            void act('draft', () => api.github.setDraft(number, false), 'Marked ready for review'),
-                        }
-                      : {
-                          label: 'Convert to draft',
-                          icon: <GitPullRequestDraft />,
-                          run: () => void act('draft', () => api.github.setDraft(number, true), 'Converted to a draft'),
-                        },
-                  ]
-                : []),
-              pull.locked
-                ? {
-                    label: 'Unlock conversation',
-                    icon: <LockOpen />,
-                    run: () => void act('lock', () => api.github.setLocked(number, false), 'Unlocked the conversation'),
-                  }
-                : {
-                    label: 'Lock conversation',
-                    icon: <Lock />,
-                    run: () => void act('lock', () => api.github.setLocked(number, true), 'Locked the conversation'),
-                  },
-              ...(!pull.merged
-                ? [
-                    {
-                      label: pull.state === 'open' ? 'Close pull request' : 'Reopen pull request',
-                      icon: pull.state === 'open' ? <GitPullRequestClosed /> : <GitPullRequest />,
-                      destructive: pull.state === 'open',
+          <ThreadTitle number={pull.number} title={pull.title} />
+          <div className="mt-1 flex shrink-0 items-center gap-2">
+            {thread?.viewer.canEdit ? (
+              <EditTitleButton number={pull.number} title={pull.title} onChanged={reload} />
+            ) : null}
+            <CodeMenu pull={pull} />
+            <ThreadMenu
+              actions={[
+                {
+                  label: 'Open on GitHub',
+                  icon: <SquareArrowOutUpRight />,
+                  run: () => window.open(pull.url, '_blank', 'noreferrer'),
+                },
+                ...(pull.state === 'open'
+                  ? [
+                      pull.draft
+                        ? {
+                            label: 'Ready for review',
+                            icon: <Eye />,
+                            run: () =>
+                              void act('draft', () => api.github.setDraft(number, false), 'Marked ready for review'),
+                          }
+                        : {
+                            label: 'Convert to draft',
+                            icon: <GitPullRequestDraft />,
+                            run: () =>
+                              void act('draft', () => api.github.setDraft(number, true), 'Converted to a draft'),
+                          },
+                    ]
+                  : []),
+                pull.locked
+                  ? {
+                      label: 'Unlock conversation',
+                      icon: <LockOpen />,
                       run: () =>
-                        void act(
-                          'state',
-                          () => api.github.setPullState(number, pull.state === 'open' ? 'closed' : 'open'),
-                          pull.state === 'open' ? `Closed #${number}` : `Reopened #${number}`,
-                        ),
+                        void act('lock', () => api.github.setLocked(number, false), 'Unlocked the conversation'),
+                    }
+                  : {
+                      label: 'Lock conversation',
+                      icon: <Lock />,
+                      run: () => void act('lock', () => api.github.setLocked(number, true), 'Locked the conversation'),
                     },
-                  ]
-                : []),
-            ]}
-          />
+                ...(!pull.merged
+                  ? [
+                      {
+                        label: pull.state === 'open' ? 'Close pull request' : 'Reopen pull request',
+                        icon: pull.state === 'open' ? <GitPullRequestClosed /> : <GitPullRequest />,
+                        destructive: pull.state === 'open',
+                        run: () =>
+                          void act(
+                            'state',
+                            () => api.github.setPullState(number, pull.state === 'open' ? 'closed' : 'open'),
+                            pull.state === 'open' ? `Closed #${number}` : `Reopened #${number}`,
+                          ),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
           <StatePill kind="pr" state={pull.state} merged={pull.merged} draft={pull.draft} />

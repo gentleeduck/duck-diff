@@ -22,23 +22,29 @@ export interface FileContents {
 
 const MAX_BYTES = 4 * 1024 * 1024
 
-export async function readTreeFile(repo: string, ref: TreeRef, path: string): Promise<FileContents | null> {
-  let bytes: Buffer
-  let size: number
+// A file's bytes at a ref or in the working tree; null when it is missing, not a file, or over the limit.
+export async function readTreeBytes(
+  repo: string,
+  ref: TreeRef,
+  path: string,
+): Promise<{ bytes: Buffer | null; size: number } | null> {
   if (ref === null) {
     const info = await stat(join(repo, path)).catch(() => null)
     if (!info?.isFile()) return null
-    size = info.size
-    if (size > MAX_BYTES) return { text: null, size, binary: false }
-    bytes = await readFile(join(repo, path))
-  } else {
-    const spec = `${ref}:${path}`
-    const type = await runGit(['cat-file', '-t', spec], { cwd: repo, okExitCodes: [128] })
-    if (type.trim() !== 'blob') return null
-    size = Number((await runGit(['cat-file', '-s', spec], { cwd: repo })).trim())
-    if (size > MAX_BYTES) return { text: null, size, binary: false }
-    bytes = await runGitBytes(['cat-file', 'blob', spec], { cwd: repo })
+    return { size: info.size, bytes: info.size > MAX_BYTES ? null : await readFile(join(repo, path)) }
   }
+  const spec = `${ref}:${path}`
+  const type = await runGit(['cat-file', '-t', spec], { cwd: repo, okExitCodes: [128] })
+  if (type.trim() !== 'blob') return null
+  const size = Number((await runGit(['cat-file', '-s', spec], { cwd: repo })).trim())
+  return { size, bytes: size > MAX_BYTES ? null : await runGitBytes(['cat-file', 'blob', spec], { cwd: repo }) }
+}
+
+export async function readTreeFile(repo: string, ref: TreeRef, path: string): Promise<FileContents | null> {
+  const read = await readTreeBytes(repo, ref, path)
+  if (!read) return null
+  const { bytes, size } = read
+  if (!bytes) return { text: null, size, binary: false }
   // git's rule for binary: a NUL byte in the first 8000 bytes.
   const binary = bytes.subarray(0, 8000).includes(0)
   return { text: binary ? null : bytes.toString('utf8'), size, binary }

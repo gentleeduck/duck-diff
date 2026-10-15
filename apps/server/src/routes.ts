@@ -3,32 +3,43 @@ import {
   listCommits,
   listFiles,
   listRefs,
+  listSubmodules,
   listTree,
+  listWorktrees,
+  readBisect,
   readCommit,
+  readCommitStat,
+  readConflict,
+  readInsights,
   readSide,
   readSideBytes,
+  readTreeBytes,
   readTreeFile,
+  rebasePlan,
   runGit,
   streamDiff,
   streamGraph,
   streamPatch,
+  submoduleLog,
 } from '@duck-diff/git'
 import {
   decodeTarget,
   FileStatusSchema,
+  InsightsQuerySchema,
   RefNameSchema,
   type RepoInfo,
   RepoPathSchema,
+  SubmoduleLogQuerySchema,
   SymbolQuerySchema,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
 import { HttpError } from './errors'
 import { iterableToStream } from './stream'
 
-export async function repoInfo(repo: string, nvim = false): Promise<RepoInfo> {
+export async function repoInfo(repo: string, nvim = false, build?: string): Promise<RepoInfo> {
   const branch = (await runGit(['branch', '--show-current'], { cwd: repo })).trim() || null
   const head = (await runGit(['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: repo, okExitCodes: [1] })).trim()
-  return { root: repo, branch, head: head || null, nvim }
+  return { root: repo, branch, head: head || null, nvim, ...(build ? { build } : {}) }
 }
 
 const PatchQuery = z.object({
@@ -50,13 +61,17 @@ const CommitsQuery = z.object({
   path: RepoPathSchema.optional(),
 })
 
+// Images the diff and README previews show.
 const IMAGE_TYPES: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   gif: 'image/gif',
   webp: 'image/webp',
+  avif: 'image/avif',
   svg: 'image/svg+xml',
+  ico: 'image/x-icon',
+  bmp: 'image/bmp',
 }
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024
 
@@ -90,10 +105,10 @@ async function sideQuery(repo: string, url: URL) {
   return { target, side: query.side, path: query.side === 'old' ? (query.oldPath ?? query.path) : query.path }
 }
 
-export async function handleApi(repo: string, url: URL, nvim = false): Promise<Response> {
+export async function handleApi(repo: string, url: URL, nvim = false, build?: string): Promise<Response> {
   switch (url.pathname) {
     case '/api/repo':
-      return Response.json(await repoInfo(repo, nvim))
+      return Response.json(await repoInfo(repo, nvim, build))
     case '/api/refs':
       return Response.json(await listRefs(repo))
     case '/api/files':
@@ -106,15 +121,57 @@ export async function handleApi(repo: string, url: URL, nvim = false): Promise<R
       const { ref } = TreeQuery.parse(Object.fromEntries(url.searchParams))
       return Response.json(await listTree(repo, ref ?? null))
     }
+    case '/api/rebase-plan': {
+      const { base } = z.object({ base: RefNameSchema }).parse(Object.fromEntries(url.searchParams))
+      return Response.json(await rebasePlan(repo, base))
+    }
+    case '/api/insights': {
+      const { days } = InsightsQuerySchema.parse(Object.fromEntries(url.searchParams))
+      return Response.json(await readInsights(repo, { since: Math.floor(Date.now() / 1000) - days * 86_400 }))
+    }
+    case '/api/worktrees':
+      return Response.json(await listWorktrees(repo))
+    case '/api/submodules':
+      return Response.json(await listSubmodules(repo))
+    case '/api/submodule-log': {
+      const { path, from, to } = SubmoduleLogQuerySchema.parse(Object.fromEntries(url.searchParams))
+      return Response.json(await submoduleLog(repo, path, from ?? null, to))
+    }
+    case '/api/bisect':
+      return Response.json(await readBisect(repo))
+    case '/api/conflict': {
+      const { path } = z.object({ path: RepoPathSchema }).parse(Object.fromEntries(url.searchParams))
+      return Response.json(await readConflict(repo, path))
+    }
     case '/api/symbols': {
       const { name, ref } = SymbolQuerySchema.parse(Object.fromEntries(url.searchParams))
       return Response.json(await findSymbol(repo, name, ref ?? null))
+    }
+    case '/api/raw': {
+      const { ref, path } = TreeQuery.extend({ path: RepoPathSchema }).parse(Object.fromEntries(url.searchParams))
+      const type = IMAGE_TYPES[path.slice(path.lastIndexOf('.') + 1).toLowerCase()]
+      if (!type) throw new HttpError(415, 'bad-request', `${path} is not an image`)
+      const read = await readTreeBytes(repo, ref ?? null, path)
+      if (!read?.bytes) throw new HttpError(404, 'not-found', `no image ${path}`)
+      return new Response(new Uint8Array(read.bytes), {
+        headers: {
+          'content-type': type,
+          'cache-control': 'private, max-age=60',
+          'x-content-type-options': 'nosniff',
+          // An SVG opened on its own must not run script with this page's access.
+          'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        },
+      })
     }
     case '/api/file': {
       const { ref, path } = TreeQuery.extend({ path: RepoPathSchema }).parse(Object.fromEntries(url.searchParams))
       const contents = await readTreeFile(repo, ref ?? null, path)
       if (!contents) throw new HttpError(404, 'not-found', `no file ${path}`)
       return Response.json(contents)
+    }
+    case '/api/commit-stat': {
+      const { sha } = z.object({ sha: RefNameSchema }).parse(Object.fromEntries(url.searchParams))
+      return Response.json(await readCommitStat(repo, sha))
     }
     case '/api/commit': {
       const { sha } = z.object({ sha: RefNameSchema }).parse(Object.fromEntries(url.searchParams))

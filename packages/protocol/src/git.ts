@@ -54,6 +54,8 @@ export const ChangedFileSchema = z.object({
   newSize: z.number().int().nullable().optional(),
   // Marked linguist-generated in .gitattributes.
   generated: z.boolean().optional(),
+  // A submodule whose recorded commit moved; the shas are commits of the submodule.
+  submodule: z.boolean().optional(),
 })
 export type ChangedFile = z.infer<typeof ChangedFileSchema>
 
@@ -78,6 +80,12 @@ export const CommitDetailsSchema = z.object({
   message: z.string(),
 })
 export type CommitDetails = z.infer<typeof CommitDetailsSchema>
+export const CommitStatSchema = z.object({
+  files: z.number().int(),
+  additions: z.number().int(),
+  deletions: z.number().int(),
+})
+export type CommitStat = z.infer<typeof CommitStatSchema>
 
 export const RefKindSchema = z.enum(['branch', 'remote', 'tag', 'stash'])
 export type RefKind = z.infer<typeof RefKindSchema>

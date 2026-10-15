@@ -1,8 +1,34 @@
-export { type Commit, type CommitDetails, listCommits, readCommit } from './commits'
+export { type Commit, type CommitDetails, type CommitStat, listCommits, readCommit, readCommitStat } from './commits'
+export {
+  type ConflictFile,
+  type ConflictSegment,
+  hasConflictMarkers,
+  type ParsedConflicts,
+  parseConflicts,
+  readConflict,
+  writeResolution,
+} from './conflicts'
 export { readSide, readSideBytes, type Side } from './content'
 export { GitError, type GitErrorCode } from './errors'
 export { type ChangedFile, type FileStatus, listFiles, parseDiffSummary, parseNumstat, parseRaw } from './files'
 export { GRAPH_FORMAT, type GraphOptions, streamGraph } from './graph'
+export {
+  type BisectState,
+  bisectMark,
+  bisectReset,
+  bisectRun,
+  cherryPickRange,
+  fixupInto,
+  interactiveRebase,
+  type PlanCommit,
+  type RebaseAction,
+  type RebaseStep,
+  readBisect,
+  rebasePlan,
+  todoText,
+} from './history'
+export { type Insights, readInsights, weekStart } from './insights'
+export { buildLinePatch, discardLines, type PickedLine, stageLines, unstageLines } from './line-patch'
 export {
   addRemote,
   type BlameLine,
@@ -46,6 +72,7 @@ export {
   type Operation,
   pull,
   push,
+  readOperation,
   readSyncStatus,
   revertCommit,
   type SyncStatus,
@@ -57,8 +84,21 @@ export {
   unstageAll,
 } from './sync'
 export { type DiffTarget, targetArgs, unmergedPaths } from './target'
-export { type FileContents, listTree, readTreeFile, type TreeRef } from './tree'
+export { type FileContents, listTree, readTreeBytes, readTreeFile, type TreeRef } from './tree'
 export { repoId, restoreLatest, snapshot } from './undo'
+export {
+  addWorktree,
+  listSubmodules,
+  listWorktrees,
+  pruneWorktrees,
+  removeWorktree,
+  type Submodule,
+  type SubmoduleCommit,
+  submoduleLog,
+  syncSubmodules,
+  updateSubmodules,
+  type Worktree,
+} from './worktrees'
 export {
   discardFile,
   discardHunk,

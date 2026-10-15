@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { refForSide, wordAt } from '../symbol-at'
+import { refForSide, wordAt, wordSpanAt } from '../symbol-at'
 
 describe('symbol under the pointer', () => {
   it('reads the identifier around a column and skips keywords, numbers and punctuation', () => {
@@ -18,5 +18,12 @@ describe('symbol under the pointer', () => {
     expect(refForSide({ kind: 'local' }, 'deletions')).toBe('HEAD')
     expect(refForSide({ kind: 'commit', sha: 'abc' }, 'deletions')).toBe('abc^')
     expect(refForSide({ kind: 'range', from: 'main', to: 'feat', mode: 'merge-base' }, 'additions')).toBe('feat')
+  })
+})
+
+describe('wordSpanAt', () => {
+  it('gives the start of the name for asking a language server', () => {
+    expect(wordSpanAt('  return loadAll()', 12)).toEqual({ word: 'loadAll', start: 9 })
+    expect(wordSpanAt('  return loadAll()', 1)).toBeNull()
   })
 })

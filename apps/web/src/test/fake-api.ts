@@ -37,6 +37,30 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     remotes: async () => [],
     lastMessage: async () => '',
     symbols: async (name) => ({ name, hits: [], truncated: false }),
+    rebasePlan: async () => [],
+    commitStat: async () => ({ files: 0, additions: 0, deletions: 0 }),
+    insights: async () => ({ total: 0, contributors: [], weeks: [] }),
+    worktrees: async () => [],
+    submodules: async () => [],
+    submoduleLog: async () => [],
+    openRepo: async () => 'http://127.0.0.1:1/',
+    repos: async () => [{ path: '/r', name: 'r', current: true }],
+    addRepo: async (path) => path,
+    removeRepo: async () => {},
+    tcd: async () => {},
+    bisect: async () => ({ active: false, bad: false, good: 0, remaining: null, culprit: null, log: '' }),
+    conflict: async (path) => ({
+      path,
+      eol: '\n',
+      finalNewline: true,
+      segments: [],
+      stages: { base: null, ours: null, theirs: null },
+    }),
+    lsp: {
+      definition: async () => ({ source: null, server: null, locations: [] }),
+      references: async () => ({ source: null, server: null, locations: [] }),
+      hover: async () => ({ source: null, server: null, contents: null }),
+    },
     blame: async () => [],
     github: {
       status: async () => ({ repo: null, user: null, source: null }),
@@ -111,6 +135,16 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       notifications: async () => [],
       markRead: async () => {},
       releases: async () => [],
+      discussions: async () => [],
+      discussion: async () => {
+        throw new Error('no discussion')
+      },
+      replyDiscussion: async () => {},
+      markAnswer: async () => {},
+      security: async () => ({ alerts: [], unavailable: [] }),
+      dismissAlert: async () => {},
+      mergeQueue: async () => ({ enabled: false, position: null, state: null }),
+      setQueued: async () => {},
       createRelease: async () => {
         throw new Error('no releases')
       },

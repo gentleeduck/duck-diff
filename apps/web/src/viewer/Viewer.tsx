@@ -1,7 +1,8 @@
-import { type DiffTarget, targetKey } from '@duck-diff/protocol'
+import { type ChangedFile, type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
-import { refForSide } from '../code-nav/symbol-at'
+import { CodeHover } from '../code-nav/CodeHover'
+import { refForSide, type SymbolUnder } from '../code-nav/symbol-at'
 import { useSymbolClick } from '../code-nav/useSymbolClick'
 import { DiffView } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
@@ -32,6 +33,9 @@ import { FileActions } from './FileActions'
 import { FileHeader } from './FileHeader'
 import { fileNote } from './file-info'
 import { type CodeSelection, useLineSelection } from './line-selection'
+import { type PickedLine, pickedLines, selectedCells } from './picked-lines'
+import { SelectionBar } from './SelectionBar'
+import { SubmoduleSummary } from './SubmoduleSummary'
 import { visibleItems } from './visible-items'
 import { WriteButtons } from './WriteButtons'
 
@@ -72,6 +76,20 @@ function sideLines(rows: readonly DiffRow[], side: 'additions' | 'deletions', fr
     }
   }
   return [...found.keys()].sort((a, b) => a - b).map((number) => found.get(number) ?? '')
+}
+// A drag across both sides of a stacked diff marks the lines between its ends; worked out once per drag.
+const crossCache = new WeakMap<CodeSelection, Set<string>>()
+function crossKeys(selection: CodeSelection, rows: readonly DiffRow[]): Set<string> {
+  let keys = crossCache.get(selection)
+  if (!keys) {
+    keys = new Set(
+      selectedCells(rows, selection).map(
+        ({ side, line }) => `${side}:${side === 'deletions' ? line.oldNo : line.newNo}`,
+      ),
+    )
+    crossCache.set(selection, keys)
+  }
+  return keys
 }
 const sourceKey = (item: NoteItem) => item.fileDiff.cacheKey ?? item.id
 
@@ -149,15 +167,19 @@ export default function Viewer() {
   // Paths the header chevron folded (true) or opened (false), on top of the viewed marks.
   const [toggled, setToggled] = usePerTarget(shownKey, emptyToggles)
   const foldedFolders = useStore(changesFolders, selectFolders)
+  // The Viewed box shows only the viewed mark; folding by the chevron is not the same thing.
+  const viewedSet = useMemo(() => viewedPaths(viewedState, target, files), [viewedState, target, files])
   const folded = useMemo(() => {
-    const paths = viewedPaths(viewedState, target, files)
+    const paths = new Set(viewedSet)
     for (const [path, fold] of toggled) if (fold) paths.add(path)
     if (settings.tests === 'fold') for (const file of files) if (isTestFile(file.path)) paths.add(file.path)
+    // A submodule's summary says it all; its raw "Subproject commit" lines open only on request.
+    for (const file of files) if (file.submodule && toggled.get(file.path) !== false) paths.add(file.path)
     // A folder folded in the tree folds its files here too.
     for (const folder of foldedFolders)
       for (const file of files) if (file.path.startsWith(`${folder}/`)) paths.add(file.path)
     return paths
-  }, [viewedState, target, files, toggled, settings.tests, foldedFolders])
+  }, [viewedSet, files, toggled, settings.tests, foldedFolders])
   const shown = useMemo(() => visibleItems(plain, settings.tests), [plain, settings.tests])
   const opened = useMemo(() => new Set([...toggled].filter(([, fold]) => !fold).map(([path]) => path)), [toggled])
   const annotate = useMemo(createAnnotator, [])
@@ -274,7 +296,12 @@ export default function Viewer() {
   const diffRoot = useCallback(() => document.querySelector<HTMLElement>('[data-diff-view]'), [])
   // A comment on selected words covers their lines and keeps the exact columns, so the words stay highlighted.
   const commentOnSelection = useCallback(
-    (picked: CodeSelection) => {
+    (raw: CodeSelection) => {
+      // A drag from one side of a stacked diff to the other comments on the line it ended on.
+      const picked =
+        raw.side === raw.endSide
+          ? raw
+          : { ...raw, side: raw.endSide, startLine: raw.endLine, startCol: 0, endCol: Number.MAX_SAFE_INTEGER }
       const index = page.starts.get(picked.item)
       const item = index === undefined ? undefined : page.rows[index]?.item
       if (!item) return
@@ -294,9 +321,47 @@ export default function Viewer() {
     },
     [page, reviews],
   )
-  useSymbolClick(diffRoot, (side) => refForSide(target, side ?? 'additions'))
+  const locateSymbol = useCallback(
+    (found: SymbolUnder) => {
+      const side = found.side ?? 'additions'
+      const index = found.key === null ? undefined : page.starts.get(found.key)
+      const name = index === undefined ? undefined : page.rows[index]?.item.fileDiff.name
+      const path = !name ? null : side === 'deletions' ? (byPath.get(name)?.oldPath ?? name) : name
+      return { ref: refForSide(target, side), path }
+    },
+    [page, byPath, target],
+  )
+  useSymbolClick(diffRoot, locateSymbol)
   const selecting = useMemo(() => createStore<CodeSelection | null>(null), [])
-  useLineSelection(diffRoot, selecting.set, commentOnSelection)
+  const pageRef = useRef(page)
+  pageRef.current = page
+  const [bar, setBar] = useState<{
+    selection: CodeSelection
+    rect: DOMRect
+    picks: PickedLine[]
+    file: ChangedFile
+  } | null>(null)
+  // Where lines can be written back, a drag offers that next to commenting; elsewhere it comments at once.
+  const onPicked = useCallback(
+    (selection: CodeSelection, rect: DOMRect) => {
+      const index = page.starts.get(selection.item)
+      const item = index === undefined ? undefined : page.rows[index]?.item
+      const file = item ? byPath.get(item.fileDiff.name) : undefined
+      const picks = item && file && kinds.length ? pickedLines(page.files.get(item.id)?.rows ?? [], selection) : []
+      if (!file || !picks.length || file.status === 'untracked' || file.status === 'conflicted') {
+        commentOnSelection(selection)
+        return
+      }
+      selecting.set(selection)
+      setBar({ selection, rect, picks, file })
+    },
+    [page, byPath, kinds.length, commentOnSelection, selecting],
+  )
+  useLineSelection(diffRoot, selecting.set, onPicked)
+  const closeBar = useCallback(() => {
+    setBar(null)
+    selecting.set(null)
+  }, [selecting])
 
   const anchor = useRef(0)
   const dragging = useRef(false)
@@ -369,7 +434,15 @@ export default function Viewer() {
         if (number === null) return ''
         const path = item.fileDiff.name
         const live = selecting.get()
-        if (live && live.item === item.id && live.side === side && number >= live.startLine && number <= live.endLine) {
+        if (live && live.item === item.id && live.side !== live.endSide) {
+          if (crossKeys(live, pageRef.current.files.get(item.id)?.rows ?? []).has(`${side}:${number}`)) return 'draft'
+        } else if (
+          live &&
+          live.item === item.id &&
+          live.side === side &&
+          number >= live.startLine &&
+          number <= live.endLine
+        ) {
           const partial = live.startLine === live.endLine
           return `draft${partial ? markCols({ start: live.startLine, end: live.endLine, startCol: live.startCol, endCol: live.endCol }, number, length) : ''}`
         }
@@ -436,39 +509,49 @@ export default function Viewer() {
       const collapsed = Boolean(item.collapsed)
       const toggle = () => setToggled((prev) => new Map(prev).set(path, !collapsed))
       return (
-        <FileHeader
-          path={path}
-          file={file}
-          collapsed={collapsed}
-          onToggle={toggle}
-          onOpen={
-            pull === null && file?.status !== 'deleted'
-              ? () => {
-                  openFile({ fileSelection, fileLine, fileAt }, path)
-                  show('files')
-                }
-              : undefined
-          }>
-          <FileActions
+        <>
+          <FileHeader
             path={path}
-            viewed={folded.has(path)}
-            onViewed={() => {
-              if (!file) return
-              const nowViewed = !viewedPaths(viewed.get(), target, files).has(file.path)
-              viewed.toggle(target, file)
-              // On a pull request the mark is GitHub's too, so it shows on github.com and comes back next time.
-              if (pull !== null) pullReview.setViewed(file.path, nowViewed).catch(() => {})
-            }}
-            onHistory={() => fileHistory.set(path)}
-            note={file ? fileNote(file) : null}
-            onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
-            writes={
-              file && file.status !== 'conflicted' && kinds.length > 0 ? (
-                <WriteButtons kinds={kinds} scope="file" onWrite={(kind) => void writes.perform(kind, file)} />
-              ) : null
-            }
-          />
-        </FileHeader>
+            file={file}
+            collapsed={collapsed}
+            onToggle={toggle}
+            onOpen={
+              pull === null && file?.status !== 'deleted'
+                ? () => {
+                    openFile({ fileSelection, fileLine, fileAt }, path)
+                    show('files')
+                  }
+                : undefined
+            }>
+            <FileActions
+              path={path}
+              viewed={viewedSet.has(path)}
+              onViewed={() => {
+                if (!file) return
+                const nowViewed = !viewedPaths(viewed.get(), target, files).has(file.path)
+                viewed.toggle(target, file)
+                // Marking viewed folds the file and unmarking opens it, whatever the chevron did before.
+                setToggled((prev) => {
+                  if (!prev.has(path)) return prev
+                  const next = new Map(prev)
+                  next.delete(path)
+                  return next
+                })
+                // On a pull request the mark is GitHub's too, so it shows on github.com and comes back next time.
+                if (pull !== null) pullReview.setViewed(file.path, nowViewed).catch(() => {})
+              }}
+              onHistory={() => fileHistory.set(path)}
+              note={file ? fileNote(file) : null}
+              onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
+              writes={
+                file && file.status !== 'conflicted' && kinds.length > 0 ? (
+                  <WriteButtons kinds={kinds} scope="file" onWrite={(kind) => void writes.perform(kind, file)} />
+                ) : null
+              }
+            />
+          </FileHeader>
+          {file?.submodule ? <SubmoduleSummary file={file} /> : null}
+        </>
       )
     },
     [
@@ -477,7 +560,7 @@ export default function Viewer() {
       byPath,
       kinds,
       writes,
-      folded,
+      viewedSet,
       viewed,
       target,
       fileHistory,
@@ -508,6 +591,23 @@ export default function Viewer() {
         scrollKey={shownKey}
         onTopItem={onTopItem}
       />
+      <CodeHover root={diffRoot} locate={locateSymbol} />
+      {bar ? (
+        <SelectionBar
+          rect={bar.rect}
+          count={bar.picks.length}
+          kinds={kinds}
+          onComment={() => {
+            closeBar()
+            commentOnSelection(bar.selection)
+          }}
+          onWrite={(kind) => {
+            closeBar()
+            void writes.performLines(kind, bar.file, bar.picks)
+          }}
+          onClose={closeBar}
+        />
+      ) : null}
     </div>
   )
 }

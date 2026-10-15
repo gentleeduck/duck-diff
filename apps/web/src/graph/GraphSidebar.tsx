@@ -7,6 +7,7 @@ import { IconTool } from '../app/IconTool'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 import { useStore } from '../lib/store'
+import { Submodules, Worktrees } from './Checkouts'
 import { useCommitActions } from './commit-actions'
 import { NewBranchDialog } from './NewBranchDialog'
 import { RefMenu } from './RefMenu'
@@ -163,6 +164,8 @@ export function GraphSidebar() {
           )
         })}
         <Remotes />
+        <Worktrees />
+        <Submodules />
       </div>
     </div>
   )

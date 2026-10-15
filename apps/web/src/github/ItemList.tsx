@@ -23,7 +23,7 @@ import type { Store } from '../lib/store'
 import { ListFilters } from './ListFilters'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
-import { usePoll } from './usePoll'
+import { useLive } from './useLive'
 
 interface Props {
   kind: ListQuery['kind']
@@ -125,7 +125,7 @@ export function ItemList({ kind, label, selection, row, version = 0, actions, me
   const reload = useCallback(() => setNonce((n) => n + 1), [])
 
   // Quietly swaps in the first page when something changed, keeping the list in place while it reads.
-  usePoll(async () => {
+  useLive(kind === 'pr' ? 'pulls' : 'issues', async () => {
     if (!ready) return
     const page = await api.github.list({ kind, state, filter, sort, query }).catch(() => null)
     if (!page) return
@@ -133,7 +133,7 @@ export function ItemList({ kind, label, selection, row, version = 0, actions, me
     setItems((prev) =>
       prev && prev.length > page.items.length ? [...page.items, ...prev.slice(page.items.length)] : page.items,
     )
-  }, 45_000)
+  })
 
   // The other state's total, for the Open / Closed switch in the box header.
   const [otherTotal, setOtherTotal] = useState<number | null>(null)

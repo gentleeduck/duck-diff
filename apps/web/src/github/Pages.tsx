@@ -2,10 +2,12 @@ import { lazy } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
 import { Actions } from './Actions'
+import { Discussions } from './Discussions'
 import { Inbox } from './Inbox'
 import { IssuesList } from './IssuesList'
 import { PullsList } from './PullsList'
 import { Releases } from './Releases'
+import { Security } from './Security'
 import { GitHubGate } from './SignIn'
 
 const PullView = lazy(() => import('./PullView'))
@@ -62,6 +64,22 @@ export function ActionsPage() {
   return (
     <GitHubGate>
       <Actions />
+    </GitHubGate>
+  )
+}
+
+export function DiscussionsPage() {
+  return (
+    <GitHubGate>
+      <Discussions />
+    </GitHubGate>
+  )
+}
+
+export function SecurityPage() {
+  return (
+    <GitHubGate>
+      <Security />
     </GitHubGate>
   )
 }

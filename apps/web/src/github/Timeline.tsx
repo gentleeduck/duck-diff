@@ -163,6 +163,7 @@ function CommentCard({
             <>
               <MarkdownEditor
                 label="Edit comment"
+                rows={12}
                 value={draft}
                 onChange={setDraft}
                 onSubmit={() => void save()}
