@@ -149,9 +149,17 @@ export const CreatePullSchema = z.object({
   head: RefNameSchema,
   base: RefNameSchema,
   draft: z.boolean(),
+  reviewers: z.array(z.string().min(1).max(100)).max(15).default([]),
+  labels: z.array(z.string().min(1).max(100)).max(100).default([]),
+  assignees: z.array(z.string().min(1).max(100)).max(10).default([]),
 })
 export type CreatePull = z.infer<typeof CreatePullSchema>
-export const CreateIssueSchema = z.object({ title: z.string().trim().min(1).max(256), body: z.string().max(65_000) })
+export const CreateIssueSchema = z.object({
+  title: z.string().trim().min(1).max(256),
+  body: z.string().max(65_000),
+  labels: z.array(z.string().min(1).max(100)).max(100).default([]),
+  assignees: z.array(z.string().min(1).max(100)).max(10).default([]),
+})
 export const SetTokenSchema = z.object({ token: z.string().trim().min(10).max(500) })
 export const PullRefsSchema = z.object({ base: z.string(), head: z.string() })
 export type PullRefs = z.infer<typeof PullRefsSchema>
@@ -295,3 +303,31 @@ export type PullCommit = z.infer<typeof PullCommitSchema>
 export const AutoMergeSchema = z.object({ enabled: z.boolean(), method: z.enum(['merge', 'squash', 'rebase']) })
 export const BaseSchema = z.object({ base: z.string().min(1).max(256) })
 export const RerunSchema = z.object({ runId: z.number().int() })
+
+export const FormFieldSchema = z.object({
+  type: z.enum(['markdown', 'input', 'textarea', 'dropdown', 'checkboxes']),
+  id: z.string(),
+  label: z.string(),
+  description: z.string(),
+  placeholder: z.string(),
+  value: z.string(),
+  options: z.array(z.string()),
+  required: z.boolean(),
+})
+export type FormField = z.infer<typeof FormFieldSchema>
+
+export const IssueTemplateSchema = z.object({
+  file: z.string(),
+  name: z.string(),
+  about: z.string(),
+  title: z.string(),
+  labels: z.array(z.string()),
+  assignees: z.array(z.string()),
+  // A Markdown template's body, or null for an issue form, whose fields are in `form`.
+  body: z.string().nullable(),
+  form: z.array(FormFieldSchema),
+})
+export type IssueTemplate = z.infer<typeof IssueTemplateSchema>
+
+export const TemplatesSchema = z.object({ issue: z.array(IssueTemplateSchema), pull: z.string().nullable() })
+export type Templates = z.infer<typeof TemplatesSchema>

@@ -1,3 +1,4 @@
+import type { Commit } from '@duck-diff/protocol'
 import {
   Button,
   Checkbox,
@@ -12,7 +13,6 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Textarea,
 } from '@duck-diff/ui'
 import { GitPullRequestCreateArrow } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
@@ -21,6 +21,10 @@ import { useApp } from '../app/AppProvider'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 import { VISIBLE_BOX } from '../viewer/FileActions'
+import { Avatar } from './Conversation'
+import { MarkdownEditor } from './MarkdownEditor'
+import { Picker } from './Picker'
+import { options } from './SidebarEditors'
 
 export function NewPull({ onCreated }: { onCreated(): void }) {
   const { api, pullSelection } = useApp()
@@ -32,6 +36,10 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
   const [base, setBase] = useState('')
   const [draft, setDraft] = useState(false)
   const [sending, setSending] = useState(false)
+  const [reviewers, setReviewers] = useState<string[]>([])
+  const [labels, setLabels] = useState<string[]>([])
+  const [assignees, setAssignees] = useState<string[]>([])
+  const [preview, setPreview] = useState<{ commits: Commit[]; files: number } | null>(null)
   const draftId = useId()
   const head = status?.branch ?? null
   const branches = refs.filter((ref) => ref.kind === 'branch' && ref.name !== head).map((ref) => ref.name)
@@ -47,7 +55,29 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
       (branch) => setBase((prev) => prev || branch),
       () => {},
     )
+    // The repo's pull request template, when it has one, starts the description.
+    api.github.templates().then(
+      (templates) => templates.pull && setBody((prev) => prev || (templates.pull ?? '')),
+      () => {},
+    )
   }, [open, api])
+
+  // What GitHub's compare page shows before opening: the commits and files the pull request will carry.
+  useEffect(() => {
+    if (!open || !base || !head) return
+    let alive = true
+    const from = refs.some((ref) => ref.name === `origin/${base}`) ? `origin/${base}` : base
+    Promise.all([
+      api.commits({ head, base: from, limit: 100 }),
+      api.files({ kind: 'range', from, to: head, mode: 'merge-base' }),
+    ]).then(
+      ([commits, files]) => alive && setPreview({ commits, files: files.length }),
+      () => alive && setPreview(null),
+    )
+    return () => {
+      alive = false
+    }
+  }, [open, base, head, api, refs])
 
   const create = async () => {
     if (!head) return
@@ -57,7 +87,16 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
       if (!status?.upstream || (status.ahead ?? 0) > 0) {
         if (!(await run('push', undefined, `Pushed ${head}`))) return
       }
-      const pull = await api.github.createPull({ title: title.trim(), body, head, base, draft })
+      const pull = await api.github.createPull({
+        title: title.trim(),
+        body,
+        head,
+        base,
+        draft,
+        reviewers,
+        labels,
+        assignees,
+      })
       toast(`Opened #${pull.number}`)
       setOpen(false)
       setTitle('')
@@ -110,13 +149,60 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
               />
-              <Textarea
-                aria-label="Description"
-                placeholder="What changes and why"
-                rows={8}
-                value={body}
-                onChange={(event) => setBody(event.target.value)}
-              />
+              <MarkdownEditor label="Description" value={body} onChange={setBody} rows={8} />
+              <div className="grid grid-cols-3 gap-3">
+                {(
+                  [
+                    ['Reviewers', reviewers, setReviewers, 'people'],
+                    ['Assignees', assignees, setAssignees, 'people'],
+                    ['Labels', labels, setLabels, 'labels'],
+                  ] as const
+                ).map(([title, chosen, set, kind]) => (
+                  <div key={title} className="flex flex-col gap-1">
+                    <span className="flex items-center justify-between text-muted-foreground">
+                      {title}
+                      <Picker
+                        title={title}
+                        selected={chosen}
+                        onApply={set}
+                        load={async () => {
+                          const found = await options(api)
+                          return kind === 'people'
+                            ? found.people.map((user) => ({
+                                value: user.login,
+                                label: user.login,
+                                icon: <Avatar user={user} />,
+                              }))
+                            : found.labels.map((label) => ({
+                                value: label.name,
+                                label: label.name,
+                                icon: (
+                                  <span className="size-3 rounded-full" style={{ background: `#${label.color}` }} />
+                                ),
+                              }))
+                        }}
+                      />
+                    </span>
+                    <span className="text-foreground">{chosen.length ? chosen.join(', ') : 'None'}</span>
+                  </div>
+                ))}
+              </div>
+              {preview ? (
+                <section aria-label="What it carries" className="rounded-md border border-border">
+                  <p className="border-border border-b bg-card px-3 py-1.5 text-muted-foreground">
+                    {preview.commits.length} {preview.commits.length === 1 ? 'commit' : 'commits'}, {preview.files}{' '}
+                    {preview.files === 1 ? 'file' : 'files'} changed
+                  </p>
+                  <ul className="max-h-40 overflow-y-auto">
+                    {preview.commits.map((commit) => (
+                      <li key={commit.sha} className="flex gap-2 px-3 py-1">
+                        <span className="text-tn-comment">{commit.sha.slice(0, 7)}</span>
+                        <span className="min-w-0 truncate text-foreground">{commit.subject}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
               <div className="flex items-center gap-2">
                 <Checkbox
                   id={draftId}

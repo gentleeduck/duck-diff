@@ -7,7 +7,7 @@ import { Picker } from './Picker'
 const cache = new WeakMap<Api, Promise<Options>>()
 
 // Read once per page and shared by every picker.
-function options(api: Api): Promise<Options> {
+export function options(api: Api): Promise<Options> {
   let promise = cache.get(api)
   if (!promise) {
     promise = api.github.options()

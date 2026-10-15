@@ -299,10 +299,19 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
       const found = await call<{ items: RawIssue[] }>(`/search/issues?q=${q}&per_page=8&sort=updated`)
       return found.items.map((item) => ({ number: item.number, title: item.title, pull: Boolean(item.pull_request) }))
     },
+    // GitHub opens the pull request first; reviewers, labels and assignees are set on it right after.
     async createPull(input: CreatePull): Promise<PullSummary> {
-      return pullSummary(
-        await call<RawPull>(`${await repoPath()}/pulls`, { method: 'POST', body: JSON.stringify(input) }),
-      )
+      const { reviewers, labels, assignees, ...open } = input
+      const base = await repoPath()
+      const created = pullSummary(await call<RawPull>(`${base}/pulls`, { method: 'POST', body: JSON.stringify(open) }))
+      if (reviewers.length) await this.requestReviewers(created.number, { add: reviewers, remove: [] })
+      if (labels.length || assignees.length) {
+        await call(`${base}/issues/${created.number}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ ...(labels.length ? { labels } : {}), ...(assignees.length ? { assignees } : {}) }),
+        })
+      }
+      return created
     },
     async defaultBranch(): Promise<string> {
       return (await call<{ default_branch: string }>(await repoPath())).default_branch
@@ -535,9 +544,14 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         conversation: conversation.map(comment),
       }
     },
-    async createIssue(title: string, body: string): Promise<IssueSummary> {
+    async createIssue(input: {
+      title: string
+      body: string
+      labels: string[]
+      assignees: string[]
+    }): Promise<IssueSummary> {
       return issueSummary(
-        await call<RawIssue>(`${await repoPath()}/issues`, { method: 'POST', body: JSON.stringify({ title, body }) }),
+        await call<RawIssue>(`${await repoPath()}/issues`, { method: 'POST', body: JSON.stringify(input) }),
       )
     },
     async setIssueState(number: number, state: 'open' | 'closed'): Promise<void> {

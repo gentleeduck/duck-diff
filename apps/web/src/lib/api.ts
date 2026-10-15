@@ -56,6 +56,8 @@ import {
   ReviewStateSchema,
   type SyncStatus,
   SyncStatusSchema,
+  type Templates,
+  TemplatesSchema,
   type Thread,
   ThreadSchema,
   type UndoResult,
@@ -113,7 +115,7 @@ export interface GitHubApi {
   pulls(state: ItemState): Promise<PullSummary[]>
   // Search-backed list for both kinds, a page of 30 at a time.
   list(query: Partial<ListQuery> & Pick<ListQuery, 'kind'>): Promise<ListPage>
-  createPull(input: CreatePull): Promise<PullSummary>
+  createPull(input: Partial<CreatePull> & Omit<CreatePull, 'reviewers' | 'labels' | 'assignees'>): Promise<PullSummary>
   defaultBranch(): Promise<string>
   // email (lower case) -> avatar url; empty when signed out.
   avatars(): Promise<Record<string, string>>
@@ -159,7 +161,9 @@ export interface GitHubApi {
   merge(number: number, method: MergeMethod): Promise<void>
   issues(state: ItemState): Promise<IssueSummary[]>
   issue(number: number): Promise<IssueDetails>
-  createIssue(title: string, body: string): Promise<IssueSummary>
+  createIssue(input: { title: string; body: string; labels?: string[]; assignees?: string[] }): Promise<IssueSummary>
+  // The repo's issue templates and pull request template, read from the checkout.
+  templates(): Promise<Templates>
   setIssueState(number: number, state: ItemState): Promise<void>
 }
 
@@ -294,7 +298,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     merge: (number, method) => post(`/api/github/pulls/${number}/merge`, { method }),
     issues: (state) => json(`/api/github/issues?state=${state}`, z.array(IssueSummarySchema)),
     issue: (number) => json(`/api/github/issues/${number}`, IssueDetailsSchema),
-    createIssue: (title, body) => send('POST', '/api/github/issues', { title, body }, IssueSummarySchema),
+    createIssue: (input) => send('POST', '/api/github/issues', input, IssueSummarySchema),
+    templates: () => json('/api/github/templates', TemplatesSchema),
     setIssueState: (number, state) => post(`/api/github/issues/${number}/state`, { state }),
   }
 

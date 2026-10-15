@@ -24,6 +24,7 @@ import {
 import { z } from 'zod'
 import { HttpError } from './errors'
 import type { GitHub } from './github'
+import { readTemplates } from './templates'
 
 const State = z.object({ state: z.enum(['open', 'closed']).default('open') })
 const NETWORK_TIMEOUT_MS = 120_000
@@ -65,6 +66,7 @@ export async function handleGitHub(
     if (!Number.isInteger(number)) throw new HttpError(400, 'bad-request', 'bad job id')
     return new Response(await github.jobLog(number), { headers: { 'content-type': 'text/plain; charset=utf-8' } })
   }
+  if (area === 'templates') return Response.json(readTemplates(repo))
   if (area === 'options') return Response.json(await github.options())
   if (area === 'mentions') return Response.json(await github.mentions())
   if (area === 'references')
@@ -188,8 +190,7 @@ export async function handleGitHub(
   if (area === 'issues') {
     if (id === undefined) {
       if (post) {
-        const { title, body: text } = CreateIssueSchema.parse(await body())
-        return Response.json(await github.createIssue(title, text), { status: 201 })
+        return Response.json(await github.createIssue(CreateIssueSchema.parse(await body())), { status: 201 })
       }
       return Response.json(await github.issues(State.parse(Object.fromEntries(url.searchParams)).state))
     }

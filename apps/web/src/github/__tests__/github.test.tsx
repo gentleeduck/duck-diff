@@ -158,6 +158,9 @@ describe('GitHub views', () => {
         head: 'feat',
         base: 'trunk',
         draft: false,
+        reviewers: [],
+        labels: [],
+        assignees: [],
       }),
     )
   })
@@ -205,6 +208,51 @@ describe('GitHub views', () => {
     expect(editThread).not.toHaveBeenCalled()
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     await waitFor(() => expect(editThread).toHaveBeenCalledWith(7, { labels: ['bug'] }))
+  })
+
+  it('opens an issue from a form template, writing the answers as GitHub does', async () => {
+    const createIssue = vi.fn(async () => ({ number: 4 }) as never)
+    const templates = async () => ({
+      pull: null,
+      issue: [
+        {
+          file: 'bug.yml',
+          name: 'Bug report',
+          about: 'Something broke',
+          title: '[bug] ',
+          labels: ['bug'],
+          assignees: [],
+          body: null,
+          form: [
+            {
+              type: 'input' as const,
+              id: 'what',
+              label: 'What happened',
+              description: '',
+              placeholder: '',
+              value: '',
+              options: [],
+              required: true,
+            },
+          ],
+        },
+      ],
+    })
+    window.history.replaceState(null, '', '/?view=issues')
+    render(<App api={fakeApi({ github: githubApi({ createIssue, templates }) })} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'New issue' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Get started' }))
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: '[bug] it broke' } })
+    fireEvent.change(screen.getByLabelText(/What happened/), { target: { value: 'The page went blank' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Open issue' }))
+    await waitFor(() =>
+      expect(createIssue).toHaveBeenCalledWith({
+        title: '[bug] it broke',
+        body: '### What happened\n\nThe page went blank',
+        labels: ['bug'],
+        assignees: [],
+      }),
+    )
   })
 
   it('says so when the repo has no GitHub remote', async () => {

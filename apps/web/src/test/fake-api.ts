@@ -91,6 +91,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       issue: async () => {
         throw new Error('no issues')
       },
+      templates: async () => ({ issue: [], pull: null }),
       createIssue: async () => {
         throw new Error('no issues')
       },
