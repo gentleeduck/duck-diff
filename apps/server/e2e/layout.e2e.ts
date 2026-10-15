@@ -71,8 +71,13 @@ test('scrolled to the end, the tree marks the last file even though it never rea
   await page.goto(app.url)
   const tree = page.getByRole('tree', { name: 'Changed files' })
   await expect(tree.getByRole('treeitem', { name: /long\.ts/ })).toHaveAttribute('aria-selected', 'true')
-  await page.locator('[data-diff-view]').evaluate((element) => {
-    element.scrollTop = element.scrollHeight
-  })
-  await expect(tree.getByRole('treeitem', { name: /last\.ts/ })).toHaveAttribute('aria-selected', 'true')
+  // Rows measured on the way can grow the page, so keep going to the end as a reader would.
+  await expect
+    .poll(async () => {
+      await page.locator('[data-diff-view]').evaluate((element) => {
+        element.scrollTop = element.scrollHeight
+      })
+      return tree.getByRole('treeitem', { name: /last\.ts/ }).getAttribute('aria-selected')
+    })
+    .toBe('true')
 })

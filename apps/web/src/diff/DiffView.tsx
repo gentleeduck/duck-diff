@@ -223,7 +223,8 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
 
   // Scrolled to the end, the last file is the one being read even though it never reaches the top.
   const viewHeight = scroller.current?.clientHeight ?? 0
-  const totalHeight = virtualizer.getTotalSize()
+  // The element's own height, which rows measured since the last estimate have already changed.
+  const totalHeight = scroller.current?.scrollHeight ?? virtualizer.getTotalSize()
   const atEnd = page.rows.length > 0 && totalHeight > viewHeight + 2 && scrollTop + viewHeight >= totalHeight - 2
   const topItem = atEnd
     ? (page.rows.at(-1)?.item ?? null)
