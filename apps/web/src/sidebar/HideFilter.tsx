@@ -10,7 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@duck-diff/ui'
-import { ListFilter, Plus, X } from 'lucide-react'
+import { Check, ListFilter, Pencil, Plus, X } from 'lucide-react'
 import { useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useSettings } from '../hooks/useSettings'
@@ -18,6 +18,56 @@ import { type HidePattern, validPattern } from '../lib/hide'
 import type { Settings } from '../state/settings'
 
 const selectPatterns = (state: Settings) => state.hidePatterns
+
+// One pattern the user added: shown as its text, edited in place, Enter to keep and Escape to drop the edit.
+function PatternText({ entry, onSave }: { entry: HidePattern; onSave(pattern: string): void }) {
+  const [draft, setDraft] = useState<string | null>(null)
+  if (draft === null) {
+    return (
+      <>
+        <code className="min-w-0 flex-1 truncate pe-0.5" title={entry.pattern}>
+          {entry.pattern}
+        </code>
+        <Button size="icon" variant="ghost" aria-label={`Edit ${entry.label}`} onClick={() => setDraft(entry.pattern)}>
+          <Pencil />
+        </Button>
+      </>
+    )
+  }
+  const ok = validPattern(draft)
+  const keep = () => {
+    if (!ok) return
+    onSave(draft)
+    setDraft(null)
+  }
+  return (
+    <form
+      className="flex min-w-0 flex-1 items-center gap-1"
+      onSubmit={(event) => {
+        event.preventDefault()
+        keep()
+      }}>
+      <Input
+        autoFocus
+        aria-label={`Pattern for ${entry.label}`}
+        aria-invalid={!ok}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return
+          // Escape leaves the edit, not the whole popover.
+          event.preventDefault()
+          event.stopPropagation()
+          setDraft(null)
+        }}
+        className="h-7 min-w-0 flex-1"
+      />
+      <Button type="submit" size="icon" variant="ghost" aria-label="Keep the pattern" disabled={!ok}>
+        <Check />
+      </Button>
+    </form>
+  )
+}
 
 let counter = 0
 const newId = () => `hide-${Date.now().toString(36)}-${(counter++).toString(36)}`
@@ -77,14 +127,16 @@ export function HideFilter({ hiddenCount }: { hiddenCount: number }) {
                 checked={entry.enabled}
                 onCheckedChange={(enabled: boolean) => update(entry.id, { enabled })}
               />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate pe-0.5">{entry.label}</span>
-                {entry.label !== entry.pattern ? (
+              {entry.id === 'tests' ? (
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate pe-0.5">{entry.label}</span>
                   <code className="block truncate text-muted-foreground" title={entry.pattern}>
                     {entry.pattern}
                   </code>
-                ) : null}
-              </span>
+                </span>
+              ) : (
+                <PatternText entry={entry} onSave={(pattern) => update(entry.id, { pattern, label: pattern })} />
+              )}
               {entry.id === 'tests' ? null : (
                 <Button
                   size="icon"

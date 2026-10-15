@@ -33,8 +33,12 @@ test('files are hidden by pattern, tests first, and emptied folders leave the tr
   await expect(page.getByRole('list', { name: 'Hide patterns' })).toContainText('^docs/')
   await expect(tree.getByRole('treeitem', { name: /^docs/ })).toHaveCount(0)
   await expect(tree.getByRole('treeitem', { name: /guide\.md/ })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Remove ^docs/' }).click()
+  await page.getByRole('button', { name: 'Edit ^docs/' }).click()
+  await page.getByRole('textbox', { name: 'Pattern for ^docs/' }).fill('^nothing/')
+  await page.keyboard.press('Enter')
   await expect(tree.getByRole('treeitem', { name: /guide\.md/ })).toBeVisible()
+  await page.getByRole('button', { name: 'Remove ^nothing/' }).click()
+  await expect(page.getByRole('list', { name: 'Hide patterns' })).not.toContainText('^nothing/')
 })
 
 test('each view hides its own left panel, and views without one show no toggle', async ({ page, app }) => {
