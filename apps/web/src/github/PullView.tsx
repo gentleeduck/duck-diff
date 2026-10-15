@@ -25,7 +25,9 @@ import { Avatar, Comment, Composer } from './Conversation'
 import { Labels } from './Labels'
 import { PullIcon } from './PullsSidebar'
 import { GitHubGate } from './SignIn'
+import { ThreadView } from './Timeline'
 import { ago } from './time'
+import { EditableTitle, useThread } from './useThread'
 
 const selectNumber = (value: number | null) => value
 
@@ -49,6 +51,7 @@ function Pull({ number, onChanged }: { number: number; onChanged(): void }) {
   const [pull, setPull] = useState<PullDetails | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const [method, setMethod] = useState<MergeMethod>('squash')
+  const { thread, draft, reload: reloadThread } = useThread(number)
   const [busy, setBusy] = useState<string | null>(null)
 
   const load = useCallback(
@@ -75,7 +78,7 @@ function Pull({ number, onChanged }: { number: number; onChanged(): void }) {
     try {
       await task()
       toast(done)
-      await load()
+      await Promise.all([load(), reloadThread()])
       onChanged()
       return true
     } catch (error) {
@@ -116,9 +119,16 @@ function Pull({ number, onChanged }: { number: number; onChanged(): void }) {
     <article aria-label={`Pull request ${number}`} className="flex h-full flex-col">
       <header className="flex shrink-0 flex-col gap-2 border-border border-b bg-card px-4 py-3">
         <div className="flex items-start gap-3">
-          <h2 className="min-w-0 flex-1 text-foreground">
-            {pull.title} <span className="text-muted-foreground">#{pull.number}</span>
-          </h2>
+          <EditableTitle
+            number={pull.number}
+            title={pull.title}
+            canEdit={thread?.viewer.canEdit ?? false}
+            onChanged={() => {
+              void load()
+              void reloadThread()
+              onChanged()
+            }}
+          />
           <Button size="sm" variant="outline" loading={busy === 'files'} onClick={reviewFiles}>
             <FileDiff />
             Review files
@@ -152,10 +162,11 @@ function Pull({ number, onChanged }: { number: number; onChanged(): void }) {
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-4xl flex-col gap-3 p-4">
-          <Comment author={pull.author} createdAt={pull.createdAt} body={pull.body} />
-          {pull.comments.map((comment) => (
-            <Comment key={comment.id} {...comment} />
-          ))}
+          {thread ? (
+            <ThreadView thread={thread} draft={draft} onChanged={() => void reloadThread()} />
+          ) : (
+            <Comment author={pull.author} createdAt={pull.createdAt} body={pull.body} />
+          )}
           {[...byFile].map(([path, comments]) => (
             <section key={path} aria-label={`Review comments on ${path}`} className="flex flex-col gap-2">
               <h3 className="text-tn-comment">{path}</h3>
@@ -166,6 +177,7 @@ function Pull({ number, onChanged }: { number: number; onChanged(): void }) {
           ))}
           <Separator />
           <Composer
+            draft={draft}
             label="Comment on this pull request"
             onSend={async (body) => {
               if (!(await act('comment', () => api.github.comment(number, body), 'Commented')))

@@ -14,6 +14,8 @@ import type {
   ListQuery,
   PullDetails,
   PullSummary,
+  Thread,
+  TimelineEvent,
 } from '@duck-diff/protocol'
 import { HttpError } from './errors'
 
@@ -79,6 +81,17 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   const apiBase = options.apiBase ?? 'https://api.github.com'
   let pasted: string | null = null
   let avatarMap: Promise<Record<string, string>> | null = null
+  let mentionList: Promise<GitHubUser[]> | null = null
+
+  async function pagesOf<T>(path: string, pages: number): Promise<T[]> {
+    const all: T[] = []
+    for (let page = 1; page <= pages; page++) {
+      const batch = await call<T[]>(`${path}?per_page=100&page=${page}`)
+      all.push(...batch)
+      if (batch.length < 100) break
+    }
+    return all
+  }
   let slug: Promise<string | null> | null = null
 
   const repoSlug = () => {
@@ -92,6 +105,11 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   }
 
   async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+    return (await send<T>(path, init)).body
+  }
+
+  // The status matters for reactions: GitHub answers 200 when the reaction already exists.
+  async function send<T>(path: string, init: RequestInit = {}): Promise<{ status: number; body: T }> {
     const auth = await token()
     if (!auth) throw new HttpError(401, 'unauthorized', 'not signed in to GitHub')
     const response = await fetcher(`${apiBase}${path}`, {
@@ -111,7 +129,8 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         `GitHub: ${body?.message ?? response.statusText}`,
       )
     }
-    return (response.status === 204 ? {} : await response.json()) as T
+    const text = await response.text()
+    return { status: response.status, body: (text ? JSON.parse(text) : {}) as T }
   }
 
   async function graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
@@ -166,6 +185,59 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         total: data.search.issueCount,
         cursor: data.search.pageInfo.hasNextPage ? data.search.pageInfo.endCursor : null,
       }
+    },
+    async thread(number: number): Promise<Thread> {
+      const base = await repoPath()
+      const [issue, timeline, me, repoInfo] = await Promise.all([
+        call<RawThreadIssue>(`${base}/issues/${number}`),
+        pagesOf<RawTimeline>(`${base}/issues/${number}/timeline`, 3),
+        call<RawUser>('/user'),
+        call<{ permissions?: { push?: boolean } }>(base),
+      ])
+      return {
+        number: issue.number,
+        title: issue.title,
+        body: issue.body ?? '',
+        author: user(issue.user),
+        createdAt: issue.created_at,
+        edited: issue.updated_at !== issue.created_at && Boolean(issue.body),
+        reactions: reactions(issue.reactions),
+        timeline: timeline.flatMap(timelineEvent),
+        viewer: { login: me.login, canEdit: Boolean(repoInfo.permissions?.push) || issue.user?.login === me.login },
+      }
+    },
+    async editIssue(number: number, input: { title?: string; body?: string }): Promise<void> {
+      await call(`${await repoPath()}/issues/${number}`, { method: 'PATCH', body: JSON.stringify(input) })
+    },
+    async editComment(id: number, body: string): Promise<void> {
+      await call(`${await repoPath()}/issues/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body }) })
+    },
+    async deleteComment(id: number): Promise<void> {
+      await call(`${await repoPath()}/issues/comments/${id}`, { method: 'DELETE' })
+    },
+    // Adding a reaction you already gave returns it with 200; then it is taken back instead.
+    async react(target: { issue: number } | { comment: number }, content: string): Promise<void> {
+      const base = await repoPath()
+      const path =
+        'issue' in target
+          ? `${base}/issues/${target.issue}/reactions`
+          : `${base}/issues/comments/${target.comment}/reactions`
+      const { status, body } = await send<{ id: number }>(path, { method: 'POST', body: JSON.stringify({ content }) })
+      if (status === 200) await call(`${path}/${body.id}`, { method: 'DELETE' })
+    },
+    async mentions(): Promise<GitHubUser[]> {
+      mentionList ??= (async () =>
+        (await call<RawUser[]>(`${await repoPath()}/assignees?per_page=100`)).map(user))().catch((error) => {
+        mentionList = null
+        throw error
+      })
+      return mentionList
+    },
+    async references(query: string): Promise<{ number: number; title: string; pull: boolean }[]> {
+      const name = await repoSlug()
+      const q = encodeURIComponent(`repo:${name} ${query}`)
+      const found = await call<{ items: RawIssue[] }>(`/search/issues?q=${q}&per_page=8&sort=updated`)
+      return found.items.map((item) => ({ number: item.number, title: item.title, pull: Boolean(item.pull_request) }))
     },
     async createPull(input: CreatePull): Promise<PullSummary> {
       return pullSummary(
@@ -464,4 +536,132 @@ function listItem(node: RawNode): ListItem {
     review: node.reviewDecision ?? null,
     checks: node.commits?.nodes[0]?.commit.statusCheckRollup?.state ?? null,
   }
+}
+
+interface RawReactions {
+  [key: string]: number | string
+}
+interface RawThreadIssue {
+  number: number
+  title: string
+  body: string | null
+  user: RawUser | null
+  created_at: string
+  updated_at: string
+  reactions?: RawReactions
+}
+interface RawTimeline {
+  event: string
+  id?: number
+  node_id?: string
+  actor?: RawUser | null
+  user?: RawUser | null
+  created_at?: string
+  updated_at?: string
+  submitted_at?: string
+  body?: string | null
+  html_url?: string
+  state?: string
+  reactions?: RawReactions
+  sha?: string
+  message?: string
+  author?: { name: string; date: string }
+  label?: { name: string }
+  rename?: { from: string; to: string }
+  assignee?: RawUser
+  requested_reviewer?: RawUser
+  requested_team?: { name: string }
+  milestone?: { title: string }
+  commit_id?: string
+  source?: { issue?: { number: number; title: string } }
+}
+
+const REACTION_KEYS = ['+1', '-1', 'laugh', 'hooray', 'confused', 'heart', 'rocket', 'eyes'] as const
+
+function reactions(raw: RawReactions | undefined): Partial<Record<(typeof REACTION_KEYS)[number], number>> {
+  const counts: Partial<Record<(typeof REACTION_KEYS)[number], number>> = {}
+  for (const key of REACTION_KEYS) {
+    const count = Number(raw?.[key] ?? 0)
+    if (count) counts[key] = count
+  }
+  return counts
+}
+
+const EVENT_TEXT: Record<string, (raw: RawTimeline) => string | null> = {
+  labeled: (raw) => `added the ${raw.label?.name} label`,
+  unlabeled: (raw) => `removed the ${raw.label?.name} label`,
+  renamed: (raw) => `changed the title from "${raw.rename?.from}" to "${raw.rename?.to}"`,
+  closed: () => 'closed this',
+  reopened: () => 'reopened this',
+  merged: (raw) => `merged commit ${raw.commit_id?.slice(0, 7)}`,
+  assigned: (raw) => `assigned ${raw.assignee?.login}`,
+  unassigned: (raw) => `unassigned ${raw.assignee?.login}`,
+  review_requested: (raw) => `requested a review from ${raw.requested_reviewer?.login ?? raw.requested_team?.name}`,
+  review_request_removed: (raw) =>
+    `removed the review request for ${raw.requested_reviewer?.login ?? raw.requested_team?.name}`,
+  milestoned: (raw) => `added this to the ${raw.milestone?.title} milestone`,
+  demilestoned: (raw) => `removed this from the ${raw.milestone?.title} milestone`,
+  'cross-referenced': (raw) =>
+    raw.source?.issue ? `mentioned this in #${raw.source.issue.number} ${raw.source.issue.title}` : null,
+  referenced: (raw) => (raw.commit_id ? `referenced this in commit ${raw.commit_id.slice(0, 7)}` : null),
+  head_ref_force_pushed: () => 'force-pushed the branch',
+  head_ref_deleted: () => 'deleted the branch',
+  head_ref_restored: () => 'restored the branch',
+  convert_to_draft: () => 'marked this as a draft',
+  ready_for_review: () => 'marked this ready for review',
+  locked: () => 'locked the conversation',
+  unlocked: () => 'unlocked the conversation',
+}
+
+// GitHub's timeline mixes many shapes; each becomes one of four the page draws, the rest are dropped.
+function timelineEvent(raw: RawTimeline): TimelineEvent[] {
+  if (raw.event === 'commented' && raw.id) {
+    return [
+      {
+        kind: 'comment',
+        id: raw.id,
+        author: user(raw.user ?? raw.actor ?? null),
+        body: raw.body ?? '',
+        createdAt: raw.created_at ?? '',
+        edited: Boolean(raw.updated_at && raw.updated_at !== raw.created_at),
+        reactions: reactions(raw.reactions),
+        url: raw.html_url ?? '',
+      },
+    ]
+  }
+  if (raw.event === 'reviewed' && raw.id) {
+    return [
+      {
+        kind: 'review',
+        id: raw.id,
+        author: user(raw.user ?? null),
+        state: raw.state ?? '',
+        body: raw.body ?? '',
+        createdAt: raw.submitted_at ?? '',
+      },
+    ]
+  }
+  if (raw.event === 'committed' && raw.sha) {
+    return [
+      {
+        kind: 'commit',
+        sha: raw.sha,
+        message: raw.message ?? '',
+        author: raw.author?.name ?? '',
+        createdAt: raw.author?.date ?? '',
+      },
+    ]
+  }
+  const text = EVENT_TEXT[raw.event]?.(raw)
+  if (!text) return []
+  return [
+    {
+      kind: 'event',
+      id: raw.node_id ?? `${raw.event}:${raw.created_at}`,
+      event: raw.event,
+      actor: user(raw.actor ?? null),
+      text,
+      createdAt: raw.created_at ?? '',
+    },
+  ]
 }

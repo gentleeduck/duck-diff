@@ -151,3 +151,71 @@ export const ListPageSchema = z.object({
   cursor: z.string().nullable(),
 })
 export type ListPage = z.infer<typeof ListPageSchema>
+
+export const REACTIONS = ['+1', '-1', 'laugh', 'hooray', 'confused', 'heart', 'rocket', 'eyes'] as const
+export const ReactionSchema = z.enum(REACTIONS)
+export type Reaction = z.infer<typeof ReactionSchema>
+export const ReactionCountsSchema = z.partialRecord(ReactionSchema, z.number().int())
+
+export const TimelineEventSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('comment'),
+    id: z.number().int(),
+    author: GitHubUserSchema,
+    body: z.string(),
+    createdAt: z.string(),
+    edited: z.boolean(),
+    reactions: ReactionCountsSchema,
+    url: z.string(),
+  }),
+  z.object({
+    kind: z.literal('review'),
+    id: z.number().int(),
+    author: GitHubUserSchema,
+    state: z.string(),
+    body: z.string(),
+    createdAt: z.string(),
+  }),
+  z.object({
+    kind: z.literal('commit'),
+    sha: z.string(),
+    message: z.string(),
+    author: z.string(),
+    createdAt: z.string(),
+  }),
+  z.object({
+    kind: z.literal('event'),
+    id: z.string(),
+    // What happened, for the icon: labeled, closed, merged, renamed, referenced...
+    event: z.string(),
+    actor: GitHubUserSchema,
+    text: z.string(),
+    createdAt: z.string(),
+  }),
+])
+export type TimelineEvent = z.infer<typeof TimelineEventSchema>
+
+export const ThreadSchema = z.object({
+  number: z.number().int(),
+  title: z.string(),
+  body: z.string(),
+  author: GitHubUserSchema,
+  createdAt: z.string(),
+  edited: z.boolean(),
+  reactions: ReactionCountsSchema,
+  timeline: z.array(TimelineEventSchema),
+  // What the signed-in user may change, so the page only offers what GitHub will accept.
+  viewer: z.object({ login: z.string(), canEdit: z.boolean() }),
+})
+export type Thread = z.infer<typeof ThreadSchema>
+
+export const EditIssueSchema = z.object({
+  title: z.string().trim().min(1).max(256).optional(),
+  body: z.string().max(65_000).optional(),
+})
+export const ReactSchema = z.object({
+  target: z.union([z.object({ issue: z.number().int() }), z.object({ comment: z.number().int() })]),
+  content: ReactionSchema,
+})
+export const MentionSchema = z.object({ login: z.string(), avatarUrl: z.string() })
+export const ReferenceSchema = z.object({ number: z.number().int(), title: z.string(), pull: z.boolean() })

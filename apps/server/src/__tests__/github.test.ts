@@ -52,7 +52,42 @@ function fakeGitHub(calls: Call[]) {
     if (path === '/user') return Response.json(user)
     if (path === '/repos/o/r/pulls' && method === 'GET') return Response.json([pull])
     if (path === '/repos/o/r/pulls' && method === 'POST') return Response.json({ ...pull, number: 8 }, { status: 201 })
-    if (path === '/repos/o/r') return Response.json({ default_branch: 'trunk' })
+    if (path === '/repos/o/r') return Response.json({ default_branch: 'trunk', permissions: { push: false } })
+    if (path === '/repos/o/r/issues/9' && method === 'GET') {
+      return Response.json({
+        number: 9,
+        title: 'Bug',
+        body: 'Steps',
+        user,
+        created_at: 'a',
+        updated_at: 'b',
+        reactions: { '+1': 2, heart: 0, total_count: 2 },
+      })
+    }
+    if (path === '/repos/o/r/issues/9/timeline') {
+      return Response.json([
+        {
+          event: 'commented',
+          id: 1,
+          user,
+          body: 'me too',
+          created_at: 'c',
+          updated_at: 'c',
+          reactions: { eyes: 1 },
+          html_url: 'h',
+        },
+        { event: 'labeled', actor: user, label: { name: 'bug' }, created_at: 'd', node_id: 'n1' },
+        { event: 'renamed', actor: user, rename: { from: 'Bg', to: 'Bug' }, created_at: 'e', node_id: 'n2' },
+        { event: 'subscribed', actor: user, created_at: 'f' },
+        { event: 'committed', sha: 'abc1234', message: 'fix', author: { name: 'Octo', date: 'g' } },
+      ])
+    }
+    if (path === '/repos/o/r/issues/comments/1' && method === 'PATCH') return new Response(null, { status: 200 })
+    if (path === '/repos/o/r/issues/comments/1/reactions' && method === 'POST') {
+      return Response.json({ id: 55, content: 'heart' }, { status: 200 })
+    }
+    if (path === '/repos/o/r/issues/comments/1/reactions/55') return new Response(null, { status: 204 })
+    if (path === '/repos/o/r/assignees') return Response.json([user])
     if (path === '/graphql') {
       return Response.json({
         data: {
@@ -254,6 +289,32 @@ describe('/api/github', () => {
     })
     const body = calls.find((entry) => entry.path === '/graphql')?.body as { variables: { q: string } }
     expect(body.variables.q).toBe('repo:o/r is:pr is:closed review-requested:@me sort:comments-desc label:bug')
+  })
+
+  it('builds a thread with its timeline, and edits, reacts and suggests mentions', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    const thread = await (await call('GET', '/api/github/threads/9')).json()
+    expect(thread).toMatchObject({
+      title: 'Bug',
+      edited: true,
+      reactions: { '+1': 2 },
+      viewer: { login: 'octo', canEdit: true },
+      timeline: [
+        { kind: 'comment', id: 1, body: 'me too', reactions: { eyes: 1 }, edited: false },
+        { kind: 'event', text: 'added the bug label' },
+        { kind: 'event', text: 'changed the title from "Bg" to "Bug"' },
+        { kind: 'commit', sha: 'abc1234', message: 'fix' },
+      ],
+    })
+    expect(thread.timeline).toHaveLength(4)
+    expect((await call('PATCH', '/api/github/comments/1', { body: 'edited' })).status).toBe(204)
+    // A reaction GitHub already had (200) is taken back with a delete.
+    expect((await call('POST', '/api/github/react', { target: { comment: 1 }, content: 'heart' })).status).toBe(204)
+    expect(calls.some((entry) => entry.method === 'DELETE' && entry.path.endsWith('/reactions/55'))).toBe(true)
+    expect(await (await call('GET', '/api/github/mentions')).json()).toEqual([
+      { login: 'octo', avatarUrl: 'https://a/octo.png' },
+    ])
   })
 
   it('lists issues without the pull requests GitHub mixes in', async () => {

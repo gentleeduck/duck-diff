@@ -9,7 +9,9 @@ import { Avatar, Comment, Composer } from './Conversation'
 import { IssueIcon } from './IssuesSidebar'
 import { Labels } from './Labels'
 import { GitHubGate } from './SignIn'
+import { ThreadView } from './Timeline'
 import { ago } from './time'
+import { EditableTitle, useThread } from './useThread'
 
 const selectNumber = (value: number | null) => value
 
@@ -18,6 +20,7 @@ function Issue({ number, onChanged }: { number: number; onChanged(): void }) {
   const [issue, setIssue] = useState<IssueDetails | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const { thread, draft, reload: reloadThread } = useThread(number)
 
   const load = useCallback(
     (alive: () => boolean = () => true) =>
@@ -52,7 +55,7 @@ function Issue({ number, onChanged }: { number: number; onChanged(): void }) {
     try {
       await api.github.setIssueState(number, open ? 'closed' : 'open')
       toast(open ? `Closed #${number}` : `Reopened #${number}`)
-      await load()
+      await Promise.all([load(), reloadThread()])
       onChanged()
     } catch (error) {
       toast.error((error as Error).message)
@@ -64,7 +67,7 @@ function Issue({ number, onChanged }: { number: number; onChanged(): void }) {
     try {
       await api.github.comment(number, body)
       toast('Commented')
-      await load()
+      await Promise.all([load(), reloadThread()])
       onChanged()
     } catch (error) {
       toast.error((error as Error).message)
@@ -76,9 +79,16 @@ function Issue({ number, onChanged }: { number: number; onChanged(): void }) {
     <article aria-label={`Issue ${number}`} className="flex h-full flex-col">
       <header className="flex shrink-0 flex-col gap-2 border-border border-b bg-card px-4 py-3">
         <div className="flex items-start gap-3">
-          <h2 className="min-w-0 flex-1 text-foreground">
-            {issue.title} <span className="text-muted-foreground">#{issue.number}</span>
-          </h2>
+          <EditableTitle
+            number={issue.number}
+            title={issue.title}
+            canEdit={thread?.viewer.canEdit ?? false}
+            onChanged={() => {
+              void load()
+              void reloadThread()
+              onChanged()
+            }}
+          />
           <Button size="sm" variant="outline" loading={busy} onClick={toggle}>
             {open ? <CircleCheck /> : <CircleDot />}
             {open ? 'Close issue' : 'Reopen'}
@@ -108,12 +118,13 @@ function Issue({ number, onChanged }: { number: number; onChanged(): void }) {
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-4xl flex-col gap-3 p-4">
-          <Comment author={issue.author} createdAt={issue.createdAt} body={issue.body} />
-          {issue.conversation.map((entry) => (
-            <Comment key={entry.id} {...entry} />
-          ))}
+          {thread ? (
+            <ThreadView thread={thread} draft={draft} onChanged={() => void reloadThread()} />
+          ) : (
+            <Comment author={issue.author} createdAt={issue.createdAt} body={issue.body} />
+          )}
           <Separator />
-          <Composer label="Comment on this issue" onSend={comment} />
+          <Composer draft={draft} label="Comment on this issue" onSend={comment} />
         </div>
       </div>
     </article>

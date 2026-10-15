@@ -23,6 +23,8 @@ import {
   GitHubReviewCommentSchema,
   type GitHubStatus,
   GitHubStatusSchema,
+  type GitHubUser,
+  GitHubUserSchema,
   type IssueDetails,
   IssueDetailsSchema,
   type IssueSummary,
@@ -36,6 +38,7 @@ import {
   PullRefsSchema,
   type PullSummary,
   PullSummarySchema,
+  type Reaction,
   type Ref,
   RefSchema,
   type Remote,
@@ -46,6 +49,8 @@ import {
   ReviewCommentSchema,
   type SyncStatus,
   SyncStatusSchema,
+  type Thread,
+  ThreadSchema,
   type UndoResult,
   UndoResultSchema,
   type WriteRequest,
@@ -106,6 +111,14 @@ export interface GitHubApi {
   // email (lower case) -> avatar url; empty when signed out.
   avatars(): Promise<Record<string, string>>
   pull(number: number): Promise<PullDetails>
+  // Description, timeline and what the viewer may edit, for a pull request or an issue.
+  thread(number: number): Promise<Thread>
+  editThread(number: number, input: { title?: string; body?: string }): Promise<void>
+  editComment(id: number, body: string): Promise<void>
+  deleteComment(id: number): Promise<void>
+  react(target: { issue: number } | { comment: number }, content: Reaction): Promise<void>
+  mentions(): Promise<GitHubUser[]>
+  references(query: string): Promise<{ number: number; title: string; pull: boolean }[]>
   checks(number: number): Promise<CheckRun[]>
   fetchPull(number: number): Promise<PullRefs>
   // Pull requests and issues share one conversation endpoint.
@@ -185,6 +198,14 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     return schema.parse(await response.json())
   }
 
+  async function sendEmpty(method: string, path: string, body?: unknown): Promise<void> {
+    await request(path, undefined, {
+      method,
+      headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+  }
+
   async function post(path: string, body: unknown): Promise<void> {
     await request(path, undefined, {
       method: 'POST',
@@ -198,6 +219,17 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     signIn: (token) => send('POST', '/api/github/token', { token }, GitHubStatusSchema),
     pulls: (state) => json(`/api/github/pulls?state=${state}`, z.array(PullSummarySchema)),
     pull: (number) => json(`/api/github/pulls/${number}`, PullDetailsSchema),
+    thread: (number) => json(`/api/github/threads/${number}`, ThreadSchema),
+    editThread: (number, input) => sendEmpty('PATCH', `/api/github/threads/${number}`, input),
+    editComment: (id, body) => sendEmpty('PATCH', `/api/github/comments/${id}`, { body }),
+    deleteComment: (id) => sendEmpty('DELETE', `/api/github/comments/${id}`),
+    react: (target, content) => post('/api/github/react', { target, content }),
+    mentions: () => json('/api/github/mentions', z.array(GitHubUserSchema)),
+    references: (query) =>
+      json(
+        `/api/github/references?q=${encodeURIComponent(query)}`,
+        z.array(z.object({ number: z.number(), title: z.string(), pull: z.boolean() })),
+      ),
     list(query) {
       const params = new URLSearchParams()
       for (const [key, value] of Object.entries(query))

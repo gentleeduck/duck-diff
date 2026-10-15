@@ -51,6 +51,36 @@ function githubApi(overrides: Partial<GitHubApi> = {}): GitHubApi {
       cursor: null,
     }),
     pull: async () => pull,
+    thread: async () => ({
+      number: 7,
+      title: pull.title,
+      body: pull.body,
+      author,
+      createdAt: pull.createdAt,
+      edited: false,
+      reactions: { '+1': 2 },
+      timeline: [
+        {
+          kind: 'comment' as const,
+          id: 1,
+          author,
+          body: 'Looks good',
+          createdAt: '2026-10-02T00:00:00Z',
+          edited: false,
+          reactions: {},
+          url: 'u',
+        },
+        {
+          kind: 'event' as const,
+          id: 'e1',
+          event: 'labeled',
+          actor: author,
+          text: 'added the bug label',
+          createdAt: '2026-10-02T00:00:00Z',
+        },
+      ],
+      viewer: { login: 'octo', canEdit: true },
+    }),
     ...overrides,
   }
 }
@@ -128,6 +158,22 @@ describe('GitHub views', () => {
       expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'pr', query: 'label:bug' })),
     )
     expect(screen.getByLabelText('Approved')).toBeTruthy()
+  })
+
+  it('shows the timeline, quotes a comment into the box, and reacts', async () => {
+    const react = vi.fn(async () => {})
+    render(<App api={fakeApi({ github: githubApi({ react }) })} />)
+    fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
+    expect(await screen.findByText(/added the bug label/)).toBeTruthy()
+    fireEvent.click(screen.getAllByRole('button', { name: /Actions for octo's comment/ })[1] as HTMLElement)
+    fireEvent.click(await screen.findByRole('button', { name: 'Quote reply' }))
+    await waitFor(() =>
+      expect((screen.getByRole('textbox', { name: 'Comment on this pull request' }) as HTMLTextAreaElement).value).toBe(
+        '> Looks good\n\n',
+      ),
+    )
+    fireEvent.click(screen.getByRole('button', { name: '+1 reaction, 2' }))
+    await waitFor(() => expect(react).toHaveBeenCalledWith({ issue: 7 }, '+1'))
   })
 
   it('says so when the repo has no GitHub remote', async () => {

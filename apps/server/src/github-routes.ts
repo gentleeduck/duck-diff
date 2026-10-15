@@ -2,11 +2,13 @@ import { runGit } from '@duck-diff/git'
 import {
   CreateIssueSchema,
   CreatePullSchema,
+  EditIssueSchema,
   ListQuerySchema,
   MergePullSchema,
   PostCommentSchema,
   PostReviewCommentSchema,
   type PullRefs,
+  ReactSchema,
   ReplySchema,
   SetTokenSchema,
   SubmitReviewSchema,
@@ -47,6 +49,40 @@ export async function handleGitHub(
     return Response.json(await github.status())
   }
   // Avatars are a nicety, so being signed out or offline answers with none rather than an error.
+  if (area === 'mentions') return Response.json(await github.mentions())
+  if (area === 'references')
+    return Response.json(
+      await github.references(
+        z
+          .string()
+          .max(100)
+          .parse(url.searchParams.get('q') ?? ''),
+      ),
+    )
+  if (area === 'react' && post) {
+    const { target, content } = ReactSchema.parse(await body())
+    await github.react(target, content)
+    return new Response(null, { status: 204 })
+  }
+  if (area === 'comments' && id !== undefined) {
+    if (!Number.isInteger(number)) throw new HttpError(400, 'bad-request', 'bad comment id')
+    if (request.method === 'PATCH') {
+      await github.editComment(number, PostCommentSchema.parse(await body()).body)
+      return new Response(null, { status: 204 })
+    }
+    if (request.method === 'DELETE') {
+      await github.deleteComment(number)
+      return new Response(null, { status: 204 })
+    }
+  }
+  if (area === 'threads' && id !== undefined) {
+    if (!Number.isInteger(number)) throw new HttpError(400, 'bad-request', 'bad number')
+    if (request.method === 'PATCH') {
+      await github.editIssue(number, EditIssueSchema.parse(await body()))
+      return new Response(null, { status: 204 })
+    }
+    return Response.json(await github.thread(number))
+  }
   if (area === 'avatars') return Response.json(await github.avatars().catch(() => ({})))
   if (area === 'list')
     return Response.json(await github.list(ListQuerySchema.parse(Object.fromEntries(url.searchParams))))

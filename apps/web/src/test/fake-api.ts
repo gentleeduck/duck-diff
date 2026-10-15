@@ -42,6 +42,15 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       signIn: async () => ({ repo: null, user: null, source: null }),
       pulls: async () => [],
       list: async () => ({ items: [], total: 0, cursor: null }),
+      thread: async () => {
+        throw new Error('no threads')
+      },
+      editThread: async () => {},
+      editComment: async () => {},
+      deleteComment: async () => {},
+      react: async () => {},
+      mentions: async () => [],
+      references: async () => [],
       createPull: async () => {
         throw new Error('no pull requests')
       },
