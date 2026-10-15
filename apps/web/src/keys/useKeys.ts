@@ -5,6 +5,7 @@ import { useApp } from '../app/AppProvider'
 import { useGit } from '../git/GitProvider'
 import { useTarget } from '../hooks/useTarget'
 import { glide } from '../lib/glide'
+import { compileHidden } from '../lib/hide'
 import { back, forward } from '../lib/history'
 import type { View } from '../lib/view-url'
 import { lineHash, lineText } from '../review/anchor'
@@ -73,7 +74,7 @@ export function useKeys(handlers: KeyHandlers) {
   )
 
   useEffect(() => {
-    const shownItems = () => visibleItems(session.get().items, settings.get().tests)
+    const shownItems = () => visibleItems(session.get().items, compileHidden(settings.get().hidePatterns))
     const current = () => {
       const { files, target } = session.get()
       const item = shownItems()[position.current.item]

@@ -16,6 +16,7 @@ import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
+import { compileHidden } from '../lib/hide'
 import { isPopping } from '../lib/history'
 import { itemId } from '../lib/items'
 import { createStore, useStore } from '../lib/store'
@@ -181,7 +182,8 @@ export default function Viewer() {
       for (const file of files) if (file.path.startsWith(`${folder}/`)) paths.add(file.path)
     return paths
   }, [viewedSet, files, toggled, settings.tests, foldedFolders])
-  const shown = useMemo(() => visibleItems(plain, settings.tests), [plain, settings.tests])
+  const hidden = useMemo(() => compileHidden(settings.hidePatterns), [settings.hidePatterns])
+  const shown = useMemo(() => visibleItems(plain, hidden), [plain, hidden])
   const opened = useMemo(() => new Set([...toggled].filter(([, fold]) => !fold).map(([path]) => path)), [toggled])
   const annotate = useMemo(createAnnotator, [])
   const items = useMemo(

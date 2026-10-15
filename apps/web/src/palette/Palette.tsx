@@ -39,9 +39,22 @@ const TOGGLES: Toggle[] = [
   { label: 'Toggle line backgrounds', apply: (prev) => ({ ...prev, backgrounds: !prev.backgrounds }) },
   { label: 'Toggle unchanged lines', apply: (prev) => ({ ...prev, expandUnchanged: !prev.expandUnchanged }) },
   { label: 'Toggle the left panel', apply: (prev) => ({ ...prev, sidebar: !prev.sidebar }) },
-  { label: 'Show test files', apply: (prev) => ({ ...prev, tests: 'show' }) },
+  {
+    label: 'Show test files',
+    apply: (prev) => ({
+      ...prev,
+      tests: 'show',
+      hidePatterns: prev.hidePatterns.map((entry) => (entry.id === 'tests' ? { ...entry, enabled: false } : entry)),
+    }),
+  },
   { label: 'Fold test files', apply: (prev) => ({ ...prev, tests: 'fold' }) },
-  { label: 'Hide test files', apply: (prev) => ({ ...prev, tests: 'hide' }) },
+  {
+    label: 'Hide test files',
+    apply: (prev) => ({
+      ...prev,
+      hidePatterns: prev.hidePatterns.map((entry) => (entry.id === 'tests' ? { ...entry, enabled: true } : entry)),
+    }),
+  },
   { label: 'Light theme', apply: (prev) => ({ ...prev, themeType: 'light' }) },
   { label: 'Dark theme', apply: (prev) => ({ ...prev, themeType: 'dark' }) },
   { label: 'System theme', apply: (prev) => ({ ...prev, themeType: 'system' }) },

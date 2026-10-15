@@ -5,20 +5,20 @@ import { useCanOpen } from '../hooks/useCanOpen'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
+import { compileHidden } from '../lib/hide'
 import { useStore } from '../lib/store'
-import { isTestFile } from '../lib/tests'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { actionsFor } from '../viewer/actions'
 import { useWrites } from '../writes/WritesProvider'
 import { FileTree } from './FileTree'
 import { filterFiles, type TreeStatus } from './filters'
+import { HideFilter } from './HideFilter'
 import { StatusFilter } from './StatusFilter'
-import { TestsToggle } from './TestsToggle'
 import { FileMenu, FolderMenu } from './tree-menus'
 
 const selectFiles = (state: SessionState) => state.files
-const selectTests = (state: Settings) => state.tests
+const selectPatterns = (state: Settings) => state.hidePatterns
 const selectFolders = (folders: ReadonlySet<string>) => folders
 const selectTop = (path: string | null) => path
 
@@ -34,11 +34,11 @@ export function ChangesTree() {
   const [query, setQuery] = useState('')
   // The tree follows the diff: whatever file is at the top of it is the one marked here.
   const selected = useStore(diffTop, selectTop)
-  const tests = useSettings(selectTests)
-  const visible = useMemo(() => {
-    const matching = filterFiles(files, statuses, query)
-    return tests === 'hide' ? matching.filter((file) => !isTestFile(file.path)) : matching
-  }, [files, statuses, query, tests])
+  const patterns = useSettings(selectPatterns)
+  const hidden = useMemo(() => compileHidden(patterns), [patterns])
+  // Folders whose files are all hidden drop out with them, since the tree is built from these paths.
+  const shown = useMemo(() => files.filter((file) => !hidden(file.path)), [files, hidden])
+  const visible = useMemo(() => filterFiles(shown, statuses, query), [shown, statuses, query])
   const byPath = useMemo(() => new Map(files.map((file) => [file.path, file])), [files])
 
   const paths = useMemo(() => visible.map((file) => file.path), [visible])
@@ -47,20 +47,19 @@ export function ChangesTree() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-col gap-2 border-border border-b p-3">
-        <Input
-          id="file-filter"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Filter files"
-          aria-label="Filter files"
-        />
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <StatusFilter files={files} value={statuses} onChange={setStatuses} />
-          </div>
-          <TestsToggle />
+      <div className="@container/side flex flex-col gap-2 border-border border-b p-3">
+        <div className="flex items-center gap-2">
+          <Input
+            id="file-filter"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter files"
+            aria-label="Filter files"
+            className="h-7 min-w-0 flex-1"
+          />
+          <HideFilter hiddenCount={files.length - shown.length} />
         </div>
+        <StatusFilter files={shown} value={statuses} onChange={setStatuses} />
       </div>
       {visible.length > 0 ? (
         <FileTree

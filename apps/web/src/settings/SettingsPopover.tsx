@@ -33,7 +33,6 @@ const WEIGHTS: { value: Settings['fontWeight']; label: string }[] = [
 const TESTS: Options<'tests'> = [
   { value: 'show', label: 'Show' },
   { value: 'fold', label: 'Fold' },
-  { value: 'hide', label: 'Hide' },
 ]
 
 const INDICATORS: Options<'diffIndicators'> = [

@@ -17,16 +17,24 @@ test('the diff follows the tree order and folds with a folded folder', async ({ 
   await expect(page.getByRole('button', { name: 'Hide notes.txt' })).toBeVisible()
 })
 
-test('test files can be folded or hidden from the tree and the diff', async ({ page, app, repo }) => {
+test('files are hidden by pattern, tests first, and emptied folders leave the tree', async ({ page, app, repo }) => {
   repo.write('src/app.test.ts', 'it("works", () => {})\n')
+  repo.write('docs/guide.md', '# guide\n')
   await page.goto(app.url)
   const tree = page.getByRole('tree', { name: 'Changed files' })
   await expect(tree.getByRole('treeitem', { name: /app\.test\.ts/ })).toBeVisible()
-  await page.getByRole('button', { name: 'Test files shown: click to fold them' }).click()
-  await expect(page.getByRole('button', { name: 'Show src/app.test.ts' })).toBeVisible()
-  await page.getByRole('button', { name: 'Test files folded: click to hide them' }).click()
+  await page.getByRole('button', { name: 'Hide files' }).click()
+  await page.getByRole('switch', { name: 'Hide Test files' }).click()
   await expect(tree.getByRole('treeitem', { name: /app\.test\.ts/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /src\/app\.test\.ts/ })).toHaveCount(0)
+
+  await page.getByRole('textbox', { name: 'New hide pattern' }).fill('^docs/')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('list', { name: 'Hide patterns' })).toContainText('^docs/')
+  await expect(tree.getByRole('treeitem', { name: /^docs/ })).toHaveCount(0)
+  await expect(tree.getByRole('treeitem', { name: /guide\.md/ })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Remove ^docs/' }).click()
+  await expect(tree.getByRole('treeitem', { name: /guide\.md/ })).toBeVisible()
 })
 
 test('each view hides its own left panel, and views without one show no toggle', async ({ page, app }) => {
