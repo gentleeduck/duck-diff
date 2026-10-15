@@ -5,7 +5,6 @@ export type Endpoint = { kind: 'worktree' } | { kind: 'index' } | { kind: 'ref';
 export interface TargetDescription {
   from: string
   to: string
-  operator: '..' | '...' | null
   path: string | null
 }
 
@@ -24,21 +23,16 @@ export function describeTarget(target: DiffTarget): TargetDescription {
   const path = target.kind === 'range' || target.kind === 'commit' ? (target.path ?? null) : null
   switch (target.kind) {
     case 'local':
-      return { from: 'HEAD', to: WORKTREE, operator: null, path }
+      return { from: 'HEAD', to: WORKTREE, path }
     case 'staged':
-      return { from: 'HEAD', to: INDEX, operator: null, path }
+      return { from: 'HEAD', to: INDEX, path }
     case 'unstaged':
-      return { from: INDEX, to: WORKTREE, operator: null, path }
+      return { from: INDEX, to: WORKTREE, path }
     case 'range':
-      return {
-        from: short(target.from),
-        to: short(target.to),
-        operator: target.mode === 'two-dot' ? '..' : '...',
-        path,
-      }
+      return { from: short(target.from), to: short(target.to), path }
     case 'commit': {
       const short = target.sha.slice(0, 7)
-      return { from: `${short}^`, to: short, operator: null, path }
+      return { from: `${short}^`, to: short, path }
     }
   }
 }
@@ -90,11 +84,6 @@ export function historyTarget(path: string, order: readonly string[], sha: strin
   if (!other || other === sha) return { kind: 'commit', sha, path }
   const [to, from] = order.indexOf(sha) < order.indexOf(other) ? [sha, other] : [other, sha]
   return { kind: 'range', from, to, mode: 'two-dot', path }
-}
-
-export function toggleOperator(target: DiffTarget): DiffTarget {
-  if (target.kind !== 'range') return target
-  return { ...target, mode: target.mode === 'two-dot' ? 'merge-base' : 'two-dot' }
 }
 
 export interface Preset {
