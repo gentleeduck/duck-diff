@@ -14,3 +14,17 @@ export function writeView(view: View, search: string): string {
   const query = params.toString()
   return query ? `?${query}` : '?'
 }
+
+// The open pull request or issue, so its page has a url and the back button returns to the list.
+export function readNumber(search: string): number | null {
+  const raw = Number(new URLSearchParams(search).get('number'))
+  return Number.isInteger(raw) && raw > 0 ? raw : null
+}
+
+export function writeNumber(number: number | null, search: string): string {
+  const params = new URLSearchParams(search)
+  if (number === null) params.delete('number')
+  else params.set('number', String(number))
+  const query = params.toString()
+  return query ? `?${query}` : '?'
+}

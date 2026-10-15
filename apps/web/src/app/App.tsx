@@ -6,12 +6,12 @@ import { FilesSidebar } from '../files/FilesSidebar'
 import { BranchMenu } from '../git/BranchMenu'
 import { GitProvider } from '../git/GitProvider'
 import { SyncButtons } from '../git/SyncButtons'
-import { IssuesSidebar } from '../github/IssuesSidebar'
-import { PullsSidebar } from '../github/PullsSidebar'
+import { IssuesPage, PullsPage } from '../github/Pages'
 import { useGitHub } from '../github/SignIn'
 import { FindCommit } from '../graph/FindCommit'
 import { GraphSidebar } from '../graph/GraphSidebar'
 import type { GraphState } from '../graph/store'
+import { useItemUrl } from '../hooks/useItemUrl'
 import { useView } from '../hooks/useView'
 import { HelpDialog } from '../keyboard/HelpDialog'
 import { useKeyboard } from '../keyboard/useKeyboard'
@@ -34,8 +34,6 @@ import { useThemeClass } from './useThemeClass'
 const Viewer = lazy(() => import('../viewer/Viewer'))
 const GraphView = lazy(() => import('../graph/GraphView'))
 const FileView = lazy(() => import('../files/FileView'))
-const PullView = lazy(() => import('../github/PullView'))
-const IssueView = lazy(() => import('../github/IssueView'))
 
 const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues']
 
@@ -72,6 +70,7 @@ function Screen() {
   const { view, show } = useView()
   useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true), show })
   const live = useLiveRefresh()
+  useItemUrl()
   // Bumped when a page changes an item, so its list reloads.
   const [pullsVersion, setPullsVersion] = useState(0)
   const [issuesVersion, setIssuesVersion] = useState(0)
@@ -89,7 +88,7 @@ function Screen() {
       <Kbd className="ms-auto">Ctrl K</Kbd>
     </Button>
   )
-  const screens: Record<View, { top: ReactNode; side: ReactNode; label: string; main: ReactNode }> = {
+  const screens: Record<View, { top: ReactNode; side: ReactNode | null; label: string; main: ReactNode }> = {
     changes: {
       top: (
         <>
@@ -140,9 +139,9 @@ function Screen() {
           <SyncButtons />
         </>
       ),
-      side: <PullsSidebar version={pullsVersion} onChanged={pullsChanged} />,
+      side: null,
       label: 'Pull requests',
-      main: <PullView onChanged={pullsChanged} />,
+      main: <PullsPage version={pullsVersion} onChanged={pullsChanged} />,
     },
     issues: {
       top: (
@@ -152,9 +151,9 @@ function Screen() {
           <SyncButtons />
         </>
       ),
-      side: <IssuesSidebar version={issuesVersion} onChanged={issuesChanged} />,
+      side: null,
       label: 'Issues',
-      main: <IssueView onChanged={issuesChanged} />,
+      main: <IssuesPage version={issuesVersion} onChanged={issuesChanged} />,
     },
   }
   const screen = screens[view]

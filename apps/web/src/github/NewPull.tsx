@@ -18,7 +18,6 @@ import { GitPullRequestCreateArrow } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
-import { IconTool } from '../app/IconTool'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 import { VISIBLE_BOX } from '../viewer/FileActions'
@@ -74,9 +73,10 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
 
   return (
     <>
-      <IconTool label="New pull request" onClick={() => setOpen(true)}>
+      <Button size="sm" onClick={() => setOpen(true)}>
         <GitPullRequestCreateArrow />
-      </IconTool>
+        New pull request
+      </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xl">
           <DialogTitle>New pull request</DialogTitle>

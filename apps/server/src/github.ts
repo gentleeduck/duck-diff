@@ -12,8 +12,10 @@ import type {
   ListItem,
   ListPage,
   ListQuery,
+  PullCommit,
   PullDetails,
   PullSummary,
+  Reviewer,
   Thread,
   TimelineEvent,
 } from '@duck-diff/protocol'
@@ -83,10 +85,10 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   let avatarMap: Promise<Record<string, string>> | null = null
   let mentionList: Promise<GitHubUser[]> | null = null
 
-  async function pagesOf<T>(path: string, pages: number): Promise<T[]> {
+  async function pagesOf<T>(path: string, pages: number, init: RequestInit = {}): Promise<T[]> {
     const all: T[] = []
     for (let page = 1; page <= pages; page++) {
-      const batch = await call<T[]>(`${path}?per_page=100&page=${page}`)
+      const batch = await call<T[]>(`${path}?per_page=100&page=${page}`, init)
       all.push(...batch)
       if (batch.length < 100) break
     }
@@ -119,6 +121,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         authorization: `Bearer ${auth.token}`,
         'x-github-api-version': '2022-11-28',
         ...(init.body ? { 'content-type': 'application/json' } : {}),
+        ...(init.headers as Record<string, string> | undefined),
       },
     })
     if (!response.ok) {
@@ -189,8 +192,8 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     async thread(number: number): Promise<Thread> {
       const base = await repoPath()
       const [issue, timeline, me, repoInfo] = await Promise.all([
-        call<RawThreadIssue>(`${base}/issues/${number}`),
-        pagesOf<RawTimeline>(`${base}/issues/${number}/timeline`, 3),
+        call<RawThreadIssue>(`${base}/issues/${number}`, FULL),
+        pagesOf<RawTimeline>(`${base}/issues/${number}/timeline`, 3, FULL),
         call<RawUser>('/user'),
         call<{ permissions?: { push?: boolean } }>(base),
       ])
@@ -198,6 +201,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         number: issue.number,
         title: issue.title,
         body: issue.body ?? '',
+        html: issue.body_html ?? null,
         author: user(issue.user),
         createdAt: issue.created_at,
         edited: issue.updated_at !== issue.created_at && Boolean(issue.body),
@@ -283,13 +287,28 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     },
     async pull(number: number): Promise<PullDetails> {
       const base = `${await repoPath()}`
-      const [raw, comments, reviewComments] = await Promise.all([
+      const [raw, comments, reviewComments, reviews] = await Promise.all([
         call<RawPullDetails>(`${base}/pulls/${number}`),
         call<RawComment[]>(`${base}/issues/${number}/comments?per_page=100`),
         call<RawReviewComment[]>(`${base}/pulls/${number}/comments?per_page=100`),
+        call<{ user: RawUser | null; state: Reviewer['state'] }[]>(`${base}/pulls/${number}/reviews?per_page=100`),
       ])
+      // Each person's latest review counts; anyone requested and not yet reviewing is listed as waiting.
+      const latest = new Map<string, Reviewer>()
+      for (const review of reviews) {
+        if (!review.user || (review.state === 'COMMENTED' && latest.has(review.user.login))) continue
+        latest.set(review.user.login, { ...user(review.user), state: review.state })
+      }
+      for (const requested of raw.requested_reviewers ?? []) {
+        latest.set(requested.login, { ...user(requested), state: null })
+      }
       return {
         ...pullSummary(raw),
+        commits: raw.commits,
+        assignees: (raw.assignees ?? []).map(user),
+        milestone: raw.milestone?.title ?? null,
+        reviewers: [...latest.values()],
+        mergeableState: raw.mergeable_state ?? 'unknown',
         body: raw.body ?? '',
         headSha: raw.head.sha,
         baseSha: raw.base.sha,
@@ -300,6 +319,20 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         comments: comments.map(comment),
         reviewComments: reviewComments.map(reviewComment),
       }
+    },
+    async pullCommits(number: number): Promise<PullCommit[]> {
+      const raw = await pagesOf<{
+        sha: string
+        commit: { message: string; author: { name: string; date: string } | null }
+        author: RawUser | null
+      }>(`${await repoPath()}/pulls/${number}/commits`, 3)
+      return raw.map((entry) => ({
+        sha: entry.sha,
+        message: entry.commit.message,
+        author: user(entry.author),
+        authorName: entry.commit.author?.name ?? '',
+        date: entry.commit.author?.date ?? '',
+      }))
     },
     async commentOn(number: number, body: string): Promise<ConversationComment> {
       return comment(
@@ -357,7 +390,13 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         call<RawIssue>(`${base}/issues/${number}`),
         call<RawComment[]>(`${base}/issues/${number}/comments?per_page=100`),
       ])
-      return { ...issueSummary(raw), body: raw.body ?? '', conversation: conversation.map(comment) }
+      return {
+        ...issueSummary(raw),
+        assignees: (raw.assignees ?? []).map(user),
+        milestone: raw.milestone?.title ?? null,
+        body: raw.body ?? '',
+        conversation: conversation.map(comment),
+      }
     },
     async createIssue(title: string, body: string): Promise<IssueSummary> {
       return issueSummary(
@@ -388,6 +427,11 @@ interface RawPull {
 }
 interface RawPullDetails extends RawPull {
   body: string | null
+  commits: number
+  requested_reviewers?: RawUser[]
+  assignees?: RawUser[]
+  milestone?: { title: string } | null
+  mergeable_state?: string
   mergeable: boolean | null
   additions: number
   deletions: number
@@ -421,6 +465,8 @@ interface RawIssue {
   html_url: string
   body?: string | null
   pull_request?: unknown
+  assignees?: RawUser[]
+  milestone?: { title: string } | null
 }
 
 function pullSummary(raw: RawPull): PullSummary {
@@ -541,10 +587,14 @@ function listItem(node: RawNode): ListItem {
 interface RawReactions {
   [key: string]: number | string
 }
+// Asks GitHub to render bodies too, so comments show exactly as on github.com (bot HTML, mentions, emoji).
+const FULL: RequestInit = { headers: { accept: 'application/vnd.github.full+json' } }
+
 interface RawThreadIssue {
   number: number
   title: string
   body: string | null
+  body_html?: string
   user: RawUser | null
   created_at: string
   updated_at: string
@@ -560,6 +610,7 @@ interface RawTimeline {
   updated_at?: string
   submitted_at?: string
   body?: string | null
+  body_html?: string
   html_url?: string
   state?: string
   reactions?: RawReactions
@@ -622,6 +673,7 @@ function timelineEvent(raw: RawTimeline): TimelineEvent[] {
         id: raw.id,
         author: user(raw.user ?? raw.actor ?? null),
         body: raw.body ?? '',
+        html: raw.body_html ?? null,
         createdAt: raw.created_at ?? '',
         edited: Boolean(raw.updated_at && raw.updated_at !== raw.created_at),
         reactions: reactions(raw.reactions),
@@ -637,6 +689,7 @@ function timelineEvent(raw: RawTimeline): TimelineEvent[] {
         author: user(raw.user ?? null),
         state: raw.state ?? '',
         body: raw.body ?? '',
+        html: raw.body_html ?? null,
         createdAt: raw.submitted_at ?? '',
       },
     ]

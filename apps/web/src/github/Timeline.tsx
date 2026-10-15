@@ -52,6 +52,7 @@ function CommentCard({
   author,
   createdAt,
   body,
+  html,
   edited,
   label,
   canEdit,
@@ -65,6 +66,7 @@ function CommentCard({
   author: Thread['author']
   createdAt: string
   body: string
+  html: string | null
   edited: boolean
   label?: string
   canEdit: boolean
@@ -171,7 +173,7 @@ function CommentCard({
             </div>
           </>
         ) : (
-          <Body text={body} />
+          <Body text={body} html={html} />
         )}
         {reactions}
       </div>
@@ -240,6 +242,7 @@ export function ThreadView({
         author={thread.author}
         createdAt={thread.createdAt}
         body={thread.body}
+        html={thread.html}
         edited={thread.edited}
         label="Author"
         canEdit={thread.viewer.canEdit}
@@ -260,6 +263,7 @@ export function ThreadView({
               author={event.author}
               createdAt={event.createdAt}
               body={event.body}
+              html={event.html}
               edited={event.edited}
               label={event.author.login === thread.author.login ? 'Author' : undefined}
               canEdit={mine || thread.viewer.canEdit}
@@ -284,7 +288,7 @@ export function ThreadView({
               </Line>
               {event.body.trim() ? (
                 <div className="ms-12 rounded-md border border-border bg-card px-3 py-2">
-                  <Body text={event.body} />
+                  <Body text={event.body} html={event.html} />
                 </div>
               ) : null}
             </div>

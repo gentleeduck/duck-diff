@@ -81,3 +81,45 @@ export function Checks({ number }: { number: number }) {
     </Popover>
   )
 }
+
+// Every run on the head commit, for the pull request's Checks tab.
+export function ChecksList({ number }: { number: number }) {
+  const { api } = useApp()
+  const [runs, setRuns] = useState<CheckRun[] | null>(null)
+  useEffect(() => {
+    let alive = true
+    api.github.checks(number).then(
+      (next) => alive && setRuns(next),
+      () => alive && setRuns([]),
+    )
+    return () => {
+      alive = false
+    }
+  }, [api, number])
+  if (!runs) return <p className="p-4 text-muted-foreground">Reading checks...</p>
+  if (!runs.length) return <p className="p-4 text-muted-foreground">No checks ran on this pull request.</p>
+  const { text } = summary(runs)
+  return (
+    <section aria-label="Checks" className="rounded-md border border-border">
+      <h3 className="border-border border-b bg-card px-4 py-2 text-foreground">{text}</h3>
+      <ul>
+        {runs.map((run) => {
+          const state = LOOK[outcome(run)]
+          return (
+            <li key={`${run.name}:${run.url}`} className="border-border border-b last:border-b-0">
+              <a
+                href={run.url || undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-3 px-4 py-2 hover:bg-accent/40">
+                <state.icon className={`size-4 shrink-0 ${state.className}`} />
+                <span className="min-w-0 flex-1 truncate text-foreground">{run.name}</span>
+                <span className="text-muted-foreground">{outcome(run)}</span>
+              </a>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}

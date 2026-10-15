@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
-import { ItemSidebar } from './ItemSidebar'
+import { ItemList } from './ItemList'
 import { ListRow } from './ListRow'
 import { NewPull } from './NewPull'
 
@@ -17,7 +17,7 @@ export function PullIcon({ pull }: { pull: Pick<PullSummary, 'state' | 'merged' 
   return <GitPullRequest aria-label="Open" className="size-4 shrink-0 text-added" />
 }
 
-export function PullsSidebar({ version, onChanged }: { version: number; onChanged(): void }) {
+export function PullsList({ version, onChanged }: { version: number; onChanged(): void }) {
   const { api, pullSelection } = useApp()
   const { navigate } = useTarget()
   const { show } = useView()
@@ -32,7 +32,7 @@ export function PullsSidebar({ version, onChanged }: { version: number; onChange
     }
   }
   return (
-    <ItemSidebar
+    <ItemList
       kind="pr"
       label="Pull requests"
       selection={pullSelection}

@@ -60,6 +60,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
         throw new Error('no pull requests')
       },
       checks: async () => [],
+      pullCommits: async () => [],
       fetchPull: async () => ({ base: 'main', head: 'main' }),
       comment: async () => {
         throw new Error('no pull requests')

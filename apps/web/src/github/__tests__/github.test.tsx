@@ -26,6 +26,11 @@ const pull: PullDetails = {
   additions: 3,
   deletions: 1,
   changedFiles: 2,
+  commits: 3,
+  assignees: [],
+  milestone: null,
+  reviewers: [{ login: 'duck', avatarUrl: '', state: 'APPROVED' }],
+  mergeableState: 'clean',
   comments: [{ id: 1, author, body: 'Looks good', createdAt: '2026-10-02T00:00:00Z' }],
   reviewComments: [],
 }
@@ -55,6 +60,7 @@ function githubApi(overrides: Partial<GitHubApi> = {}): GitHubApi {
       number: 7,
       title: pull.title,
       body: pull.body,
+      html: null,
       author,
       createdAt: pull.createdAt,
       edited: false,
@@ -65,6 +71,7 @@ function githubApi(overrides: Partial<GitHubApi> = {}): GitHubApi {
           id: 1,
           author,
           body: 'Looks good',
+          html: '<p>Looks <strong>good</strong></p><script>alert(1)</script>',
           createdAt: '2026-10-02T00:00:00Z',
           edited: false,
           reactions: {},
@@ -118,7 +125,7 @@ describe('GitHub views', () => {
     const merge = vi.fn(async () => {})
     render(<App api={fakeApi({ github: githubApi({ merge }) })} />)
     fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Merge' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Squash and merge' }))
     expect(merge).not.toHaveBeenCalled()
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm merge' }))
     await waitFor(() => expect(merge).toHaveBeenCalledWith(7, 'squash'))
@@ -165,6 +172,9 @@ describe('GitHub views', () => {
     render(<App api={fakeApi({ github: githubApi({ react }) })} />)
     fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
     expect(await screen.findByText(/added the bug label/)).toBeTruthy()
+    // GitHub's rendering shows, and anything that could run is stripped.
+    expect((await screen.findByText('good')).tagName).toBe('STRONG')
+    expect(document.querySelector('.gh-markdown script')).toBeNull()
     fireEvent.click(screen.getAllByRole('button', { name: /Actions for octo's comment/ })[1] as HTMLElement)
     fireEvent.click(await screen.findByRole('button', { name: 'Quote reply' }))
     await waitFor(() =>

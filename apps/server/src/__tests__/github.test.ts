@@ -159,6 +159,12 @@ function fakeGitHub(calls: Call[]) {
       return Response.json({ id: 3, user, body: 'done', created_at: 'x', path: 'a.ts', line: 3, in_reply_to_id: 2 })
     }
     if (path === '/repos/o/r/pulls/7/merge') return Response.json({ merged: true })
+    if (path === '/repos/o/r/pulls/7/reviews' && method === 'GET') {
+      return Response.json([
+        { user: { login: 'duck', avatar_url: 'd' }, state: 'CHANGES_REQUESTED' },
+        { user: { login: 'duck', avatar_url: 'd' }, state: 'APPROVED' },
+      ])
+    }
     if (path === '/repos/o/r/pulls/7/reviews') return Response.json({ id: 9 })
     return Response.json({ message: 'Not Found' }, { status: 404 })
   }
@@ -211,7 +217,13 @@ describe('/api/github', () => {
     const pulls = await (await call('GET', '/api/github/pulls')).json()
     expect(pulls[0]).toMatchObject({ number: 7, headRef: 'feat', baseRef: 'main', labels: [{ name: 'bug' }] })
     const details = await (await call('GET', '/api/github/pulls/7')).json()
-    expect(details).toMatchObject({ body: 'Why', headSha: 'h1', changedFiles: 2, comments: [{ body: 'Looks good' }] })
+    expect(details).toMatchObject({
+      body: 'Why',
+      headSha: 'h1',
+      changedFiles: 2,
+      comments: [{ body: 'Looks good' }],
+      reviewers: [{ login: 'duck', state: 'APPROVED' }],
+    })
   })
 
   it('posts review comments on the head commit, replies, reviews and merges', async () => {

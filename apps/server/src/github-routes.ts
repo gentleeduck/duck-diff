@@ -96,6 +96,7 @@ export async function handleGitHub(
     if (!Number.isInteger(number)) throw new HttpError(400, 'bad-request', 'bad pull request number')
     if (action === undefined) return Response.json(await github.pull(number))
     if (action === 'checks') return Response.json(await github.checks(number))
+    if (action === 'commits') return Response.json(await github.pullCommits(number))
     if (action === 'comments' && post)
       return Response.json(await github.commentOn(number, PostCommentSchema.parse(await body()).body))
     if (action === 'review-comments' && post) {

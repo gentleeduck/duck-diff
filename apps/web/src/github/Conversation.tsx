@@ -24,11 +24,14 @@ export function Avatar({ user }: { user: GitHubUser }) {
 // The Markdown renderer is large, so it loads with the first comment instead of with the diff viewer.
 const Markdown = lazy(() => import('../markdown/Markdown').then((module) => ({ default: module.Markdown })))
 
-export function Body({ text }: { text: string }) {
+const GitHubHtml = lazy(() => import('../markdown/GitHubHtml').then((module) => ({ default: module.GitHubHtml })))
+
+// GitHub's own rendering when it sent one, so bot HTML and mentions look as on github.com; Markdown otherwise.
+export function Body({ text, html }: { text: string; html?: string | null }) {
   if (!text.trim()) return <p className="text-muted-foreground">No description.</p>
   return (
     <Suspense fallback={<p className="whitespace-pre-wrap break-words text-foreground">{text.trim()}</p>}>
-      <Markdown text={text} />
+      {html ? <GitHubHtml html={html} /> : <Markdown text={text} />}
     </Suspense>
   )
 }

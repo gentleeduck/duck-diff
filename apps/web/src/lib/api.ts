@@ -32,6 +32,8 @@ import {
   type ListPage,
   ListPageSchema,
   type ListQuery,
+  type PullCommit,
+  PullCommitSchema,
   type PullDetails,
   PullDetailsSchema,
   type PullRefs,
@@ -120,6 +122,7 @@ export interface GitHubApi {
   mentions(): Promise<GitHubUser[]>
   references(query: string): Promise<{ number: number; title: string; pull: boolean }[]>
   checks(number: number): Promise<CheckRun[]>
+  pullCommits(number: number): Promise<PullCommit[]>
   fetchPull(number: number): Promise<PullRefs>
   // Pull requests and issues share one conversation endpoint.
   comment(number: number, body: string): Promise<ConversationComment>
@@ -236,6 +239,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
         if (value !== undefined && value !== '') params.set(key, String(value))
       return json(`/api/github/list?${params}`, ListPageSchema)
     },
+    pullCommits: (number) => json(`/api/github/pulls/${number}/commits`, z.array(PullCommitSchema)),
     checks: (number) => json(`/api/github/pulls/${number}/checks`, z.array(CheckRunSchema)),
     createPull: (input) => send('POST', '/api/github/pulls', input, PullSummarySchema),
     avatars: () => json('/api/github/avatars', z.record(z.string(), z.string())),

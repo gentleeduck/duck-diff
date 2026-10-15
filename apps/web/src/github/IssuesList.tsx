@@ -13,8 +13,7 @@ import { CircleCheck, CircleDot, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
-import { IconTool } from '../app/IconTool'
-import { ItemSidebar } from './ItemSidebar'
+import { ItemList } from './ItemList'
 import { ListRow } from './ListRow'
 
 export function IssueIcon({ state }: { state: IssueSummary['state'] }) {
@@ -51,9 +50,10 @@ function NewIssue({ onCreated }: { onCreated(): void }) {
 
   return (
     <>
-      <IconTool label="New issue" onClick={() => setOpen(true)}>
+      <Button size="sm" onClick={() => setOpen(true)}>
         <Plus />
-      </IconTool>
+        New issue
+      </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-xl">
           <DialogTitle>New issue</DialogTitle>
@@ -91,10 +91,10 @@ function NewIssue({ onCreated }: { onCreated(): void }) {
   )
 }
 
-export function IssuesSidebar({ version, onChanged }: { version: number; onChanged(): void }) {
+export function IssuesList({ version, onChanged }: { version: number; onChanged(): void }) {
   const { api, issueSelection } = useApp()
   return (
-    <ItemSidebar
+    <ItemList
       kind="issue"
       label="Issues"
       selection={issueSelection}

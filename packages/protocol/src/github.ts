@@ -46,7 +46,18 @@ export const GitHubReviewCommentSchema = ConversationCommentSchema.extend({
 })
 export type GitHubReviewComment = z.infer<typeof GitHubReviewCommentSchema>
 
+export const ReviewerSchema = GitHubUserSchema.extend({
+  // The latest review they left, or null while their review is only requested.
+  state: z.enum(['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED', 'DISMISSED', 'PENDING']).nullable(),
+})
+export type Reviewer = z.infer<typeof ReviewerSchema>
+
 export const PullDetailsSchema = PullSummarySchema.extend({
+  commits: z.number().int(),
+  assignees: z.array(GitHubUserSchema),
+  milestone: z.string().nullable(),
+  reviewers: z.array(ReviewerSchema),
+  mergeableState: z.string(),
   body: z.string(),
   headSha: z.string(),
   baseSha: z.string(),
@@ -73,6 +84,8 @@ export const IssueSummarySchema = z.object({
 export type IssueSummary = z.infer<typeof IssueSummarySchema>
 
 export const IssueDetailsSchema = IssueSummarySchema.extend({
+  assignees: z.array(GitHubUserSchema),
+  milestone: z.string().nullable(),
   body: z.string(),
   conversation: z.array(ConversationCommentSchema),
 })
@@ -163,6 +176,8 @@ export const TimelineEventSchema = z.discriminatedUnion('kind', [
     id: z.number().int(),
     author: GitHubUserSchema,
     body: z.string(),
+    // GitHub's own rendering of the body, when it sent one.
+    html: z.string().nullable(),
     createdAt: z.string(),
     edited: z.boolean(),
     reactions: ReactionCountsSchema,
@@ -174,6 +189,7 @@ export const TimelineEventSchema = z.discriminatedUnion('kind', [
     author: GitHubUserSchema,
     state: z.string(),
     body: z.string(),
+    html: z.string().nullable(),
     createdAt: z.string(),
   }),
   z.object({
@@ -199,6 +215,7 @@ export const ThreadSchema = z.object({
   number: z.number().int(),
   title: z.string(),
   body: z.string(),
+  html: z.string().nullable(),
   author: GitHubUserSchema,
   createdAt: z.string(),
   edited: z.boolean(),
@@ -219,3 +236,12 @@ export const ReactSchema = z.object({
 })
 export const MentionSchema = z.object({ login: z.string(), avatarUrl: z.string() })
 export const ReferenceSchema = z.object({ number: z.number().int(), title: z.string(), pull: z.boolean() })
+
+export const PullCommitSchema = z.object({
+  sha: z.string(),
+  message: z.string(),
+  author: GitHubUserSchema,
+  authorName: z.string(),
+  date: z.string(),
+})
+export type PullCommit = z.infer<typeof PullCommitSchema>
