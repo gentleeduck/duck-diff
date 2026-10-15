@@ -33,7 +33,7 @@ function useHighlight(name: string | null) {
       registry.delete('duck-symbol')
       return
     }
-    const pattern = new RegExp(`(?<![\\w$])${name.replace(/\$/g, '\\$')}(?![\\w$])`, 'g')
+    const pattern = new RegExp(`(?<![\\w$])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w$])`, 'g')
     let frame = 0
     const paint = () => {
       frame = 0
