@@ -57,7 +57,7 @@ describe('state store', () => {
     const at = (href: string) => openingTarget(new URL(href, 'http://page'))
     expect(at('/changes')).toEqual({ kind: 'local' })
     expect(at('/?token=t')).toEqual({ kind: 'local' })
-    expect(at('/changes?target=' + encodeURIComponent('{"kind":"staged"}'))).toEqual({ kind: 'staged' })
+    expect(at(`/changes?target=${encodeURIComponent('{"kind":"staged"}')}`)).toEqual({ kind: 'staged' })
     expect(at('/?view=graph')).toBeNull()
     expect(at('/prs/3')).toBeNull()
     expect(at('/changes?target=%7Bbad')).toBeNull()

@@ -61,7 +61,7 @@ export function RepoSwitcher() {
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button size="icon" variant="ghost" aria-label="Repositories" className="mt-auto">
+            <Button size="icon" variant="ghost" aria-label="Repositories">
               <FolderGit2 />
             </Button>
           </PopoverTrigger>
