@@ -84,7 +84,7 @@ export {
   unstageAll,
 } from './sync'
 export { type DiffTarget, targetArgs, unmergedPaths } from './target'
-export { type FileContents, listTree, readTreeFile, type TreeRef } from './tree'
+export { type FileContents, listTree, readTreeBytes, readTreeFile, type TreeRef } from './tree'
 export { repoId, restoreLatest, snapshot } from './undo'
 export {
   addWorktree,

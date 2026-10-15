@@ -2,11 +2,25 @@ import type { Element, ElementContent } from 'hast'
 import { type ReactNode, useSyncExternalStore } from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
 
 const EXTERNAL = /^(https?:|mailto:|#)/i
+const REMOTE = /^(https?:|data:|\/\/)/i
+
+// HTML in markdown is kept the way GitHub keeps it: its safe tags and attributes, plus the align and
+// sizes READMEs center their logos with. Scripts, styles and event handlers are dropped.
+const SCHEMA = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    '*': [...(defaultSchema.attributes?.['*'] ?? []), 'align'],
+    img: [...(defaultSchema.attributes?.img ?? []), 'width', 'height'],
+  },
+}
 const ALERT = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i
 const ALERT_TITLE: Record<string, string> = {
   note: 'Note',
@@ -60,8 +74,7 @@ function Fenced({ language, text }: { language: string; text: string }) {
   )
 }
 
-// Raw HTML (bot summaries, <details>) is skipped rather than rendered or shown as text. The look comes from
-// .gh-markdown, shared with GitHub's own rendered HTML.
+// The look comes from .gh-markdown, shared with GitHub's own rendered HTML.
 const components: Components = {
   blockquote: ({ node, children, ...props }) => {
     const kind = alertKind(node)
@@ -84,10 +97,25 @@ const components: Components = {
       </code>
     )
   },
-  img: ({ node: _, alt, ...props }) => <img {...props} alt={alt ?? ''} />,
 }
 
-export function Markdown({ text, onLocalLink }: { text: string; onLocalLink?: (href: string) => void }) {
+export function Markdown({
+  text,
+  onLocalLink,
+  imageUrl,
+}: {
+  text: string
+  onLocalLink?: (href: string) => void
+  // Where a relative image is read from, for a file's README; without it relative images stay as written.
+  imageUrl?: (src: string) => string
+}) {
+  const img: Components['img'] = ({ node: _, alt, src, ...props }) => (
+    <img
+      {...props}
+      alt={alt ?? ''}
+      src={typeof src === 'string' && imageUrl && !REMOTE.test(src) ? imageUrl(src) : src}
+    />
+  )
   // Relative links point into the repo; with a handler they open there instead of a broken page url.
   const a: Components['a'] = ({ node: _, href = '', ...props }) =>
     EXTERNAL.test(href) || !onLocalLink ? (
@@ -104,7 +132,10 @@ export function Markdown({ text, onLocalLink }: { text: string; onLocalLink?: (h
     )
   return (
     <div className="gh-markdown text-foreground">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ ...components, a }} skipHtml>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, SCHEMA]]}
+        components={{ ...components, a, img }}>
         {text}
       </ReactMarkdown>
     </div>

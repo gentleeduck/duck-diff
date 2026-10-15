@@ -12,6 +12,7 @@ import {
   readInsights,
   readSide,
   readSideBytes,
+  readTreeBytes,
   readTreeFile,
   rebasePlan,
   runGit,
@@ -59,13 +60,17 @@ const CommitsQuery = z.object({
   path: RepoPathSchema.optional(),
 })
 
+// Images the diff and README previews show.
 const IMAGE_TYPES: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   gif: 'image/gif',
   webp: 'image/webp',
+  avif: 'image/avif',
   svg: 'image/svg+xml',
+  ico: 'image/x-icon',
+  bmp: 'image/bmp',
 }
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024
 
@@ -140,6 +145,22 @@ export async function handleApi(repo: string, url: URL, nvim = false): Promise<R
     case '/api/symbols': {
       const { name, ref } = SymbolQuerySchema.parse(Object.fromEntries(url.searchParams))
       return Response.json(await findSymbol(repo, name, ref ?? null))
+    }
+    case '/api/raw': {
+      const { ref, path } = TreeQuery.extend({ path: RepoPathSchema }).parse(Object.fromEntries(url.searchParams))
+      const type = IMAGE_TYPES[path.slice(path.lastIndexOf('.') + 1).toLowerCase()]
+      if (!type) throw new HttpError(415, 'bad-request', `${path} is not an image`)
+      const read = await readTreeBytes(repo, ref ?? null, path)
+      if (!read?.bytes) throw new HttpError(404, 'not-found', `no image ${path}`)
+      return new Response(new Uint8Array(read.bytes), {
+        headers: {
+          'content-type': type,
+          'cache-control': 'private, max-age=60',
+          'x-content-type-options': 'nosniff',
+          // An SVG opened on its own must not run script with this page's access.
+          'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        },
+      })
     }
     case '/api/file': {
       const { ref, path } = TreeQuery.extend({ path: RepoPathSchema }).parse(Object.fromEntries(url.searchParams))

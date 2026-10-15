@@ -30,6 +30,13 @@ const selectFiles = (state: SessionState) => state.files
 const selectSettings = (state: Settings) => state
 const MARKDOWN = /\.(md|markdown)$/i
 
+// A repository image as the page loads it, at the revision the file is shown at.
+function rawUrl(path: string, at: string | null): string {
+  const params = new URLSearchParams({ path })
+  if (at) params.set('ref', at)
+  return `/api/raw?${params}`
+}
+
 // A README's relative link, resolved against the file it sits in, as a repo path.
 function resolveLink(from: string, href: string): string {
   return decodeURIComponent(new URL(href, `http://repo/${from}`).pathname.slice(1))
@@ -249,7 +256,11 @@ export default function FileView() {
       {contents?.text && markdown && preview ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <article className="mx-auto max-w-4xl p-6">
-            <Markdown text={contents.text} onLocalLink={(href) => openFile(app, resolveLink(path, href))} />
+            <Markdown
+              text={contents.text}
+              onLocalLink={(href) => openFile(app, resolveLink(path, href))}
+              imageUrl={(src) => rawUrl(resolveLink(path, src), at)}
+            />
           </article>
         </div>
       ) : null}

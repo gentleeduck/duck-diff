@@ -297,6 +297,12 @@ body {
 .gh-markdown :is(th, td)[align="right"] {
   text-align: end;
 }
+.gh-markdown [align="center"] {
+  text-align: center;
+}
+.gh-markdown [align="right"] {
+  text-align: end;
+}
 .gh-markdown img {
   display: inline;
   max-width: 100%;
