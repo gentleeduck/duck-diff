@@ -41,7 +41,10 @@ export function useLiveRefresh(): LiveState {
           jobs.load().catch(() => {})
           return setState((prev) => ({ ...prev, repo: event.repo }))
         }
-        if (event.type === 'github') return topicChanged(event.topic)
+        if (event.type === 'github') {
+          api.invalidate(event.topic)
+          return topicChanged(event.topic)
+        }
         if (event.type === 'job' || event.type === 'job-output') return jobs.apply(event)
         if (event.type === 'navigate') {
           pushUrl(writeTarget(event.target, window.location.search))
