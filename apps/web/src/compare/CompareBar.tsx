@@ -83,7 +83,7 @@ export function CompareBar() {
           Conversation
         </Button>
       ) : null}
-      <p className="hidden shrink-0 text-muted-foreground tabular-nums @lg:block">
+      <p className="hidden shrink-0 text-muted-foreground tabular-nums @md:block">
         {files} {files === '1' ? 'file' : 'files'}
         <span className="ml-3 text-added">+{additions}</span>
         <span className="ml-1.5 text-removed">-{deletions}</span>

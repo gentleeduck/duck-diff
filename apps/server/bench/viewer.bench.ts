@@ -104,7 +104,7 @@ async function firstPaint(page: Page, url: string): Promise<number> {
 
 async function heapAfterLoad(page: Page, url: string): Promise<number> {
   await page.goto(url + UNSTAGED)
-  await page.getByRole('banner').getByText('25 files').waitFor({ timeout: 60_000 })
+  await page.getByRole('banner').getByText('25 files').waitFor({ state: 'attached', timeout: 60_000 })
   await page.waitForTimeout(2000)
   const cdp = await page.context().newCDPSession(page)
   await cdp.send('HeapProfiler.collectGarbage')
