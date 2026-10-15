@@ -2,6 +2,7 @@ import { isInputElement } from '@gentleduck/vim/matcher'
 import { useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { blameRef } from '../blame/ref'
 import { useGit } from '../git/GitProvider'
 import { useTarget } from '../hooks/useTarget'
 import { glide } from '../lib/glide'
@@ -57,7 +58,21 @@ const diffScroller = () => document.querySelector<HTMLElement>('[data-diff-view]
 // One capture listener drives the page from the keyboard the way the user's Neovim does.
 export function useKeys(handlers: KeyHandlers) {
   const app = useApp()
-  const { api, session, settings, viewer, reviews, viewed, view, panel, terminalTabs, keys, keyOverrides, tabs } = app
+  const {
+    api,
+    session,
+    settings,
+    viewer,
+    reviews,
+    viewed,
+    view,
+    panel,
+    terminalTabs,
+    keys,
+    keyOverrides,
+    tabs,
+    blameFiles,
+  } = app
   const writes = useWrites()
   const git = useGit()
   const { navigate } = useTarget()
@@ -176,6 +191,15 @@ export function useKeys(handlers: KeyHandlers) {
         const change = at.hunk ? firstChange(at.hunk) : null
         const line = change?.side === 'additions' ? change.line : (at.hunk?.additionStart ?? 1)
         api.open(at.path, line).catch((error: Error) => toast.error(error.message))
+      },
+      blame: () => {
+        const at = current()
+        if (!at || blameRef(at.target) === null) return
+        blameFiles.set((prev) => {
+          const next = new Set(prev)
+          if (!next.delete(at.path)) next.add(at.path)
+          return next
+        })
       },
       'yank-path': () => {
         const at = current()
@@ -331,7 +355,7 @@ export function useKeys(handlers: KeyHandlers) {
       rebuild()
       dispatcher.reset()
     }
-  }, [api, session, settings, viewer, reviews, viewed, view, panel, terminalTabs, keys, keyOverrides, tabs])
+  }, [api, session, settings, viewer, reviews, viewed, view, panel, terminalTabs, keys, keyOverrides, tabs, blameFiles])
 
   // Runs a command by id, for the keymaps list.
   return useCallback((id: string) => runner.current(id), [])

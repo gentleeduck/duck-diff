@@ -58,6 +58,8 @@ export interface AppContextValue {
   diffFile: Store<string | null>
   // The conflicted file open in the merge editor.
   mergeFile: Store<string | null>
+  // Files whose blame the diff shows, by path; emptied when the diff shows another comparison.
+  blameFiles: Store<ReadonlySet<string>>
   // The file at the top of the diff as it scrolls, which the changes tree highlights.
   diffTop: Store<string | null>
   // The diffs open side by side above the viewer; the first is always the working tree.
@@ -110,6 +112,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       diffFile: createStore<string | null>(null),
       mergeFile: createStore<string | null>(null),
       diffTop: createStore<string | null>(null),
+      blameFiles: createStore<ReadonlySet<string>>(new Set()),
       tabs: createTabs(readTarget(window.location.search)),
       pullReview: createPullReview(client),
       items: createItemIndex(client),

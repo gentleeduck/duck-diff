@@ -5,6 +5,7 @@ import { Check, Code2, Copy, Eye, FileDiff, History, SquareArrowOutUpRight, User
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { BlameCell } from '../blame/BlameCell'
 import { CodeHover } from '../code-nav/CodeHover'
 import { useSymbolClick } from '../code-nav/useSymbolClick'
 import { Code } from '../diff/Code'
@@ -19,7 +20,6 @@ import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
 import { Markdown } from '../markdown/Markdown'
 import { fileGlyph } from '../sidebar/icons'
-import { relativeTime } from '../sidebar/relative-time'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { formatBytes } from '../viewer/file-info'
@@ -40,32 +40,6 @@ function rawUrl(path: string, at: string | null): string {
 // A README's relative link, resolved against the file it sits in, as a repo path.
 function resolveLink(from: string, href: string): string {
   return decodeURIComponent(new URL(href, `http://repo/${from}`).pathname.slice(1))
-}
-
-// The first line of each run from one commit names it; the rest of the run stays quiet.
-function BlameCell({ blame, index }: { blame: BlameLine[] | null; index: number }) {
-  const { graphSelection } = useApp()
-  const { show } = useView()
-  const line = blame?.[index]
-  const first = line && blame?.[index - 1]?.sha !== line.sha
-  if (!line) return <span className="w-60 shrink-0 border-border border-e" />
-  return (
-    <button
-      type="button"
-      title={`${line.summary}\n${line.author}, ${new Date(line.time * 1000).toLocaleString()}`}
-      onClick={() => {
-        graphSelection.set(line.sha)
-        show('graph')
-      }}
-      className="flex w-60 shrink-0 cursor-pointer gap-2 border-border border-e px-2 text-start text-muted-foreground hover:bg-accent/60">
-      {first ? (
-        <>
-          <span className="min-w-0 flex-1 truncate">{line.author}</span>
-          <span className="shrink-0 text-tn-comment">{relativeTime(line.time)}</span>
-        </>
-      ) : null}
-    </button>
-  )
 }
 
 const selectAt = (at: string | null) => at

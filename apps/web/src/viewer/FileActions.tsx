@@ -1,5 +1,5 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
-import { Check, Copy, History, SquareArrowOutUpRight } from 'lucide-react'
+import { Check, Copy, History, SquareArrowOutUpRight, UserRound } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { IconTool } from '../app/IconTool'
 
@@ -14,6 +14,7 @@ export function FileActions({
   onViewed,
   onHistory,
   note,
+  blame,
 }: {
   path: string
   onOpen?: () => void
@@ -22,6 +23,8 @@ export function FileActions({
   onViewed(): void
   onHistory(): void
   note?: string | null
+  // Who changed each line; absent where the comparison has no version to blame (staged changes).
+  blame?: { on: boolean; toggle(): void }
 }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
@@ -38,6 +41,13 @@ export function FileActions({
           <SquareArrowOutUpRight />
         </IconTool>
       )}
+      {blame ? (
+        <span className={blame.on ? 'text-tn-blue' : ''}>
+          <IconTool label={blame.on ? 'Hide blame' : 'Blame: who changed each line'} onClick={blame.toggle}>
+            <UserRound />
+          </IconTool>
+        </span>
+      ) : null}
       <IconTool label="File history" onClick={onHistory}>
         <History />
       </IconTool>

@@ -1,6 +1,7 @@
-import { type ChangedFile, type DiffTarget, targetKey } from '@duck-diff/protocol'
+import { type BlameLine, type ChangedFile, type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { blameRef } from '../blame/ref'
 import { CodeHover } from '../code-nav/CodeHover'
 import { refForSide, type SymbolUnder } from '../code-nav/symbol-at'
 import { useSymbolClick } from '../code-nav/useSymbolClick'
@@ -120,6 +121,10 @@ function usePerTarget<T>(key: string, initial: () => T): [T, (update: (prev: T) 
 }
 
 const emptyToggles = () => new Map<string, boolean>() as ReadonlyMap<string, boolean>
+const emptyBlames = () =>
+  new Map<string, readonly BlameLine[] | null>() as ReadonlyMap<string, readonly BlameLine[] | null>
+const selectBlamed = (paths: ReadonlySet<string>) => paths
+
 const emptyContents = () => new Map<string, readonly string[]>() as ReadonlyMap<string, readonly string[]>
 const emptyExpanded = () => new Map<string, ReadonlySet<number>>() as ReadonlyMap<string, ReadonlySet<number>>
 
@@ -138,6 +143,7 @@ export default function Viewer() {
     fileAt,
     diffTop,
     keys,
+    blameFiles,
   } = useApp()
   const { show } = useView()
   const plain = useSession(selectItems)
@@ -194,6 +200,24 @@ export default function Viewer() {
   // Unchanged lines are read from the full file the first time someone opens a gap.
   const [expanded, setExpanded] = usePerTarget(shownKey, emptyExpanded)
   const [contents, setContents] = usePerTarget(shownKey, emptyContents)
+
+  // Blame, read once per file while it is on.
+  const blamed = useStore(blameFiles, selectBlamed)
+  const [blames, setBlames] = usePerTarget(shownKey, emptyBlames)
+  const ref = blameRef(target)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the comparison's key is the trigger
+  useEffect(() => blameFiles.set(new Set()), [shownKey])
+  useEffect(() => {
+    if (ref === null) return
+    for (const path of blamed) {
+      if (blames.has(path)) continue
+      setBlames((prev) => new Map(prev).set(path, null))
+      api.blame(path, ref).then(
+        (lines) => setBlames((prev) => new Map(prev).set(path, lines)),
+        () => setBlames((prev) => new Map(prev).set(path, [])),
+      )
+    }
+  }, [blamed, blames, setBlames, api, ref])
 
   const layout = settings.diffStyle === 'split' ? 'split' : 'unified'
   const page = useMemo(
@@ -402,6 +426,10 @@ export default function Viewer() {
   const context = useMemo<RowContextValue>(
     () => ({
       settings,
+      blame(item) {
+        const path = item.fileDiff.name
+        return blamed.has(path) ? (blames.get(path) ?? null) : undefined
+      },
       tokens(item, side, line) {
         const file = page.files.get(item.id)
         if (!file) return undefined
@@ -518,6 +546,8 @@ export default function Viewer() {
       sourcePath,
       pullReview,
       selecting,
+      blamed,
+      blames,
     ],
   )
 
@@ -578,6 +608,19 @@ export default function Viewer() {
                 if (nowViewed) reveal()
               }}
               onHistory={() => fileHistory.set(path)}
+              blame={
+                blameRef(target) === null
+                  ? undefined
+                  : {
+                      on: blamed.has(path),
+                      toggle: () =>
+                        blameFiles.set((prev) => {
+                          const next = new Set(prev)
+                          if (!next.delete(path)) next.add(path)
+                          return next
+                        }),
+                    }
+              }
               note={file ? fileNote(file) : null}
               onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
               writes={
@@ -610,6 +653,8 @@ export default function Viewer() {
       fileAt,
       show,
       revealFile,
+      blamed,
+      blameFiles,
     ],
   )
 

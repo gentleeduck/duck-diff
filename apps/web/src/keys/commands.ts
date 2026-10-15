@@ -43,6 +43,7 @@ export const COMMANDS: CommandSpec[] = [
   { id: 'comment', title: 'Comment on the change', group: 'Hunks', keys: ['c'], when: 'diff' },
   { id: 'viewed', title: 'Mark the file viewed', group: 'Hunks', keys: ['v'], when: 'diff' },
   { id: 'open', title: 'Open the change in Neovim', group: 'Hunks', keys: ['o'], when: 'diff' },
+  { id: 'blame', title: 'Blame the file', group: 'Hunks', keys: ['<leader>hb'], when: 'diff' },
   { id: 'yank-path', title: 'Copy the file path', group: 'Hunks', keys: ['<leader>y'], when: 'diff' },
   { id: 'toggle-layout', title: 'Split or stacked', group: 'Hunks', keys: ['t'], when: 'diff' },
   { id: 'focus-filter', title: 'Filter files', group: 'Hunks', keys: ['/'], when: 'diff' },
