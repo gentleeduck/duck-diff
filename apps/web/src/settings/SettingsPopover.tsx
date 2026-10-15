@@ -22,6 +22,12 @@ const selectAll = (state: Settings) => state
 
 type Options<K extends keyof Settings> = { value: Settings[K]; label: string }[]
 
+const TESTS: Options<'tests'> = [
+  { value: 'show', label: 'Show' },
+  { value: 'fold', label: 'Fold' },
+  { value: 'hide', label: 'Hide' },
+]
+
 const INDICATORS: Options<'diffIndicators'> = [
   { value: 'bars', label: 'Bars' },
   { value: 'classic', label: '+ and -' },
@@ -55,7 +61,7 @@ export function SettingsPopover() {
   const settings = useSettings(selectAll)
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => store.set((prev) => ({ ...prev, [key]: value }))
 
-  const choice = <K extends 'diffIndicators' | 'lineDiffType' | 'hunkSeparators'>(
+  const choice = <K extends 'diffIndicators' | 'lineDiffType' | 'hunkSeparators' | 'tests'>(
     key: K,
     options: Options<K>,
     label: string,
@@ -92,7 +98,7 @@ export function SettingsPopover() {
     )
   }
 
-  const stepper = (key: 'fontSize' | 'tabSize', label: string, min: number, max: number) => (
+  const stepper = (key: 'fontSize' | 'uiFontSize' | 'tabSize', label: string, min: number, max: number) => (
     <Row label={label}>
       <div className="flex items-center gap-1">
         <Button
@@ -156,11 +162,13 @@ export function SettingsPopover() {
         {choice('lineDiffType', INLINE, 'Inline changes')}
         {choice('diffIndicators', INDICATORS, 'Change markers')}
         {choice('hunkSeparators', SEPARATORS, 'Hunk separators')}
+        {choice('tests', TESTS, 'Test files')}
         {toggle('overflow', 'Wrap long lines')}
         {toggle('lineNumbers', 'Line numbers')}
         {toggle('backgrounds', 'Line backgrounds')}
         {toggle('expandUnchanged', 'Show unchanged lines')}
-        {stepper('fontSize', 'Font size', 10, 24)}
+        {stepper('fontSize', 'Code size', 10, 24)}
+        {stepper('uiFontSize', 'Interface size', 10, 24)}
         {stepper('tabSize', 'Tab width', 1, 8)}
         <div className="mt-2 flex justify-end border-border border-t pt-2">
           <Button variant="outline" size="sm" onClick={() => store.set(DEFAULT_SETTINGS)}>

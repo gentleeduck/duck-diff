@@ -1,13 +1,23 @@
 import type { ChangedFile } from '@duck-diff/protocol'
 import { Button, ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { type ComponentProps, type ReactElement, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { useRowHeight } from '../app/useSizes'
 import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_GLYPH } from './icons'
 import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
 export type { Row as TreeRow }
 
-const ROW_HEIGHT = 28
+const ROW = 28
 
 // Extra props come from a context-menu trigger wrapping the row.
 function TreeItem({
@@ -71,7 +81,7 @@ function WithMenu({ items, children }: { items: ReactNode; children: ReactElemen
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="w-60">{items}</ContextMenuContent>
+      <ContextMenuContent>{items}</ContextMenuContent>
     </ContextMenu>
   )
 }
@@ -87,10 +97,33 @@ interface FileTreeProps {
   collapsed?: boolean
   // Right-click menu items for a row, or nothing for no menu.
   menuFor?(row: Row): ReactNode
+  // Folders flipped from their starting state, when the caller keeps them (to fold the diff along).
+  toggled?: ReadonlySet<string>
+  onToggled?(next: ReadonlySet<string>): void
 }
 
-export function FileTree({ label, paths, fileFor, selected, onOpenFile, collapsed = false, menuFor }: FileTreeProps) {
-  const [toggled, setToggled] = useState<ReadonlySet<string>>(new Set())
+export function FileTree({
+  label,
+  paths,
+  fileFor,
+  selected,
+  onOpenFile,
+  collapsed = false,
+  menuFor,
+  toggled: controlled,
+  onToggled,
+}: FileTreeProps) {
+  const [own, setOwn] = useState<ReadonlySet<string>>(new Set())
+  const toggled = controlled ?? own
+  const setToggled = useCallback(
+    (update: (prev: ReadonlySet<string>) => ReadonlySet<string>) => {
+      const next = update(toggled)
+      if (next === toggled) return
+      if (onToggled) onToggled(next)
+      else setOwn(next)
+    },
+    [toggled, onToggled],
+  )
   const tree = useMemo(() => buildTree(paths), [paths])
   const rows = useMemo(() => visibleRows(tree, toggled, !collapsed), [tree, toggled, collapsed])
 
@@ -100,14 +133,18 @@ export function FileTree({ label, paths, fileFor, selected, onOpenFile, collapse
     const parts = selected.split('/').slice(0, -1)
     const folders = parts.map((_, i) => parts.slice(0, i + 1).join('/'))
     setToggled((prev) => (folders.every((folder) => prev.has(folder)) ? prev : new Set([...prev, ...folders])))
-  }, [collapsed, selected])
+  }, [collapsed, selected, setToggled])
   const scroller = useRef<HTMLDivElement>(null)
+  const ROW_HEIGHT = useRowHeight(ROW)
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 20,
   })
+  // A new interface size changes every row's height at once.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the height is the trigger
+  useEffect(() => virtualizer.measure(), [virtualizer, ROW_HEIGHT])
 
   const open = (row: Row) => {
     if (row.kind === 'file') return onOpenFile(row.path)

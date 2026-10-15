@@ -18,6 +18,7 @@
     "@pierre/diffs": "catalog:",
     "@tanstack/react-virtual": "catalog:",
     "diff": "catalog:",
+    "dompurify": "3.4.17",
     "lucide-react": "^1.57.0",
     "react": "catalog:",
     "react-dom": "catalog:",

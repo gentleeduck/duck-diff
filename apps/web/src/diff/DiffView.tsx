@@ -1,8 +1,9 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { forwardRef, type ReactNode, useCallback, useImperativeHandle, useMemo, useRef } from 'react'
+import { forwardRef, type ReactNode, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import type { Note, NoteItem } from '../review/annotations'
 import type { Page, PageRow } from './page'
 import { LineRow, RowContext, type RowContextValue } from './RowViews'
+import { useCodeScrollX } from './useCodeScrollX'
 
 export type ScrollTarget =
   | { type: 'item'; id: string; align?: 'start' | 'center' }
@@ -20,6 +21,9 @@ interface DiffViewProps {
 }
 
 const ESTIMATE: Record<PageRow['type'], number> = { header: 48, row: 22, note: 120, end: 16 }
+
+const PREFETCH_ROWS = 600
+const PREFETCH_FILES = 4
 
 const fixedHeight = (row: PageRow, wrap: boolean) =>
   !wrap && row.type === 'row' && (row.row.type === 'line' || row.row.type === 'pair')
@@ -41,6 +45,25 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
     },
     [page, lineHeight],
   )
+  // The longest line on the page, in columns, sets how far the code can scroll sideways.
+  const widest = useMemo(() => {
+    const tab = context.settings.tabSize
+    const columns = (text: string | undefined) => {
+      if (!text) return 0
+      let tabs = 0
+      for (let i = text.indexOf('\t'); i !== -1; i = text.indexOf('\t', i + 1)) tabs++
+      return text.length + tabs * (tab - 1)
+    }
+    let max = 0
+    for (const row of page.rows) {
+      if (row.type !== 'row') continue
+      const diff = row.row
+      if (diff.type === 'line') max = Math.max(max, columns(diff.line.text))
+      else if (diff.type === 'pair') max = Math.max(max, columns(diff.left?.text), columns(diff.right?.text))
+    }
+    return max
+  }, [page, context.settings.tabSize])
+  const sideways = useCodeScrollX(scroller, widest, !wrap)
   const getItemKey = useCallback((index: number) => page.rows[index]?.key ?? index, [page])
   const virtualizer = useVirtualizer({
     count: page.rows.length,
@@ -65,11 +88,33 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
   )
 
   const items = virtualizer.getVirtualItems()
-  // The file whose rows fill the top of the view keeps its header pinned above them.
+  // The next few files below the viewport get their colors started, so fast scrolling lands on them ready.
+  const lastIndex = items.at(-1)?.index ?? 0
+  useEffect(() => {
+    let seen = 0
+    let previous: string | null = null
+    for (let i = lastIndex; i < page.rows.length && i < lastIndex + PREFETCH_ROWS && seen < PREFETCH_FILES; i++) {
+      const item = page.rows[i]?.item
+      if (!item || item.id === previous) continue
+      previous = item.id
+      seen++
+      context.prefetch(item)
+    }
+  }, [lastIndex, page, context])
+  // The file at the top keeps its header pinned. It takes over as soon as the file's own header starts to
+  // scroll away (not once it is gone), so there is never a frame without one; the gap after a file
+  // already belongs to the next.
   const scrollTop = virtualizer.scrollOffset ?? 0
   const first = items.find((virtual) => virtual.end > scrollTop)
   const firstRow = first ? page.rows[first.index] : undefined
-  const pinned = firstRow && firstRow.type !== 'header' && firstRow.type !== 'end' ? firstRow.item : null
+  const pinned =
+    !first || !firstRow
+      ? null
+      : firstRow.type === 'end'
+        ? (page.rows[first.index + 1]?.item ?? null)
+        : firstRow.type === 'header' && first.start >= scrollTop
+          ? null
+          : firstRow.item
 
   const content = useMemo(
     () => (row: PageRow) => {
@@ -93,9 +138,10 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
           lineHeight: `${lineHeight}px`,
           tabSize: context.settings.tabSize,
         }}>
+        {sideways.probe}
         {pinned ? (
           <div className="sticky top-0 z-20 h-0">
-            <div>{renderHeader(pinned)}</div>
+            <div className="bg-card shadow-[0_1px_0_var(--border)]">{renderHeader(pinned)}</div>
           </div>
         ) : null}
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
@@ -117,6 +163,7 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
             )
           })}
         </div>
+        {sideways.scrollbar}
       </div>
     </RowContext.Provider>
   )

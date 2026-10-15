@@ -1,10 +1,13 @@
-import { memo, useId } from 'react'
+import { memo } from 'react'
 import type { GraphRow, Segment } from './layout'
 
-export const LANE_WIDTH = 20
-const DOT = 4.5
-// A commit dot shows its author: their avatar, or initials when GitHub does not know them.
-const FACE = 8
+export const LANE_WIDTH = 16
+// A filled dot for a commit, a ring around a dot for a merge, a wider hollow ring for HEAD.
+const DOT = 5
+const RING = 5
+const HEAD = 6.5
+// One weight for lanes and rings, so the graph reads as one stroke like the UI's bold type.
+const LINE = 3
 
 // Lane colors from the terminal's palette, in the order new branches pick them.
 const COLORS = [
@@ -35,19 +38,16 @@ export const GraphLines = memo(function GraphLines({
   lanes,
   height,
   merge,
-  avatar,
-  initials,
+  head,
 }: {
   row: GraphRow
   lanes: number
   height: number
   merge: boolean
-  avatar: string | null
-  initials: string
+  head: boolean
 }) {
   const width = lanes * LANE_WIDTH
   const dot = laneColor(row.color)
-  const clip = useId()
   const cx = x(row.lane)
   const cy = height / 2
   return (
@@ -64,43 +64,19 @@ export const GraphLines = memo(function GraphLines({
           d={path(segment, height)}
           fill="none"
           stroke={laneColor(segment.color)}
-          strokeWidth={2}
+          strokeWidth={LINE}
           strokeLinecap="round"
         />
       ))}
-      {merge ? (
-        <circle cx={cx} cy={cy} r={DOT} fill="var(--background)" stroke={dot} strokeWidth={2} />
-      ) : (
+      {head ? (
+        <circle cx={cx} cy={cy} r={HEAD} fill="var(--background)" stroke={dot} strokeWidth={LINE} />
+      ) : merge ? (
         <>
-          <circle cx={cx} cy={cy} r={FACE + 1.5} fill={dot} />
-          {avatar ? (
-            <>
-              <clipPath id={clip}>
-                <circle cx={cx} cy={cy} r={FACE} />
-              </clipPath>
-              <image
-                href={avatar}
-                x={cx - FACE}
-                y={cy - FACE}
-                width={FACE * 2}
-                height={FACE * 2}
-                clipPath={`url(#${clip})`}
-                preserveAspectRatio="xMidYMid slice"
-              />
-            </>
-          ) : (
-            <text
-              x={cx}
-              y={cy}
-              dy="0.35em"
-              textAnchor="middle"
-              fontSize={8}
-              fontStyle="normal"
-              fill="var(--background)">
-              {initials}
-            </text>
-          )}
+          <circle cx={cx} cy={cy} r={RING} fill="var(--background)" stroke={dot} strokeWidth={LINE * 0.8} />
+          <circle cx={cx} cy={cy} r={2} fill={dot} />
         </>
+      ) : (
+        <circle cx={cx} cy={cy} r={DOT} fill={dot} />
       )}
     </svg>
   )

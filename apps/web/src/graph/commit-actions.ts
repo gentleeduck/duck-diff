@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import { ask } from '../app/Ask'
 import { useGit } from '../git/GitProvider'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
@@ -23,6 +24,30 @@ export function useCommitActions() {
     revert: (sha: string) => run('revert', { ref: sha }, `Reverted ${short(sha)}`),
     createBranch: (name: string, sha: string) =>
       run('switch', { branch: name, create: true, start: sha }, `Created ${name} at ${short(sha)}`),
+    async reset(sha: string, mode: 'soft' | 'mixed' | 'hard') {
+      if (mode === 'hard') {
+        const yes = await ask.confirm({
+          title: `Hard reset to ${short(sha)}`,
+          body: 'Moves the branch here and throws away every uncommitted change. This cannot be undone.',
+          action: 'Reset and discard',
+          destructive: true,
+        })
+        if (!yes) return false
+      }
+      return run('reset', { sha, mode }, `Reset to ${short(sha)} (${mode})`)
+    },
+    async tag(sha: string) {
+      const values = await ask.prompt({
+        title: `Tag ${short(sha)}`,
+        fields: [
+          { name: 'name', label: 'Tag name', placeholder: 'v1.2.0' },
+          { name: 'message', label: 'Message (makes an annotated tag)', multiline: true, optional: true },
+        ],
+        action: 'Create tag',
+      })
+      if (!values) return false
+      return run('tag-create', { name: values.name, sha, message: values.message ?? '' }, `Tagged ${values.name}`)
+    },
     async copy(text: string, what: string) {
       await navigator.clipboard.writeText(text)
       toast(`Copied the ${what}`)

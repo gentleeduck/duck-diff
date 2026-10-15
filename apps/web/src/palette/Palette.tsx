@@ -27,6 +27,10 @@ const TOGGLES: Toggle[] = [
   { label: 'Toggle line numbers', apply: (prev) => ({ ...prev, lineNumbers: !prev.lineNumbers }) },
   { label: 'Toggle line backgrounds', apply: (prev) => ({ ...prev, backgrounds: !prev.backgrounds }) },
   { label: 'Toggle unchanged lines', apply: (prev) => ({ ...prev, expandUnchanged: !prev.expandUnchanged }) },
+  { label: 'Toggle the left panel', apply: (prev) => ({ ...prev, sidebar: !prev.sidebar }) },
+  { label: 'Show test files', apply: (prev) => ({ ...prev, tests: 'show' }) },
+  { label: 'Fold test files', apply: (prev) => ({ ...prev, tests: 'fold' }) },
+  { label: 'Hide test files', apply: (prev) => ({ ...prev, tests: 'hide' }) },
   { label: 'Light theme', apply: (prev) => ({ ...prev, themeType: 'light' }) },
   { label: 'Dark theme', apply: (prev) => ({ ...prev, themeType: 'dark' }) },
   { label: 'System theme', apply: (prev) => ({ ...prev, themeType: 'system' }) },
@@ -38,6 +42,9 @@ const VIEWS: { view: View; label: string }[] = [
   { view: 'files', label: 'Files' },
   { view: 'prs', label: 'Pull requests' },
   { view: 'issues', label: 'Issues' },
+  { view: 'inbox', label: 'Notifications' },
+  { view: 'releases', label: 'Releases' },
+  { view: 'actions', label: 'Actions' },
 ]
 
 export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) {

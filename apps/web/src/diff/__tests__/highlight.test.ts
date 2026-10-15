@@ -37,6 +37,30 @@ describe('createHighlighter', () => {
     expect(highlighter.tokens('k', 'a.ts', rows)?.new.get(2)).toEqual([['c', '#fff', 0]])
   })
 
+  it('runs what is on screen before prefetched files, and promotes a prefetched file that scrolls in', async () => {
+    const seen: HighlightRequest[] = []
+    // A worker that holds every answer until released, so the queue order is visible.
+    const held: (() => void)[] = []
+    const worker = {
+      onmessage: null as ((event: MessageEvent) => void) | null,
+      postMessage(request: HighlightRequest) {
+        seen.push(request)
+        held.push(() => worker.onmessage?.({ data: { id: request.id, runs: [] } } as MessageEvent))
+      },
+    }
+    const highlighter = createHighlighter(() => worker as unknown as Worker, 1)
+    const rows = buildRows(diff, 'unified')
+    highlighter.tokens('visible', 'a.ts', rows)
+    highlighter.prefetch('soon', 'b.py', rows)
+    highlighter.prefetch('later', 'c.rs', rows)
+    highlighter.tokens('later', 'c.rs', rows)
+    expect(seen.map((request) => request.lang)).toEqual(['typescript'])
+    held.shift()?.()
+    expect(seen.map((request) => request.lang)).toEqual(['typescript', 'rust'])
+    held.shift()?.()
+    expect(seen.map((request) => request.lang)).toEqual(['typescript', 'rust', 'python'])
+  })
+
   it('stays plain where workers are not available', () => {
     const highlighter = createHighlighter(null)
     expect(highlighter.tokens('k', 'a.ts', buildRows(diff, 'unified'))).toBeNull()

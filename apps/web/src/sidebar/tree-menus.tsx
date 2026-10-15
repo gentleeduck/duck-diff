@@ -99,3 +99,31 @@ export function FileMenu({
     </>
   )
 }
+
+// A folder in the changes tree acts on every changed file under it at once.
+export function FolderMenu({
+  path,
+  writes,
+  onWrite,
+}: {
+  path: string
+  writes: WriteKind[]
+  onWrite(kind: WriteKind): void
+}) {
+  return (
+    <>
+      <ContextMenuLabel>{path}</ContextMenuLabel>
+      {writes.map((kind) => {
+        const item = WRITE_ITEMS[kind]
+        return (
+          <ContextMenuItem key={kind} destructive={item.destructive} onSelect={() => onWrite(kind)}>
+            <item.icon />
+            {item.label.replace('file', 'folder').replace('changes', 'folder changes')}
+          </ContextMenuItem>
+        )
+      })}
+      {writes.length ? <ContextMenuSeparator /> : null}
+      <CopyItems path={path} />
+    </>
+  )
+}

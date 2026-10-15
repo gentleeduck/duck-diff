@@ -62,3 +62,10 @@ export function visibleRows(root: Dir, toggled: ReadonlySet<string>, open = true
   walk(root, [])
   return rows
 }
+
+// Paths in the order the tree shows its files, so the diff reads top to bottom like the tree.
+export function treeOrder(paths: readonly string[]): Map<string, number> {
+  const order = new Map<string, number>()
+  for (const row of visibleRows(buildTree(paths), new Set())) if (row.kind === 'file') order.set(row.path, order.size)
+  return order
+}

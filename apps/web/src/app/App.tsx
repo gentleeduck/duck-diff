@@ -6,12 +6,14 @@ import { FilesSidebar } from '../files/FilesSidebar'
 import { BranchMenu } from '../git/BranchMenu'
 import { GitProvider } from '../git/GitProvider'
 import { SyncButtons } from '../git/SyncButtons'
-import { IssuesSidebar } from '../github/IssuesSidebar'
-import { PullsSidebar } from '../github/PullsSidebar'
+import { useUnread } from '../github/Inbox'
+import { ActionsPage, InboxPage, IssuesPage, PullsPage, ReleasesPage } from '../github/Pages'
 import { useGitHub } from '../github/SignIn'
 import { FindCommit } from '../graph/FindCommit'
 import { GraphSidebar } from '../graph/GraphSidebar'
 import type { GraphState } from '../graph/store'
+import { useItemUrl } from '../hooks/useItemUrl'
+import { useSettings } from '../hooks/useSettings'
 import { useView } from '../hooks/useView'
 import { HelpDialog } from '../keyboard/HelpDialog'
 import { useKeyboard } from '../keyboard/useKeyboard'
@@ -21,24 +23,27 @@ import type { View } from '../lib/view-url'
 import { useLiveRefresh } from '../live/useLiveRefresh'
 import { Palette } from '../palette/Palette'
 import { CommentsSheet } from '../review/CommentsSheet'
+import { FontSizeMenu } from '../settings/FontSizeMenu'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
+import type { Settings } from '../state/settings'
 import { WritesProvider } from '../writes/WritesProvider'
 import { ActivityRail } from './ActivityRail'
 import { AppProvider, useApp } from './AppProvider'
+import { AskDialog } from './Ask'
 import { Shell } from './Shell'
 import { StatusBar } from './StatusBar'
+import { useSizes } from './useSizes'
 import { useThemeClass } from './useThemeClass'
 
 const Viewer = lazy(() => import('../viewer/Viewer'))
 const GraphView = lazy(() => import('../graph/GraphView'))
 const FileView = lazy(() => import('../files/FileView'))
-const PullView = lazy(() => import('../github/PullView'))
-const IssueView = lazy(() => import('../github/IssueView'))
 
-const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues']
+const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues', 'inbox', 'releases', 'actions']
 
 const selectCommitCount = (state: GraphState) => state.entries.length
+const selectPanel = (state: Settings) => state.sidebar
 
 function GraphTitle() {
   const { graph } = useApp()
@@ -66,11 +71,13 @@ function GitHubTitle({ title }: { title: string }) {
 
 function Screen() {
   useThemeClass()
+  useSizes()
   const [palette, setPalette] = useState(false)
   const [help, setHelp] = useState(false)
   const { view, show } = useView()
   useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true), show })
   const live = useLiveRefresh()
+  useItemUrl()
   // Bumped when a page changes an item, so its list reloads.
   const [pullsVersion, setPullsVersion] = useState(0)
   const [issuesVersion, setIssuesVersion] = useState(0)
@@ -88,7 +95,7 @@ function Screen() {
       <Kbd className="ms-auto">Ctrl K</Kbd>
     </Button>
   )
-  const screens: Record<View, { top: ReactNode; side: ReactNode; label: string; main: ReactNode }> = {
+  const screens: Record<View, { top: ReactNode; side: ReactNode | null; label: string; main: ReactNode }> = {
     changes: {
       top: (
         <>
@@ -97,6 +104,7 @@ function Screen() {
           {search}
           <CommentsSheet />
           <SyncButtons />
+          <FontSizeMenu />
           <SettingsPopover />
         </>
       ),
@@ -111,6 +119,7 @@ function Screen() {
           <GraphTitle />
           <FindCommit />
           <SyncButtons />
+          <FontSizeMenu />
         </>
       ),
       side: <GraphSidebar />,
@@ -124,6 +133,7 @@ function Screen() {
           <h1 className="min-w-0 flex-1">Files</h1>
           {search}
           <SyncButtons />
+          <FontSizeMenu />
           <SettingsPopover />
         </>
       ),
@@ -137,11 +147,12 @@ function Screen() {
           <GitHubTitle title="Pull requests" />
           {search}
           <SyncButtons />
+          <FontSizeMenu />
         </>
       ),
-      side: <PullsSidebar version={pullsVersion} onChanged={pullsChanged} />,
+      side: null,
       label: 'Pull requests',
-      main: <PullView onChanged={pullsChanged} />,
+      main: <PullsPage version={pullsVersion} onChanged={pullsChanged} />,
     },
     issues: {
       top: (
@@ -149,21 +160,64 @@ function Screen() {
           <GitHubTitle title="Issues" />
           {search}
           <SyncButtons />
+          <FontSizeMenu />
         </>
       ),
-      side: <IssuesSidebar version={issuesVersion} onChanged={issuesChanged} />,
+      side: null,
       label: 'Issues',
-      main: <IssueView onChanged={issuesChanged} />,
+      main: <IssuesPage version={issuesVersion} onChanged={issuesChanged} />,
+    },
+    inbox: {
+      top: (
+        <>
+          <GitHubTitle title="Notifications" />
+          {search}
+          <FontSizeMenu />
+        </>
+      ),
+      side: null,
+      label: 'Notifications',
+      main: <InboxPage />,
+    },
+    releases: {
+      top: (
+        <>
+          <GitHubTitle title="Releases" />
+          {search}
+          <FontSizeMenu />
+        </>
+      ),
+      side: null,
+      label: 'Releases',
+      main: <ReleasesPage />,
+    },
+    actions: {
+      top: (
+        <>
+          <GitHubTitle title="Actions" />
+          {search}
+          <FontSizeMenu />
+        </>
+      ),
+      side: null,
+      label: 'Actions',
+      main: <ActionsPage />,
     },
   }
   const screen = screens[view]
+  const panel = useSettings(selectPanel)
+  const unread = useUnread()
+  const { settings } = useApp()
+  const togglePanel = () => settings.set((prev) => ({ ...prev, sidebar: !prev.sidebar }))
   return (
     <>
       <Shell
-        rail={<ActivityRail views={SHIPPED} />}
+        rail={<ActivityRail views={SHIPPED} badges={{ inbox: unread }} />}
         topBar={screen.top}
         sidebar={screen.side}
         sidebarLabel={screen.label}
+        panelShown={panel}
+        onTogglePanel={togglePanel}
         viewer={<Suspense fallback={null}>{screen.main}</Suspense>}
         status={<StatusBar live={live} />}
       />
@@ -180,6 +234,7 @@ export function App({ api }: { api?: Api }) {
         <WritesProvider>
           <GitProvider>
             <Screen />
+            <AskDialog />
             <Toaster position="bottom-right" />
           </GitProvider>
         </WritesProvider>

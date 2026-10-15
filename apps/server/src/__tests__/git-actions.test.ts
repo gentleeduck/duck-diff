@@ -75,3 +75,33 @@ describe('/api/git', () => {
     expect((await response.json()).error.message).toContain('nothing is staged')
   })
 })
+
+describe('everyday git actions', () => {
+  it('signs off, undoes a commit, tags, renames, lists remotes, reads blame and the last message', async () => {
+    await setup()
+    const { repo } = fixture
+    repo.write('b.txt', 'b\n')
+    repo.git('add', 'b.txt')
+    expect((await send('/api/git/commit', { message: 'add b', amend: false, signoff: true })).status).toBe(200)
+    const last = await (await fixture.get('/api/last-message')).json()
+    expect(last.message).toContain('Signed-off-by:')
+    expect((await send('/api/git/undo-commit')).status).toBe(200)
+    expect(repo.git('diff', '--cached', '--name-only').trim()).toBe('b.txt')
+
+    expect((await send('/api/git/tag-create', { name: 'v1', sha: 'HEAD', message: 'first' })).status).toBe(200)
+    expect(repo.git('tag').trim()).toBe('v1')
+    expect((await send('/api/git/branch-rename', { from: 'main', to: 'trunk' })).status).toBe(200)
+    expect(repo.git('branch', '--show-current').trim()).toBe('trunk')
+
+    expect(await (await fixture.get('/api/remotes')).json()).toEqual([{ name: 'origin', url: remote }])
+    const blame = await (await fixture.get('/api/blame?path=a.txt')).json()
+    expect(blame).toMatchObject([{ summary: 'base', author: 'Duck Test' }])
+  })
+
+  it('refuses option-looking names and urls', async () => {
+    await setup()
+    expect((await send('/api/git/remote-add', { name: 'x', url: '--upload-pack=evil' })).status).toBe(400)
+    expect((await send('/api/git/tag-create', { name: '-d', sha: 'HEAD', message: '' })).status).toBe(400)
+    expect((await send('/api/git/reset', { sha: 'HEAD', mode: 'nuke' })).status).toBe(400)
+  })
+})

@@ -1,5 +1,5 @@
 import { type DiffTarget, targetKey } from '@duck-diff/protocol'
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { DiffView } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
@@ -11,6 +11,7 @@ import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
 import { useStore } from '../lib/store'
+import { isTestFile } from '../lib/tests'
 import { lineHash } from '../review/anchor'
 import { createAnnotator, type Note, type NoteItem } from '../review/annotations'
 import { ReviewNote } from '../review/ReviewNote'
@@ -23,11 +24,33 @@ import { actionsFor, type WriteKind } from './actions'
 import { FileActions } from './FileActions'
 import { FileHeader } from './FileHeader'
 import { fileNote } from './file-info'
+import { visibleItems } from './visible-items'
 import { WriteButtons } from './WriteButtons'
 
 const selectItems = (state: SessionState) => state.items
 const selectFiles = (state: SessionState) => state.files
 const selectStatus = (state: SessionState) => state.status
+const selectFolders = (folders: ReadonlySet<string>) => folders
+// Above this a file keeps hunk-only colors; tokenizing it whole would cost more than it shows.
+const FULL_LINES = 3000
+
+// One side's text for lines from..to, read off the rows the diff already built.
+function sideLines(rows: readonly DiffRow[], side: 'additions' | 'deletions', from: number, to: number): string[] {
+  const found = new Map<number, string>()
+  const take = (line: DiffLine | null | undefined) => {
+    const number = line ? (side === 'additions' ? line.newNo : line.oldNo) : null
+    if (line && number !== null && number >= from && number <= to) found.set(number, line.text)
+  }
+  for (const row of rows) {
+    if (row.type === 'line') take(row.line)
+    else if (row.type === 'pair') {
+      take(row.left)
+      take(row.right)
+    }
+  }
+  return [...found.keys()].sort((a, b) => a - b).map((number) => found.get(number) ?? '')
+}
+const sourceKey = (item: NoteItem) => item.fileDiff.cacheKey ?? item.id
 
 const EMPTY: Record<DiffTarget['kind'], string> = {
   local: 'Nothing to commit. The working tree matches the last commit.',
@@ -39,6 +62,8 @@ const EMPTY: Record<DiffTarget['kind'], string> = {
 const selectSettings = (state: Settings) => state
 const selectReviews = (state: ReviewsState) => state
 const selectRemote = (state: PullReviewState) => state.comments
+const selectPending = (state: PullReviewState) => state.pending
+const selectGitHubViewed = (state: PullReviewState) => state.viewed
 const selectViewed = (state: ViewedState) => state
 
 // State that belongs to one comparison and starts over when the comparison changes.
@@ -57,7 +82,7 @@ const emptyContents = () => new Map<string, readonly string[]>() as ReadonlyMap<
 const emptyExpanded = () => new Map<string, ReadonlySet<number>>() as ReadonlyMap<string, ReadonlySet<number>>
 
 export default function Viewer() {
-  const { api, viewer, reviews, viewed, fileHistory, pullReview } = useApp()
+  const { api, viewer, reviews, viewed, fileHistory, pullReview, changesFolders } = useApp()
   const plain = useSession(selectItems)
   const files = useSession(selectFiles)
   const status = useSession(selectStatus)
@@ -65,29 +90,43 @@ export default function Viewer() {
   const shownKey = targetKey(target)
   const { comments, draft } = useStore(reviews, selectReviews)
   const remote = useStore(pullReview, selectRemote)
+  const pending = useStore(pullReview, selectPending)
   const pull = pullOf(target)
   useEffect(() => {
     pullReview.load(pull).catch(() => {})
   }, [pullReview, pull])
+
+  // Files already viewed on GitHub start viewed here.
+  const githubViewed = useStore(pullReview, selectGitHubViewed)
+  useEffect(() => {
+    if (pull === null || githubViewed.size === 0) return
+    const local = viewedPaths(viewed.get(), target, files)
+    for (const file of files) if (githubViewed.has(file.path) && !local.has(file.path)) viewed.toggle(target, file)
+  }, [pull, githubViewed, files, target, viewed])
   const viewedState = useStore(viewed, selectViewed)
   const settings = useSettings(selectSettings)
   const writes = useWrites()
   const kinds = useMemo(() => actionsFor(target), [target])
   const byPath = useMemo(() => new Map(files.map((file) => [file.path, file])), [files])
-  useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
 
   // Paths the header chevron folded (true) or opened (false), on top of the viewed marks.
   const [toggled, setToggled] = usePerTarget(shownKey, emptyToggles)
+  const foldedFolders = useStore(changesFolders, selectFolders)
   const folded = useMemo(() => {
     const paths = viewedPaths(viewedState, target, files)
     for (const [path, fold] of toggled) if (fold) paths.add(path)
+    if (settings.tests === 'fold') for (const file of files) if (isTestFile(file.path)) paths.add(file.path)
+    // A folder folded in the tree folds its files here too.
+    for (const folder of foldedFolders)
+      for (const file of files) if (file.path.startsWith(`${folder}/`)) paths.add(file.path)
     return paths
-  }, [viewedState, target, files, toggled])
+  }, [viewedState, target, files, toggled, settings.tests, foldedFolders])
+  const shown = useMemo(() => visibleItems(plain, settings.tests), [plain, settings.tests])
   const opened = useMemo(() => new Set([...toggled].filter(([, fold]) => !fold).map(([path]) => path)), [toggled])
   const annotate = useMemo(createAnnotator, [])
   const items = useMemo(
-    () => annotate(plain, comments, draft, folded, files, opened, remote),
-    [annotate, plain, comments, draft, folded, files, opened, remote],
+    () => annotate(shown, comments, draft, folded, files, opened, remote, pending),
+    [annotate, shown, comments, draft, folded, files, opened, remote, pending],
   )
 
   // Unchanged lines are read from the full file the first time someone opens a gap.
@@ -109,24 +148,107 @@ export default function Viewer() {
     [items, layout, contents, expanded, settings.expandUnchanged],
   )
 
+  // Whole old and new files per diff item, read for files on or near the screen. Huge ones keep hunk-only colors.
+  const sources = useRef(new Map<string, { old: string | null; new: string | null } | 'pending'>())
+  const sourcePath = useCallback(
+    (item: NoteItem, side: 'old' | 'new') =>
+      side === 'old' ? (byPath.get(item.fileDiff.name)?.oldPath ?? item.fileDiff.name) : item.fileDiff.name,
+    [byPath],
+  )
+  // Sources belong to one comparison; a new one starts empty.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the comparison's key is the trigger
+  useEffect(() => sources.current.clear(), [shownKey])
+  const loadSource = useCallback(
+    (item: NoteItem, now: boolean) => {
+      const key = sourceKey(item)
+      if (sources.current.has(key)) return
+      const file = byPath.get(item.fileDiff.name)
+      if (!file || file.binary) return
+      sources.current.set(key, 'pending')
+      const ref = { path: file.path, oldPath: file.oldPath }
+      const read = (side: 'old' | 'new') =>
+        (side === 'old' && (file.status === 'added' || file.status === 'untracked')) ||
+        (side === 'new' && file.status === 'deleted')
+          ? Promise.resolve(null)
+          : api.content(target, side, ref).catch(() => null)
+      void Promise.all([read('old'), read('new')]).then(([old, next]) => {
+        const fits = (text: string | null) => (text && text.split('\n').length <= FULL_LINES ? text : null)
+        const source = { old: fits(old), new: fits(next) }
+        sources.current.set(key, source)
+        if (source.old) highlighter.text(`${key}:old`, sourcePath(item, 'old'), source.old, now)
+        if (source.new) highlighter.text(`${key}:new`, sourcePath(item, 'new'), source.new, now)
+      })
+    },
+    [api, target, byPath, sourcePath],
+  )
+
+  const anchor = useRef(0)
+  const dragging = useRef(false)
+  useEffect(() => {
+    const stop = () => {
+      dragging.current = false
+    }
+    window.addEventListener('pointerup', stop)
+    return () => window.removeEventListener('pointerup', stop)
+  }, [])
+
   const context = useMemo<RowContextValue>(
     () => ({
       settings,
       tokens(item, side, line) {
         const file = page.files.get(item.id)
         if (!file) return undefined
+        // The whole file, once read, colors with its full context; until then each hunk colors on its own.
+        loadSource(item, true)
+        const source = sources.current.get(sourceKey(item))
+        const text = typeof source === 'object' ? source[side] : null
+        const full = text ? highlighter.text(`${sourceKey(item)}:${side}`, sourcePath(item, side), text) : null
+        if (full) return full.get(line)
         return highlighter
           .tokens(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
           ?.[side].get(line)
+      },
+      prefetch(item) {
+        const file = page.files.get(item.id)
+        if (file) highlighter.prefetch(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
+        loadSource(item, false)
       },
       kinds(item) {
         const file = byPath.get(item.fileDiff.name)
         return file && file.status !== 'untracked' && file.status !== 'conflicted' ? kinds : []
       },
-      comment(item: NoteItem, line: DiffLine, side) {
+      comment(item: NoteItem, line: DiffLine, side, extend = false) {
         const number = side === 'additions' ? line.newNo : line.oldNo
         if (number === null) return
-        reviews.startDraft({ path: item.fileDiff.name, side, line: number, lineHash: lineHash(line.text) })
+        const open = reviews.get().draft
+        const same = open && open.path === item.fileDiff.name && open.side === side
+        if (!extend || !same) anchor.current = number
+        const [from, to] = [Math.min(anchor.current, number), Math.max(anchor.current, number)]
+        const lines = sideLines(page.files.get(item.id)?.rows ?? [], side, from, to)
+        const last = lines.at(-1) ?? line.text
+        reviews.startDraft({
+          path: item.fileDiff.name,
+          side,
+          line: to,
+          ...(from < to ? { startLine: from } : {}),
+          lineHash: lineHash(last),
+          text: lines.length ? lines.join('\n') : line.text,
+        })
+      },
+      startSelect(item, line, side) {
+        dragging.current = true
+        context.comment(item, line, side)
+      },
+      dragOver(item, line, side) {
+        const open = reviews.get().draft
+        if (dragging.current && open?.path === item.fileDiff.name && open.side === side)
+          context.comment(item, line, side, true)
+      },
+      subscribeDraft: reviews.subscribe,
+      inDraft(item, side, number) {
+        const open = reviews.get().draft
+        if (!open || number === null || open.path !== item.fileDiff.name || open.side !== side) return false
+        return number >= (open.startLine ?? open.line) && number <= open.line
       },
       write(kind: WriteKind, item, index) {
         const file = byPath.get(item.fileDiff.name)
@@ -144,7 +266,21 @@ export default function Viewer() {
         )
       },
     }),
-    [settings, page, byPath, kinds, reviews, writes, api, target, contents, setExpanded, setContents],
+    [
+      settings,
+      page,
+      byPath,
+      kinds,
+      reviews,
+      writes,
+      api,
+      target,
+      contents,
+      setExpanded,
+      setContents,
+      loadSource,
+      sourcePath,
+    ],
   )
 
   // Only a server started from Neovim can open files there, so the button follows repo info.
@@ -168,7 +304,13 @@ export default function Viewer() {
           <FileActions
             path={path}
             viewed={folded.has(path)}
-            onViewed={() => file && viewed.toggle(target, file)}
+            onViewed={() => {
+              if (!file) return
+              const nowViewed = !viewedPaths(viewed.get(), target, files).has(file.path)
+              viewed.toggle(target, file)
+              // On a pull request the mark is GitHub's too, so it shows on github.com and comes back next time.
+              if (pull !== null) pullReview.setViewed(file.path, nowViewed).catch(() => {})
+            }}
             onHistory={() => fileHistory.set(path)}
             note={file ? fileNote(file) : null}
             onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
@@ -181,7 +323,7 @@ export default function Viewer() {
         </FileHeader>
       )
     },
-    [api, canOpen, byPath, kinds, writes, folded, viewed, target, fileHistory, setToggled],
+    [api, canOpen, byPath, kinds, writes, folded, viewed, target, fileHistory, setToggled, files, pull, pullReview],
   )
 
   const renderNote = useCallback((note: Note) => <ReviewNote note={note} />, [])

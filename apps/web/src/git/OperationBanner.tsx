@@ -16,14 +16,31 @@ export function OperationBanner() {
   const operation = status?.operation
   if (!operation) return null
   return (
-    <div role="status" className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2">
+    <div
+      role="status"
+      className="flex flex-wrap items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2">
       <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
       <p className="min-w-0 flex-1">
         {NAMES[operation]} is in progress.{' '}
         {operation === 'rebase'
-          ? 'Finish it in a terminal, or abort it here.'
+          ? 'Resolve the conflicts, stage them, then continue.'
           : 'Resolve the conflicts, stage them, then commit.'}
       </p>
+      {operation === 'rebase' ? (
+        <Button size="sm" loading={busy === 'continue'} onClick={() => void run('continue', undefined, 'Continued')}>
+          Continue
+        </Button>
+      ) : null}
+      {operation !== 'merge' ? (
+        <Button
+          size="sm"
+          variant="outline"
+          title="Leave this commit out and go on"
+          loading={busy === 'skip'}
+          onClick={() => void run('skip', undefined, 'Skipped that commit')}>
+          Skip
+        </Button>
+      ) : null}
       <Popover>
         <PopoverTrigger asChild>
           <Button size="sm" variant="outline" loading={busy === 'abort'}>

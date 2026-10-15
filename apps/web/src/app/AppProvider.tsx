@@ -11,6 +11,7 @@ import { createReviews, type Reviews } from '../review/reviews'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
+import { createStage, type Stage } from '../state/stage'
 import { createViewedStore, type Viewed } from '../state/viewed'
 
 interface AppContextValue {
@@ -18,6 +19,8 @@ interface AppContextValue {
   session: Session
   // Branches, tags and recent commits, shared by every picker.
   refs: Refs
+  // Staged and unstaged files, for the stage panel.
+  stage: Stage
   settings: Store<Settings>
   reviews: Reviews
   viewed: Viewed
@@ -29,6 +32,8 @@ interface AppContextValue {
   graphSelection: Store<string | null>
   // What the graph's find box holds, so matching rows can stand out.
   graphQuery: Store<string>
+  // Folders folded in the changes tree; their files fold in the diff too.
+  changesFolders: Store<ReadonlySet<string>>
   // The file open in the Files view.
   fileSelection: Store<string | null>
   github: GitHub
@@ -51,6 +56,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       api: client,
       session,
       refs: createRefs(client, session),
+      stage: createStage(client, session),
       settings: createSettingsStore(),
       reviews: createReviews(client),
       viewed: createViewedStore(),
@@ -60,6 +66,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       graphSelection: createStore<string | null>(null),
       graphQuery: createStore(''),
       fileSelection: createStore<string | null>(null),
+      changesFolders: createStore<ReadonlySet<string>>(new Set()),
       github: createGitHub(client),
       pullSelection: createStore<number | null>(null),
       issueSelection: createStore<number | null>(null),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTree, visibleRows } from '../tree-model'
+import { buildTree, treeOrder, visibleRows } from '../tree-model'
 
 const PATHS = ['src/a.ts', 'src/lib/b.ts', 'README.md', 'docs/guide/deep/x.md', 'file10.ts', 'file2.ts']
 
@@ -35,5 +35,16 @@ describe('tree model, closed by default', () => {
     const tree = buildTree(['src/lib/b.ts', 'src/a.ts', 'README.md'])
     expect(names(visibleRows(tree, new Set(), false))).toEqual(['src', 'README.md'])
     expect(names(visibleRows(tree, new Set(['src']), false))).toEqual(['src', '  lib', '  a.ts', 'README.md'])
+  })
+})
+
+describe('treeOrder', () => {
+  it('orders files as the tree shows them, folders first', () => {
+    expect([...treeOrder(['z.ts', 'a/b.ts', 'a/c/d.ts', 'b.ts']).keys()]).toEqual([
+      'a/c/d.ts',
+      'a/b.ts',
+      'b.ts',
+      'z.ts',
+    ])
   })
 })

@@ -1,8 +1,13 @@
 import type { ConversationComment, GitHubUser } from '@duck-diff/protocol'
-import { Button, Textarea } from '@duck-diff/ui'
+import { Button } from '@duck-diff/ui'
 import { MessageSquare } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useState } from 'react'
+import { createStore, type Store, useStore } from '../lib/store'
+import { MarkdownEditor } from './MarkdownEditor'
 import { ago } from './time'
+
+const NO_DRAFT = createStore('')
+const selectDraft = (value: string) => value
 
 export function Avatar({ user }: { user: GitHubUser }) {
   return user.avatarUrl ? (
@@ -19,11 +24,14 @@ export function Avatar({ user }: { user: GitHubUser }) {
 // The Markdown renderer is large, so it loads with the first comment instead of with the diff viewer.
 const Markdown = lazy(() => import('../markdown/Markdown').then((module) => ({ default: module.Markdown })))
 
-export function Body({ text }: { text: string }) {
+const GitHubHtml = lazy(() => import('../markdown/GitHubHtml').then((module) => ({ default: module.GitHubHtml })))
+
+// GitHub's own rendering when it sent one, so bot HTML and mentions look as on github.com; Markdown otherwise.
+export function Body({ text, html }: { text: string; html?: string | null }) {
   if (!text.trim()) return <p className="text-muted-foreground">No description.</p>
   return (
     <Suspense fallback={<p className="whitespace-pre-wrap break-words text-foreground">{text.trim()}</p>}>
-      <Markdown text={text} />
+      {html ? <GitHubHtml html={html} /> : <Markdown text={text} />}
     </Suspense>
   )
 }
@@ -54,13 +62,19 @@ export function Composer({
   label,
   onSend,
   children,
+  draft,
 }: {
   label: string
   onSend(body: string): Promise<void>
   // Extra buttons that also consume the text, like a review's approve.
   children?: (body: string, clear: () => void) => ReactNode
+  // Lets the page put text in, like a quote reply.
+  draft?: Store<string>
 }) {
-  const [body, setBody] = useState('')
+  const [local, setLocal] = useState('')
+  const shared = useStore(draft ?? NO_DRAFT, selectDraft)
+  const body = draft ? shared : local
+  const setBody = (next: string) => (draft ? draft.set(next) : setLocal(next))
   const [sending, setSending] = useState(false)
   const send = async () => {
     if (!body.trim()) return
@@ -82,16 +96,7 @@ export function Composer({
         event.preventDefault()
         void send()
       }}>
-      <Textarea
-        aria-label={label}
-        placeholder="Leave a comment"
-        rows={4}
-        value={body}
-        onChange={(event) => setBody(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) void send()
-        }}
-      />
+      <MarkdownEditor label={label} value={body} onChange={setBody} onSubmit={() => void send()} />
       <div className="flex flex-wrap justify-end gap-2">
         {children?.(body, () => setBody(''))}
         <Button type="submit" size="sm" disabled={!body.trim()} loading={sending}>

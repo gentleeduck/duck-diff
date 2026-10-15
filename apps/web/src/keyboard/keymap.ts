@@ -18,6 +18,13 @@ export type Action =
   | 'view-files'
   | 'view-prs'
   | 'view-issues'
+  | 'view-inbox'
+  | 'view-releases'
+  | 'view-actions'
+  | 'toggle-sidebar'
+  | 'font-bigger'
+  | 'font-smaller'
+  | 'font-reset'
 
 interface KeyLike {
   key: string
@@ -46,6 +53,9 @@ const PLAIN: Record<string, Action> = {
   '3': 'view-files',
   '4': 'view-prs',
   '5': 'view-issues',
+  '6': 'view-inbox',
+  '7': 'view-releases',
+  '8': 'view-actions',
 }
 
 function isTyping(target: KeyLike['target']): boolean {
@@ -55,6 +65,11 @@ function isTyping(target: KeyLike['target']): boolean {
 
 export function resolveKey(event: KeyLike): Action | null {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') return 'palette'
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') return 'toggle-sidebar'
+  // The browser's own zoom keys size the page through the font settings instead, so they persist.
+  if ((event.ctrlKey || event.metaKey) && (event.key === '=' || event.key === '+')) return 'font-bigger'
+  if ((event.ctrlKey || event.metaKey) && event.key === '-') return 'font-smaller'
+  if ((event.ctrlKey || event.metaKey) && event.key === '0') return 'font-reset'
   if (event.ctrlKey || event.metaKey || event.altKey || isTyping(event.target)) return null
   return PLAIN[event.key] ?? null
 }

@@ -2,6 +2,7 @@ import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { GitPullRequest, X } from 'lucide-react'
 import { useApp } from '../app/AppProvider'
 import { pullOf } from '../github/pull-review'
+import { ReviewChanges } from '../github/ReviewChanges'
 import { useRefs } from '../hooks/useRefs'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
@@ -35,7 +36,7 @@ export function CompareBar() {
   const { show } = useView()
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-4">
+    <div className="@container flex min-w-0 flex-1 items-center gap-4">
       <h1 className="flex min-w-0 items-center gap-2">
         <RefPicker label={from} side="from" refs={refs} onPick={(end) => navigate(withSide(target, 'from', end))} />
         {operator ? (
@@ -83,7 +84,8 @@ export function CompareBar() {
           Conversation
         </Button>
       ) : null}
-      <p className="shrink-0 text-muted-foreground tabular-nums">
+      {pull !== null ? <ReviewChanges /> : null}
+      <p className="hidden shrink-0 text-muted-foreground tabular-nums @md:block">
         {files} {files === '1' ? 'file' : 'files'}
         <span className="ml-3 text-added">+{additions}</span>
         <span className="ml-1.5 text-removed">-{deletions}</span>

@@ -13,8 +13,15 @@ export interface Settings {
   expandUnchanged: boolean
   themeType: ThemeTypes
   themes: { light: string; dark: string }
+  // Code in the diff and file views.
   fontSize: number
+  // Everything else: text, buttons, rows and spacing scale together from this.
+  uiFontSize: number
   tabSize: number
+  // Test files in a comparison: shown as usual, folded under their headers, or left out of diff and tree.
+  tests: 'show' | 'fold' | 'hide'
+  // The left panel (tree, branches, files), hidden for a wider diff.
+  sidebar: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -30,7 +37,10 @@ export const DEFAULT_SETTINGS: Settings = {
   themeType: 'dark',
   themes: { light: 'tokyo-night', dark: 'tokyo-night' },
   fontSize: 15,
+  uiFontSize: 15,
   tabSize: 2,
+  tests: 'show',
+  sidebar: true,
 }
 
 const KEY = 'duck-diff:settings'
@@ -48,7 +58,10 @@ const FIELDS = {
   themeType: z.enum(['system', 'light', 'dark']),
   themes: z.object({ light: z.string(), dark: z.string() }),
   fontSize: z.number().int().min(10).max(24),
+  uiFontSize: z.number().int().min(10).max(24),
   tabSize: z.number().int().min(1).max(8),
+  tests: z.enum(['show', 'fold', 'hide']),
+  sidebar: z.boolean(),
 } satisfies { [K in keyof Settings]: z.ZodType<Settings[K]> }
 
 function load(storage: Pick<Storage, 'getItem'> | null): Settings {
@@ -79,3 +92,8 @@ export function createSettingsStore(
   })
   return store
 }
+
+export const FONT_MIN = 10
+export const FONT_MAX = 24
+// The interface was drawn at 15px; everything sized in rem follows this ratio.
+export const BASE_FONT = 15

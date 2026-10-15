@@ -1,12 +1,13 @@
-import { type BundledLanguage, bundledLanguages, createHighlighter, type HighlighterGeneric } from 'shiki'
+import { type BundledLanguage, bundledLanguages, createHighlighter } from 'shiki'
 import type { HighlightRequest, HighlightResponse, Token } from './highlight'
+import { TOKYONIGHT_NIGHT } from './tokyonight-theme'
 
-const THEME = 'tokyo-night'
-let highlighter: Promise<HighlighterGeneric<BundledLanguage, typeof THEME>> | null = null
+const THEME = TOKYONIGHT_NIGHT.name as string
+let highlighter: ReturnType<typeof createHighlighter> | null = null
 
 // Shiki runs here directly: the diff library only lets its own workers load grammars.
 async function tokenize(lang: string, runs: string[]): Promise<Token[][][]> {
-  highlighter ??= createHighlighter({ themes: [THEME], langs: [] })
+  highlighter ??= createHighlighter({ themes: [TOKYONIGHT_NIGHT], langs: [] })
   const shiki = await highlighter
   const known = lang in bundledLanguages
   if (known && !shiki.getLoadedLanguages().includes(lang)) await shiki.loadLanguage(lang as BundledLanguage)

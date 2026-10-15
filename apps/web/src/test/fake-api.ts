@@ -34,10 +34,50 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     tree: async () => ['a.ts', 'b.ts'],
     sync: async () => ({ branch: 'main', upstream: 'origin/main', ahead: 0, behind: 0, staged: 0, operation: null }),
     git: async () => ({}),
+    remotes: async () => [],
+    lastMessage: async () => '',
+    blame: async () => [],
     github: {
       status: async () => ({ repo: null, user: null, source: null }),
       signIn: async () => ({ repo: null, user: null, source: null }),
       pulls: async () => [],
+      list: async () => ({ items: [], total: 0, cursor: null }),
+      thread: async () => {
+        throw new Error('no threads')
+      },
+      editThread: async () => {},
+      options: async () => ({ labels: [], milestones: [], people: [], teams: [] }),
+      requestReviewers: async () => {},
+      setPullState: async () => {},
+      setDraft: async () => {},
+      setLocked: async () => {},
+      extras: async () => ({ subscription: 'UNSUBSCRIBED' as const, pinned: null, projects: [], linked: [] }),
+      setSubscribed: async () => {},
+      setPinned: async () => {},
+      applySuggestions: async () => {},
+      mergeInfo: async () => ({
+        methods: ['squash', 'merge', 'rebase'] as ('merge' | 'squash' | 'rebase')[],
+        defaultMethod: 'squash' as const,
+        autoMergeAllowed: true,
+        deleteBranchOnMerge: false,
+        reviewDecision: null,
+        requiredApprovals: null,
+        mergeState: 'CLEAN',
+        canMergeAsAdmin: false,
+        autoMerge: null,
+        squashTitle: 'COMMIT_OR_PR_TITLE' as const,
+        squashMessage: 'COMMIT_MESSAGES' as const,
+        mergeTitle: 'MERGE_MESSAGE' as const,
+        mergeMessage: 'PR_TITLE' as const,
+      }),
+      transfer: async () => {
+        throw new Error('no transfer')
+      },
+      editComment: async () => {},
+      deleteComment: async () => {},
+      react: async () => {},
+      mentions: async () => [],
+      references: async () => [],
       createPull: async () => {
         throw new Error('no pull requests')
       },
@@ -47,6 +87,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
         throw new Error('no pull requests')
       },
       checks: async () => [],
+      pullCommits: async () => [],
       fetchPull: async () => ({ base: 'main', head: 'main' }),
       comment: async () => {
         throw new Error('no pull requests')
@@ -58,11 +99,29 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
         throw new Error('no pull requests')
       },
       review: async () => {},
+      reviewState: async () => ({ threads: [], viewed: [] }),
+      resolveThread: async () => {},
+      setViewed: async () => {},
+      updateBranch: async () => {},
+      setAutoMerge: async () => {},
+      setHeadBranch: async () => {},
+      setBase: async () => {},
+      rerunFailed: async () => {},
+      notifications: async () => [],
+      markRead: async () => {},
+      releases: async () => [],
+      createRelease: async () => {
+        throw new Error('no releases')
+      },
+      runs: async () => [],
+      runAction: async () => {},
+      jobLog: async () => '',
       merge: async () => {},
       issues: async () => [],
       issue: async () => {
         throw new Error('no issues')
       },
+      templates: async () => ({ issue: [], pull: null }),
       createIssue: async () => {
         throw new Error('no issues')
       },
