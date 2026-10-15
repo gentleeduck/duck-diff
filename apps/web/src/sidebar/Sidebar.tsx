@@ -24,7 +24,7 @@ export function Sidebar() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-        <TabsList className="mx-3 mt-3 grid grid-cols-3">
+        <TabsList className="mx-3 mt-3 grid w-auto grid-cols-3 [&>*]:w-full">
           <TabsTrigger value="changes">Changes</TabsTrigger>
           <TabsTrigger value="stage">Stage</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>

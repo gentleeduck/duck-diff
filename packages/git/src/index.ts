@@ -1,4 +1,4 @@
-export { type Commit, type CommitDetails, listCommits, readCommit } from './commits'
+export { type Commit, type CommitDetails, type CommitStat, listCommits, readCommit, readCommitStat } from './commits'
 export {
   type ConflictFile,
   type ConflictSegment,

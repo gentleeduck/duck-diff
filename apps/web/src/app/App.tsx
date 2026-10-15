@@ -28,6 +28,7 @@ import { CommentsSheet } from '../review/CommentsSheet'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
 import type { Settings } from '../state/settings'
+import { DiffTabs } from '../viewer/DiffTabs'
 import { WritesProvider } from '../writes/WritesProvider'
 import { ActivityRail } from './ActivityRail'
 import { AppProvider, useApp } from './AppProvider'
@@ -143,7 +144,14 @@ function Screen() {
       ),
       side: <Sidebar />,
       label: 'Changed files',
-      main: <Viewer />,
+      main: (
+        <div className="flex h-full flex-col">
+          <DiffTabs />
+          <div className="min-h-0 flex-1">
+            <Viewer />
+          </div>
+        </div>
+      ),
     },
     graph: {
       top: (

@@ -15,6 +15,7 @@ import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
 import { createStage, type Stage } from '../state/stage'
+import { createTabs, type Tabs } from '../state/tabs'
 import { createViewedStore, type Viewed } from '../state/viewed'
 
 export interface AppContextValue {
@@ -55,6 +56,8 @@ export interface AppContextValue {
   mergeFile: Store<string | null>
   // The file at the top of the diff as it scrolls, which the changes tree highlights.
   diffTop: Store<string | null>
+  // The diffs open side by side above the viewer; the first is always the working tree.
+  tabs: Tabs
   // Every pull request and issue, saved per repo, for the palette's search.
   items: ItemIndex
   // GitHub's review threads for the pull request the diff shows.
@@ -94,11 +97,20 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       diffFile: createStore<string | null>(null),
       mergeFile: createStore<string | null>(null),
       diffTop: createStore<string | null>(null),
+      tabs: createTabs(readTarget(window.location.search)),
       pullReview: createPullReview(client),
       items: createItemIndex(client),
       viewer,
     }
   }, [api])
+
+  // Tabs are saved per repository, so they come back once the page knows which one it shows.
+  useEffect(() => {
+    value.api.repo().then(
+      (info) => value.tabs.restore(info.root),
+      () => {},
+    )
+  }, [value])
 
   useEffect(() => {
     // The highlighter starts with the page and loads the changed files' grammars while the diff is read,

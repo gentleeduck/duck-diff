@@ -63,3 +63,21 @@ export async function readCommit(repo: string, sha: string): Promise<CommitDetai
     message: body.join('\x1f').trimEnd(),
   }
 }
+
+export interface CommitStat {
+  files: number
+  additions: number
+  deletions: number
+}
+
+// The size of a commit from git's one-line summary, without listing its files; a merge is measured
+// against its first parent.
+export async function readCommitStat(repo: string, sha: string): Promise<CommitStat> {
+  const out = await runGit(['show', '--shortstat', '--format=', '--diff-merges=first-parent', sha, '--'], { cwd: repo })
+  const count = (pattern: RegExp) => Number(pattern.exec(out)?.[1] ?? 0)
+  return {
+    files: count(/(\d+) files? changed/),
+    additions: count(/(\d+) insertions?\(\+\)/),
+    deletions: count(/(\d+) deletions?\(-\)/),
+  }
+}

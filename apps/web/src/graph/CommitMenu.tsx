@@ -33,6 +33,7 @@ import type { GitHubState } from '../github/store'
 import { useStore } from '../lib/store'
 import { relativeTime } from '../sidebar/relative-time'
 import { useCommitActions } from './commit-actions'
+import { type HoverDetails, prefetchCommit, ready } from './commit-details'
 import type { GraphEntry } from './records'
 
 const selectStatus = (state: GitHubState) => state
@@ -137,34 +138,13 @@ export function CommitMenu({
   )
 }
 
-interface HoverDetails {
-  message: string
-  files: number
-  additions: number
-  deletions: number
-}
-
-// Read once per commit per page; hovering back and forth costs nothing after the first time.
-const details = new Map<string, Promise<HoverDetails>>()
-
 function useHoverDetails(sha: string, open: boolean): HoverDetails | null {
   const { api } = useApp()
-  const [value, setValue] = useState<HoverDetails | null>(null)
+  const [value, setValue] = useState<HoverDetails | null>(() => ready.get(sha) ?? null)
   useEffect(() => {
-    if (!open) return
-    let promise = details.get(sha)
-    if (!promise) {
-      promise = Promise.all([api.commit(sha), api.files({ kind: 'commit', sha })]).then(([commit, files]) => ({
-        message: commit.message,
-        files: files.length,
-        additions: files.reduce((sum, file) => sum + (file.additions ?? 0), 0),
-        deletions: files.reduce((sum, file) => sum + (file.deletions ?? 0), 0),
-      }))
-      promise.catch(() => details.delete(sha))
-      details.set(sha, promise)
-    }
+    if (!open || ready.has(sha)) return
     let alive = true
-    promise.then(
+    prefetchCommit(api, sha).then(
       (next) => alive && setValue(next),
       () => {},
     )
@@ -172,7 +152,26 @@ function useHoverDetails(sha: string, open: boolean): HoverDetails | null {
       alive = false
     }
   }, [api, sha, open])
-  return value
+  return value ?? ready.get(sha) ?? null
+}
+
+// Git wraps messages at about 72 columns; the card joins those lines back into paragraphs, keeping
+// blank lines, list items and indented lines where they are.
+export function reflow(body: string): string {
+  const lines = body.split('\n')
+  const out: string[] = []
+  for (const line of lines) {
+    const previous = out.at(-1)
+    const joins =
+      previous !== undefined &&
+      previous.trim() !== '' &&
+      line.trim() !== '' &&
+      !/^\s*([-*+]|\d+[.)])\s/.test(line) &&
+      !/^\s/.test(line)
+    if (joins) out[out.length - 1] = `${previous} ${line.trim()}`
+    else out.push(line)
+  }
+  return out.join('\n')
 }
 
 // Its children hold the HoverCardTrigger, so the same row can also be a right-click trigger.
@@ -209,11 +208,14 @@ export function CommitHover({
   }, [open])
   const { copy } = useCommitActions()
   const [subject = entry.subject, ...rest] = (info?.message ?? entry.subject).split('\n')
-  const body = rest.join('\n').trim()
+  const body = reflow(rest.join('\n').trim())
   return (
     <HoverCard open={open} onOpenChange={setOpen} openDelay={500} closeDelay={100}>
       {children}
-      <HoverCardContent side="bottom" align="center" className="flex w-[30rem] flex-col gap-2 p-0">
+      <HoverCardContent
+        side="bottom"
+        align="center"
+        className="flex w-[40rem] max-w-[calc(100vw-2rem)] flex-col gap-2 p-0">
         <div className="flex items-center gap-2 px-3 pt-3">
           {avatar ? (
             <img src={`${avatar}${avatar.includes('?') ? '&' : '?'}s=48`} alt="" className="size-6 rounded-full" />
@@ -226,7 +228,7 @@ export function CommitHover({
         </div>
         <div className="flex flex-col gap-1 px-3">
           <p className="text-foreground">{subject}</p>
-          {body ? <p className="max-h-40 overflow-y-auto whitespace-pre-wrap text-muted-foreground">{body}</p> : null}
+          {body ? <p className="max-h-60 overflow-y-auto whitespace-pre-wrap text-muted-foreground">{body}</p> : null}
         </div>
         <div className="border-border border-t px-3 pt-2 text-muted-foreground">
           {info ? (

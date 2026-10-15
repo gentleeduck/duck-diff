@@ -77,9 +77,10 @@ test('a file header and its gaps all act: unchanged lines open above and below, 
 
   // Folding hides the file's body; opening brings it back.
   await page.getByRole('button', { name: 'Hide long.ts' }).click()
-  await expect(main).not.toContainText('line40 = 4000')
+  await expect(main).not.toContainText('line5 = 5')
+  // Reopened, it starts from its first lines; how far down the screen reaches does not matter.
   await page.getByRole('button', { name: 'Show long.ts' }).click()
-  await expect(main).toContainText('line40 = 4000')
+  await expect(main).toContainText('line5 = 5')
 
   // Viewed folds it too, and unticking opens it again.
   const viewed = page.getByRole('checkbox', { name: 'Viewed' }).first()

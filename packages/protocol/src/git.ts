@@ -80,6 +80,12 @@ export const CommitDetailsSchema = z.object({
   message: z.string(),
 })
 export type CommitDetails = z.infer<typeof CommitDetailsSchema>
+export const CommitStatSchema = z.object({
+  files: z.number().int(),
+  additions: z.number().int(),
+  deletions: z.number().int(),
+})
+export type CommitStat = z.infer<typeof CommitStatSchema>
 
 export const RefKindSchema = z.enum(['branch', 'remote', 'tag', 'stash'])
 export type RefKind = z.infer<typeof RefKindSchema>

@@ -11,6 +11,8 @@ import {
   type CommitDetails,
   CommitDetailsSchema,
   CommitSchema,
+  type CommitStat,
+  CommitStatSchema,
   type ConflictFile,
   ConflictFileSchema,
   type ConversationComment,
@@ -140,6 +142,8 @@ export interface Api {
   deleteReview(id: string): Promise<void>
   graph(query: { all: boolean; limit: number }, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   commit(sha: string): Promise<CommitDetails>
+  // Files and lines a commit changed, without listing them.
+  commitStat(sha: string): Promise<CommitStat>
   // Without a ref these read the working tree.
   tree(ref?: string): Promise<string[]>
   file(path: string, ref?: string): Promise<FileContents>
@@ -539,6 +543,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
         z.object({ sha: z.string().optional(), conflicts: z.boolean().optional(), stopped: z.boolean().optional() }),
       ),
     commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),
+    commitStat: (sha) => json(`/api/commit-stat?sha=${encodeURIComponent(sha)}`, CommitStatSchema),
     reviews: (target) => json(`/api/reviews?target=${encodeTarget(target)}`, z.array(ReviewCommentSchema)),
     createReview: (input) => send('POST', '/api/reviews', input, ReviewCommentSchema),
     updateReview: (id, body) => send('PATCH', `/api/reviews/${encodeURIComponent(id)}`, { body }, ReviewCommentSchema),

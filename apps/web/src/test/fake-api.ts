@@ -38,6 +38,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     lastMessage: async () => '',
     symbols: async (name) => ({ name, hits: [], truncated: false }),
     rebasePlan: async () => [],
+    commitStat: async () => ({ files: 0, additions: 0, deletions: 0 }),
     insights: async () => ({ total: 0, contributors: [], weeks: [] }),
     worktrees: async () => [],
     submodules: async () => [],

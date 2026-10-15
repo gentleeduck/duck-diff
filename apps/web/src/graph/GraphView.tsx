@@ -11,7 +11,7 @@ import {
 } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Cherry, GitBranch, Tag } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useRowHeight } from '../app/useSizes'
 import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
@@ -21,6 +21,7 @@ import { BisectBanner } from './BisectBanner'
 import { CommitHover, CommitMenu } from './CommitMenu'
 import { CommitPanel } from './CommitPanel'
 import { useCommitActions } from './commit-actions'
+import { prefetchCommit } from './commit-details'
 import { matchesCommit } from './FindCommit'
 import { GraphLines, LANE_WIDTH, laneColor } from './GraphLines'
 import type { GraphRow } from './layout'
@@ -86,7 +87,7 @@ function RefBadges({ refs, color }: { refs: RefLabel[]; color: string }) {
 }
 
 export default function GraphView() {
-  const { graph, graphSelection, graphQuery } = useApp()
+  const { api, graph, graphSelection, graphQuery } = useApp()
   const state = useStore(graph, selectGraph)
   const needle = useStore(graphQuery, selectQuery).trim().toLowerCase()
   const avatars = useAvatars()
@@ -118,10 +119,44 @@ export default function GraphView() {
   useEffect(() => virtualizer.measure(), [virtualizer, ROW_HEIGHT])
   const items = virtualizer.getVirtualItems()
 
-  // Selecting a commit from elsewhere (a branch in the sidebar) brings its row into view.
+  // The commit at the top of the view stays there when the list changes under it, as it does when
+  // every branch is shown or hidden and other commits slot in above.
+  const anchor = useRef<{ sha: string; offset: number } | null>(null)
   useEffect(() => {
-    const at = selected ? index.get(selected) : undefined
-    if (at !== undefined) virtualizer.scrollToIndex(at, { align: 'center' })
+    const element = scroller.current
+    if (!element) return
+    const remember = () => {
+      const index = Math.floor(element.scrollTop / ROW_HEIGHT)
+      const entry = graph.get().entries[index]
+      anchor.current = entry ? { sha: entry.sha, offset: element.scrollTop - index * ROW_HEIGHT } : null
+    }
+    remember()
+    element.addEventListener('scroll', remember, { passive: true })
+    return () => element.removeEventListener('scroll', remember)
+  }, [graph, ROW_HEIGHT])
+  useLayoutEffect(() => {
+    const element = scroller.current
+    const held = anchor.current
+    if (!element || !held || element.scrollTop === 0) return
+    const at = index.get(held.sha)
+    if (at === undefined) return
+    const top = at * ROW_HEIGHT + held.offset
+    if (Math.abs(element.scrollTop - top) > 1) element.scrollTop = top
+  }, [index, ROW_HEIGHT])
+
+  // Selecting a commit from elsewhere (a branch in the sidebar) brings its row into view.
+  // Only a new selection scrolls; the list changing (every branch on or off, a refresh) leaves the view be.
+  const pending = useRef<string | null>(null)
+  useEffect(() => {
+    pending.current = selected
+  }, [selected])
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new selection is the trigger even when the list is the same
+  useEffect(() => {
+    const want = pending.current
+    const at = want ? index.get(want) : undefined
+    if (at === undefined) return
+    pending.current = null
+    virtualizer.scrollToIndex(at, { align: 'center' })
   }, [selected, index, virtualizer])
 
   if (state.status === 'error') return <p className="p-4 text-removed">Could not read the history: {state.error}</p>
@@ -176,6 +211,8 @@ export default function GraphView() {
                           role="option"
                           tabIndex={-1}
                           aria-selected={isSelected}
+                          // The hover card's details start loading as the pointer arrives, ahead of its delay.
+                          onPointerEnter={() => void prefetchCommit(api, entry.sha).catch(() => {})}
                           onClick={(event) => {
                             const from = selected ? index.get(selected) : undefined
                             if (event.shiftKey && from !== undefined) {
