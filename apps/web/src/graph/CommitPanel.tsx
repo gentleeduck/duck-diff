@@ -16,7 +16,7 @@ interface Loaded {
 }
 
 export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) {
-  const { api, graphSelection } = useApp()
+  const { api, graphSelection, diffFile } = useApp()
   const { navigate } = useTarget()
   const { show } = useView()
   const [loaded, setLoaded] = useState<Loaded | null>(null)
@@ -36,9 +36,11 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
     }
   }, [api, sha])
 
+  // The whole commit opens, scrolled to the file clicked, so it reads with the rest of what the commit did.
   const openChanges = (path?: string) => {
-    navigate(path ? { kind: 'commit', sha, path } : { kind: 'commit', sha })
+    navigate({ kind: 'commit', sha })
     show('changes')
+    if (path) diffFile.set(path)
   }
   const copy = async () => {
     await navigator.clipboard.writeText(sha)
