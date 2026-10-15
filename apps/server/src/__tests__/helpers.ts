@@ -12,8 +12,15 @@ export interface Fixture {
 // macOS hands a just-freed port to the next `port: 0` listener, and a client still holding a socket to the old
 // server then sees resets. Each test server gets its own port for the whole run instead.
 let nextPort = 20_000 + Math.floor(Math.random() * 30_000)
+// A port something else on the machine already holds is skipped rather than failing a test.
 export function testPort(): number {
-  return nextPort++
+  for (;;) {
+    const port = nextPort++
+    try {
+      Bun.serve({ hostname: '127.0.0.1', port, fetch: () => new Response() }).stop(true)
+      return port
+    } catch {}
+  }
 }
 
 export async function startFixture(setup: (repo: TestRepo) => void, watch = false): Promise<Fixture> {

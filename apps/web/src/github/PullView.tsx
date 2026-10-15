@@ -174,7 +174,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   const { pullTab, diffFile } = useApp()
   const tab = useStore(pullTab, selectTab)
   const setTab = (next: Tab) => pullTab.set(next)
-  const { thread, draft, reload: reloadThread } = useThread(number)
+  const { thread, draft, reload: reloadThread } = useThread(number, 'pr')
   // Review changes works from every tab, so the pull request's review state reads with the page.
   const { pullReview } = useApp()
   useEffect(() => {

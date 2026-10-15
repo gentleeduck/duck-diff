@@ -64,3 +64,25 @@ test('a worktree is added from the sidebar, opens in its own tab, and is removed
     rmSync(outside, { recursive: true, force: true })
   }
 })
+
+test('the repo switcher adds another repository and opens it in its own tab', async ({ page, app }) => {
+  const other = createRepo()
+  try {
+    other.write('other.txt', 'other\n')
+    other.commit('other base')
+    other.git('checkout', '-q', '-b', 'elsewhere')
+    await page.goto(app.url)
+    await page.getByRole('button', { name: 'Repositories' }).click()
+    const list = page.getByRole('list', { name: 'Repositories' })
+    await expect(list.getByRole('button')).toHaveCount(1)
+    await page.getByRole('textbox', { name: 'Repository folder' }).fill(other.path)
+    await page.getByRole('button', { name: 'Add', exact: true }).click()
+    const entry = list.getByRole('button', { name: new RegExp(other.path.split('/').pop() ?? '') })
+    await expect(entry.first()).toBeVisible()
+    const [tab] = await Promise.all([page.context().waitForEvent('page'), entry.first().click()])
+    await expect(tab.getByRole('banner')).toContainText('elsewhere')
+    await tab.close()
+  } finally {
+    other.cleanup()
+  }
+})

@@ -31,6 +31,7 @@ async function main(): Promise<number> {
     port: command.port,
     idleTimeoutMs: command.idleTimeoutMs,
     nvim: command.nvim,
+    repos: command.more,
     onIdle: () => finish(0),
   }).catch((error: Error) => {
     console.error(error.message)

@@ -30,7 +30,7 @@ import {
 } from '@duck-diff/protocol'
 import { z } from 'zod'
 import { HttpError } from './errors'
-import type { GitHub } from './github'
+import type { Forge } from './forge'
 import { readTemplates } from './templates'
 
 const State = z.object({ state: z.enum(['open', 'closed']).default('open') })
@@ -38,9 +38,9 @@ const IssueStateSchema = State.extend({ reason: z.enum(['completed', 'not_planne
 const NETWORK_TIMEOUT_MS = 120_000
 
 // A pull request's head lands in a private ref so the diff viewer can compare it like any other range.
-async function fetchPull(repo: string, number: number, baseRef: string): Promise<PullRefs> {
+async function fetchPull(repo: string, number: number, baseRef: string, refspec: string): Promise<PullRefs> {
   const head = `refs/duck-diff/pr/${number}`
-  await runGit(['fetch', '--quiet', 'origin', `+pull/${number}/head:${head}`, baseRef], {
+  await runGit(['fetch', '--quiet', 'origin', `+${refspec}:${head}`, baseRef], {
     cwd: repo,
     timeoutMs: NETWORK_TIMEOUT_MS,
   })
@@ -48,7 +48,7 @@ async function fetchPull(repo: string, number: number, baseRef: string): Promise
 }
 
 export async function handleGitHub(
-  github: GitHub,
+  github: Forge,
   repo: string,
   url: URL,
   request: Request,
@@ -62,7 +62,7 @@ export async function handleGitHub(
 
   if (area === 'status') return Response.json(await github.status())
   if (area === 'token' && post) {
-    github.setToken(SetTokenSchema.parse(await body()).token)
+    await github.setToken(SetTokenSchema.parse(await body()).token)
     return Response.json(await github.status())
   }
   // Avatars are a nicety, so being signed out or offline answers with none rather than an error.
@@ -143,7 +143,7 @@ export async function handleGitHub(
     if (action === 'transfer' && post) {
       return Response.json(await github.transfer(number, TransferSchema.parse(await body()).repo))
     }
-    return Response.json(await github.thread(number))
+    return Response.json(await github.thread(number, url.searchParams.get('kind') === 'pr' ? 'pr' : 'issue'))
   }
   if (area === 'avatars') return Response.json(await github.avatars().catch(() => ({})))
   if (area === 'list')
@@ -208,7 +208,7 @@ export async function handleGitHub(
       return new Response(null, { status: 204 })
     }
     if (action === 'comments' && post)
-      return Response.json(await github.commentOn(number, PostCommentSchema.parse(await body()).body))
+      return Response.json(await github.commentOn(number, PostCommentSchema.parse(await body()).body, 'pr'))
     if (action === 'review-comments' && post) {
       const input = PostReviewCommentSchema.parse(await body())
       const { headSha } = await github.pull(number)
@@ -228,8 +228,8 @@ export async function handleGitHub(
       return new Response(null, { status: 204 })
     }
     if (action === 'fetch' && post) {
-      const { baseRef } = await github.pull(number)
-      return Response.json(await enqueue(() => fetchPull(repo, number, baseRef)))
+      const [{ baseRef }, refspec] = await Promise.all([github.pull(number), github.pullRefspec(number)])
+      return Response.json(await enqueue(() => fetchPull(repo, number, baseRef, refspec)))
     }
   }
   if (area === 'issues') {
@@ -242,7 +242,7 @@ export async function handleGitHub(
     if (!Number.isInteger(number)) throw new HttpError(400, 'bad-request', 'bad issue number')
     if (action === undefined) return Response.json(await github.issue(number))
     if (action === 'comments' && post)
-      return Response.json(await github.commentOn(number, PostCommentSchema.parse(await body()).body))
+      return Response.json(await github.commentOn(number, PostCommentSchema.parse(await body()).body, 'issue'))
     if (action === 'state' && post) {
       const { state, reason } = IssueStateSchema.parse(await body())
       await github.setIssueState(number, state, reason)

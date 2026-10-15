@@ -2,6 +2,7 @@ import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { Bell, CircleDot, FileDiff, FolderTree, GitGraph, GitPullRequest, PlayCircle, Rocket } from 'lucide-react'
 import { useView } from '../hooks/useView'
 import type { View } from '../lib/view-url'
+import { RepoSwitcher } from './RepoSwitcher'
 
 const ITEMS: { view: View; label: string; icon: typeof FileDiff }[] = [
   { view: 'changes', label: 'Changes', icon: FileDiff },
@@ -48,6 +49,7 @@ export function ActivityRail({
           <TooltipContent side="right">{badges[id] ? `${label} (${badges[id]} unread)` : label}</TooltipContent>
         </Tooltip>
       ))}
+      <RepoSwitcher />
     </nav>
   )
 }

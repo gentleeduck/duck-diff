@@ -24,12 +24,15 @@ import {
 import type { ServerWebSocket } from 'bun'
 import { createToken, isAuthorized, tokenCookie } from './auth'
 import { errorResponse, HttpError } from './errors'
-import { createGitHub, type GitHubOptions } from './github'
+import { createForge } from './forge'
+import type { GitHubOptions } from './github'
 import { handleGitHub } from './github-routes'
 import { createGitHubWatch } from './github-watch'
+import type { GitLabOptions } from './gitlab'
 import { Hub } from './hub'
 import { createNavigator, type NavigatorOptions } from './lsp/navigator'
 import { type NvimRunner, openKeys, runNvim, tcdKeys } from './nvim'
+import { createRepoList } from './repos'
 import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
 import { createSiblings, type StartServer, startSibling } from './siblings'
@@ -52,12 +55,15 @@ export interface ServerOptions {
   undoCache?: string
   // Where review comments are kept; tests point it at a temp folder.
   dataDir?: string
-  // GitHub access; tests swap in a fake fetch and token.
+  // GitHub and GitLab access; tests swap in a fake fetch and token.
   github?: GitHubOptions
+  gitlab?: GitLabOptions
   // Language servers; tests swap in a fake one.
   lsp?: NavigatorOptions
   // How a worktree or submodule gets its own server; tests swap in a fake.
   startSibling?: StartServer
+  // More repositories for the switcher, from repeated --repo; given means remember this one too.
+  repos?: string[]
   // How often the GitHub watcher looks at what is due, and seconds between asks per topic; tests make both quick.
   githubTickMs?: number
   githubEvery?: Partial<Record<string, number>>
@@ -84,8 +90,15 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
   const enqueue = createWriteQueue()
   const reviews = createReviewStore(repo, options.dataDir)
-  const github = createGitHub(repo, options.github)
+  const github = createForge(repo, { github: options.github, gitlab: options.gitlab })
   const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
+  const repoList = createRepoList(options.dataDir)
+  // Started from the command line (which always passes repos), this repo goes to the top of the switcher
+  // with the extra ones after it; a server made in a test leaves the shared list alone.
+  if (options.repos) {
+    for (const extra of [...options.repos].reverse()) await repoList.add(extra).catch(() => {})
+    await repoList.add(repo).catch(() => {})
+  }
   const siblings = createSiblings(options.startSibling ?? startSibling(options.nvim ?? null))
   const watch = createGitHubWatch<ServerWebSocket<unknown>>(
     github,
@@ -173,11 +186,30 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
             return new Response(null, { status: 204 })
           }
         }
+        if (url.pathname === '/api/repos') {
+          if (request.method === 'POST') {
+            const { path } = OpenRepoSchema.parse(await request.json())
+            return Response.json({ path: await repoList.add(path) })
+          }
+          if (request.method === 'DELETE') {
+            await repoList.remove(OpenRepoSchema.parse(Object.fromEntries(url.searchParams)).path)
+            return new Response(null, { status: 204 })
+          }
+          return Response.json((await repoList.all()).map((entry) => ({ ...entry, current: entry.path === repo })))
+        }
         if (url.pathname === '/api/open-repo' && request.method === 'POST') {
           const { path } = OpenRepoSchema.parse(await request.json())
-          // Only checkouts that belong to this repository: its worktrees and submodules.
-          const [trees, modules] = await Promise.all([listWorktrees(repo), listSubmodules(repo)])
-          const known = [...trees.map((tree) => tree.path), ...modules.map((module) => join(repo, module.path))]
+          // Only checkouts this page knows: worktrees, submodules, and repositories in the switcher.
+          const [trees, modules, listed] = await Promise.all([
+            listWorktrees(repo),
+            listSubmodules(repo),
+            repoList.all(),
+          ])
+          const known = [
+            ...trees.map((tree) => tree.path),
+            ...modules.map((module) => join(repo, module.path)),
+            ...listed.map((entry) => entry.path),
+          ]
           if (!known.includes(path))
             throw new HttpError(404, 'not-found', `${path} is not a worktree or submodule here`)
           return Response.json({ url: await siblings.open(path) })

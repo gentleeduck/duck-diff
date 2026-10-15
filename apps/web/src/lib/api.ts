@@ -99,6 +99,9 @@ function lspParams(query: LspQuery): URLSearchParams {
   return params
 }
 
+const RepoEntrySchema = z.object({ path: z.string(), name: z.string(), current: z.boolean() })
+export type RepoEntry = z.infer<typeof RepoEntrySchema>
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -135,6 +138,10 @@ export interface Api {
   submodules(): Promise<Submodule[]>
   // The commits a submodule pointer move brings in, newest first.
   submoduleLog(path: string, from: string | null, to: string): Promise<PlanCommit[]>
+  // Repositories in the switcher, this one marked current; adding checks the folder is a repository.
+  repos(): Promise<RepoEntry[]>
+  addRepo(path: string): Promise<string>
+  removeRepo(path: string): Promise<void>
   // Starts a server for a worktree or submodule and gives its page url.
   openRepo(path: string): Promise<string>
   // Points Neovim's current tab at another checkout.
@@ -175,7 +182,8 @@ export interface GitHubApi {
   avatars(): Promise<Record<string, string>>
   pull(number: number): Promise<PullDetails>
   // Description, timeline and what the viewer may edit, for a pull request or an issue.
-  thread(number: number): Promise<Thread>
+  // GitLab numbers merge requests and issues apart, so the server is told which this is.
+  thread(number: number, kind: 'pr' | 'issue'): Promise<Thread>
   editThread(
     number: number,
     input: { title?: string; body?: string; assignees?: string[]; labels?: string[]; milestone?: number | null },
@@ -338,7 +346,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     signIn: (token) => send('POST', '/api/github/token', { token }, GitHubStatusSchema),
     pulls: (state) => json(`/api/github/pulls?state=${state}`, z.array(PullSummarySchema)),
     pull: (number) => json(`/api/github/pulls/${number}`, PullDetailsSchema),
-    thread: (number) => json(`/api/github/threads/${number}`, ThreadSchema),
+    thread: (number, kind) => json(`/api/github/threads/${number}?kind=${kind}`, ThreadSchema),
     editThread: (number, input) => sendEmpty('PATCH', `/api/github/threads/${number}`, input),
     options: () => json('/api/github/options', OptionsSchema),
     requestReviewers: (number, change) => post(`/api/github/pulls/${number}/reviewers`, change),
@@ -457,6 +465,11 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       if (from) params.set('from', from)
       return json(`/api/submodule-log?${params}`, z.array(PlanCommitSchema))
     },
+    repos: () => json('/api/repos', z.array(RepoEntrySchema)),
+    async addRepo(path) {
+      return (await send('POST', '/api/repos', { path }, z.object({ path: z.string() }))).path
+    },
+    removeRepo: (path) => sendEmpty('DELETE', `/api/repos?${new URLSearchParams({ path })}`),
     async openRepo(path) {
       return (await send('POST', '/api/open-repo', { path }, z.object({ url: z.string() }))).url
     },

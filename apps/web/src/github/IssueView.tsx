@@ -96,7 +96,7 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
   const [issue, setIssue] = useState<IssueDetails | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const { thread, draft, reload: reloadThread } = useThread(number)
+  const { thread, draft, reload: reloadThread } = useThread(number, 'issue')
 
   const load = useCallback(
     (alive: () => boolean = () => true) =>

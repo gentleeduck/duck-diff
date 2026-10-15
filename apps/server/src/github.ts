@@ -29,6 +29,7 @@ import type {
   WorkflowRun,
 } from '@duck-diff/protocol'
 import { HttpError } from './errors'
+import { apiBases, parseRemote, type RemoteHost } from './forge-host'
 import { applyEdits, type SuggestionEdit, suggestionLines } from './suggestions'
 
 interface RawItemTime {
@@ -38,8 +39,8 @@ interface RawItemTime {
 
 export interface GitHubOptions {
   fetch?: typeof fetch
-  // Where the token comes from when the page has not supplied one; tests replace it.
-  findToken?: () => Promise<{ token: string; source: 'env' | 'gh' } | null>
+  // Where the token comes from when the page has not supplied one, by host; tests replace it.
+  findToken?: (host: string) => Promise<{ token: string; source: 'env' | 'gh' } | null>
   apiBase?: string
 }
 
@@ -61,11 +62,24 @@ function runGh(args: string[]): Promise<string | null> {
   })
 }
 
-async function defaultFindToken() {
-  const env = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN
+// github.com reads GH_TOKEN and gh's default login; an Enterprise host its own variables and gh login.
+async function defaultFindToken(host = 'github.com') {
+  const env =
+    host === 'github.com'
+      ? (process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN)
+      : (process.env.GH_ENTERPRISE_TOKEN ?? process.env.GITHUB_ENTERPRISE_TOKEN)
   if (env) return { token: env, source: 'env' as const }
-  const token = await runGh(['auth', 'token'])
+  const token = await runGh(host === 'github.com' ? ['auth', 'token'] : ['auth', 'token', '--hostname', host])
   return token ? { token, source: 'gh' as const } : null
+}
+
+// origin's host and path, with `git config duck-diff.forge` deciding the kind for an unusual host name.
+export async function readRemote(repo: string): Promise<RemoteHost | null> {
+  const [url, configured] = await Promise.all([
+    runGit(['remote', 'get-url', 'origin'], { cwd: repo }).catch(() => ''),
+    runGit(['config', '--get', 'duck-diff.forge'], { cwd: repo, okExitCodes: [1] }).catch(() => ''),
+  ])
+  return url.trim() ? parseRemote(url, configured.trim() || null) : null
 }
 
 interface RawUser {
@@ -95,7 +109,21 @@ const comment = (raw: RawComment): ConversationComment => ({
 export function createGitHub(repo: string, options: GitHubOptions = {}) {
   const fetcher = options.fetch ?? fetch
   const findToken = options.findToken ?? defaultFindToken
-  const apiBase = options.apiBase ?? 'https://api.github.com'
+  let remote: Promise<RemoteHost | null> | null = null
+  const origin = () => {
+    remote ??= readRemote(repo)
+    return remote
+  }
+  // Enterprise servers answer under /api/v3 and /api/graphql on their own host.
+  const bases = async () => {
+    if (options.apiBase) return { rest: options.apiBase, graphql: `${options.apiBase}/graphql` }
+    const found = await origin()
+    return found?.kind === 'github' ? apiBases(found) : apiBases({ kind: 'github', host: 'github.com', slug: '' })
+  }
+  const urlFor = async (path: string) => {
+    const { rest, graphql } = await bases()
+    return path === '/graphql' ? graphql : `${rest}${path}`
+  }
   let pasted: string | null = null
   let avatarMap: Promise<Record<string, string>> | null = null
   let mentionList: Promise<GitHubUser[]> | null = null
@@ -119,7 +147,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   let slug: Promise<string | null> | null = null
 
   const repoSlug = () => {
-    slug ??= runGit(['remote', 'get-url', 'origin'], { cwd: repo }).then(parseGitHubRemote, () => null)
+    slug ??= origin().then((found) => (found?.kind === 'github' ? found.slug : null))
     return slug
   }
 
@@ -128,10 +156,12 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   let found: Promise<{ token: string; source: GitHubStatus['source'] } | null> | null = null
   async function token(): Promise<{ token: string; source: GitHubStatus['source'] } | null> {
     if (pasted) return { token: pasted, source: 'token' }
-    found ??= findToken().then((result) => {
-      if (!result) found = null
-      return result
-    })
+    found ??= origin()
+      .then((at) => findToken(at?.kind === 'github' ? at.host : 'github.com'))
+      .then((result) => {
+        if (!result) found = null
+        return result
+      })
     return found
   }
 
@@ -147,7 +177,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     const key = `${path} ${JSON.stringify(init.headers ?? {})}`
     const cached = read ? etags.get(key) : undefined
     if (!auth) throw new HttpError(401, 'unauthorized', 'not signed in to GitHub')
-    const response = await fetcher(`${apiBase}${path}`, {
+    const response = await fetcher(await urlFor(path), {
       ...init,
       headers: {
         accept: 'application/vnd.github+json',
@@ -221,13 +251,17 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   }
 
   return {
+    kind: 'github' as const,
+    async pullRefspec(number: number): Promise<string> {
+      return `pull/${number}/head`
+    },
     async probe(topic: string): Promise<{ changed: boolean | null; pollSeconds?: number }> {
       const suffix = PROBES[topic]
       const auth = await token()
       if (!suffix || !auth) return { changed: false }
       const path = `${await repoPath()}${suffix}`
       const before = probeTags.get(path)
-      const response = await fetcher(`${apiBase}${path}`, {
+      const response = await fetcher(await urlFor(path), {
         headers: {
           accept: 'application/vnd.github+json',
           authorization: `Bearer ${auth.token}`,
@@ -653,7 +687,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     async jobLog(jobId: number): Promise<string> {
       const auth = await token()
       if (!auth) throw new HttpError(401, 'unauthorized', 'not signed in to GitHub')
-      const response = await fetcher(`${apiBase}${await repoPath()}/actions/jobs/${jobId}/logs`, {
+      const response = await fetcher(await urlFor(`${await repoPath()}/actions/jobs/${jobId}/logs`), {
         headers: { authorization: `Bearer ${auth.token}`, 'x-github-api-version': '2022-11-28' },
       })
       if (!response.ok) throw new HttpError(502, 'failed', `GitHub: could not read the log (${response.status})`)

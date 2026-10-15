@@ -8,17 +8,17 @@ import { IconTool } from '../app/IconTool'
 import { createStore } from '../lib/store'
 
 // The conversation of one pull request or issue, plus a comment draft the timeline can quote into.
-export function useThread(number: number) {
+export function useThread(number: number, kind: 'pr' | 'issue') {
   const { api } = useApp()
   const [thread, setThread] = useState<Thread | null>(null)
   const draft = useMemo(() => createStore(''), [])
   // A quiet reload (from a poll) keeps the last good thread when GitHub cannot be reached for a moment.
   const reload = useCallback(
     (quiet = false) =>
-      api.github.thread(number).then(setThread, (error: Error) => {
+      api.github.thread(number, kind).then(setThread, (error: Error) => {
         if (!quiet) toast.error(`Could not read the conversation: ${error.message}`)
       }),
-    [api, number],
+    [api, number, kind],
   )
   useEffect(() => {
     setThread(null)
