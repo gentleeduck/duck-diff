@@ -27,8 +27,12 @@ export function listOf(element: Element | null): Element | null {
   return null
 }
 
+// Kept views and tabs behind the one showing are in the page but not drawn; their lists are not reachable.
 const usable = (item: HTMLElement) =>
-  !item.hasAttribute('disabled') && item.getAttribute('aria-disabled') !== 'true' && !item.closest('[hidden], [inert]')
+  !item.hasAttribute('disabled') &&
+  item.getAttribute('aria-disabled') !== 'true' &&
+  !item.closest('[hidden], [inert]') &&
+  item.checkVisibility?.() !== false
 
 // A widget that knows its arrow keys (a tree, a menu, tabs) handles the motion itself; anything else gets
 // focus moved along its items.

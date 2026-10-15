@@ -20,6 +20,7 @@ import { ArrowLeft, FileText, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { LinesSkeleton } from '../app/skeletons'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { MarkdownEditor } from './MarkdownEditor'
 
@@ -174,7 +175,7 @@ export function NewIssue({ onCreated }: { onCreated(): void }) {
           <DialogTitle>{template ? template.name : 'New issue'}</DialogTitle>
           {chosen === null ? (
             <ul className="flex flex-col gap-2">
-              {templates === null ? <p className="text-muted-foreground">Reading the templates...</p> : null}
+              {templates === null ? <LinesSkeleton count={3} className="" /> : null}
               {templates?.map((entry) => (
                 <li key={entry.file} className="flex items-center gap-3 rounded-md border border-border p-3">
                   <FileText className="size-4 shrink-0 text-muted-foreground" />

@@ -3,7 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { ViewSkeleton } from '../app/skeletons'
+import { useView } from '../hooks/useView'
+import { useStore } from '../lib/store'
+import type { Place } from '../router/place'
 import { type GitHubState, isReady } from './store'
+
+const selectNumber = (place: Place) => place.number
 
 export function useGitHub(): GitHubState {
   const { queries } = useApp()
@@ -89,8 +95,11 @@ function SignInPanel({ state }: { state: GitHubState }) {
 // Shows the children once signed in to the repo's GitHub, and the way to get there otherwise.
 export function GitHubGate({ children }: { children: ReactNode }) {
   const state = useGitHub()
+  const { view } = useView()
+  const item = useStore(useApp().place, selectNumber) !== null
   if (isReady(state)) return children
-  if (!state.status && state.loading) return null
+  // No answer yet (still reading, or restoring the saved one): the page's own shape, not the sign-in form.
+  if (!state.status && !state.error) return <ViewSkeleton view={view} item={item} />
   return (
     <div className="p-6">
       <SignInPanel state={state} />

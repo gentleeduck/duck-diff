@@ -13,7 +13,7 @@ const pages = () => import('../github/Pages')
 const page = (name: keyof Awaited<ReturnType<typeof pages>>) =>
   lazy(() => pages().then((module) => ({ default: module[name] as ComponentType })))
 
-const MAINS: Record<View, ComponentType> = {
+export const MAINS: Record<View, ComponentType> = {
   changes: Changes,
   graph: GraphView,
   files: FileView,
@@ -35,24 +35,15 @@ const stringifySearch = (search: Record<string, unknown>) => {
   return query ? `?${query}` : ''
 }
 
-// One route per view, plus one per pull request and issue; the shell around them is the root.
+// One route per view, plus one per pull request and issue; the shell around them is the root, and it keeps
+// every view seen alive (ViewStack) so switching back is instant. Routes give the url its shape.
 export function createAppRouter(history: RouterHistory, Root: ComponentType) {
   const root = createRootRoute({ component: () => createElement(Root) })
   const routes = (Object.keys(MAINS) as View[]).map((view) =>
-    createRoute({
-      getParentRoute: () => root,
-      path: `/${view}`,
-      component: () => createElement(MAINS[view]),
-      staticData: { view },
-    }),
+    createRoute({ getParentRoute: () => root, path: `/${view}`, staticData: { view } }),
   )
   const items = (['prs', 'issues'] as const).map((view) =>
-    createRoute({
-      getParentRoute: () => root,
-      path: `/${view}/$number`,
-      component: () => createElement(MAINS[view]),
-      staticData: { view },
-    }),
+    createRoute({ getParentRoute: () => root, path: `/${view}/$number`, staticData: { view } }),
   )
   return createRouter({
     routeTree: root.addChildren([...routes, ...items]),

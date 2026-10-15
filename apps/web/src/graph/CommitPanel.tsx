@@ -4,6 +4,7 @@ import { Check, Copy, FileDiff, X } from 'lucide-react'
 import { useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { LinesSkeleton } from '../app/skeletons'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
 import { fileGlyph, STATUS_MARK } from '../sidebar/icons'
@@ -49,6 +50,7 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
         </Button>
       </header>
       {failed ? <p className="p-3 text-removed">Could not read this commit: {failed}</p> : null}
+      {!loaded && !failed ? <LinesSkeleton count={8} /> : null}
       {loaded ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           <h2 className="text-foreground">{subject}</h2>

@@ -13,6 +13,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { Cherry, GitBranch, Tag } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { GraphSkeleton } from '../app/skeletons'
 import { useRowHeight } from '../app/useSizes'
 import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
 import { useStore } from '../lib/store'
@@ -162,6 +163,7 @@ export default function GraphView() {
   if (state.status !== 'idle' && state.entries.length === 0 && state.status === 'ready') {
     return <p className="p-4 text-muted-foreground">This repository has no commits yet.</p>
   }
+  if (state.entries.length === 0) return <GraphSkeleton />
 
   return (
     <>

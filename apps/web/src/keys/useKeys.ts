@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { useGit } from '../git/GitProvider'
 import { useTarget } from '../hooks/useTarget'
+import { shown } from '../lib/dom'
 import { glide } from '../lib/glide'
 import { compileHidden } from '../lib/hide'
 import { back, forward } from '../lib/history'
@@ -52,7 +53,7 @@ export function modeOf(target: EventTarget | null): Mode {
 }
 
 const region = (name: string) => document.querySelector<HTMLElement>(`[data-region="${name}"]`)
-const diffScroller = () => document.querySelector<HTMLElement>('[data-diff-view]')
+const diffScroller = () => shown('[data-diff-view]')
 
 // One capture listener drives the page from the keyboard the way the user's Neovim does.
 export function useKeys(handlers: KeyHandlers) {

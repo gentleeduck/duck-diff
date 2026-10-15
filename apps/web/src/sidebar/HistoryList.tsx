@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { useApp } from '../app/AppProvider'
+import { HistorySkeleton } from '../app/skeletons'
 import { historyTarget } from '../compare/model'
 import { useTarget } from '../hooks/useTarget'
 import { useStore } from '../lib/store'
@@ -80,7 +81,7 @@ export function HistoryList({ now }: { now?: number }) {
   const path = useStore(fileHistory, selectPath)
   const { target, navigate } = useTarget()
   const state = useCommits(path)
-  if (state === null) return null
+  if (state === null) return <HistorySkeleton />
 
   const selected = selectedShas(target)
   const order = state.commits.map((commit) => commit.sha)

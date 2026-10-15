@@ -124,3 +124,25 @@ test('a side list keeps its place when the page is left and opened again', async
   await page.getByRole('button', { name: 'Commit graph', exact: true }).click()
   await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBe(kept)
 })
+
+test('coming back to the graph shows it as it was, without reading it again', async ({ page, app, repo }) => {
+  for (let i = 0; i < 3; i++) repo.commit(`step ${i}`)
+  const reads: string[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/graph') reads.push(request.url())
+  })
+  await page.goto(`${app.url}&view=graph`)
+  const commits = page.getByRole('listbox', { name: 'Commits' })
+  await expect(commits.getByRole('option').first()).toContainText('step 2')
+  await commits.getByRole('option', { name: /step 1/ }).click()
+  const before = reads.length
+  // Marks this very element: a remount would draw a new one without the mark.
+  await commits.evaluate((element) => element.setAttribute('data-kept', ''))
+  const views = page.getByRole('navigation', { name: 'Views' })
+  await views.getByRole('button', { name: 'Changes' }).click()
+  await expect(page.locator('[data-diff-view]').or(page.getByText(/No changes/))).toBeVisible()
+  await views.getByRole('button', { name: 'Commit graph' }).click()
+  await expect(commits.getByRole('option', { name: /step 1/ })).toHaveAttribute('aria-selected', 'true')
+  expect(reads.length).toBe(before)
+  await expect(commits).toHaveAttribute('data-kept', '')
+})

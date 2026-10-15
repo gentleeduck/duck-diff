@@ -2,6 +2,7 @@ import type { LspHover, LspLocation } from '@duck-diff/protocol'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useApp } from '../app/AppProvider'
+import { LinesSkeleton } from '../app/skeletons'
 import { openFile } from '../files/open-file'
 import { useView } from '../hooks/useView'
 import { Markdown } from '../markdown/Markdown'
@@ -36,7 +37,7 @@ function Peek({ target, onOpen }: { target: Shown['target']; onOpen(location: Ls
       alive = false
     }
   }, [api, target])
-  if (found === undefined) return <p className="px-3 py-2 text-muted-foreground">Finding references...</p>
+  if (found === undefined) return <LinesSkeleton count={2} className="px-3 py-2" />
   if (!found?.length) return <p className="px-3 py-2 text-muted-foreground">No references found.</p>
   return (
     <ul aria-label="References" className="max-h-72 overflow-y-auto py-1">

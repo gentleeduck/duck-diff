@@ -6,6 +6,7 @@ import { Check, Code2, Copy, Eye, FileDiff, History, SquareArrowOutUpRight, User
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { CodeRowsSkeleton } from '../app/skeletons'
 import { BlameCell } from '../blame/BlameCell'
 import { CodeHover } from '../code-nav/CodeHover'
 import { useSymbolClick } from '../code-nav/useSymbolClick'
@@ -198,6 +199,7 @@ export default function FileView() {
           Could not read {path}: {failed}
         </p>
       ) : null}
+      {!contents && !failed ? <CodeRowsSkeleton count={30} /> : null}
       {contents?.text === '' ? <p className="p-4 text-muted-foreground">This file is empty.</p> : null}
       {contents && contents.text === null ? (
         <p className="p-4 text-muted-foreground">

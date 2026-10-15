@@ -17,6 +17,7 @@ import { type ReactNode, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { BoxSkeleton } from '../app/skeletons'
 import type { MergeMethod } from '../lib/api'
 import { useRefresh } from '../query/useRefresh'
 import { VISIBLE_BOX } from '../viewer/FileActions'
@@ -202,8 +203,8 @@ export function MergeBox({
 
   if (!info || !method) {
     return (
-      <section aria-label="Merge" className="rounded-md border border-border p-4 text-muted-foreground">
-        Checking mergeability...
+      <section aria-label="Merge">
+        <BoxSkeleton rows={3} />
       </section>
     )
   }

@@ -147,7 +147,7 @@ export function SettingsPopover() {
           <Settings2 />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[23rem]">
+      <PopoverContent align="end" className="w-[28rem]">
         <Row label="Layout">
           <ToggleGroup
             type="single"

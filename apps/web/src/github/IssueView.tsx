@@ -14,6 +14,7 @@ import {
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { ThreadSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { Comment, Composer } from './Conversation'
 import { ItemSidebar } from './ItemSidebar'
@@ -119,7 +120,7 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
             Could not read #{number}: {failed}
           </p>
         ) : (
-          <p className="text-muted-foreground">Loading #{number}...</p>
+          <ThreadSkeleton />
         )}
       </div>
     )

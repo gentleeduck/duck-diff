@@ -12,6 +12,7 @@ import {
 } from '@duck-diff/ui'
 import { GitBranch, Plus } from 'lucide-react'
 import { useState } from 'react'
+import { TextLine } from '../app/skeletons'
 import { useRefs } from '../hooks/useRefs'
 import { useGit } from './GitProvider'
 
@@ -38,7 +39,7 @@ export function BranchMenu() {
         <Button size="sm" variant="outline" aria-label="Branch" loading={busy === 'switch'} className="justify-start">
           <GitBranch />
           <span className="min-w-0 max-w-28 truncate pe-0.5 @6xl/top:max-w-56">
-            {status ? (status.branch ?? 'detached HEAD') : '...'}
+            {status ? (status.branch ?? 'detached HEAD') : <TextLine className="w-20" />}
           </span>
         </Button>
       </PopoverTrigger>

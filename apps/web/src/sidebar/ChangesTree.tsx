@@ -1,6 +1,7 @@
 import { Input } from '@duck-diff/ui'
 import { useCallback, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { TreeSkeleton } from '../app/skeletons'
 import { useCanOpen } from '../hooks/useCanOpen'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
@@ -20,6 +21,7 @@ import { FileMenu, FolderMenu } from './tree-menus'
 import { ViewedProgress } from './ViewedProgress'
 
 const selectFiles = (state: SessionState) => state.files
+const selectLoading = (state: SessionState) => state.status === 'loading' && state.files.length === 0
 const selectPatterns = (state: Settings) => state.hidePatterns
 const selectFolders = (folders: ReadonlySet<string>) => folders
 const selectTop = (path: string | null) => path
@@ -32,6 +34,7 @@ export function ChangesTree() {
   const writes = useWrites()
   const canOpen = useCanOpen()
   const files = useSession(selectFiles)
+  const loading = useSession(selectLoading)
   const [statuses, setStatuses] = useState<ReadonlySet<TreeStatus>>(new Set())
   const [query, setQuery] = useState('')
   // The tree follows the diff: whatever file is at the top of it is the one marked here.
@@ -64,6 +67,7 @@ export function ChangesTree() {
         <StatusFilter files={shown} value={statuses} onChange={setStatuses} />
         <ViewedProgress files={shown} target={target} />
       </div>
+      {loading ? <TreeSkeleton /> : null}
       {visible.length > 0 ? (
         <FileTree
           label="Changed files"
@@ -103,7 +107,7 @@ export function ChangesTree() {
         />
       ) : files.length > 0 && shown.length === 0 ? (
         <HiddenNotice count={files.length} />
-      ) : (
+      ) : loading ? null : (
         <p className="p-3 text-tn-comment">
           {files.length === 0 ? 'No changes in this comparison.' : 'No files match the filter.'}
         </p>

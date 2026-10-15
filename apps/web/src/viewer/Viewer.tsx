@@ -1,6 +1,7 @@
 import { type BlameLine, type ChangedFile, type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { DiffSkeleton } from '../app/skeletons'
 import { blameSides } from '../blame/ref'
 import { CodeHover } from '../code-nav/CodeHover'
 import { refForSide, type SymbolUnder } from '../code-nav/symbol-at'
@@ -356,7 +357,9 @@ export default function Viewer() {
     },
     [diffTop],
   )
-  const diffRoot = useCallback(() => document.querySelector<HTMLElement>('[data-diff-view]'), [])
+  // This viewer's own diff; a pull request's Files tab can hold a second one.
+  const box = useRef<HTMLDivElement>(null)
+  const diffRoot = useCallback(() => box.current?.querySelector<HTMLElement>('[data-diff-view]') ?? null, [])
   // A comment on selected words covers their lines and keeps the exact columns, so the words stay highlighted.
   const commentOnSelection = useCallback(
     (raw: CodeSelection) => {
@@ -670,8 +673,9 @@ export default function Viewer() {
     return <p className="p-6 text-muted-foreground">{EMPTY[target.kind]}</p>
   }
   if (status === 'ready' && plain.length > 0 && shown.length === 0) return <HiddenNotice count={plain.length} />
+  if (status === 'loading' && items.length === 0) return <DiffSkeleton />
   return (
-    <div className="relative h-full">
+    <div ref={box} className="relative h-full">
       <DiffView
         ref={viewer}
         page={page}

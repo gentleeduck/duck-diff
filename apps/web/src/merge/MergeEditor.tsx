@@ -1,9 +1,10 @@
 import type { ConflictBlock, ConflictFile } from '@duck-diff/protocol'
-import { Badge, Button, Skeleton, Textarea } from '@duck-diff/ui'
+import { Badge, Button, Textarea } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftToLine, ArrowRightToLine, Check, ChevronsUpDown, ExternalLink, Pencil, RotateCcw } from 'lucide-react'
 import { type ReactNode, useMemo, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
+import { CodeRowsSkeleton } from '../app/skeletons'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
 import { useGit } from '../git/GitProvider'
@@ -368,6 +369,6 @@ export default function MergeEditor() {
       </div>
     )
   if (failed) return <p className="p-4 text-removed">{failed}</p>
-  if (!file) return <Skeleton className="m-4 h-40" />
+  if (!file) return <CodeRowsSkeleton count={20} />
   return <Editor key={file.path} file={file} onDone={after} />
 }

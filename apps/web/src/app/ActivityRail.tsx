@@ -7,6 +7,7 @@ import {
   FolderTree,
   GitGraph,
   GitPullRequest,
+  Keyboard,
   MessagesSquare,
   PlayCircle,
   Rocket,
@@ -34,9 +35,12 @@ const ITEMS: { view: View; label: string; icon: typeof FileDiff }[] = [
 export function ActivityRail({
   views,
   badges = {},
+  onShortcuts,
 }: {
   views: readonly View[]
   badges?: Partial<Record<View, number>>
+  // Opens the list of every key binding.
+  onShortcuts(): void
 }) {
   const { view, show } = useView()
   return (
@@ -64,6 +68,15 @@ export function ActivityRail({
           <TooltipContent side="right">{badges[id] ? `${label} (${badges[id]} unread)` : label}</TooltipContent>
         </Tooltip>
       ))}
+      <span className="mt-auto" />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button size="icon" variant="ghost" aria-label="Keyboard shortcuts" onClick={onShortcuts}>
+            <Keyboard />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">Keyboard shortcuts (?)</TooltipContent>
+      </Tooltip>
       <RepoSwitcher />
     </nav>
   )

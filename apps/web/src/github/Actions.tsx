@@ -5,7 +5,6 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
-  Skeleton,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -25,13 +24,12 @@ import { type ReactNode, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { ListRowsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { Avatar } from './Conversation'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
-
-const SKELETONS = ['a', 'b', 'c', 'd', 'e']
 
 export function runState(run: Pick<WorkflowRun, 'status' | 'conclusion'>): { icon: ReactNode; text: string } {
   if (run.status !== 'completed') {
@@ -76,7 +74,7 @@ export function Actions() {
           </div>
           <ul aria-label="Workflow runs">
             {failed ? <p className="p-4 text-removed">{failed}</p> : null}
-            {!items && !failed ? SKELETONS.map((key) => <Skeleton key={key} className="m-3 h-10" />) : null}
+            {!items && !failed ? <ListRowsSkeleton twoLines /> : null}
             {items?.length === 0 ? (
               <p className="p-8 text-center text-muted-foreground">No workflow runs in this repository.</p>
             ) : null}

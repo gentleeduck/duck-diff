@@ -110,5 +110,12 @@ export function useScrollMemory(ref: RefObject<HTMLElement | null>, key: string 
       stop()
     }
   })
-  useEffect(() => () => attached.current.stop?.(), [])
+  // Unmounted or hidden (a kept view behind another): let go, so showing it again attaches and restores.
+  useEffect(
+    () => () => {
+      attached.current.stop?.()
+      attached.current = { element: null, key: null }
+    },
+    [],
+  )
 }

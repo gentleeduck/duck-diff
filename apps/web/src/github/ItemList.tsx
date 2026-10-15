@@ -11,7 +11,6 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Skeleton,
 } from '@duck-diff/ui'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Check, ChevronDown, CircleDot, Copy, FileText, RefreshCw, Search, SquareArrowOutUpRight } from 'lucide-react'
@@ -19,6 +18,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { ItemRowsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import type { Store } from '../lib/store'
 import { ListFilters } from './ListFilters'
@@ -34,8 +34,6 @@ interface Props {
   // Extra right-click items, above the shared open and copy ones.
   menuFor?(item: ListItem, reload: () => void): ReactNode
 }
-
-const SKELETONS = ['a', 'b', 'c', 'd', 'e', 'f']
 
 const FILTERS: { value: ListQuery['filter']; label: string; kinds: ListQuery['kind'][] }[] = [
   { value: 'all', label: 'Everything', kinds: ['pr', 'issue'] },
@@ -169,7 +167,7 @@ export function ItemList({ kind, label, selection, row, actions, menuFor }: Prop
           </div>
           <div role="listbox" aria-label={label}>
             {failed ? <p className="p-4 text-removed">{failed}</p> : null}
-            {!items && !failed ? SKELETONS.map((key) => <Skeleton key={key} className="m-3 h-12" />) : null}
+            {!items && !failed ? <ItemRowsSkeleton /> : null}
             {items?.length === 0 ? (
               <p className="p-8 text-center text-muted-foreground">
                 No {state} {label.toLowerCase()}
@@ -218,7 +216,7 @@ export function ItemList({ kind, label, selection, row, actions, menuFor }: Prop
               </ContextMenu>
             ))}
             <div ref={end} className="h-1" />
-            {loadingMore ? <Skeleton className="m-3 h-12" /> : null}
+            {loadingMore ? <ItemRowsSkeleton count={2} /> : null}
           </div>
         </div>
       </div>

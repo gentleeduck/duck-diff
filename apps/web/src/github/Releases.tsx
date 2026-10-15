@@ -1,22 +1,12 @@
 import type { Release } from '@duck-diff/protocol'
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogTitle,
-  Input,
-  Label,
-  Skeleton,
-} from '@duck-diff/ui'
+import { Badge, Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogTitle, Input, Label } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, RefreshCw, SquareArrowOutUpRight, Tag } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { CardsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { Avatar, Body } from './Conversation'
@@ -24,8 +14,6 @@ import { MarkdownEditor } from './MarkdownEditor'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
-
-const SKELETONS = ['a', 'b', 'c']
 
 function ReleaseCard({ release }: { release: Release }) {
   return (
@@ -215,7 +203,7 @@ export function Releases() {
           <NewRelease onCreated={() => void load()} />
         </div>
         {failed ? <p className="text-removed">{failed}</p> : null}
-        {!items && !failed ? SKELETONS.map((key) => <Skeleton key={key} className="h-32" />) : null}
+        {!items && !failed ? <CardsSkeleton /> : null}
         {items?.length === 0 ? (
           <p className="rounded-md border border-border border-dashed p-8 text-center text-muted-foreground">
             No releases yet. Publish one from a tag with New release.

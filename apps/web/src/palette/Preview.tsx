@@ -2,6 +2,7 @@ import { Badge } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
+import { CodeRowsSkeleton, LinesSkeleton } from '../app/skeletons'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
 import { Body } from '../github/Conversation'
@@ -39,7 +40,7 @@ function FilePreview({ path }: { path: string }) {
         <span style={{ color: icon.color }}>{icon.glyph}</span>
         <span className="min-w-0 truncate">{path}</span>
       </p>
-      {contents === undefined ? <p className="p-3 text-muted-foreground">Reading...</p> : null}
+      {contents === undefined ? <CodeRowsSkeleton count={16} /> : null}
       {contents === null || (contents && text === null) ? (
         <p className="p-3 text-muted-foreground">{contents?.binary ? 'Binary file.' : 'Nothing to show.'}</p>
       ) : null}
@@ -89,7 +90,7 @@ function ItemPreview({ item }: { item: IndexedItem }) {
         </div>
       ) : null}
       <div className="relative min-h-0 flex-1 overflow-hidden border-border border-t pt-2">
-        {body === undefined ? <p className="text-muted-foreground">Reading...</p> : null}
+        {body === undefined ? <LinesSkeleton count={5} className="" /> : null}
         {body === null ? <p className="text-muted-foreground">Could not read it.</p> : null}
         {body !== undefined && body !== null ? <Body text={body} /> : null}
         <span className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-popover" />

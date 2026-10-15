@@ -10,13 +10,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
 } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { ShieldAlert, SquareArrowOutUpRight } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { CardsSkeleton } from '../app/skeletons'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
@@ -105,7 +105,7 @@ export function Security() {
     <div className="h-full overflow-y-auto">
       <div className="flex w-full flex-col gap-3 p-6">
         {failed ? <p className="text-removed">{failed}</p> : null}
-        {!found && !failed ? ['a', 'b', 'c'].map((key) => <Skeleton key={key} className="h-14" />) : null}
+        {!found && !failed ? <CardsSkeleton /> : null}
         {found?.unavailable.map((entry) => (
           <p key={entry.kind} className="rounded-md border border-border border-dashed px-4 py-2 text-muted-foreground">
             {entry.kind === 'dependabot' ? 'Dependabot' : 'Code scanning'} alerts could not be read: {entry.reason}

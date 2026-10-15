@@ -1,18 +1,17 @@
 import type { Notification } from '@duck-diff/protocol'
-import { Badge, Button, Skeleton } from '@duck-diff/ui'
+import { Badge, Button } from '@duck-diff/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCheck, CircleDot, GitPullRequest, MailCheck, RefreshCw, Rocket, Workflow } from 'lucide-react'
 import { type ReactNode, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { ListRowsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useView } from '../hooks/useView'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
-
-const SKELETONS = ['a', 'b', 'c', 'd']
 
 const ICONS: Record<string, ReactNode> = {
   PullRequest: <GitPullRequest className="size-4 text-added" />,
@@ -115,7 +114,7 @@ export function Inbox() {
           </div>
           <ul aria-label="Notifications">
             {failed ? <p className="p-4 text-removed">{failed}</p> : null}
-            {!items && !failed ? SKELETONS.map((key) => <Skeleton key={key} className="m-3 h-10" />) : null}
+            {!items && !failed ? <ListRowsSkeleton twoLines /> : null}
             {items?.length === 0 ? (
               <p className="p-8 text-center text-muted-foreground">
                 {all ? 'No notifications for this repository.' : 'All caught up.'}

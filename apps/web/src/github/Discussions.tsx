@@ -1,16 +1,15 @@
-import { Badge, Button, Input, Skeleton } from '@duck-diff/ui'
+import { Badge, Button, Input } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, CircleCheck, MessagesSquare, Reply, SquareArrowOutUpRight } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { ListRowsSkeleton, ThreadSkeleton } from '../app/skeletons'
 import { Avatar, Body } from './Conversation'
 import { MarkdownEditor } from './MarkdownEditor'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
-
-const SKELETONS = ['a', 'b', 'c', 'd']
 
 function DiscussionView({ number, onBack }: { number: number; onBack(): void }) {
   const { api, queries } = useApp()
@@ -46,7 +45,7 @@ function DiscussionView({ number, onBack }: { number: number; onBack(): void }) 
   }
 
   if (failed) return <p className="p-6 text-removed">{failed}</p>
-  if (!discussion) return <Skeleton className="m-6 h-40" />
+  if (!discussion) return <ThreadSkeleton />
   return (
     <div className="h-full overflow-y-auto">
       <article aria-label={discussion.title} className="flex w-full flex-col gap-4 p-6">
@@ -180,7 +179,11 @@ export function Discussions() {
     <div className="h-full overflow-y-auto">
       <div className="flex w-full flex-col gap-2 p-6">
         {failed ? <p className="text-removed">{failed}</p> : null}
-        {!items && !failed ? SKELETONS.map((key) => <Skeleton key={key} className="h-12" />) : null}
+        {!items && !failed ? (
+          <div className="rounded-md border border-border">
+            <ListRowsSkeleton twoLines />
+          </div>
+        ) : null}
         {items?.length === 0 ? (
           <p className="rounded-md border border-border border-dashed p-8 text-center text-muted-foreground">
             No discussions yet, or Discussions is turned off for this repository.

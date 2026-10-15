@@ -21,6 +21,8 @@ import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from 'rea
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { KeepAlive } from '../app/KeepAlive'
+import { DiffSkeleton, ListRowsSkeleton, ThreadSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
@@ -98,7 +100,12 @@ function Commits({ number }: { number: number }) {
   const { queries, graphSelection } = useApp()
   const { data: commits, isError } = useQuery(queries.gh.pullCommits(number))
   if (isError) return <p className="p-4 text-removed">Could not read the commits.</p>
-  if (!commits) return <p className="p-4 text-muted-foreground">Reading commits...</p>
+  if (!commits)
+    return (
+      <div className="rounded-md border border-border">
+        <ListRowsSkeleton twoLines avatar />
+      </div>
+    )
   return (
     <ul className="rounded-md border border-border">
       {commits.map((commit) => (
@@ -140,7 +147,7 @@ function Files({ number, head }: { number: number; head: string }) {
     if (target && targetKey(session.get().target) !== key) void session.load(target)
   }, [key, session])
   if (refs.error) return <p className="p-4 text-removed">Could not fetch the pull request: {refs.error.message}</p>
-  if (!target) return <p className="p-4 text-muted-foreground">Fetching the head of #{number}...</p>
+  if (!target) return <DiffSkeleton />
   return (
     <div className="flex flex-col gap-2">
       <div className="flex justify-end">
@@ -156,7 +163,7 @@ function Files({ number, head }: { number: number; head: string }) {
         </Button>
       </div>
       <div className="h-[calc(100vh-17rem)] overflow-hidden rounded-md border border-border">
-        <Suspense fallback={null}>
+        <Suspense fallback={<DiffSkeleton />}>
           <Viewer />
         </Suspense>
       </div>
@@ -236,7 +243,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
     return (
       <div className="flex w-full flex-col gap-3 p-6">
         {back}
-        <p className="text-muted-foreground">Loading #{number}...</p>
+        <ThreadSkeleton tabs />
       </div>
     )
   }
@@ -395,10 +402,17 @@ export default function PullView({ number, onChanged }: { number: number; onChan
             {pull.state === 'open' ? <ReviewChanges /> : null}
           </span>
         </div>
-        {tab === 'commits' ? <Commits number={number} /> : null}
-        {tab === 'checks' ? <ChecksList number={number} /> : null}
-        {tab === 'files' ? <Files number={number} head={pull.headSha} /> : null}
-        {tab === 'conversation' ? (
+        {/* Each tab draws the first time it opens and is kept, paused, while another one shows. */}
+        <KeepAlive active={tab === 'commits'}>
+          <Commits number={number} />
+        </KeepAlive>
+        <KeepAlive active={tab === 'checks'}>
+          <ChecksList number={number} />
+        </KeepAlive>
+        <KeepAlive active={tab === 'files'}>
+          <Files number={number} head={pull.headSha} />
+        </KeepAlive>
+        <KeepAlive active={tab === 'conversation'}>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
             <div className="flex min-w-0 flex-col gap-4">
               {thread ? (
@@ -489,7 +503,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
               })}
             />
           </div>
-        ) : null}
+        </KeepAlive>
       </div>
     </article>
   )

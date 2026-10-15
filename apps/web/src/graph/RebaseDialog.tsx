@@ -12,13 +12,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
 } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, GripVertical } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { ListRowsSkeleton } from '../app/skeletons'
 import { useGit } from '../git/GitProvider'
 import { ACTIONS, move, type PlanRow, planProblem, toRows, toSteps, unchanged } from './rebase-plan'
 
@@ -62,7 +62,7 @@ export function RebaseDialog({ base, onClose }: { base: string | null; onClose()
           Oldest first, as git replays them. Squash and fixup fold a commit into the one above it.
         </DialogDescription>
         {failed ? <p className="text-removed">{failed}</p> : null}
-        {!commits && !failed ? <Skeleton className="h-32" /> : null}
+        {!commits && !failed ? <ListRowsSkeleton count={4} py="py-1" /> : null}
         {commits && !commits.length ? (
           <p className="text-muted-foreground">No commits after this one on the current branch.</p>
         ) : null}

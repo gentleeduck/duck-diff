@@ -2,6 +2,7 @@ import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, C
 import { useQuery } from '@tanstack/react-query'
 import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { LinesSkeleton } from '../app/skeletons'
 import { presets } from '../compare/model'
 import { openFile } from '../files/open-file'
 import { useGit } from '../git/GitProvider'
@@ -328,7 +329,11 @@ export function Palette({
         className="flex min-h-0 w-full flex-1 [&>[data-slot=scroll-area]]:min-w-0 [&>[data-slot=scroll-area]]:flex-1">
         <CommandList className="max-h-none min-w-0 flex-1 overflow-y-auto">
           <CommandEmpty>
-            {scope === 'file' && tree === null ? 'Reading the file list...' : 'Nothing matches.'}
+            {scope === 'file' && tree === null ? (
+              <LinesSkeleton count={8} className="px-3 text-start" />
+            ) : (
+              'Nothing matches.'
+            )}
           </CommandEmpty>
           {groups.map((group) => (
             <CommandGroup key={group.heading} heading={group.heading}>

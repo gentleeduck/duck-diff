@@ -5,6 +5,7 @@ import { CircleCheck, CircleDashed, CircleMinus, CircleX, RotateCw } from 'lucid
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { LinesSkeleton, ListRowsSkeleton } from '../app/skeletons'
 
 type Outcome = 'passed' | 'failed' | 'running' | 'skipped'
 
@@ -81,7 +82,12 @@ export function ChecksList({ number }: { number: number }) {
   const { queries } = useApp()
   const { data, isError } = useQuery(queries.gh.checks(number))
   const runs = isError ? NO_RUNS : (data ?? null)
-  if (!runs) return <p className="p-4 text-muted-foreground">Reading checks...</p>
+  if (!runs)
+    return (
+      <div className="rounded-md border border-border">
+        <ListRowsSkeleton count={4} />
+      </div>
+    )
   if (!runs.length) return <p className="p-4 text-muted-foreground">No checks ran on this pull request.</p>
   const { text } = summary(runs)
   return (
@@ -140,7 +146,7 @@ function CheckRow({ run }: { run: CheckRun }) {
       </div>
       {open ? (
         <pre className="max-h-96 overflow-auto border-border border-t bg-tn-dark px-4 py-2 text-muted-foreground">
-          {log ?? 'Reading the log...'}
+          {log ?? <LinesSkeleton count={6} className="" />}
         </pre>
       ) : null}
     </li>

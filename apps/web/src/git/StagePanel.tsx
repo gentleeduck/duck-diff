@@ -14,6 +14,7 @@ import {
 import { useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { TreeSkeleton } from '../app/skeletons'
 import { useCanOpen } from '../hooks/useCanOpen'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
@@ -216,7 +217,7 @@ export function StagePanel() {
   const writes = useWrites()
   const [selected, setSelected] = useState<string | null>(null)
 
-  if (!state.loaded) return <p className="p-3 text-muted-foreground">Reading the index...</p>
+  if (!state.loaded) return <TreeSkeleton count={6} />
   if (!state.staged.length && !state.unstaged.length) {
     return <p className="p-3 text-muted-foreground">Nothing to commit. The working tree is clean.</p>
   }

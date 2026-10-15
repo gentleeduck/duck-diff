@@ -120,8 +120,6 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         const start = index === undefined ? undefined : virtualizer.measurementsCache[index]?.start
         if (!element || start === undefined || start >= element.scrollTop) return
         element.scrollTop = start
-        // The rows held for the next rebuild were the ones before this jump; a rebuild now must not undo it.
-        anchor.current = null
       },
     }),
     [page, virtualizer],
@@ -151,7 +149,9 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
   // When the page is rebuilt under the reader (a file's full text arrives and its gaps open, the files
   // reload), the row at the top of the screen stays where it was, instead of everything above it pushing
   // the reading place down. Only within one comparison; another one returns to its own remembered place.
-  const anchor = useRef<{ rows: { id: string; delta: number }[]; scrollKey: string | undefined } | null>(null)
+  const anchor = useRef<{ rows: { id: string; delta: number }[]; scrollKey: string | undefined; top: number } | null>(
+    null,
+  )
   const shownPage = useRef(page)
   useLayoutEffect(() => {
     if (shownPage.current === page) return
@@ -159,6 +159,8 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
     const held = anchor.current
     const element = scroller.current
     if (!held || !element || held.scrollKey !== scrollKey) return
+    // The page moved since those rows were taken (a jump, a scroll not drawn yet): that place is gone.
+    if (Math.abs(element.scrollTop - held.top) > 1) return
     // The first of the rows that were on screen that still exists; a gap bar that just opened does not.
     const where = new Map(page.rows.map((row, index) => [anchorId(row), index]))
     for (const { id, delta } of held.rows) {
@@ -184,7 +186,7 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
           : []
       })
       .slice(0, 8)
-    if (rows.length) anchor.current = { rows, scrollKey }
+    if (rows.length) anchor.current = { rows, scrollKey, top }
   })
 
   // Header rows in page order, for finding the one after the pinned file.

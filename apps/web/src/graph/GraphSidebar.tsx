@@ -4,6 +4,7 @@ import { ArchiveRestore, ArrowRightLeft, FileDiff, GitMerge, PackageOpen, Trash2
 import { useId, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { TreeSkeleton } from '../app/skeletons'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 import { useStore } from '../lib/store'
@@ -130,6 +131,8 @@ export function GraphSidebar() {
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        {/* A repo with commits always has a ref; none yet means they are still being read. */}
+        {refs.length === 0 ? <TreeSkeleton count={10} /> : null}
         {GROUPS.map(({ kind, title, glyph }) => {
           const list = refs.filter((ref) => ref.kind === kind)
           if (list.length === 0) return null

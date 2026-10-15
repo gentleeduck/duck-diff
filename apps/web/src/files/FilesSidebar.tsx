@@ -2,6 +2,7 @@ import { Input } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { TreeSkeleton } from '../app/skeletons'
 import { useCanOpen } from '../hooks/useCanOpen'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
@@ -52,7 +53,9 @@ export function FilesSidebar() {
           aria-label="Filter all files"
         />
       </div>
-      {paths === null ? null : shown.length > 0 ? (
+      {paths === null ? (
+        <TreeSkeleton />
+      ) : shown.length > 0 ? (
         <FileTree
           label="All files"
           paths={shown}

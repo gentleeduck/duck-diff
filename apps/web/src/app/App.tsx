@@ -1,7 +1,7 @@
 import { Button, Kbd, Toaster, TooltipProvider } from '@duck-diff/ui'
-import { Outlet, RouterProvider } from '@tanstack/react-router'
+import { RouterProvider } from '@tanstack/react-router'
 import { SearchIcon } from 'lucide-react'
-import { type ReactNode, Suspense, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { SymbolPanel } from '../code-nav/SymbolPanel'
 import { CompareBar } from '../compare/CompareBar'
 import { FilesSidebar } from '../files/FilesSidebar'
@@ -27,7 +27,7 @@ import { MergeSidebar } from '../merge/MergeSidebar'
 import { Palette, previousSearch } from '../palette/Palette'
 import { BottomPanel } from '../panel/BottomPanel'
 import { CommentsSheet } from '../review/CommentsSheet'
-import type { View } from '../router/place'
+import type { Place, View } from '../router/place'
 import { createAppRouter } from '../router/router'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
@@ -42,6 +42,7 @@ import { StatusBar } from './StatusBar'
 import { TruncationTooltip } from './TruncationTooltip'
 import { useSizes } from './useSizes'
 import { useThemeClass } from './useThemeClass'
+import { ViewStack } from './ViewStack'
 
 const SHIPPED: View[] = [
   'changes',
@@ -59,6 +60,7 @@ const SHIPPED: View[] = [
 
 const selectCommitCount = (state: GraphState) => state.entries.length
 const selectPanel = (state: Settings) => state.sidebar
+const selectNumber = (place: Place) => place.number
 
 function GraphTitle() {
   const { graph } = useApp()
@@ -95,6 +97,7 @@ function Screen() {
   }
   const [help, setHelp] = useState(false)
   const { view, show } = useView()
+  const item = useStore(useApp().place, selectNumber) !== null
   const { keys } = useApp()
   const runCommand = useKeys({
     palette: openPalette,
@@ -270,17 +273,13 @@ function Screen() {
   return (
     <>
       <Shell
-        rail={<ActivityRail views={SHIPPED} badges={{ inbox: unread }} />}
+        rail={<ActivityRail views={SHIPPED} badges={{ inbox: unread }} onShortcuts={() => setHelp(true)} />}
         topBar={screen.top}
         sidebar={screen.side}
         sidebarLabel={screen.label}
         panelShown={panel}
         onTogglePanel={togglePanel}
-        viewer={
-          <Suspense fallback={null}>
-            <Outlet />
-          </Suspense>
-        }
+        viewer={<ViewStack view={view} item={item} />}
         // The symbol panel belongs to the code views; other pages never show it.
         aside={view === 'changes' || view === 'files' ? <SymbolPanel /> : null}
         bottom={<BottomPanel />}

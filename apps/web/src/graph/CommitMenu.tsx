@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import { type ReactNode, useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { TextLine } from '../app/skeletons'
 import { useGitHub } from '../github/SignIn'
 import { relativeTime } from '../sidebar/relative-time'
 import { useCommitActions } from './commit-actions'
@@ -228,7 +229,7 @@ export function CommitHover({
               <span className="text-removed">{info.deletions.toLocaleString()} deletions(-)</span>
             </>
           ) : (
-            'Reading the change...'
+            <TextLine className="w-56" />
           )}
         </div>
         <div className="flex items-center gap-3 border-border border-t px-3 py-2">
