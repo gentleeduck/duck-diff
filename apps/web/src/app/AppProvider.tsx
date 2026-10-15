@@ -1,12 +1,14 @@
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
 import type { DiffViewHandle } from '../diff/DiffView'
+import { highlighter } from '../diff/highlighter'
+import { createItemIndex, type ItemIndex } from '../github/item-index'
 import { createPullReview, type PullReview } from '../github/pull-review'
-import { createGitHub, type GitHub } from '../github/store'
+import { createGitHub, type GitHub, isReady } from '../github/store'
 import { createGraph, type Graph } from '../graph/store'
 import { type Api, createApi } from '../lib/api'
 import { createStore, type Store } from '../lib/store'
 import { readTarget } from '../lib/target-url'
-import { readView, type View } from '../lib/view-url'
+import { type PullTab, readView, type View } from '../lib/view-url'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
@@ -34,12 +36,24 @@ interface AppContextValue {
   graphQuery: Store<string>
   // Folders folded in the changes tree; their files fold in the diff too.
   changesFolders: Store<ReadonlySet<string>>
-  // The file open in the Files view.
+  // The file open in the Files view, the line it was opened at, and the commit it is read at (null: working tree).
   fileSelection: Store<string | null>
+  fileLine: Store<number | null>
+  fileAt: Store<string | null>
+  // The name clicked in code, whose definitions and uses the symbol panel lists.
+  symbol: Store<{ name: string; ref: string | null } | null>
   github: GitHub
   // The pull request and issue open in their views.
   pullSelection: Store<number | null>
   issueSelection: Store<number | null>
+  // The open pull request's tab.
+  pullTab: Store<PullTab>
+  // The file last jumped to in the diff, so back and forward can return to it.
+  diffFile: Store<string | null>
+  // The file at the top of the diff as it scrolls, which the changes tree highlights.
+  diffTop: Store<string | null>
+  // Every pull request and issue, saved per repo, for the palette's search.
+  items: ItemIndex
   // GitHub's review threads for the pull request the diff shows.
   pullReview: PullReview
   viewer: RefObject<DiffViewHandle | null>
@@ -66,17 +80,54 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       graphSelection: createStore<string | null>(null),
       graphQuery: createStore(''),
       fileSelection: createStore<string | null>(null),
+      fileLine: createStore<number | null>(null),
+      fileAt: createStore<string | null>(null),
+      symbol: createStore<{ name: string; ref: string | null } | null>(null),
       changesFolders: createStore<ReadonlySet<string>>(new Set()),
       github: createGitHub(client),
       pullSelection: createStore<number | null>(null),
       issueSelection: createStore<number | null>(null),
+      pullTab: createStore<PullTab>('conversation'),
+      diffFile: createStore<string | null>(null),
+      diffTop: createStore<string | null>(null),
       pullReview: createPullReview(client),
+      items: createItemIndex(client),
       viewer,
     }
   }, [api])
 
   useEffect(() => {
-    void value.session.load(value.session.get().target)
+    // The highlighter starts with the page and loads the changed files' grammars while the diff is read,
+    // so the first rows arrive colored.
+    highlighter.warm([])
+    // The diff is read first only when it is the page being opened; other views get their own data out
+    // first and the diff follows once the page is idle.
+    const loadDiff = () => void value.session.load(value.session.get().target)
+    const opening = value.view.get()
+    if (opening === 'changes') loadDiff()
+    else {
+      if (opening === 'graph') void value.graph.load()
+      const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 300))
+      idle(loadDiff, { timeout: 1500 })
+    }
+    let warmed = false
+    return value.session.subscribe(() => {
+      const files = value.session.get().files
+      if (warmed || !files.length) return
+      warmed = true
+      highlighter.warm(files.slice(0, 40).map((file) => file.path))
+    })
+  }, [value])
+
+  // The saved pull requests and issues show as soon as the repo is known, then refresh from GitHub.
+  useEffect(() => {
+    const { github, items } = value
+    const sync = () => {
+      const state = github.get()
+      if (isReady(state) && state.status?.repo) items.open(state.status.repo)
+    }
+    sync()
+    return github.subscribe(sync)
   }, [value])
 
   // Comments belong to a target, so they follow the session to whatever comparison it loads.

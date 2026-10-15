@@ -72,6 +72,16 @@ export async function runGitBytes(args: string[], options: RunOptions): Promise<
 export async function* streamGit(args: string[], options: RunOptions): AsyncIterable<string> {
   const { child, done } = spawnGit(args, options)
   child.stdout.setEncoding('utf8')
-  for await (const chunk of child.stdout) yield chunk as string
-  await done
+  let finished = false
+  try {
+    for await (const chunk of child.stdout) yield chunk as string
+    finished = true
+    await done
+  } finally {
+    // The reader left early (a closed page): stop git and drop its exit, which nobody is waiting for.
+    if (!finished) {
+      done.catch(() => {})
+      child.kill('SIGKILL')
+    }
+  }
 }

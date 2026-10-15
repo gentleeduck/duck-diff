@@ -1,10 +1,11 @@
 import type { Notification } from '@duck-diff/protocol'
 import { Badge, Button, Skeleton } from '@duck-diff/ui'
 import { Bell, CheckCheck, CircleDot, GitPullRequest, MailCheck, RefreshCw, Rocket, Workflow } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useView } from '../hooks/useView'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
@@ -58,6 +59,8 @@ export function Inbox() {
   const { api, pullSelection, issueSelection } = useApp()
   const { show } = useView()
   const ready = isReady(useGitHub())
+  const page = useRef<HTMLDivElement>(null)
+  useScrollMemory(page, ready ? 'inbox' : null)
   const [all, setAll] = useState(false)
   const [items, setItems] = useState<Notification[] | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
@@ -108,7 +111,7 @@ export function Inbox() {
 
   const unread = items?.filter((entry) => entry.unread).length ?? 0
   return (
-    <div className="h-full overflow-y-auto">
+    <div ref={page} className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
         <div className="flex flex-wrap items-center gap-2">
           <div role="tablist" aria-label="Show" className="flex items-center gap-1">

@@ -26,12 +26,15 @@ export function FileHeader({
   file,
   collapsed,
   onToggle,
+  onOpen,
   children,
 }: {
   path: string
   file: ChangedFile | undefined
   collapsed: boolean
   onToggle(): void
+  // Opens the file in the Files view; absent where the checkout does not hold this version.
+  onOpen?(): void
   children: ReactNode
 }) {
   return (
@@ -49,9 +52,15 @@ export function FileHeader({
           {STATUS[file.status].label}
         </Badge>
       ) : null}
-      <span className="min-w-0 truncate" title={path}>
+      <span className="min-w-0 truncate" title={onOpen ? `Open ${path} in Files` : path}>
         {file?.oldPath ? <span className="text-muted-foreground">{file.oldPath} to </span> : null}
-        {path}
+        {onOpen ? (
+          <button type="button" onClick={onOpen} className="cursor-pointer hover:text-tn-blue hover:underline">
+            {path}
+          </button>
+        ) : (
+          path
+        )}
       </span>
       {file && file.additions !== null && file.deletions !== null ? (
         <span className="shrink-0 tabular-nums">

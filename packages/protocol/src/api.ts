@@ -119,6 +119,9 @@ export const CreateReviewSchema = z.object({
   line: z.number().int().min(1),
   // The first line when the comment covers a range ending at line.
   startLine: z.number().int().min(1).optional(),
+  // Character columns when the comment is on selected words: from startCol on the first line to endCol on the last.
+  startCol: z.number().int().min(0).optional(),
+  endCol: z.number().int().min(0).optional(),
   lineHash: z.string().min(1).max(64),
   body: z.string().trim().min(1).max(20_000),
 })
@@ -161,4 +164,20 @@ export const RemoteSchema = z.object({ name: z.string(), url: z.string() })
 export type Remote = z.infer<typeof RemoteSchema>
 export const BlameLineSchema = z.object({ sha: z.string(), author: z.string(), time: z.number(), summary: z.string() })
 export type BlameLine = z.infer<typeof BlameLineSchema>
+
+// Where a name is defined, imported and used, from a plain text search like GitHub's code navigation.
+export const SymbolHitSchema = z.object({
+  path: z.string(),
+  line: z.number().int(),
+  column: z.number().int(),
+  text: z.string(),
+  kind: z.enum(['definition', 'import', 'reference']),
+})
+export type SymbolHit = z.infer<typeof SymbolHitSchema>
+export const SymbolResultSchema = z.object({ name: z.string(), hits: z.array(SymbolHitSchema), truncated: z.boolean() })
+export type SymbolResult = z.infer<typeof SymbolResultSchema>
+export const SymbolQuerySchema = z.object({
+  name: z.string().regex(/^[A-Za-z_$][\w$]{0,99}$/),
+  ref: RefNameSchema.optional(),
+})
 export const BlameQuerySchema = z.object({ path: RepoPathSchema, ref: RefNameSchema.optional() })

@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { useApp } from '../app/AppProvider'
+import { pushUrl } from '../lib/history'
 import { useStore } from '../lib/store'
 import { readView, type View, writeView } from '../lib/view-url'
 
@@ -18,7 +19,7 @@ export function useView(): { view: View; show(view: View): void } {
   const show = useCallback(
     (next: View) => {
       if (store.get() === next) return
-      window.history.pushState(null, '', writeView(next, window.location.search))
+      pushUrl(writeView(next, window.location.search))
       store.set(next)
     },
     [store],

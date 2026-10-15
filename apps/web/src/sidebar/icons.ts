@@ -65,13 +65,14 @@ export const FOLDER = { closed: '', open: '', color: 'var(--tn-blue)' }
 export const CHEVRON = { closed: '', open: '' }
 
 // Boxed diff glyphs, as in the editor's git column.
-export const STATUS_GLYPH: Record<FileStatus, Glyph> = {
-  modified: { glyph: '', color: 'var(--tn-dark5)' },
-  'type-changed': { glyph: '', color: 'var(--tn-dark5)' },
-  added: { glyph: '', color: 'var(--tn-teal)' },
-  untracked: { glyph: '', color: 'var(--tn-teal)' },
-  copied: { glyph: '', color: 'var(--tn-teal)' },
-  renamed: { glyph: '', color: 'var(--tn-magenta)' },
-  deleted: { glyph: '', color: 'var(--tn-red)' },
-  conflicted: { glyph: '', color: 'var(--tn-red)' },
+// The editor's git letters: one coloured letter at the end of the row, and the name tinted to match.
+export const STATUS_LETTER: Record<FileStatus, { letter: string; color: string; title: string }> = {
+  modified: { letter: 'M', color: 'var(--tn-yellow)', title: 'Modified' },
+  'type-changed': { letter: 'T', color: 'var(--tn-yellow)', title: 'Type changed' },
+  added: { letter: 'A', color: 'var(--tn-green)', title: 'Added' },
+  untracked: { letter: 'U', color: 'var(--tn-green)', title: 'Untracked' },
+  copied: { letter: 'C', color: 'var(--tn-green)', title: 'Copied' },
+  renamed: { letter: 'R', color: 'var(--tn-magenta)', title: 'Renamed' },
+  deleted: { letter: 'D', color: 'var(--tn-red)', title: 'Deleted' },
+  conflicted: { letter: '!', color: 'var(--tn-red)', title: 'Conflicted' },
 }

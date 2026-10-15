@@ -2,15 +2,16 @@ import { Badge } from '@duck-diff/ui'
 
 type Label = { name: string; color: string }
 
-// GitHub label colors are picked for white pages, so they tint the text and border rather than fill.
+// GitHub label colors are picked for white pages, so they tint the text and border rather than fill;
+// round pills shown in full, as GitHub draws them.
 function LabelBadge({ label }: { label: Label }) {
   return (
     <Badge
       variant="outline"
       size="sm"
-      className="max-w-40 shrink-0"
+      className="shrink-0 rounded-full px-2"
       style={{ color: `#${label.color}`, borderColor: `#${label.color}66`, background: `#${label.color}1f` }}>
-      <span className="truncate">{label.name}</span>
+      {label.name}
     </Badge>
   )
 }

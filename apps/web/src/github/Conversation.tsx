@@ -4,20 +4,22 @@ import { MessageSquare } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useState } from 'react'
 import { createStore, type Store, useStore } from '../lib/store'
 import { MarkdownEditor } from './MarkdownEditor'
+import { useGitHub } from './SignIn'
 import { ago } from './time'
 
 const NO_DRAFT = createStore('')
 const selectDraft = (value: string) => value
 
-export function Avatar({ user }: { user: GitHubUser }) {
+export function Avatar({ user, large = false }: { user: GitHubUser; large?: boolean }) {
+  const size = large ? 'size-10' : 'size-5'
   return user.avatarUrl ? (
     <img
-      src={`${user.avatarUrl}${user.avatarUrl.includes('?') ? '&' : '?'}s=40`}
+      src={`${user.avatarUrl}${user.avatarUrl.includes('?') ? '&' : '?'}s=${large ? 80 : 40}`}
       alt=""
-      className="size-5 rounded-full"
+      className={`${size} shrink-0 rounded-full`}
     />
   ) : (
-    <span className="size-5 rounded-full bg-muted" />
+    <span className={`${size} shrink-0 rounded-full bg-muted`} />
   )
 }
 
@@ -76,6 +78,7 @@ export function Composer({
   const body = draft ? shared : local
   const setBody = (next: string) => (draft ? draft.set(next) : setLocal(next))
   const [sending, setSending] = useState(false)
+  const me = useGitHub().status?.user
   const send = async () => {
     if (!body.trim()) return
     setSending(true)
@@ -91,18 +94,29 @@ export function Composer({
   return (
     <form
       aria-label={label}
-      className="flex flex-col gap-2"
+      className="flex gap-3"
       onSubmit={(event) => {
         event.preventDefault()
         void send()
       }}>
-      <MarkdownEditor label={label} value={body} onChange={setBody} onSubmit={() => void send()} />
-      <div className="flex flex-wrap justify-end gap-2">
-        {children?.(body, () => setBody(''))}
-        <Button type="submit" size="sm" disabled={!body.trim()} loading={sending}>
-          <MessageSquare />
-          Comment
-        </Button>
+      {me ? <img src={me.avatarUrl} alt="" className="mt-0.5 hidden size-10 shrink-0 rounded-full sm:block" /> : null}
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <h3 className="font-bold text-foreground">Add a comment</h3>
+        <MarkdownEditor
+          label={label}
+          value={body}
+          onChange={setBody}
+          onSubmit={() => void send()}
+          rows={5}
+          placeholder="Add your comment here. Markdown, @people and #references work."
+        />
+        <div className="flex flex-wrap justify-end gap-2">
+          {children?.(body, () => setBody(''))}
+          <Button type="submit" size="sm" disabled={!body.trim()} loading={sending}>
+            <MessageSquare />
+            Comment
+          </Button>
+        </div>
       </div>
     </form>
   )

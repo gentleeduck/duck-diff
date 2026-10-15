@@ -111,6 +111,23 @@ describe('api', () => {
     expect((await fixture.get('/api/file?path=nope.ts')).status).toBe(404)
   })
 
+  it('finds where a name is defined and used, now or at a commit, and refuses non-names', async () => {
+    fixture = await startFixture((repo) => {
+      repo.write('src/a.ts', 'export const answer = 41\n')
+      repo.commit('base')
+      repo.write('src/b.ts', "import { answer } from './a'\nlog(answer)\n")
+    })
+    const now = await (await fixture.get('/api/symbols?name=answer')).json()
+    expect(now.hits.map((hit: { path: string; kind: string }) => `${hit.path}:${hit.kind}`)).toEqual([
+      'src/a.ts:definition',
+      'src/b.ts:import',
+      'src/b.ts:reference',
+    ])
+    const then = await (await fixture.get('/api/symbols?name=answer&ref=HEAD')).json()
+    expect(then.hits).toHaveLength(1)
+    expect((await fixture.get('/api/symbols?name=rm%20-rf')).status).toBe(400)
+  })
+
   it('answers 400 for a bad target and an unknown ref', async () => {
     await edited()
     expect((await fixture.get('/api/files?target=garbage')).status).toBe(400)

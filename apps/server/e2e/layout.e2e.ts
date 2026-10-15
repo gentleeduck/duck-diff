@@ -29,11 +29,18 @@ test('test files can be folded or hidden from the tree and the diff', async ({ p
   await expect(page.getByRole('button', { name: /src\/app\.test\.ts/ })).toHaveCount(0)
 })
 
-test('the left panel hides for a wider page and comes back', async ({ page, app }) => {
+test('each view hides its own left panel, and views without one show no toggle', async ({ page, app }) => {
   await page.goto(app.url)
-  await expect(page.getByRole('navigation', { name: 'Changed files' })).toBeVisible()
-  await page.getByRole('button', { name: 'Hide the left panel' }).click()
-  await expect(page.getByRole('navigation', { name: 'Changed files' })).toHaveCount(0)
+  const panel = page.getByRole('navigation', { name: 'Changed files' })
+  await expect(panel).toBeVisible()
+  await panel.getByRole('button', { name: 'Hide changed files' }).click()
+  await expect(panel).toHaveCount(0)
+  await page.getByRole('button', { name: 'Show changed files' }).click()
+  await expect(panel).toBeVisible()
   await page.keyboard.press('Control+b')
-  await expect(page.getByRole('navigation', { name: 'Changed files' })).toBeVisible()
+  await expect(panel).toHaveCount(0)
+  await page.keyboard.press('Control+b')
+  await expect(panel).toBeVisible()
+  await page.getByRole('button', { name: 'Releases', exact: true }).click()
+  await expect(page.getByRole('button', { name: /^(Hide|Show) / })).toHaveCount(0)
 })

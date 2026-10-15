@@ -1,4 +1,5 @@
 import { type BundledLanguage, bundledLanguages, createHighlighter } from 'shiki'
+import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 import type { HighlightRequest, HighlightResponse, Token } from './highlight'
 import { TOKYONIGHT_NIGHT } from './tokyonight-theme'
 
@@ -7,7 +8,12 @@ let highlighter: ReturnType<typeof createHighlighter> | null = null
 
 // Shiki runs here directly: the diff library only lets its own workers load grammars.
 async function tokenize(lang: string, runs: string[]): Promise<Token[][][]> {
-  highlighter ??= createHighlighter({ themes: [TOKYONIGHT_NIGHT], langs: [] })
+  // The JavaScript regex engine starts at once; the WebAssembly one has to download and compile first.
+  highlighter ??= createHighlighter({
+    themes: [TOKYONIGHT_NIGHT],
+    langs: [],
+    engine: createJavaScriptRegexEngine({ forgiving: true }),
+  })
   const shiki = await highlighter
   const known = lang in bundledLanguages
   if (known && !shiki.getLoadedLanguages().includes(lang)) await shiki.loadLanguage(lang as BundledLanguage)

@@ -5,16 +5,19 @@ import { useCanOpen } from '../hooks/useCanOpen'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
+import { withoutHistory } from '../lib/history'
 import { useStore } from '../lib/store'
 import { FileTree } from '../sidebar/FileTree'
 import { CopyItems, FileMenu } from '../sidebar/tree-menus'
 import type { SessionState } from '../state/session'
+import { openFile } from './open-file'
 
 const selectFiles = (state: SessionState) => state.files
 const selectPath = (path: string | null) => path
 
 export function FilesSidebar() {
-  const { api, fileSelection, fileHistory } = useApp()
+  const app = useApp()
+  const { api, fileSelection, fileHistory } = app
   const { navigate } = useTarget()
   const { show } = useView()
   const canOpen = useCanOpen()
@@ -31,7 +34,7 @@ export function FilesSidebar() {
         setPaths(list)
         // Like a repo's home page on GitHub, the README is what opens first.
         const readme = list.find((path) => /^readme(\.md|\.txt)?$/i.test(path))
-        if (readme && fileSelection.get() === null) fileSelection.set(readme)
+        if (readme && fileSelection.get() === null) withoutHistory(() => fileSelection.set(readme))
       },
       () => alive && setPaths([]),
     )
@@ -63,14 +66,14 @@ export function FilesSidebar() {
           paths={shown}
           fileFor={fileFor}
           selected={selected}
-          onOpenFile={(path) => fileSelection.set(path)}
+          onOpenFile={(path) => openFile(app, path)}
           menuFor={(row) =>
             row.kind === 'directory' ? (
               <CopyItems path={row.path} />
             ) : (
               <FileMenu
                 path={row.path}
-                onOpen={() => fileSelection.set(row.path)}
+                onOpen={() => openFile(app, row.path)}
                 onChanges={
                   byPath.has(row.path)
                     ? () => {

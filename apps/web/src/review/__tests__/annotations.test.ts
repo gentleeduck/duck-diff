@@ -30,6 +30,7 @@ const github = (id: number, inReplyTo: number | null, line: number | null): GitH
   path: 'a.ts',
   line,
   startLine: null,
+  reviewId: null,
   side: 'RIGHT',
   inReplyTo,
 })

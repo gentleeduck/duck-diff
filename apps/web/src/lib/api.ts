@@ -62,6 +62,8 @@ import {
   ReviewCommentSchema,
   type ReviewState,
   ReviewStateSchema,
+  type SymbolResult,
+  SymbolResultSchema,
   type SyncStatus,
   SyncStatusSchema,
   type Templates,
@@ -110,6 +112,8 @@ export interface Api {
   remotes(): Promise<Remote[]>
   lastMessage(): Promise<string>
   blame(path: string, ref?: string): Promise<BlameLine[]>
+  // Where a name is defined and used; ref null searches the working tree.
+  symbols(name: string, ref: string | null): Promise<SymbolResult>
   git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean }>
   github: GitHubApi
 }
@@ -196,7 +200,7 @@ export interface GitHubApi {
   createIssue(input: { title: string; body: string; labels?: string[]; assignees?: string[] }): Promise<IssueSummary>
   // The repo's issue templates and pull request template, read from the checkout.
   templates(): Promise<Templates>
-  setIssueState(number: number, state: ItemState): Promise<void>
+  setIssueState(number: number, state: ItemState, reason?: 'completed' | 'not_planned'): Promise<void>
 }
 
 export type GitAction =
@@ -350,7 +354,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     issue: (number) => json(`/api/github/issues/${number}`, IssueDetailsSchema),
     createIssue: (input) => send('POST', '/api/github/issues', input, IssueSummarySchema),
     templates: () => json('/api/github/templates', TemplatesSchema),
-    setIssueState: (number, state) => post(`/api/github/issues/${number}/state`, { state }),
+    setIssueState: (number, state, reason) => post(`/api/github/issues/${number}/state`, { state, reason }),
   }
 
   return {
@@ -400,6 +404,11 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     sync: () => json('/api/sync', SyncStatusSchema),
     remotes: () => json('/api/remotes', z.array(RemoteSchema)),
     lastMessage: async () => (await json('/api/last-message', z.object({ message: z.string() }))).message,
+    symbols(name, ref) {
+      const params = new URLSearchParams({ name })
+      if (ref) params.set('ref', ref)
+      return json(`/api/symbols?${params}`, SymbolResultSchema)
+    },
     blame(path, ref) {
       const params = new URLSearchParams({ path })
       if (ref) params.set('ref', ref)

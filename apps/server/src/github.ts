@@ -118,9 +118,16 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     return slug
   }
 
+  // Finding the token can mean running `gh auth token`, so it is looked up once and kept until GitHub
+  // refuses it.
+  let found: Promise<{ token: string; source: GitHubStatus['source'] } | null> | null = null
   async function token(): Promise<{ token: string; source: GitHubStatus['source'] } | null> {
     if (pasted) return { token: pasted, source: 'token' }
-    return findToken()
+    found ??= findToken().then((result) => {
+      if (!result) found = null
+      return result
+    })
+    return found
   }
 
   async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -147,6 +154,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
       },
     })
     if (response.status === 304 && cached) return { status: 200, body: cached.body as T }
+    if (response.status === 401) found = null
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { message?: string } | null
       throw new HttpError(
@@ -222,7 +230,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         input.kind === 'pr' ? 'is:pr' : 'is:issue',
         `is:${input.state}`,
         FILTERS[input.filter],
-        `sort:${input.sort}-desc`,
+        `sort:${input.sort.endsWith('-asc') ? input.sort : `${input.sort}-desc`}`,
         input.query,
       ]
         .filter(Boolean)
@@ -474,12 +482,16 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     async checks(number: number): Promise<CheckRun[]> {
       const base = await repoPath()
       const { head } = await call<RawPull>(`${base}/pulls/${number}`)
-      const { check_runs } = await call<{ check_runs: RawCheckRun[] }>(
-        `${base}/commits/${head.sha}/check-runs?per_page=100`,
-      )
-      return check_runs.map((run) => {
+      // Checks come from the Checks API; some bots still report through commit statuses instead.
+      const [{ check_runs }, { statuses }] = await Promise.all([
+        call<{ check_runs: RawCheckRun[] }>(`${base}/commits/${head.sha}/check-runs?per_page=100`),
+        call<{ statuses: RawStatus[] }>(`${base}/commits/${head.sha}/status`).catch(() => ({ statuses: [] })),
+      ])
+      const runs = check_runs.map((run): CheckRun => {
         // Actions links read .../actions/runs/<run>/job/<job>.
         const ids = /\/actions\/runs\/(\d+)\/job\/(\d+)/.exec(run.html_url ?? '')
+        const took =
+          run.started_at && run.completed_at ? (Date.parse(run.completed_at) - Date.parse(run.started_at)) / 1000 : null
         return {
           name: run.name,
           status: run.status,
@@ -487,8 +499,27 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
           url: run.html_url ?? '',
           runId: ids ? Number(ids[1]) : null,
           jobId: ids ? Number(ids[2]) : null,
+          app: run.app?.name ?? null,
+          avatar: run.app?.owner?.avatar_url ?? null,
+          summary: run.output?.title ?? null,
+          seconds: took !== null && took >= 0 ? took : null,
         }
       })
+      const reported = statuses.map(
+        (status): CheckRun => ({
+          name: status.context,
+          status: status.state === 'pending' ? 'pending' : 'completed',
+          conclusion: status.state === 'success' ? 'success' : status.state === 'pending' ? null : 'failure',
+          url: status.target_url ?? '',
+          runId: null,
+          jobId: null,
+          app: null,
+          avatar: status.avatar_url,
+          summary: status.description,
+          seconds: null,
+        }),
+      )
+      return [...runs, ...reported]
     },
     async notifications(all: boolean): Promise<Notification[]> {
       const raw = await call<RawNotification[]>(`${await repoPath()}/notifications?all=${all}&per_page=50`)
@@ -812,8 +843,12 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         await call<RawIssue>(`${await repoPath()}/issues`, { method: 'POST', body: JSON.stringify(input) }),
       )
     },
-    async setIssueState(number: number, state: 'open' | 'closed'): Promise<void> {
-      await call(`${await repoPath()}/issues/${number}`, { method: 'PATCH', body: JSON.stringify({ state }) })
+    // GitHub records why an issue closed: done, or not going to be done.
+    async setIssueState(number: number, state: 'open' | 'closed', reason?: 'completed' | 'not_planned'): Promise<void> {
+      await call(`${await repoPath()}/issues/${number}`, {
+        method: 'PATCH',
+        body: JSON.stringify(state === 'closed' && reason ? { state, state_reason: reason } : { state }),
+      })
     },
   }
 }
@@ -861,11 +896,23 @@ interface RawCheckRun {
   status: CheckRun['status']
   conclusion: CheckRun['conclusion']
   html_url: string | null
+  started_at?: string | null
+  completed_at?: string | null
+  output?: { title?: string | null } | null
+  app?: { name?: string; owner?: { avatar_url?: string } | null } | null
+}
+interface RawStatus {
+  context: string
+  state: 'success' | 'pending' | 'failure' | 'error'
+  description: string | null
+  target_url: string | null
+  avatar_url: string | null
 }
 interface RawReviewComment extends RawComment {
   path: string
   line: number | null
   start_line?: number | null
+  pull_request_review_id?: number | null
   side?: 'LEFT' | 'RIGHT'
   in_reply_to_id?: number
 }
@@ -913,6 +960,7 @@ function reviewComment(raw: RawReviewComment): GitHubReviewComment {
     path: raw.path,
     line: raw.line,
     startLine: raw.start_line ?? null,
+    reviewId: raw.pull_request_review_id ?? null,
     side: raw.side ?? 'RIGHT',
     inReplyTo: raw.in_reply_to_id ?? null,
   }
@@ -947,7 +995,7 @@ const SEARCH = `query($q: String!, $after: String) {
     pageInfo { hasNextPage endCursor }
     nodes {
       ... on Issue {
-        number title state url updatedAt
+        number title state url updatedAt createdAt closedAt
         author { login avatarUrl }
         labels(first: 10) { nodes { name color } }
         comments { totalCount }
@@ -955,7 +1003,7 @@ const SEARCH = `query($q: String!, $after: String) {
         milestone { title }
       }
       ... on PullRequest {
-        number title state url updatedAt isDraft merged reviewDecision
+        number title state url updatedAt createdAt closedAt mergedAt isDraft merged reviewDecision
         author { login avatarUrl }
         labels(first: 10) { nodes { name color } }
         comments { totalCount }
@@ -973,6 +1021,9 @@ interface RawNode {
   state: 'OPEN' | 'CLOSED' | 'MERGED'
   url: string
   updatedAt: string
+  createdAt?: string
+  closedAt?: string | null
+  mergedAt?: string | null
   isDraft?: boolean
   merged?: boolean
   reviewDecision?: ListItem['review']
@@ -1000,6 +1051,8 @@ function listItem(node: RawNode): ListItem {
     assignees: node.assignees.nodes.map((entry) => ({ login: entry.login, avatarUrl: entry.avatarUrl })),
     milestone: node.milestone?.title ?? null,
     updatedAt: node.updatedAt,
+    createdAt: node.createdAt ?? node.updatedAt,
+    closedAt: node.mergedAt ?? node.closedAt ?? null,
     url: node.url,
     review: node.reviewDecision ?? null,
     checks: node.commits?.nodes[0]?.commit.statusCheckRollup?.state ?? null,

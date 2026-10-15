@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { forwardRef, type ReactNode, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
 import type { Note, NoteItem } from '../review/annotations'
 import type { Page, PageRow } from './page'
 import { LineRow, RowContext, type RowContextValue } from './RowViews'
@@ -18,6 +19,10 @@ interface DiffViewProps {
   context: RowContextValue
   renderHeader(item: NoteItem): ReactNode
   renderNote(note: Note): ReactNode
+  // Names the comparison, so its scroll position comes back with it.
+  scrollKey?: string
+  // Called with the file at the top as the diff scrolls.
+  onTopItem?(item: NoteItem | null): void
 }
 
 const ESTIMATE: Record<PageRow['type'], number> = { header: 48, row: 22, note: 120, end: 16 }
@@ -30,7 +35,7 @@ const fixedHeight = (row: PageRow, wrap: boolean) =>
 
 // One scroll container for every file; only rows near the viewport are in the DOM.
 export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffView(
-  { page, context, renderHeader, renderNote },
+  { page, context, renderHeader, renderNote, scrollKey, onTopItem },
   ref,
 ) {
   const scroller = useRef<HTMLDivElement>(null)
@@ -45,7 +50,7 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
     },
     [page, lineHeight],
   )
-  // The longest line on the page, in columns, sets how far the code can scroll sideways.
+  // Each file's longest line, in columns, sets how far that file can scroll sideways.
   const widest = useMemo(() => {
     const tab = context.settings.tabSize
     const columns = (text: string | undefined) => {
@@ -54,19 +59,26 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
       for (let i = text.indexOf('\t'); i !== -1; i = text.indexOf('\t', i + 1)) tabs++
       return text.length + tabs * (tab - 1)
     }
-    let max = 0
+    const byFile = new Map<string, number>()
     for (const row of page.rows) {
       if (row.type !== 'row') continue
       const diff = row.row
-      if (diff.type === 'line') max = Math.max(max, columns(diff.line.text))
-      else if (diff.type === 'pair') max = Math.max(max, columns(diff.left?.text), columns(diff.right?.text))
+      const width =
+        diff.type === 'line'
+          ? columns(diff.line.text)
+          : diff.type === 'pair'
+            ? Math.max(columns(diff.left?.text), columns(diff.right?.text))
+            : 0
+      if (width > (byFile.get(row.item.id) ?? 0)) byFile.set(row.item.id, width)
     }
-    return max
+    return byFile
   }, [page, context.settings.tabSize])
   const sideways = useCodeScrollX(scroller, widest, !wrap)
+  useScrollMemory(scroller, scrollKey && page.rows.length ? `diff:${scrollKey}` : null)
   const getItemKey = useCallback((index: number) => page.rows[index]?.key ?? index, [page])
   const virtualizer = useVirtualizer({
     count: page.rows.length,
+    initialOffset: () => rememberedTop(scrollKey ? `diff:${scrollKey}` : null),
     getScrollElement: () => scroller.current,
     estimateSize,
     getItemKey,
@@ -116,6 +128,33 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
           ? null
           : firstRow.item
 
+  // Where each file's code ends, so its sideways bar can sit on the file: at the bottom of the screen while
+  // the file runs past it, then in the gap under its last line.
+  const lastRows = useMemo(() => {
+    const last = new Map<string, number>()
+    page.rows.forEach((row, index) => {
+      if (row.type === 'row' || row.type === 'note') last.set(row.item.id, index)
+    })
+    return last
+  }, [page])
+  const BAR = 10
+  const viewBottom = scrollTop + (scroller.current?.clientHeight ?? 0)
+  const bars = wrap
+    ? null
+    : [...new Set(items.map((virtual) => page.rows[virtual.index]?.item.id))].flatMap((id) => {
+        const last = id === undefined ? undefined : lastRows.get(id)
+        const first = id === undefined ? undefined : page.starts.get(id)
+        const end = last === undefined ? undefined : virtualizer.measurementsCache[last]?.end
+        const top = first === undefined ? undefined : virtualizer.measurementsCache[first]?.end
+        if (id === undefined || end === undefined || top === undefined) return []
+        const y = Math.max(top, Math.min(end + 2, viewBottom - BAR))
+        return [sideways.bar(id, { position: 'absolute', insetInline: 0, transform: `translateY(${y}px)` })]
+      })
+
+  const topItem =
+    firstRow?.type === 'end' ? (page.rows[(first?.index ?? 0) + 1]?.item ?? null) : (firstRow?.item ?? null)
+  useEffect(() => onTopItem?.(topItem), [onTopItem, topItem])
+
   const content = useMemo(
     () => (row: PageRow) => {
       if (row.type === 'header') return renderHeader(row.item)
@@ -157,13 +196,14 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
                 data-index={virtual.index}
                 data-row={row.type}
                 className="absolute inset-x-0"
-                style={{ transform: `translateY(${virtual.start}px)` }}>
+                data-scroll-key={row.item.id}
+                style={{ ...sideways.rowStyle(row.item.id), transform: `translateY(${virtual.start}px)` }}>
                 {content(row)}
               </div>
             )
           })}
+          {bars}
         </div>
-        {sideways.scrollbar}
       </div>
     </RowContext.Provider>
   )

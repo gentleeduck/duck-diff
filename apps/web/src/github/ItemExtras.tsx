@@ -153,7 +153,7 @@ export function ItemExtras({ number }: { number: number }) {
           <Button
             size="sm"
             variant="ghost"
-            className="justify-start"
+            className="h-7 justify-start px-0 hover:bg-transparent hover:text-tn-blue has-[>svg]:px-0"
             disabled={busy}
             onClick={() =>
               void change(
@@ -164,7 +164,12 @@ export function ItemExtras({ number }: { number: number }) {
             {extras.pinned ? <PinOff /> : <Pin />}
             {extras.pinned ? 'Unpin issue' : 'Pin issue'}
           </Button>
-          <Button size="sm" variant="ghost" className="justify-start" disabled={busy} onClick={() => void transfer()}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 justify-start px-0 hover:bg-transparent hover:text-tn-blue has-[>svg]:px-0"
+            disabled={busy}
+            onClick={() => void transfer()}>
             <ArrowRightLeft />
             Transfer issue
           </Button>

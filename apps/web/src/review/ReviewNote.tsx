@@ -67,8 +67,24 @@ function SuggestionActions({ id, outdated }: { id: number; outdated: boolean }) 
   )
 }
 
+// The words a draft is on, cut from its lines by the selected columns.
+export function pickedText(draft: Draft): string | null {
+  if (draft.startCol === undefined || draft.endCol === undefined || draft.text === undefined) return null
+  const lines = draft.text.split('\n')
+  const last = lines.length - 1
+  return lines
+    .map((line, i) => line.slice(i === 0 ? draft.startCol : 0, i === last ? draft.endCol : undefined))
+    .join('\n')
+}
+
+// GitHub keeps only lines, so a comment on selected words quotes them to stay precise there.
 const toComment = (draft: Draft, body: string) => ({
-  body: body.trim(),
+  body: pickedText(draft)
+    ? `${(pickedText(draft) ?? '')
+        .split('\n')
+        .map((line) => `> \`${line}\``)
+        .join('\n')}\n\n${body.trim()}`
+    : body.trim(),
   path: draft.path,
   line: draft.line,
   ...(draft.startLine ? { startLine: draft.startLine } : {}),
@@ -307,7 +323,12 @@ export function ReviewNote({ note }: { note: Note }) {
   if (note.kind === 'pending') return <Pending note={note} />
   return (
     <div className="mx-3 my-2 max-w-3xl rounded-md border border-border bg-card p-3 font-normal font-sans shadow-xs">
-      {note.kind === 'draft' && note.draft.startLine ? (
+      {note.kind === 'draft' && pickedText(note.draft) ? (
+        <p className="mb-2 truncate text-muted-foreground">
+          Commenting on{' '}
+          <code className="rounded-sm bg-tn-yellow/20 px-1 text-foreground">{pickedText(note.draft)}</code>
+        </p>
+      ) : note.kind === 'draft' && note.draft.startLine ? (
         <p className="mb-2 text-muted-foreground">
           Commenting on {lines(note.draft.startLine, note.draft.line)?.toLowerCase()}
         </p>

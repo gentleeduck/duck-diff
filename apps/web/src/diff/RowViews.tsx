@@ -21,8 +21,10 @@ export interface RowContextValue {
   // Drag from a line's comment button over other lines to cover them all.
   startSelect(item: NoteItem, line: DiffLine, side: 'additions' | 'deletions'): void
   dragOver(item: NoteItem, line: DiffLine, side: 'additions' | 'deletions'): void
-  subscribeDraft(listener: () => void): () => void
-  inDraft(item: NoteItem, side: 'additions' | 'deletions', line: number | null): boolean
+  subscribeMarks(listener: () => void): () => void
+  // How a line is marked for comments: '' for none, 'draft' or 'comment', then '|from-to' when only some
+  // of its characters are picked. A string, so a line re-renders only when its own mark changes.
+  lineMark(item: NoteItem, side: 'additions' | 'deletions', line: number | null, length: number): string
   write(kind: WriteKind, item: NoteItem, hunk: number): void
   expand(item: NoteItem, gap: Extract<DiffRow, { type: 'gap' }>): void
 }
@@ -69,6 +71,8 @@ function Toolbar({ item, line, side }: { item: NoteItem; line: DiffLine; side: '
             variant="ghost"
             size="icon"
             aria-label="Comment on line"
+            // Starting a line selection must not start a text selection under it.
+            onMouseDown={(event) => event.preventDefault()}
             onPointerDown={(event) => {
               if (event.button !== 0) return
               if (event.shiftKey) comment(item, line, side, true)
@@ -114,9 +118,16 @@ function Cell({
   side: 'additions' | 'deletions'
   numbers: 'both' | 'one'
 }) {
-  const { settings, tokens, dragOver, subscribeDraft, inDraft } = useRow()
+  const { settings, tokens, dragOver, subscribeMarks, lineMark } = useRow()
   const number = line ? (side === 'additions' ? line.newNo : line.oldNo) : null
-  const selected = useSyncExternalStore(subscribeDraft, () => inDraft(item, side, number))
+  const mark = useSyncExternalStore(subscribeMarks, () => lineMark(item, side, number, line?.text.length ?? 0))
+  const [markKind, markCols] = mark.split('|')
+  const picks = useMemo(() => {
+    const [from, to] = (markCols ?? '').split('-').map(Number)
+    return markCols && from !== undefined && to !== undefined && to > from
+      ? ([[from, to]] as [number, number][])
+      : undefined
+  }, [markCols])
   const tokenSide = line?.kind === 'deletion' ? 'old' : 'new'
   const tokenLine = line ? (tokenSide === 'old' ? line.oldNo : line.newNo) : null
   // Each line listens for its own colors, so a file's tokens landing repaints just its rows on screen.
@@ -139,9 +150,16 @@ function Cell({
   const wrap = settings.overflow === 'wrap'
   return (
     <div
+      data-line={number ?? undefined}
+      data-side={side}
       onPointerEnter={() => dragOver(item, line, side)}
       className={`group/line relative flex min-w-0 flex-1 ${settings.backgrounds ? BG[line.kind] : ''} ${MARK[line.kind]} ${
-        selected ? 'shadow-[inset_3px_0_0_var(--tn-yellow)] bg-tn-yellow/10!' : ''
+        markKind === 'draft'
+          ? 'bg-tn-yellow/20! shadow-[inset_3px_0_0_var(--tn-yellow)]'
+          : markKind === 'comment'
+            ? 'shadow-[inset_3px_0_0_color-mix(in_oklab,var(--tn-yellow)_55%,transparent)]'
+            : ''
+      }
       }`}>
       {settings.lineNumbers ? (
         <span className="relative flex shrink-0 select-none text-tn-gutter tabular-nums">
@@ -170,12 +188,36 @@ function Cell({
         {wrap ? (
           <Code text={line.text} tokens={lineTokens} marks={marks} />
         ) : (
-          <span className="inline-block translate-x-[calc(var(--code-x,0px)*-1)]">
+          <span className="relative inline-block translate-x-[calc(var(--code-x,0px)*-1)]">
+            {picks ? <Pick text={line.text} range={picks[0]} tabSize={settings.tabSize} /> : null}
             <Code text={line.text} tokens={lineTokens} marks={marks} />
           </span>
         )}
       </code>
     </div>
+  )
+}
+
+// Screen column of a character, with tabs advancing to their next stop.
+function column(text: string, index: number, tabSize: number): number {
+  let col = 0
+  for (let i = 0; i < index && i < text.length; i++) col = text[i] === '\t' ? col + tabSize - (col % tabSize) : col + 1
+  return col
+}
+
+// The words a comment is on, drawn behind the text rather than splitting it, so a selection being made over
+// the same text is never re-rendered away under the pointer.
+function Pick({ text, range, tabSize }: { text: string; range: [number, number] | undefined; tabSize: number }) {
+  if (!range) return null
+  const from = column(text, range[0], tabSize)
+  const to = column(text, range[1], tabSize)
+  return (
+    <span
+      data-pick
+      aria-hidden
+      className="pointer-events-none absolute inset-y-0 -z-10 rounded-sm bg-tn-yellow/30 ring-1 ring-tn-yellow/50"
+      style={{ left: `${from}ch`, width: `${to - from}ch` }}
+    />
   )
 }
 

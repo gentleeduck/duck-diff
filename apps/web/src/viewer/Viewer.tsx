@@ -1,16 +1,23 @@
 import { type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { refForSide } from '../code-nav/symbol-at'
+import { useSymbolClick } from '../code-nav/useSymbolClick'
 import { DiffView } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
 import { buildPage } from '../diff/page'
 import type { RowContextValue } from '../diff/RowViews'
 import type { DiffLine, DiffRow } from '../diff/rows'
+import { openFile } from '../files/open-file'
 import { type PullReviewState, pullOf } from '../github/pull-review'
+import { hasScrollMemory } from '../hooks/useScrollMemory'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
-import { useStore } from '../lib/store'
+import { useView } from '../hooks/useView'
+import { isPopping } from '../lib/history'
+import { itemId } from '../lib/items'
+import { createStore, useStore } from '../lib/store'
 import { isTestFile } from '../lib/tests'
 import { lineHash } from '../review/anchor'
 import { createAnnotator, type Note, type NoteItem } from '../review/annotations'
@@ -24,6 +31,7 @@ import { actionsFor, type WriteKind } from './actions'
 import { FileActions } from './FileActions'
 import { FileHeader } from './FileHeader'
 import { fileNote } from './file-info'
+import { type CodeSelection, useLineSelection } from './line-selection'
 import { visibleItems } from './visible-items'
 import { WriteButtons } from './WriteButtons'
 
@@ -33,6 +41,21 @@ const selectStatus = (state: SessionState) => state.status
 const selectFolders = (folders: ReadonlySet<string>) => folders
 // Above this a file keeps hunk-only colors; tokenizing it whole would cost more than it shows.
 const FULL_LINES = 3000
+
+interface MarkRange {
+  start: number
+  end: number
+  startCol?: number
+  endCol?: number
+}
+
+// The picked characters on one line of a word selection: from startCol on its first line, to endCol on its last.
+function markCols(range: MarkRange, number: number, length: number): string {
+  if (range.startCol === undefined || range.endCol === undefined) return ''
+  const from = number === range.start ? range.startCol : 0
+  const to = number === range.end ? range.endCol : length
+  return `|${from}-${to}`
+}
 
 // One side's text for lines from..to, read off the rows the diff already built.
 function sideLines(rows: readonly DiffRow[], side: 'additions' | 'deletions', from: number, to: number): string[] {
@@ -82,7 +105,21 @@ const emptyContents = () => new Map<string, readonly string[]>() as ReadonlyMap<
 const emptyExpanded = () => new Map<string, ReadonlySet<number>>() as ReadonlyMap<string, ReadonlySet<number>>
 
 export default function Viewer() {
-  const { api, viewer, reviews, viewed, fileHistory, pullReview, changesFolders } = useApp()
+  const {
+    api,
+    viewer,
+    reviews,
+    viewed,
+    fileHistory,
+    pullReview,
+    changesFolders,
+    diffFile,
+    fileSelection,
+    fileLine,
+    fileAt,
+    diffTop,
+  } = useApp()
+  const { show } = useView()
   const plain = useSession(selectItems)
   const files = useSession(selectFiles)
   const status = useSession(selectStatus)
@@ -182,6 +219,85 @@ export default function Viewer() {
     [api, target, byPath, sourcePath],
   )
 
+  // A file asked for by the tree, the palette or back and forward is scrolled to once it is on the page.
+  const wanted = useRef<string | null>(hasScrollMemory(`diff:${shownKey}`, isPopping()) ? null : diffFile.get())
+  const reveal = useCallback(() => {
+    const path = wanted.current
+    if (!path || !page.starts.has(itemId(path))) return
+    wanted.current = null
+    requestAnimationFrame(() => viewer.current?.scrollTo({ type: 'item', id: itemId(path), align: 'start' }))
+  }, [page, viewer])
+  useEffect(() => reveal(), [reveal])
+  useEffect(
+    () =>
+      diffFile.subscribe(() => {
+        // Back and forward put the diff where it was; the file it jumped to then is already in view.
+        if (isPopping() && hasScrollMemory(`diff:${shownKey}`, true)) return
+        wanted.current = diffFile.get()
+        reveal()
+      }),
+    [diffFile, reveal, shownKey],
+  )
+
+  // Lines that already carry a comment stay marked, over the whole range it covers.
+  const commentRanges = useRef(new Map<string, MarkRange[]>())
+  commentRanges.current = useMemo(() => {
+    const ranges = new Map<string, MarkRange[]>()
+    const add = (path: string, side: string, range: MarkRange) => {
+      const key = `${path}|${side}`
+      ranges.set(key, [...(ranges.get(key) ?? []), range])
+    }
+    for (const comment of comments)
+      add(comment.path, comment.side, {
+        start: comment.startLine ?? comment.line,
+        end: comment.line,
+        startCol: comment.startCol,
+        endCol: comment.endCol,
+      })
+    for (const comment of remote) {
+      if (comment.line === null || comment.inReplyTo !== null) continue
+      add(comment.path, comment.side === 'LEFT' ? 'deletions' : 'additions', {
+        start: comment.startLine ?? comment.line,
+        end: comment.line,
+      })
+    }
+    return ranges
+  }, [comments, remote])
+
+  const onTopItem = useCallback(
+    (item: NoteItem | null) => {
+      const path = item?.fileDiff.name ?? null
+      if (diffTop.get() !== path) diffTop.set(path)
+    },
+    [diffTop],
+  )
+  const diffRoot = useCallback(() => document.querySelector<HTMLElement>('[data-diff-view]'), [])
+  // A comment on selected words covers their lines and keeps the exact columns, so the words stay highlighted.
+  const commentOnSelection = useCallback(
+    (picked: CodeSelection) => {
+      const index = page.starts.get(picked.item)
+      const item = index === undefined ? undefined : page.rows[index]?.item
+      if (!item) return
+      const lines = sideLines(page.files.get(item.id)?.rows ?? [], picked.side, picked.startLine, picked.endLine)
+      // Several lines are taken whole; part of one line keeps its exact words.
+      const whole =
+        picked.startLine < picked.endLine || (picked.startCol === 0 && picked.endCol >= (lines.at(-1)?.length ?? 0))
+      reviews.startDraft({
+        path: item.fileDiff.name,
+        side: picked.side,
+        line: picked.endLine,
+        ...(picked.startLine < picked.endLine ? { startLine: picked.startLine } : {}),
+        ...(whole ? {} : { startCol: picked.startCol, endCol: picked.endCol }),
+        lineHash: lineHash(lines.at(-1) ?? ''),
+        text: lines.join('\n'),
+      })
+    },
+    [page, reviews],
+  )
+  useSymbolClick(diffRoot, (side) => refForSide(target, side ?? 'additions'))
+  const selecting = useMemo(() => createStore<CodeSelection | null>(null), [])
+  useLineSelection(diffRoot, selecting.set, commentOnSelection)
+
   const anchor = useRef(0)
   const dragging = useRef(false)
   useEffect(() => {
@@ -198,15 +314,14 @@ export default function Viewer() {
       tokens(item, side, line) {
         const file = page.files.get(item.id)
         if (!file) return undefined
-        // The whole file, once read, colors with its full context; until then each hunk colors on its own.
-        loadSource(item, true)
+        // The hunks on screen color first, being small; the whole file follows behind them and, once ready,
+        // takes over with its full context (strings and comments that open above a hunk).
+        const hunks = highlighter.tokens(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
+        loadSource(item, false)
         const source = sources.current.get(sourceKey(item))
         const text = typeof source === 'object' ? source[side] : null
-        const full = text ? highlighter.text(`${sourceKey(item)}:${side}`, sourcePath(item, side), text) : null
-        if (full) return full.get(line)
-        return highlighter
-          .tokens(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
-          ?.[side].get(line)
+        const full = text ? highlighter.text(`${sourceKey(item)}:${side}`, sourcePath(item, side), text, false) : null
+        return (full ?? hunks?.[side])?.get(line)
       },
       prefetch(item) {
         const file = page.files.get(item.id)
@@ -244,11 +359,30 @@ export default function Viewer() {
         if (dragging.current && open?.path === item.fileDiff.name && open.side === side)
           context.comment(item, line, side, true)
       },
-      subscribeDraft: reviews.subscribe,
-      inDraft(item, side, number) {
+      subscribeMarks(listener) {
+        const stops = [reviews.subscribe(listener), pullReview.subscribe(listener), selecting.subscribe(listener)]
+        return () => {
+          for (const stop of stops) stop()
+        }
+      },
+      lineMark(item, side, number, length) {
+        if (number === null) return ''
+        const path = item.fileDiff.name
+        const live = selecting.get()
+        if (live && live.item === item.id && live.side === side && number >= live.startLine && number <= live.endLine) {
+          const partial = live.startLine === live.endLine
+          return `draft${partial ? markCols({ start: live.startLine, end: live.endLine, startCol: live.startCol, endCol: live.endCol }, number, length) : ''}`
+        }
         const open = reviews.get().draft
-        if (!open || number === null || open.path !== item.fileDiff.name || open.side !== side) return false
-        return number >= (open.startLine ?? open.line) && number <= open.line
+        const draft =
+          open && open.path === path && open.side === side
+            ? { start: open.startLine ?? open.line, end: open.line, startCol: open.startCol, endCol: open.endCol }
+            : null
+        if (draft && number >= draft.start && number <= draft.end) return `draft${markCols(draft, number, length)}`
+        const hit = commentRanges.current
+          .get(`${path}|${side}`)
+          ?.find((range) => number >= range.start && number <= range.end)
+        return hit ? `comment${markCols(hit, number, length)}` : ''
       },
       write(kind: WriteKind, item, index) {
         const file = byPath.get(item.fileDiff.name)
@@ -280,6 +414,8 @@ export default function Viewer() {
       setContents,
       loadSource,
       sourcePath,
+      pullReview,
+      selecting,
     ],
   )
 
@@ -300,7 +436,19 @@ export default function Viewer() {
       const collapsed = Boolean(item.collapsed)
       const toggle = () => setToggled((prev) => new Map(prev).set(path, !collapsed))
       return (
-        <FileHeader path={path} file={file} collapsed={collapsed} onToggle={toggle}>
+        <FileHeader
+          path={path}
+          file={file}
+          collapsed={collapsed}
+          onToggle={toggle}
+          onOpen={
+            pull === null && file?.status !== 'deleted'
+              ? () => {
+                  openFile({ fileSelection, fileLine, fileAt }, path)
+                  show('files')
+                }
+              : undefined
+          }>
           <FileActions
             path={path}
             viewed={folded.has(path)}
@@ -323,7 +471,25 @@ export default function Viewer() {
         </FileHeader>
       )
     },
-    [api, canOpen, byPath, kinds, writes, folded, viewed, target, fileHistory, setToggled, files, pull, pullReview],
+    [
+      api,
+      canOpen,
+      byPath,
+      kinds,
+      writes,
+      folded,
+      viewed,
+      target,
+      fileHistory,
+      setToggled,
+      files,
+      pull,
+      pullReview,
+      fileSelection,
+      fileLine,
+      fileAt,
+      show,
+    ],
   )
 
   const renderNote = useCallback((note: Note) => <ReviewNote note={note} />, [])
@@ -331,5 +497,17 @@ export default function Viewer() {
   if (status === 'ready' && files.length === 0) {
     return <p className="p-6 text-muted-foreground">{EMPTY[target.kind]}</p>
   }
-  return <DiffView ref={viewer} page={page} context={context} renderHeader={renderHeader} renderNote={renderNote} />
+  return (
+    <div className="relative h-full">
+      <DiffView
+        ref={viewer}
+        page={page}
+        context={context}
+        renderHeader={renderHeader}
+        renderNote={renderNote}
+        scrollKey={shownKey}
+        onTopItem={onTopItem}
+      />
+    </div>
+  )
 }

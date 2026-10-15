@@ -1,19 +1,19 @@
 import { Button, Kbd, Toaster, TooltipProvider } from '@duck-diff/ui'
 import { SearchIcon } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useState } from 'react'
+import { lazy, memo, type ReactNode, Suspense, useState } from 'react'
+import { SymbolPanel } from '../code-nav/SymbolPanel'
 import { CompareBar } from '../compare/CompareBar'
 import { FilesSidebar } from '../files/FilesSidebar'
 import { BranchMenu } from '../git/BranchMenu'
 import { GitProvider } from '../git/GitProvider'
 import { SyncButtons } from '../git/SyncButtons'
 import { useUnread } from '../github/Inbox'
-import { ActionsPage, InboxPage, IssuesPage, PullsPage, ReleasesPage } from '../github/Pages'
 import { useGitHub } from '../github/SignIn'
 import { FindCommit } from '../graph/FindCommit'
 import { GraphSidebar } from '../graph/GraphSidebar'
 import type { GraphState } from '../graph/store'
-import { useItemUrl } from '../hooks/useItemUrl'
 import { useSettings } from '../hooks/useSettings'
+import { useUrlSync } from '../hooks/useUrlSync'
 import { useView } from '../hooks/useView'
 import { HelpDialog } from '../keyboard/HelpDialog'
 import { useKeyboard } from '../keyboard/useKeyboard'
@@ -23,7 +23,6 @@ import type { View } from '../lib/view-url'
 import { useLiveRefresh } from '../live/useLiveRefresh'
 import { Palette } from '../palette/Palette'
 import { CommentsSheet } from '../review/CommentsSheet'
-import { FontSizeMenu } from '../settings/FontSizeMenu'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
 import type { Settings } from '../state/settings'
@@ -36,9 +35,17 @@ import { StatusBar } from './StatusBar'
 import { useSizes } from './useSizes'
 import { useThemeClass } from './useThemeClass'
 
-const Viewer = lazy(() => import('../viewer/Viewer'))
-const GraphView = lazy(() => import('../graph/GraphView'))
-const FileView = lazy(() => import('../files/FileView'))
+// Memoized: the page around them re-renders for panels and badges, which these big views do not need.
+const Viewer = lazy(() => import('../viewer/Viewer').then((module) => ({ default: memo(module.default) })))
+const GraphView = lazy(() => import('../graph/GraphView').then((module) => ({ default: memo(module.default) })))
+const FileView = lazy(() => import('../files/FileView').then((module) => ({ default: memo(module.default) })))
+// GitHub pages load when first opened, keeping them out of the bundle every view waits for.
+const pages = () => import('../github/Pages')
+const PullsPage = lazy(() => pages().then((module) => ({ default: module.PullsPage })))
+const IssuesPage = lazy(() => pages().then((module) => ({ default: module.IssuesPage })))
+const InboxPage = lazy(() => pages().then((module) => ({ default: module.InboxPage })))
+const ReleasesPage = lazy(() => pages().then((module) => ({ default: module.ReleasesPage })))
+const ActionsPage = lazy(() => pages().then((module) => ({ default: module.ActionsPage })))
 
 const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues', 'inbox', 'releases', 'actions']
 
@@ -77,12 +84,20 @@ function Screen() {
   const { view, show } = useView()
   useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true), show })
   const live = useLiveRefresh()
-  useItemUrl()
+  useUrlSync()
   // Bumped when a page changes an item, so its list reloads.
   const [pullsVersion, setPullsVersion] = useState(0)
   const [issuesVersion, setIssuesVersion] = useState(0)
-  const pullsChanged = () => setPullsVersion((n) => n + 1)
-  const issuesChanged = () => setIssuesVersion((n) => n + 1)
+  const { items } = useApp()
+  // A change made here is a change the palette's saved list should see too.
+  const pullsChanged = () => {
+    setPullsVersion((n) => n + 1)
+    void items.refresh()
+  }
+  const issuesChanged = () => {
+    setIssuesVersion((n) => n + 1)
+    void items.refresh()
+  }
   const search = (
     <Button
       size="sm"
@@ -91,7 +106,7 @@ function Screen() {
       aria-label="Search files and actions"
       onClick={() => setPalette(true)}>
       <SearchIcon />
-      <span className="min-w-0 flex-1 truncate text-start">Search files</span>
+      <span className="min-w-0 flex-1 truncate text-start">Search or jump to...</span>
       <Kbd className="ms-auto">Ctrl K</Kbd>
     </Button>
   )
@@ -104,7 +119,6 @@ function Screen() {
           {search}
           <CommentsSheet />
           <SyncButtons />
-          <FontSizeMenu />
           <SettingsPopover />
         </>
       ),
@@ -119,7 +133,7 @@ function Screen() {
           <GraphTitle />
           <FindCommit />
           <SyncButtons />
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: <GraphSidebar />,
@@ -133,7 +147,6 @@ function Screen() {
           <h1 className="min-w-0 flex-1">Files</h1>
           {search}
           <SyncButtons />
-          <FontSizeMenu />
           <SettingsPopover />
         </>
       ),
@@ -147,7 +160,7 @@ function Screen() {
           <GitHubTitle title="Pull requests" />
           {search}
           <SyncButtons />
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: null,
@@ -160,7 +173,7 @@ function Screen() {
           <GitHubTitle title="Issues" />
           {search}
           <SyncButtons />
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: null,
@@ -172,7 +185,7 @@ function Screen() {
         <>
           <GitHubTitle title="Notifications" />
           {search}
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: null,
@@ -184,7 +197,7 @@ function Screen() {
         <>
           <GitHubTitle title="Releases" />
           {search}
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: null,
@@ -196,7 +209,7 @@ function Screen() {
         <>
           <GitHubTitle title="Actions" />
           {search}
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: null,
@@ -219,6 +232,7 @@ function Screen() {
         panelShown={panel}
         onTogglePanel={togglePanel}
         viewer={<Suspense fallback={null}>{screen.main}</Suspense>}
+        aside={<SymbolPanel />}
         status={<StatusBar live={live} />}
       />
       <Palette open={palette} onOpenChange={setPalette} />

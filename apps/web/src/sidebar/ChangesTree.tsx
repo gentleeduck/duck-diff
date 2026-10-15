@@ -5,7 +5,6 @@ import { useCanOpen } from '../hooks/useCanOpen'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
-import { itemId } from '../lib/items'
 import { useStore } from '../lib/store'
 import { isTestFile } from '../lib/tests'
 import type { SessionState } from '../state/session'
@@ -21,9 +20,10 @@ import { FileMenu, FolderMenu } from './tree-menus'
 const selectFiles = (state: SessionState) => state.files
 const selectTests = (state: Settings) => state.tests
 const selectFolders = (folders: ReadonlySet<string>) => folders
+const selectTop = (path: string | null) => path
 
 export function ChangesTree() {
-  const { api, viewer, fileHistory, viewed, changesFolders } = useApp()
+  const { api, fileHistory, viewed, changesFolders, diffFile, diffTop } = useApp()
   const folders = useStore(changesFolders, selectFolders)
   const { target } = useTarget()
   const kinds = useMemo(() => actionsFor(target), [target])
@@ -32,7 +32,8 @@ export function ChangesTree() {
   const files = useSession(selectFiles)
   const [statuses, setStatuses] = useState<ReadonlySet<TreeStatus>>(new Set())
   const [query, setQuery] = useState('')
-  const [selected, setSelected] = useState<string | null>(null)
+  // The tree follows the diff: whatever file is at the top of it is the one marked here.
+  const selected = useStore(diffTop, selectTop)
   const tests = useSettings(selectTests)
   const visible = useMemo(() => {
     const matching = filterFiles(files, statuses, query)
@@ -42,10 +43,7 @@ export function ChangesTree() {
 
   const paths = useMemo(() => visible.map((file) => file.path), [visible])
   const fileFor = useCallback((path: string) => byPath.get(path), [byPath])
-  const open = (path: string) => {
-    setSelected(path)
-    viewer.current?.scrollTo({ type: 'item', id: itemId(path), align: 'start' })
-  }
+  const open = (path: string) => diffFile.set(path)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

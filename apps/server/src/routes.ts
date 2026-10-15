@@ -1,4 +1,5 @@
 import {
+  findSymbol,
   listCommits,
   listFiles,
   listRefs,
@@ -12,7 +13,14 @@ import {
   streamGraph,
   streamPatch,
 } from '@duck-diff/git'
-import { decodeTarget, FileStatusSchema, RefNameSchema, type RepoInfo, RepoPathSchema } from '@duck-diff/protocol'
+import {
+  decodeTarget,
+  FileStatusSchema,
+  RefNameSchema,
+  type RepoInfo,
+  RepoPathSchema,
+  SymbolQuerySchema,
+} from '@duck-diff/protocol'
 import { z } from 'zod'
 import { HttpError } from './errors'
 import { iterableToStream } from './stream'
@@ -97,6 +105,10 @@ export async function handleApi(repo: string, url: URL, nvim = false): Promise<R
     case '/api/tree': {
       const { ref } = TreeQuery.parse(Object.fromEntries(url.searchParams))
       return Response.json(await listTree(repo, ref ?? null))
+    }
+    case '/api/symbols': {
+      const { name, ref } = SymbolQuerySchema.parse(Object.fromEntries(url.searchParams))
+      return Response.json(await findSymbol(repo, name, ref ?? null))
     }
     case '/api/file': {
       const { ref, path } = TreeQuery.extend({ path: RepoPathSchema }).parse(Object.fromEntries(url.searchParams))

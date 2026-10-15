@@ -54,7 +54,7 @@ export function EditableTitle({
     }
   }
   return (
-    <h2 className="flex min-w-0 flex-1 items-start gap-1 text-foreground">
+    <h2 className="flex min-w-0 flex-1 items-start gap-1 font-normal text-[1.75em] text-foreground leading-tight">
       <span className="min-w-0">
         {title} <span className="text-muted-foreground">#{number}</span>
       </span>

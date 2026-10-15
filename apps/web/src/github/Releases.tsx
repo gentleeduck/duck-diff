@@ -12,10 +12,11 @@ import {
   Skeleton,
 } from '@duck-diff/ui'
 import { Plus, RefreshCw, SquareArrowOutUpRight, Tag } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { useScrollMemory } from '../hooks/useScrollMemory'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { Avatar, Body } from './Conversation'
 import { MarkdownEditor } from './MarkdownEditor'
@@ -193,6 +194,8 @@ function NewRelease({ onCreated }: { onCreated(): void }) {
 export function Releases() {
   const { api } = useApp()
   const ready = isReady(useGitHub())
+  const page = useRef<HTMLDivElement>(null)
+  useScrollMemory(page, ready ? 'releases' : null)
   const [items, setItems] = useState<Release[] | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
 
@@ -213,7 +216,7 @@ export function Releases() {
 
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see releases.</p>
   return (
-    <div className="h-full overflow-y-auto">
+    <div ref={page} className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
         <div className="flex items-center gap-2">
           <span className="flex-1 text-muted-foreground">

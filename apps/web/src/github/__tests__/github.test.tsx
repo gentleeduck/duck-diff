@@ -1,5 +1,5 @@
 import type { PullDetails } from '@duck-diff/protocol'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../../app/App'
 import type { GitHubApi } from '../../lib/api'
@@ -55,6 +55,7 @@ function githubApi(overrides: Partial<GitHubApi> = {}): GitHubApi {
           milestone: null,
           review: 'APPROVED' as const,
           checks: 'SUCCESS' as const,
+          closedAt: null,
         },
       ],
       total: 1,
@@ -116,14 +117,16 @@ describe('GitHub views', () => {
     expect(await screen.findByRole('option', { name: /Add things/ })).toBeTruthy()
   })
 
-  it('lists pull requests, opens one with its conversation, and approves it', async () => {
+  it('lists pull requests, opens one with its conversation, and approves it from Review changes', async () => {
     const review = vi.fn(async () => {})
     render(<App api={fakeApi({ github: githubApi({ review }) })} />)
     fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
     expect(await screen.findByText('Why this exists')).toBeTruthy()
     expect(screen.getByText('Looks good')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
-    await waitFor(() => expect(review).toHaveBeenCalledWith(7, 'APPROVE', ''))
+    // As on GitHub, the verdict is given from Review changes, not from the comment box.
+    fireEvent.click(await screen.findByRole('button', { name: /Review changes/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }))
+    await waitFor(() => expect(review).toHaveBeenCalledWith(7, 'APPROVE', '', []))
   })
 
   it('merges only after the confirm', async () => {
@@ -175,7 +178,35 @@ describe('GitHub views', () => {
     await waitFor(() =>
       expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'pr', query: 'label:bug' })),
     )
-    expect(screen.getByLabelText('Approved')).toBeTruthy()
+    expect(screen.getByText('· Approved')).toBeTruthy()
+  })
+
+  it('filters by author and label from the header menus, writing them into the search', async () => {
+    const list = vi.fn(githubApi().list)
+    const options = async () => ({
+      labels: [{ name: 'area: web', color: 'ff0000', description: '' }],
+      milestones: [],
+      people: [author],
+      teams: [],
+    })
+    render(<App api={fakeApi({ github: githubApi({ list, options }) })} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Filter by author' }))
+    const authors = await screen.findByRole('listbox', { name: 'Filter by author' })
+    fireEvent.click(await within(authors).findByRole('option', { name: /octo/ }))
+    await waitFor(() =>
+      expect(list).toHaveBeenCalledWith(expect.objectContaining({ state: 'open', query: 'author:octo' })),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by label' }))
+    const labels = await screen.findByRole('listbox', { name: 'Filter by label' })
+    fireEvent.click(await within(labels).findByRole('option', { name: /area: web/ }))
+    await waitFor(() =>
+      expect(list).toHaveBeenCalledWith(
+        expect.objectContaining({ state: 'open', query: 'author:octo label:"area: web"' }),
+      ),
+    )
+    expect((screen.getByLabelText('Search pull requests') as HTMLInputElement).value).toBe(
+      'author:octo label:"area: web"',
+    )
   })
 
   it('shows the timeline, quotes a comment into the box, and reacts', async () => {
@@ -291,6 +322,49 @@ describe('GitHub views', () => {
     expect(button.disabled).toBe(true)
     fireEvent.click(screen.getByLabelText(/bypass rules/))
     expect(((await screen.findByRole('button', { name: /bypass/ })) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('steps back to the list and forward to the pull request with the page buttons', async () => {
+    render(<App api={fakeApi({ github: githubApi() })} />)
+    fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
+    expect(await screen.findByText('Why this exists')).toBeTruthy()
+    expect(window.location.search).toContain('number=7')
+    fireEvent.click(screen.getByRole('tab', { name: /Commits/ }))
+    await waitFor(() => expect(window.location.search).toContain('tab=commits'))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await waitFor(() => expect(window.location.search).not.toContain('tab='))
+    expect(await screen.findByText('Why this exists')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect(await screen.findByRole('option', { name: /Add things/ })).toBeTruthy()
+    expect(window.location.search).not.toContain('number=')
+    fireEvent.click(screen.getByRole('button', { name: 'Forward' }))
+    expect(await screen.findByText('Why this exists')).toBeTruthy()
+  })
+
+  it('closes an issue as not planned from the close button menu', async () => {
+    window.history.replaceState(null, '', '/?view=issues&number=3')
+    const setIssueState = vi.fn(async () => {})
+    const issue = async () => ({
+      number: 3,
+      title: 'Graph lanes overlap',
+      state: 'open' as const,
+      author,
+      createdAt: '2026-10-01T00:00:00Z',
+      updatedAt: '2026-10-02T00:00:00Z',
+      labels: [],
+      comments: 0,
+      url: 'u',
+      locked: false,
+      assignees: [],
+      milestone: null,
+      body: 'Lanes cross',
+      conversation: [],
+    })
+    render(<App api={fakeApi({ github: githubApi({ issue, setIssueState }) })} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose how to close' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Close as not planned/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Close as not planned$/ }))
+    await waitFor(() => expect(setIssueState).toHaveBeenCalledWith(3, 'closed', 'not_planned'))
   })
 
   it('says so when the repo has no GitHub remote', async () => {
