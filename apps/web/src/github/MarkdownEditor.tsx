@@ -17,11 +17,12 @@ import {
   Paperclip,
   TextQuote,
 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { fitRows } from '../lib/fit-rows'
+import { Markdown } from '../markdown/Markdown'
 import { Avatar } from './Conversation'
 import { applyFormat, type Format } from './markdown-format'
 
@@ -41,8 +42,6 @@ const TOOLS: ({ label: string; tip: string; icon: typeof Heading; format: Format
   { label: 'Add a task list', tip: 'Task list', icon: ListTodo, format: 'task' },
 ]
 const SHORTCUTS: Record<string, Format> = { b: 'bold', i: 'italic', e: 'code', k: 'link' }
-
-const Markdown = lazy(() => import('../markdown/Markdown').then((module) => ({ default: module.Markdown })))
 
 interface Suggestion {
   key: string

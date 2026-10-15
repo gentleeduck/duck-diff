@@ -27,7 +27,9 @@ const role = (color: string) => ROLES[color.toLowerCase()] ?? color
 
 // Splits the line at token and changed-word boundaries so each piece gets its own color and mark.
 export function Code({ text, tokens, marks }: { text: string; tokens?: Token[]; marks?: Range[] }) {
-  const pieces: Token[] = tokens?.length ? tokens : [[text, '', 0]]
+  // Tokens draw their own text, so ones made for other text (a saved copy gone stale) are not used.
+  const fits = tokens?.length && tokens.reduce((length, token) => length + token[0].length, 0) === text.length
+  const pieces: Token[] = fits && tokens.map((token) => token[0]).join('') === text ? tokens : [[text, '', 0]]
   const out: ReactNode[] = []
   let at = 0
   for (const [i, [content, color, style]] of pieces.entries()) {

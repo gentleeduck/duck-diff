@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createStateStore, pageState } from '../state'
+import { createStateStore, openingTarget, pageDiff, pageState } from '../state'
 
 let data: string
 beforeEach(async () => {
@@ -51,5 +51,24 @@ describe('state store', () => {
     expect(out).not.toContain('</script><b>')
     const json = /<script id="duck-diff-state" type="application\/json">(.*?)<\/script>/.exec(out)?.[1] ?? ''
     expect(JSON.parse(json)).toEqual({ a: '</script><b>' })
+  })
+
+  it('knows which diff a page opens on, from its path or an older ?view= link', () => {
+    const at = (href: string) => openingTarget(new URL(href, 'http://page'))
+    expect(at('/changes')).toEqual({ kind: 'local' })
+    expect(at('/?token=t')).toEqual({ kind: 'local' })
+    expect(at('/changes?target=' + encodeURIComponent('{"kind":"staged"}'))).toEqual({ kind: 'staged' })
+    expect(at('/?view=graph')).toBeNull()
+    expect(at('/prs/3')).toBeNull()
+    expect(at('/changes?target=%7Bbad')).toBeNull()
+  })
+
+  it('puts a held diff into the page, and leaves a missing or huge one out', () => {
+    const html = '<head></head>'
+    const out = pageDiff(html, 'k', '[{"path":"a"}]', 'diff --git a/a b/a\n</script>')
+    const json = /<script id="duck-diff-diff" type="application\/json">(.*?)<\/script>/s.exec(out)?.[1] ?? ''
+    expect(JSON.parse(json)).toEqual({ key: 'k', files: [{ path: 'a' }], patch: 'diff --git a/a b/a\n</script>' })
+    expect(pageDiff(html, 'k', undefined, 'x')).toBe(html)
+    expect(pageDiff(html, 'k', '[]', 'x'.repeat(2_000_000))).toBe(html)
   })
 })

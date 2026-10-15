@@ -49,9 +49,10 @@ describe('auth', () => {
     })
     const html = await (await fetch(`${base}/?token=${fixture.server.token}`)).text()
     expect(html).toContain('<script id="duck-diff-state" type="application/json">{"duck-diff:settings"')
-    expect((await fetch(`${base}/api/state/queries`, { headers })).status).toBe(204)
     await fetch(`${base}/api/state/queries`, { method: 'PUT', headers, body: '{"q":1}' })
-    expect(await (await fetch(`${base}/api/state/queries`, { headers })).text()).toBe('{"q":1}')
+    // The saved answers come back inside the page, not through a request of their own.
+    const again = await (await fetch(`${base}/?token=${fixture.server.token}`)).text()
+    expect(again).toContain('<script id="duck-diff-queries" type="application/json">{"q":1}</script>')
   })
 
   it('binds to localhost only', async () => {

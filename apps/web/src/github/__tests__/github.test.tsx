@@ -122,7 +122,10 @@ describe('GitHub views', () => {
     render(<App api={fakeApi({ github: githubApi({ review }) })} />)
     fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
     expect(await screen.findByText('Why this exists')).toBeTruthy()
-    expect(screen.getByText('Looks good')).toBeTruthy()
+    // GitHub's own rendering, scripts dropped.
+    expect(
+      await screen.findByText((_, element) => element?.tagName === 'P' && element.textContent === 'Looks good'),
+    ).toBeTruthy()
     // As on GitHub, the verdict is given from Review changes, not from the comment box.
     fireEvent.click(await screen.findByRole('button', { name: /Review changes/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Approve' }))

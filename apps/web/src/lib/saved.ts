@@ -8,7 +8,9 @@ type Changes = Record<string, string | null>
 const PREFIX = 'duck-diff:'
 // Caches an older build kept in the browser; the server has its own, so these are only cleared.
 const CACHES = /^duck-diff:(queries|items):/
-const SEND_MS = 300
+// Short: on a reload the new page is asked for before the old one leaves, so a change still waiting
+// here would miss it.
+const SEND_MS = 50
 
 export function createSavedStorage({
   initial,

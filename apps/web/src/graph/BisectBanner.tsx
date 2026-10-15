@@ -5,6 +5,7 @@ import { Bug } from 'lucide-react'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { useGit } from '../git/GitProvider'
+import { useFirstDiff } from '../hooks/useFirstDiff'
 
 function progress(state: BisectState): string {
   if (!state.bad) return 'Bisecting. Mark a commit that has the problem as bad.'
@@ -17,7 +18,8 @@ function progress(state: BisectState): string {
 export function BisectBanner() {
   const { graphSelection, queries } = useApp()
   const { busy, run } = useGit()
-  const state = useQuery(queries.git.bisect()).data ?? null
+  // Bisecting is rare; asking waits for the diff, so it never slows the first paint.
+  const state = useQuery({ ...queries.git.bisect(), enabled: useFirstDiff() }).data ?? null
   if (!state?.active) return null
   const runCommand = async () => {
     const values = await ask.prompt({

@@ -1,13 +1,12 @@
 import type { PersistedClient, Persister } from '@tanstack/react-query-persist-client'
 
 // The query cache is saved through the server, per repo, beside duck-diff's other caches; the browser keeps
-// none of it. Saves are throttled: the cache changes on every answer.
+// none of it. The server puts the saved copy into the page (QueryProvider reads it), so this only saves,
+// throttled: the cache changes with every answer.
 export function createServerPersister({
-  get,
   put,
   throttleMs = 2000,
 }: {
-  get(): Promise<string | null>
   put(text: string): Promise<void>
   throttleMs?: number
 }): Persister {
@@ -23,14 +22,7 @@ export function createServerPersister({
         if (latest) put(JSON.stringify(latest)).catch(() => {})
       }, throttleMs)
     },
-    async restoreClient() {
-      try {
-        const text = await get()
-        return text ? (JSON.parse(text) as PersistedClient) : undefined
-      } catch {
-        return undefined
-      }
-    },
+    restoreClient: async () => undefined,
     async removeClient() {
       latest = null
       await put('').catch(() => {})
@@ -40,10 +32,6 @@ export function createServerPersister({
 
 export const pagePersister = () =>
   createServerPersister({
-    get: async () => {
-      const response = await fetch('/api/state/queries')
-      return response.status === 200 ? response.text() : null
-    },
     put: async (text) => {
       await fetch('/api/state/queries', { method: 'PUT', body: text, keepalive: text.length < 60_000 })
     },

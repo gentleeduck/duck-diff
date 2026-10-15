@@ -1,4 +1,3 @@
-import { lazy } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
 import { useRefresh } from '../query/useRefresh'
@@ -6,13 +5,12 @@ import { Actions } from './Actions'
 import { Discussions } from './Discussions'
 import { Inbox } from './Inbox'
 import { IssuesList } from './IssuesList'
+import IssueView from './IssueView'
 import { PullsList } from './PullsList'
+import PullView from './PullView'
 import { Releases } from './Releases'
 import { Security } from './Security'
 import { GitHubGate } from './SignIn'
-
-const PullView = lazy(() => import('./PullView'))
-const IssueView = lazy(() => import('./IssueView'))
 
 const selectNumber = (value: number | null) => value
 

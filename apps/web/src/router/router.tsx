@@ -1,29 +1,38 @@
 import { createRootRoute, createRoute, createRouter, type RouterHistory } from '@tanstack/react-router'
 import { type ComponentType, createElement, lazy, memo } from 'react'
+import FileViewPage from '../files/FileView'
+import {
+  ActionsPage,
+  DiscussionsPage,
+  InboxPage,
+  IssuesPage,
+  PullsPage,
+  ReleasesPage,
+  SecurityPage,
+} from '../github/Pages'
+import GraphViewPage from '../graph/GraphView'
+import MergeEditor from '../merge/MergeEditor'
+import Changes from '../viewer/ChangesPage'
 import type { View } from './place'
 
-// Memoized: the page around them re-renders for panels and badges, which these big views do not need.
-const Changes = lazy(() => import('../viewer/ChangesPage'))
-const GraphView = lazy(() => import('../graph/GraphView').then((module) => ({ default: memo(module.default) })))
-const MergeEditor = lazy(() => import('../merge/MergeEditor'))
-const FileView = lazy(() => import('../files/FileView').then((module) => ({ default: memo(module.default) })))
+// Views come in the main bundle: served from this machine, a chain of lazy chunks costs more than the bytes.
+// Only the charts wait, being big and rarely the first thing opened.
 const Insights = lazy(() => import('../insights/Insights'))
-// GitHub pages load when first opened, keeping them out of the bundle every view waits for.
-const pages = () => import('../github/Pages')
-const page = (name: keyof Awaited<ReturnType<typeof pages>>) =>
-  lazy(() => pages().then((module) => ({ default: module[name] as ComponentType })))
+// Memoized: the page around them re-renders for panels and badges, which these big views do not need.
+const GraphView = memo(GraphViewPage)
+const FileView = memo(FileViewPage)
 
 export const MAINS: Record<View, ComponentType> = {
   changes: Changes,
   graph: GraphView,
   files: FileView,
-  prs: page('PullsPage'),
-  issues: page('IssuesPage'),
-  inbox: page('InboxPage'),
-  releases: page('ReleasesPage'),
-  actions: page('ActionsPage'),
-  discussions: page('DiscussionsPage'),
-  security: page('SecurityPage'),
+  prs: PullsPage,
+  issues: IssuesPage,
+  inbox: InboxPage,
+  releases: ReleasesPage,
+  actions: ActionsPage,
+  discussions: DiscussionsPage,
+  security: SecurityPage,
   insights: Insights,
   merge: MergeEditor,
 }

@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { repoId } from '@duck-diff/git'
+import { type DiffTarget, DiffTargetSchema } from '@duck-diff/protocol'
 
 // Bumped when the file's shape changes, so an older one is ignored rather than misread.
 const VERSION = 1
@@ -66,10 +67,15 @@ export function createStateStore(data: string, repo: string): StateStore {
   }
 }
 
-// The values ride in the page itself, so stores read them while they are created, before any request.
-export function pageState(html: string, values: StateValues): string {
+// The values ride in the page itself, so stores read them while they are created, and the saved query
+// answers paint before any request is made.
+export function pageState(html: string, values: StateValues, queries: string | null = null): string {
   const json = JSON.stringify(values).replace(/</g, '\\u003c')
-  return html.replace('</head>', `<script id="duck-diff-state" type="application/json">${json}</script></head>`)
+  // Saved as JSON already; a < can only sit inside one of its strings, where \u003c reads the same.
+  const saved = queries
+    ? `<script id="duck-diff-queries" type="application/json">${queries.replace(/</g, '\\u003c')}</script>`
+    : ''
+  return html.replace('</head>', `<script id="duck-diff-state" type="application/json">${json}</script>${saved}</head>`)
 }
 
 // For servers that keep nothing on disk (tests): the same store, held in memory.
@@ -90,3 +96,45 @@ export function createMemoryState(): StateStore {
     },
   }
 }
+
+// Past this the page is better off streaming it than parsing it all before its first paint.
+const SEED_MAX = 1_000_000
+
+// The diff the page opens on, when the server already holds it: the page draws it in its first frame.
+export function pageDiff(
+  html: string,
+  key: string,
+  files: string | undefined,
+  patch: string | undefined,
+  tokens?: string,
+): string {
+  if (files === undefined || patch === undefined || patch.length > SEED_MAX) return html
+  const colors = tokens ? `,"tokens":${tokens}` : ''
+  const seed = `{"key":${JSON.stringify(key)},"files":${files},"patch":${JSON.stringify(patch)}${colors}}`
+  const safe = seed.replace(/</g, '\\u003c')
+  return html.replace('</head>', `<script id="duck-diff-diff" type="application/json">${safe}</script></head>`)
+}
+
+// The comparison a page url opens on, when it opens on the diff: /changes, or / as older links have it.
+export function openingTarget(url: URL): DiffTarget | null {
+  const view = url.searchParams.get('view')
+  if (!(url.pathname === '/changes' || (url.pathname === '/' && (!view || view === 'changes')))) return null
+  const raw = url.searchParams.get('target')
+  if (!raw) return { kind: 'local' }
+  try {
+    const parsed = DiffTargetSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
+// The graph the page opens on, when the server holds it, with the refs that name its remote branches.
+export function pageGraph(html: string, key: string, text: string | undefined, refs: string | undefined): string {
+  if (text === undefined || refs === undefined || text.length > SEED_MAX) return html
+  const seed = `{"key":${JSON.stringify(key)},"text":${JSON.stringify(text)},"refs":${refs}}`.replace(/</g, '\\u003c')
+  return html.replace('</head>', `<script id="duck-diff-graph" type="application/json">${seed}</script></head>`)
+}
+
+export const opensGraph = (url: URL) =>
+  url.pathname === '/graph' || (url.pathname === '/' && url.searchParams.get('view') === 'graph')

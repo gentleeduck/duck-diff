@@ -240,6 +240,15 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     return found
   }
 
+  const STATUS_MS = 60_000
+  let statusRead: { at: number; value: Promise<GitHubStatus> } | null = null
+  async function readStatus(): Promise<GitHubStatus> {
+    const [name, auth] = await Promise.all([repoSlug(), token()])
+    if (!auth) return { repo: name, user: null, source: null }
+    const me = await call<RawUser>('/user').catch(() => null)
+    return { repo: name, user: me ? user(me) : null, source: me ? auth.source : null }
+  }
+
   async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     return (await send<T>(path, init)).body
   }
@@ -271,7 +280,10 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     if (!response && cached) return { status: 200, body: cached.body as T }
     if (!response) throw new HttpError(502, 'failed', 'GitHub could not be reached')
     if (response.status === 304 && cached) return { status: 200, body: cached.body as T }
-    if (response.status === 401) found = null
+    if (response.status === 401) {
+      found = null
+      statusRead = null
+    }
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { message?: string } | null
       throw new HttpError(
@@ -518,14 +530,30 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
       return times
     },
 
-    async status(): Promise<GitHubStatus> {
-      const [name, auth] = await Promise.all([repoSlug(), token()])
-      if (!auth) return { repo: name, user: null, source: null }
-      const me = await call<RawUser>('/user').catch(() => null)
-      return { repo: name, user: me ? user(me) : null, source: me ? auth.source : null }
+    // Who you are barely changes, and every GitHub page waits on it: the last answer comes back at once and a
+    // fresher one is read behind it.
+    status() {
+      const now = Date.now()
+      if (statusRead && now - statusRead.at <= STATUS_MS) return statusRead.value
+      const reading = readStatus()
+      // The last answer stays while the new one is read.
+      const entry = { at: now, value: statusRead?.value ?? reading }
+      statusRead = entry
+      void reading.then(
+        (value) => {
+          if (statusRead !== entry) return
+          // Signed out is not kept: after gh auth login, Check again has to see the change.
+          statusRead = value.user ? { at: Date.now(), value: Promise.resolve(value) } : null
+        },
+        () => {
+          if (statusRead === entry) statusRead = null
+        },
+      )
+      return entry.value
     },
     setToken(next: string) {
       pasted = next
+      statusRead = null
     },
     async pulls(state: 'open' | 'closed'): Promise<PullSummary[]> {
       const raw = await call<RawPull[]>(

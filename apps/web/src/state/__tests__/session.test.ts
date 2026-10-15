@@ -3,6 +3,25 @@ import { FILES, fakeApi, PATCH } from '../../test/fake-api'
 import { createSession } from '../session'
 
 describe('session', () => {
+  it('draws the diff that came with the page before asking for anything', () => {
+    let asked = 0
+    const api = fakeApi({
+      files: async () => {
+        asked++
+        return FILES
+      },
+    })
+    const session = createSession(api, { kind: 'local' }, { key: 'local', files: FILES, patch: PATCH })
+    expect(session.get().status).toBe('ready')
+    expect(session.get().items.map((item) => item.id)).toEqual(['diff:a.ts', 'diff:b.ts'])
+    expect(session.get().items[0]?.fileDiff.cacheKey).toBe('a.ts:1:2')
+    expect(asked).toBe(0)
+    // A seed for another comparison is not this one.
+    expect(createSession(api, { kind: 'staged' }, { key: 'local', files: FILES, patch: PATCH }).get().status).toBe(
+      'idle',
+    )
+  })
+
   it('loads files and items for a target', async () => {
     const session = createSession(fakeApi(), { kind: 'local' })
     await session.load({ kind: 'staged' })

@@ -14,10 +14,17 @@ const at = (ref: string | null | undefined) => (ref ? (FULL_SHA.test(ref) ? [] :
 // moves), index (staging) and worktree (files saved). A commit by its full sha never changes.
 export function gitQueries(api: Api) {
   return {
-    repo: () => queryOptions({ queryKey: ['git', 'repo'], queryFn: () => api.repo(), meta: { topics: ['refs'] } }),
-    refs: () => queryOptions({ queryKey: ['git', 'refs'], queryFn: () => api.refs(), meta: { topics: ['refs'] } }),
+    // Kept with the page's saved answers, so the branch, the refs and the open buttons show in the first frame.
+    repo: () =>
+      queryOptions({ queryKey: ['git', 'repo'], queryFn: () => api.repo(), meta: { topics: ['refs'], persist: true } }),
+    refs: () =>
+      queryOptions({ queryKey: ['git', 'refs'], queryFn: () => api.refs(), meta: { topics: ['refs'], persist: true } }),
     sync: () =>
-      queryOptions({ queryKey: ['git', 'sync'], queryFn: () => api.sync(), meta: { topics: ['refs', 'index'] } }),
+      queryOptions({
+        queryKey: ['git', 'sync'],
+        queryFn: () => api.sync(),
+        meta: { topics: ['refs', 'index'], persist: true },
+      }),
     remotes: () =>
       queryOptions({ queryKey: ['git', 'remotes'], queryFn: () => api.remotes(), meta: { topics: ['refs'] } }),
     lastMessage: () =>

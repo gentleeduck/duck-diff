@@ -19,6 +19,7 @@ import {
   NavigateRequestSchema,
   OpenRepoSchema,
   OpenRequestSchema,
+  targetKey,
   UpdateReviewSchema,
   WriteRequestSchema,
 } from '@duck-diff/protocol'
@@ -35,13 +36,14 @@ import type { GitLabOptions } from './gitlab'
 import { Hub } from './hub'
 import { createJobs, jobTitle } from './jobs'
 import { createNavigator, type NavigatorOptions } from './lsp/navigator'
+import { createRepoMemo } from './memo'
 import { type NvimRunner, openKeys, runNvim, tcdKeys } from './nvim'
 import { createTerminals, type TerminalPeer } from './pty'
 import { createRepoList } from './repos'
 import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
 import { createSiblings, type StartServer, startSibling } from './siblings'
-import { createMemoryState, createStateStore, pageState } from './state'
+import { createMemoryState, createStateStore, openingTarget, opensGraph, pageDiff, pageGraph, pageState } from './state'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
@@ -111,6 +113,8 @@ const PtyMessageSchema = z.discriminatedUnion('type', [
 ])
 const DEFAULT_IDLE_MS = 600_000
 const MAX_QUERIES_BYTES = 20 * 1024 * 1024
+const MAX_TOKENS_BYTES = 2 * 1024 * 1024
+const SavedTokensSchema = z.object({ key: z.string().max(4000), tokens: z.record(z.string(), z.unknown()) })
 const StateChangesSchema = z.object({ changes: z.record(z.string().max(200), z.string().max(1_000_000).nullable()) })
 const serveWeb = createWebHandler(WEB_ASSETS)
 
@@ -118,7 +122,12 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const repo = await resolveRepo(options.repo)
   const token = options.token ?? createToken()
   const hub = new Hub<SocketData>(options.idleTimeoutMs ?? DEFAULT_IDLE_MS, options.onIdle ?? (() => {}))
-  const notify = (reason: ChangeReason) => hub.broadcast({ type: 'changed', reason })
+  // Without the watcher nothing would say when a kept diff went stale, so nothing is kept.
+  const memo = options.watch === false ? undefined : createRepoMemo()
+  const notify = (reason: ChangeReason) => {
+    if (reason !== 'reviews') memo?.changed()
+    hub.broadcast({ type: 'changed', reason })
+  }
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
   const enqueue = createWriteQueue()
   const cache = options.persist
@@ -321,6 +330,15 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           }
           return Response.json(await state.values())
         }
+        // The colors a page worked out for the diff it shows, kept only while that diff is the one held.
+        if (url.pathname === '/api/state/tokens' && request.method === 'PUT') {
+          const text = await request.text()
+          if (text.length > MAX_TOKENS_BYTES) throw new HttpError(413, 'bad-request', 'too many colors')
+          const { key, tokens } = SavedTokensSchema.parse(JSON.parse(text))
+          const stamp = memo?.stamp() ?? 0
+          if (memo?.get(`diff:${key}`) !== undefined) memo.set(`tokens:${key}`, JSON.stringify(tokens), stamp)
+          return new Response(null, { status: 204 })
+        }
         if (url.pathname === '/api/state/queries') {
           if (request.method === 'PUT') {
             const text = await request.text()
@@ -328,15 +346,22 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
             await state.setQueries(text)
             return new Response(null, { status: 204 })
           }
-          const saved = await state.queries()
-          return saved === null ? new Response(null, { status: 204 }) : new Response(saved)
+          throw new HttpError(405, 'bad-request', 'the saved queries come with the page')
         }
         if (url.pathname.startsWith('/api/'))
-          return await handleApi(repo, url, Boolean(options.nvim), options.build, cache)
+          return await handleApi(repo, url, Boolean(options.nvim), options.build, cache, memo)
         const response = serveWeb(url.pathname)
         // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
         if (response.headers.get('content-type')?.startsWith('text/html')) {
-          const html = pageState(await response.text(), await state.values())
+          let html = pageState(await response.text(), await state.values(), await state.queries())
+          const opening = memo ? openingTarget(url) : null
+          if (memo && opening) {
+            const key = targetKey(opening)
+            html = pageDiff(html, key, memo.get(`files:${key}`), memo.get(`diff:${key}`), memo.get(`tokens:${key}`))
+          }
+          // The graph view's default: the current branch, up to 20,000 commits (web graph/store.ts).
+          if (memo && opensGraph(url))
+            html = pageGraph(html, 'false:20000', memo.get('graph:false:20000'), memo.get('refs'))
           const page = new Response(html, {
             headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' },
           })

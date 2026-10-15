@@ -10,7 +10,10 @@ import { createGraph, type Graph } from '../graph/store'
 import { createKeyOverrides, createKeyState, type KeyOverrides, type KeyState } from '../keys/state'
 import { type Api, createApi } from '../lib/api'
 import { createPageHistory } from '../lib/history'
+import { whenIdle } from '../lib/idle'
+import { onServer } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
+import { saveTokens } from '../live/saveTokens'
 import { createJobs, type Jobs } from '../panel/jobs'
 import { createPanel, type Panel } from '../panel/panel'
 import { invalidateTopic } from '../query/client'
@@ -20,7 +23,7 @@ import { QueryProvider } from '../query/QueryProvider'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createPlaceStores, type PlaceStores } from '../router/stores'
 import { createRefs, type Refs } from '../state/refs'
-import { createSession, type Session } from '../state/session'
+import { createSession, readSeed, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
 import { createTabs, type Tabs } from '../state/tabs'
 import { createViewedStore, type Viewed } from '../state/viewed'
@@ -87,7 +90,9 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
     const history = createPageHistory()
     const location = createPlaceStores(history)
     const target = location.place.get().target
-    const session = createSession(client, target)
+    const seed = api ? null : readSeed()
+    if (seed?.tokens) highlighter.prime(seed.tokens)
+    const session = createSession(client, target, seed)
     const queries = { gh: githubQueries(client), git: gitQueries(client) }
     return {
       api: client,
@@ -95,6 +100,7 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
       refs: createRefs(client, session, {
         refs: () => queryClient.fetchQuery(queries.git.refs()),
         commits: () => queryClient.fetchQuery(queries.git.commits({ head: 'HEAD', limit: 50 })),
+        cached: () => queryClient.getQueryData(queries.git.refs().queryKey),
       }),
       settings: createSettingsStore(),
       reviews: createReviews(client),
@@ -126,8 +132,10 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
   }, [api, queryClient])
 
   useEffect(() => {
-    value.jobs.load().catch(() => {})
-    value.terminalTabs.load().catch(() => {})
+    return whenIdle(() => {
+      value.jobs.load().catch(() => {})
+      value.terminalTabs.load().catch(() => {})
+    })
   }, [value])
 
   // The diff shows the url's comparison, whether a click, back and forward or Neovim changed it. Only a
@@ -150,6 +158,8 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
     )
   }, [value])
 
+  useEffect(() => (api || !onServer ? undefined : saveTokens(value.session)), [api, value])
+
   useEffect(() => {
     // The highlighter starts with the page and loads the changed files' grammars while the diff is read,
     // so the first rows arrive colored.
@@ -158,11 +168,13 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
     // first and the diff follows once the page is idle.
     const loadDiff = () => void value.session.load(value.session.get().target)
     const opening = value.view.get()
-    if (opening === 'changes') loadDiff()
+    // A diff that came with the page is already drawn; reading it again waits like the other views' do.
+    if (opening === 'changes' && value.session.get().status !== 'ready') loadDiff()
     else {
-      if (opening === 'graph') void value.graph.load()
-      const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 300))
-      idle(loadDiff, { timeout: 1500 })
+      // So does a graph that came with it.
+      if (opening === 'graph' && value.graph.get().status !== 'ready') void value.graph.load()
+      else if (opening === 'graph') whenIdle(() => void value.graph.load())
+      whenIdle(loadDiff)
     }
     let warmed = false
     return value.session.subscribe(() => {

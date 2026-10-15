@@ -431,6 +431,15 @@ describe('/api/github', () => {
     expect(calls[0]?.auth).toBe('Bearer secret-token')
   })
 
+  it('answers the status again from memory, without asking GitHub', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    await call('GET', '/api/github/status')
+    const asked = calls.filter((entry) => entry.path === '/user').length
+    expect(await (await call('GET', '/api/github/status')).json()).toMatchObject({ user: { login: 'octo' } })
+    expect(calls.filter((entry) => entry.path === '/user').length).toBe(asked)
+  })
+
   it('lists pull requests and builds a pull request page with its conversation', async () => {
     await start({ token: 't', remote: 'git@github.com:o/r.git' })
     const pulls = await (await call('GET', '/api/github/pulls')).json()

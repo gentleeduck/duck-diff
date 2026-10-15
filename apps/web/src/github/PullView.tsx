@@ -17,7 +17,7 @@ import {
   MessageSquare,
   SquareArrowOutUpRight,
 } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
+import { type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
@@ -29,6 +29,7 @@ import { useView } from '../hooks/useView'
 import type { ReviewEvent } from '../lib/api'
 import { useStore } from '../lib/store'
 import type { PullTab } from '../router/place'
+import Viewer from '../viewer/Viewer'
 import { ChecksList } from './Checks'
 import { CodeMenu } from './CodeMenu'
 import { Avatar, Comment, Composer } from './Conversation'
@@ -43,8 +44,6 @@ import { ThreadMenu } from './ThreadMenu'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
 import { EditTitleButton, ThreadTitle, useThread } from './useThread'
-
-const Viewer = lazy(() => import('../viewer/Viewer'))
 
 type Tab = PullTab
 

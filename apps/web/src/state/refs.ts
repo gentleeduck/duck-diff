@@ -20,6 +20,8 @@ export interface Refs extends Store<RefList> {
 export interface RefReads {
   refs(): Promise<Ref[]>
   commits(): Promise<Commit[]>
+  // What the page already holds (its saved answers), shown until the first read.
+  cached?(): Ref[] | undefined
 }
 
 export function createRefs(
@@ -27,7 +29,7 @@ export function createRefs(
   session: Session,
   reads: RefReads = { refs: () => api.refs(), commits: () => api.commits({ head: 'HEAD', limit: 50 }) },
 ): Refs {
-  const store = createStore<RefList>({ refs: [], commits: [] })
+  const store = createStore<RefList>({ refs: reads.cached?.() ?? [], commits: [] })
   let started = false
 
   const read = async () => {

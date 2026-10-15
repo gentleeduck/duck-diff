@@ -15,6 +15,7 @@ export interface HighlightResponse {
 }
 
 type Side = 'old' | 'new'
+export type SavedTokens = Record<string, [[number, Token[]][], [number, Token[]][]]>
 export type LineTokens = Map<number, Token[]>
 export interface Entry {
   old: LineTokens
@@ -212,6 +213,21 @@ export function createHighlighter(makeWorker: (() => Worker) | null, poolSize = 
         })
       }
       pump()
+    },
+    // Finished entries whose key starts with one of these, to be handed back with the next page load.
+    saved(prefixes: readonly string[]): SavedTokens {
+      const out: SavedTokens = {}
+      for (const [key, entry] of cache) {
+        if (entry === 'pending' || !prefixes.some((prefix) => key.startsWith(prefix))) continue
+        out[key] = [[...entry.old], [...entry.new]]
+      }
+      return out
+    },
+    // Entries saved by an earlier page, so its first screen is colored without a worker.
+    prime(saved: SavedTokens) {
+      for (const [key, [old, next]] of Object.entries(saved))
+        if (!cache.has(key)) cache.set(key, { old: new Map(old), new: new Map(next) })
+      version++
     },
     // Starts a file the reader is about to reach, behind anything on screen.
     prefetch(key: string, path: string, rows: readonly DiffRow[]) {
