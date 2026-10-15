@@ -42,6 +42,7 @@ async function main(): Promise<number> {
     build: binary ? buildStamp(binary) : 'source',
     idleTimeoutMs: command.idleTimeoutMs,
     nvim: command.nvim,
+    terminal: command.terminal,
     repos: command.more,
     onIdle: () => finish(0),
   }).catch((error: Error) => {

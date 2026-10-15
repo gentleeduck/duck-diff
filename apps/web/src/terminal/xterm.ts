@@ -67,6 +67,8 @@ export function mountTerminal(element: HTMLElement, options: { fontSize: number;
   terminal.loadAddon(unicode)
   terminal.unicode.activeVersion = '11'
   terminal.loadAddon(new WebLinksAddon((_event, uri) => window.open(uri, '_blank', 'noopener')))
+  // Ctrl+` belongs to the page (it hides the panel), not the shell.
+  terminal.attachCustomKeyEventHandler((event) => !(event.ctrlKey && event.key === '`'))
   terminal.open(element)
   // The GPU renderer keeps a flood of output cheap; the DOM one takes over if WebGL is missing or lost.
   try {

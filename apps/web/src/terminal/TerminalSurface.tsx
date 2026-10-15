@@ -24,6 +24,8 @@ export function TerminalSurface({ label, readOnly = false, attach, autoFocus = f
   // Read at mount; later changes are applied below without rebuilding the terminal.
   const size = useRef(fontSize)
   size.current = fontSize
+  const focus = useRef(autoFocus)
+  focus.current = autoFocus
 
   useEffect(() => {
     const element = host.current
@@ -43,7 +45,7 @@ export function TerminalSurface({ label, readOnly = false, attach, autoFocus = f
         current.current = mounted
         observer.observe(element)
         cleanup = attach(mounted.terminal)
-        if (autoFocus) mounted.terminal.focus()
+        if (focus.current) mounted.terminal.focus()
       })
       .catch(() => {})
     return () => {
@@ -54,7 +56,11 @@ export function TerminalSurface({ label, readOnly = false, attach, autoFocus = f
       mounted?.dispose()
       current.current = null
     }
-  }, [attach, readOnly, autoFocus])
+  }, [attach, readOnly])
+
+  useEffect(() => {
+    if (autoFocus) current.current?.terminal.focus()
+  }, [autoFocus])
 
   useEffect(() => {
     const mounted = current.current

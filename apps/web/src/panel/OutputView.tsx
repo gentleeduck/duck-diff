@@ -1,6 +1,6 @@
 import type { Job } from '@duck-diff/protocol'
 import { Check, LoaderCircle, X } from 'lucide-react'
-import { useCallback } from 'react'
+import { memo, useCallback } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
 import { relativeTime } from '../sidebar/relative-time'
@@ -22,7 +22,7 @@ function StatusIcon({ status }: { status: Job['status'] }) {
 }
 
 // Every action the page ran, newest first, with the commands it typed and what they printed.
-export function OutputView() {
+export const OutputView = memo(function OutputView() {
   const { jobs, panel } = useApp()
   const list = useStore(jobs, selectJobs)
   const chosen = useStore(panel, selectJob)
@@ -43,25 +43,23 @@ export function OutputView() {
   }
   return (
     <div className="flex h-full min-h-0">
-      <ul aria-label="Actions" className="w-80 shrink-0 overflow-y-auto border-border border-e">
+      <ul aria-label="Actions" className="w-96 max-w-[45%] shrink-0 overflow-y-auto border-border border-e py-1">
         {list.map((job) => (
           <li key={job.id}>
             <button
               type="button"
               aria-current={job.id === id}
+              title={`${job.command}, ${relativeTime(job.startedAt / 1000)}`}
               onClick={() => panel.show('output', job.id)}
-              className={`flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start ${
+              className={`flex h-7 w-full cursor-pointer items-center gap-2 px-3 text-start ${
                 job.id === id ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/40'
               }`}>
               <StatusIcon status={job.status} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-foreground">{job.title}</span>
-                <span className="block truncate opacity-70">{job.command}</span>
+              <span className="shrink-0 text-foreground">{job.title}</span>
+              <span className="min-w-0 flex-1 truncate pe-0.5 opacity-70">
+                {job.command === job.title ? '' : job.command}
               </span>
-              <span className="shrink-0 text-end opacity-70">
-                <span className="block">{relativeTime(job.startedAt / 1000)}</span>
-                <span className="block">{took(job)}</span>
-              </span>
+              <span className="shrink-0 tabular-nums opacity-70">{took(job)}</span>
             </button>
           </li>
         ))}
@@ -71,4 +69,4 @@ export function OutputView() {
       </div>
     </div>
   )
-}
+})

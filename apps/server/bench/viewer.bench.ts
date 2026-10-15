@@ -63,7 +63,12 @@ async function serverStart(repo: TestRepo): Promise<number> {
 
 async function serve(repo: TestRepo) {
   const home = mkdtempSync(join(tmpdir(), 'duck-diff-bench-'))
-  const env = { ...process.env, XDG_DATA_HOME: join(home, 'data'), XDG_CACHE_HOME: join(home, 'cache') }
+  const env = {
+    ...process.env,
+    XDG_DATA_HOME: join(home, 'data'),
+    XDG_CACHE_HOME: join(home, 'cache'),
+    SHELL: '/bin/sh',
+  }
   const child = spawn(BINARY, ['serve', '--repo', repo.path], { stdio: ['pipe', 'pipe', 'inherit'], env })
   const [chunk] = (await once(child.stdout, 'data')) as [Buffer]
   const { url } = HandshakeSchema.parse(JSON.parse(chunk.toString().split('\n')[0] ?? ''))
@@ -136,6 +141,38 @@ async function scrollFrames(page: Page): Promise<number> {
   })
 }
 
+// Prints 200,000 lines in a page terminal and reports the median frame time while they arrive.
+async function terminalFlood(page: Page, url: string): Promise<number> {
+  await page.goto(url)
+  await page.getByRole('button', { name: 'Output' }).waitFor()
+  await page.keyboard.press('Control+`')
+  await page.getByRole('button', { name: 'New terminal' }).click()
+  const terminal = page.getByRole('region', { name: 'Terminal 1' }).locator('.xterm')
+  await terminal.waitFor()
+  await terminal.click()
+  await page.waitForTimeout(300)
+  const frames = page.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        const times: number[] = []
+        let last = performance.now()
+        const end = last + 2000
+        const step = (now: number) => {
+          times.push(now - last)
+          last = now
+          if (now < end) requestAnimationFrame(step)
+          else {
+            times.sort((a, b) => a - b)
+            resolve(times[Math.floor(times.length / 2)] ?? 0)
+          }
+        }
+        requestAnimationFrame(step)
+      }),
+  )
+  await page.keyboard.type('seq 200000\n')
+  return frames
+}
+
 async function main() {
   const browser = await chromium.launch()
   const results: Result[] = []
@@ -170,6 +207,12 @@ async function main() {
         budget: 300,
       })
       results.push({ name: 'Median frame while scrolling', value: await scrollFrames(page), unit: 'ms', budget: 17 })
+      results.push({
+        name: 'Median frame, 200,000-line shell',
+        value: await terminalFlood(page, tall.url),
+        unit: 'ms',
+        budget: 17,
+      })
       await page.close()
     } finally {
       tall.stop()

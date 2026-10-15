@@ -1,8 +1,8 @@
 import type { ServerEvent } from '@duck-diff/protocol'
 import type { ServerWebSocket } from 'bun'
 
-export class Hub {
-  private readonly sockets = new Set<ServerWebSocket<unknown>>()
+export class Hub<T = unknown> {
+  private readonly sockets = new Set<ServerWebSocket<T>>()
   private timer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
@@ -16,12 +16,12 @@ export class Hub {
     return this.sockets.size
   }
 
-  add(socket: ServerWebSocket<unknown>) {
+  add(socket: ServerWebSocket<T>) {
     this.sockets.add(socket)
     this.clearTimer()
   }
 
-  remove(socket: ServerWebSocket<unknown>) {
+  remove(socket: ServerWebSocket<T>) {
     this.sockets.delete(socket)
     if (this.sockets.size === 0) this.touch()
   }

@@ -19,6 +19,7 @@ import { createSettingsStore, type Settings } from '../state/settings'
 import { createStage, type Stage } from '../state/stage'
 import { createTabs, type Tabs } from '../state/tabs'
 import { createViewedStore, type Viewed } from '../state/viewed'
+import { createTerminalTabs, type TerminalTabs } from '../terminal/tabs'
 
 export interface AppContextValue {
   api: Api
@@ -69,6 +70,8 @@ export interface AppContextValue {
   jobs: Jobs
   // The bottom panel: output and terminals.
   panel: Panel
+  // The shells open in the bottom panel.
+  terminalTabs: TerminalTabs
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -109,11 +112,13 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       viewer,
       jobs: createJobs(client),
       panel: createPanel(),
+      terminalTabs: createTerminalTabs(client),
     }
   }, [api])
 
   useEffect(() => {
     value.jobs.load().catch(() => {})
+    value.terminalTabs.load().catch(() => {})
   }, [value])
 
   // Tabs are saved per repository, so they come back once the page knows which one it shows.

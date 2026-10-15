@@ -35,6 +35,8 @@ export const test = base.extend<Fixtures>({
       ...process.env,
       XDG_DATA_HOME: join(home, 'data'),
       XDG_CACHE_HOME: join(home, 'cache'),
+      // A plain shell in the page's terminals, so the user's prompt and plugins never slow a test.
+      SHELL: '/bin/sh',
       GIT_AUTHOR_NAME: 'Duck Test',
       GIT_AUTHOR_EMAIL: 'test@duck.local',
       GIT_COMMITTER_NAME: 'Duck Test',

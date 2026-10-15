@@ -184,6 +184,9 @@ export interface Api {
   // The actions run lately, newest first, and what one printed.
   jobs(): Promise<Job[]>
   jobOutput(id: string): Promise<string>
+  // Shells running on the server, which a reloaded page reattaches to.
+  terminals(): Promise<{ id: string; title: string; cwd: string }[]>
+  closeTerminal(id: string): Promise<void>
   github: GitHubApi
 }
 
@@ -548,6 +551,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
         z.object({ sha: z.string().optional(), conflicts: z.boolean().optional(), stopped: z.boolean().optional() }),
       ),
     jobs: () => json('/api/jobs', z.array(JobSchema)),
+    terminals: () => json('/api/terminals', z.array(z.object({ id: z.string(), title: z.string(), cwd: z.string() }))),
+    closeTerminal: (id) => sendEmpty('DELETE', `/api/terminals/${encodeURIComponent(id)}`),
     jobOutput: async (id) => (await request(`/api/jobs/${encodeURIComponent(id)}/output`)).text(),
     commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),
     commitStat: (sha) => json(`/api/commit-stat?sha=${encodeURIComponent(sha)}`, CommitStatSchema),

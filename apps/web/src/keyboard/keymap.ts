@@ -66,11 +66,16 @@ function isTyping(target: KeyLike['target']): boolean {
   return element?.tagName === 'INPUT' || element?.tagName === 'TEXTAREA' || Boolean(element?.isContentEditable)
 }
 
+// A shell gets every key, as it would in kitty, except the one that hides it.
+function inTerminal(target: KeyLike['target']): boolean {
+  return Boolean((target as { closest?: (selector: string) => unknown } | null)?.closest?.('.xterm'))
+}
+
 export function resolveKey(event: KeyLike): Action | null {
+  if (event.ctrlKey && event.key === '`') return 'toggle-panel'
+  if (inTerminal(event.target)) return null
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') return 'palette'
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') return 'toggle-sidebar'
-  // Works from inside a terminal too, as it does in editors.
-  if (event.ctrlKey && event.key === '`') return 'toggle-panel'
   // The browser's own zoom keys size the page through the font settings instead, so they persist.
   if ((event.ctrlKey || event.metaKey) && (event.key === '=' || event.key === '+')) return 'font-bigger'
   if ((event.ctrlKey || event.metaKey) && event.key === '-') return 'font-smaller'

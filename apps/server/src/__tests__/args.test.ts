@@ -10,6 +10,7 @@ describe('parseArgs', () => {
       port: 0,
       idleTimeoutMs: 600_000,
       nvim: null,
+      terminal: true,
     })
   })
 
@@ -19,7 +20,19 @@ describe('parseArgs', () => {
         ['serve', '--repo', '/r', '--port', '4100', '--idle-timeout-ms', '5000', '--nvim', '/tmp/nvim.sock'],
         '/work',
       ),
-    ).toEqual({ name: 'serve', more: [], repo: '/r', port: 4100, idleTimeoutMs: 5000, nvim: '/tmp/nvim.sock' })
+    ).toEqual({
+      name: 'serve',
+      more: [],
+      repo: '/r',
+      port: 4100,
+      idleTimeoutMs: 5000,
+      nvim: '/tmp/nvim.sock',
+      terminal: true,
+    })
+  })
+
+  it('turns the page terminals off', () => {
+    expect(parseArgs(['serve', '--no-terminal', '--port', '1'], '/w')).toMatchObject({ port: 1, terminal: false })
   })
 
   it('handles version and help', () => {

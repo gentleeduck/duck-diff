@@ -22,6 +22,7 @@ import {
   WriteRequestSchema,
 } from '@duck-diff/protocol'
 import type { ServerWebSocket } from 'bun'
+import { z } from 'zod'
 import { createToken, isAuthorized, tokenCookie } from './auth'
 import { errorResponse, HttpError } from './errors'
 import { createForge } from './forge'
@@ -33,6 +34,7 @@ import { Hub } from './hub'
 import { createJobs, jobTitle } from './jobs'
 import { createNavigator, type NavigatorOptions } from './lsp/navigator'
 import { type NvimRunner, openKeys, runNvim, tcdKeys } from './nvim'
+import { createTerminals, type TerminalPeer } from './pty'
 import { createRepoList } from './repos'
 import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
@@ -70,6 +72,8 @@ export interface ServerOptions {
   // How often the GitHub watcher looks at what is due, and seconds between asks per topic; tests make both quick.
   githubTickMs?: number
   githubEvery?: Partial<Record<string, number>>
+  // Shells in the page; false turns them off. Tests pick the shell.
+  terminal?: boolean | { shell: string; args: string[] }
 }
 
 export interface RunningServer {
@@ -82,17 +86,37 @@ export interface RunningServer {
 }
 
 const HOST = '127.0.0.1'
+
+type SocketData = { kind: 'events' } | { kind: 'pty'; id: string; peer: TerminalPeer | null }
+
+const PtyQuerySchema = z.object({
+  id: z.string().max(64).optional(),
+  cols: z.coerce.number().int().min(2).max(1000).default(80),
+  rows: z.coerce.number().int().min(2).max(500).default(24),
+})
+const PtyMessageSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('input'), data: z.string().max(1_000_000) }),
+  z.object({
+    type: z.literal('resize'),
+    cols: z.number().int().min(2).max(1000),
+    rows: z.number().int().min(2).max(500),
+  }),
+])
 const DEFAULT_IDLE_MS = 600_000
 const serveWeb = createWebHandler(WEB_ASSETS)
 
 export async function createServer(options: ServerOptions): Promise<RunningServer> {
   const repo = await resolveRepo(options.repo)
   const token = options.token ?? createToken()
-  const hub = new Hub(options.idleTimeoutMs ?? DEFAULT_IDLE_MS, options.onIdle ?? (() => {}))
+  const hub = new Hub<SocketData>(options.idleTimeoutMs ?? DEFAULT_IDLE_MS, options.onIdle ?? (() => {}))
   const notify = (reason: ChangeReason) => hub.broadcast({ type: 'changed', reason })
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
   const enqueue = createWriteQueue()
   const jobs = createJobs((event) => hub.broadcast(event))
+  const terminals =
+    options.terminal === false
+      ? null
+      : createTerminals({ cwd: repo, ...(typeof options.terminal === 'object' ? options.terminal : {}) })
   const reviews = createReviewStore(repo, options.dataDir)
   const github = createForge(repo, { github: options.github, gitlab: options.gitlab })
   const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
@@ -104,14 +128,14 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     await repoList.add(repo).catch(() => {})
   }
   const siblings = createSiblings(options.startSibling ?? startSibling(options.nvim ?? null))
-  const watch = createGitHubWatch<ServerWebSocket<unknown>>(
+  const watch = createGitHubWatch<ServerWebSocket<SocketData>>(
     github,
     (socket, topic) => socket.send(JSON.stringify({ type: 'github', topic })),
     options.githubEvery,
   )
   const watching = setInterval(() => void watch.tick(), options.githubTickMs ?? 5000)
 
-  const server = Bun.serve({
+  const server = Bun.serve<SocketData>({
     hostname: HOST,
     port: options.port ?? 0,
     async fetch(request, bun) {
@@ -120,12 +144,30 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         const port = bun.port ?? 0
         if (!isAuthorized(request, token, port)) throw new HttpError(401, 'unauthorized', 'missing or wrong token')
         if (url.pathname === '/api/events') {
-          if (bun.upgrade(request)) return undefined
+          if (bun.upgrade(request, { data: { kind: 'events' } })) return undefined
           throw new HttpError(400, 'bad-request', 'expected a websocket upgrade')
         }
         if (url.pathname === '/api/saved' && request.method === 'POST') {
           hub.touch()
           notify('saved')
+          return new Response(null, { status: 204 })
+        }
+        if (url.pathname === '/api/pty') {
+          if (!terminals) throw new HttpError(404, 'not-found', 'terminals are turned off')
+          // The cookie already ties the socket to this page; the origin check also refuses other local sites.
+          const origin = request.headers.get('origin')
+          if (origin && origin !== `http://${HOST}:${port}` && origin !== `http://localhost:${port}`) {
+            throw new HttpError(403, 'unauthorized', 'terminals only open from the page')
+          }
+          const query = PtyQuerySchema.parse(Object.fromEntries(url.searchParams))
+          const session = query.id ? terminals.get(query.id) : terminals.open(query)
+          if (!session) throw new HttpError(404, 'not-found', 'that terminal has closed')
+          if (bun.upgrade(request, { data: { kind: 'pty', id: session.id, peer: null } })) return undefined
+          throw new HttpError(400, 'bad-request', 'expected a websocket upgrade')
+        }
+        if (url.pathname === '/api/terminals') return Response.json(terminals?.list() ?? [])
+        if (url.pathname.startsWith('/api/terminals/') && request.method === 'DELETE') {
+          terminals?.get(decodeURIComponent(url.pathname.slice(15)))?.close()
           return new Response(null, { status: 204 })
         }
         if (url.pathname === '/api/jobs') return Response.json(jobs.list())
@@ -257,12 +299,29 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     },
     websocket: {
       async open(socket) {
+        if (socket.data.kind === 'pty') {
+          const session = terminals?.get(socket.data.id)
+          if (!session) return socket.close(4404, 'closed')
+          const peer: TerminalPeer = {
+            output: (data) => socket.sendBinary(data),
+            control: (message) => socket.send(JSON.stringify(message)),
+          }
+          socket.data.peer = peer
+          socket.send(JSON.stringify({ type: 'ready', id: session.id, title: session.title }))
+          session.attach(peer)
+          return
+        }
         hub.add(socket)
         // The repo can disappear under a running server; a missing hello is better than a crash.
         const info = await repoInfo(repo, Boolean(options.nvim), options.build).catch(() => null)
         if (info) socket.send(JSON.stringify({ type: 'hello', repo: info, build: options.build }))
       },
       close(socket) {
+        if (socket.data.kind === 'pty') {
+          const { peer, id } = socket.data
+          if (peer) terminals?.get(id)?.detach(peer)
+          return
+        }
         hub.remove(socket)
         watch.unsubscribe(socket)
       },
@@ -271,6 +330,14 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         try {
           data = JSON.parse(String(raw))
         } catch {
+          return
+        }
+        if (socket.data.kind === 'pty') {
+          const session = terminals?.get(socket.data.id)
+          const parsed = PtyMessageSchema.safeParse(data)
+          if (!session || !parsed.success) return
+          if (parsed.data.type === 'input') session.input(parsed.data.data)
+          else session.resize(parsed.data.cols, parsed.data.rows)
           return
         }
         const parsed = ClientMessageSchema.safeParse(data)
@@ -292,6 +359,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
       stopWatching()
       clearInterval(watching)
       hub.dispose()
+      terminals?.dispose()
       await navigator.stop()
       await siblings.stop()
       await server.stop(true)
