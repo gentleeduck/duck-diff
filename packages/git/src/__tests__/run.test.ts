@@ -54,4 +54,20 @@ describe('streamGit', () => {
     for await (const chunk of streamGit(['show', 'HEAD:a.txt'], { cwd: repo.path })) out += chunk
     expect(out.length).toBe('line\n'.length * 20_000)
   })
+
+  it('stops git quietly when the reader leaves early', async () => {
+    repo = createRepo()
+    repo.write('a.txt', `${'line\n'.repeat(200_000)}`)
+    repo.commit('big')
+    const unhandled: unknown[] = []
+    const onUnhandled = (reason: unknown) => unhandled.push(reason)
+    process.on('unhandledRejection', onUnhandled)
+    for await (const chunk of streamGit(['show', 'HEAD:a.txt'], { cwd: repo.path })) {
+      expect(chunk.length).toBeGreaterThan(0)
+      break
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    process.off('unhandledRejection', onUnhandled)
+    expect(unhandled).toEqual([])
+  })
 })

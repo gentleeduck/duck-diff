@@ -8,7 +8,6 @@ import { BranchMenu } from '../git/BranchMenu'
 import { GitProvider } from '../git/GitProvider'
 import { SyncButtons } from '../git/SyncButtons'
 import { useUnread } from '../github/Inbox'
-import { ActionsPage, InboxPage, IssuesPage, PullsPage, ReleasesPage } from '../github/Pages'
 import { useGitHub } from '../github/SignIn'
 import { FindCommit } from '../graph/FindCommit'
 import { GraphSidebar } from '../graph/GraphSidebar'
@@ -40,6 +39,13 @@ import { useThemeClass } from './useThemeClass'
 const Viewer = lazy(() => import('../viewer/Viewer').then((module) => ({ default: memo(module.default) })))
 const GraphView = lazy(() => import('../graph/GraphView').then((module) => ({ default: memo(module.default) })))
 const FileView = lazy(() => import('../files/FileView').then((module) => ({ default: memo(module.default) })))
+// GitHub pages load when first opened, keeping them out of the bundle every view waits for.
+const pages = () => import('../github/Pages')
+const PullsPage = lazy(() => pages().then((module) => ({ default: module.PullsPage })))
+const IssuesPage = lazy(() => pages().then((module) => ({ default: module.IssuesPage })))
+const InboxPage = lazy(() => pages().then((module) => ({ default: module.InboxPage })))
+const ReleasesPage = lazy(() => pages().then((module) => ({ default: module.ReleasesPage })))
+const ActionsPage = lazy(() => pages().then((module) => ({ default: module.ActionsPage })))
 
 const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues', 'inbox', 'releases', 'actions']
 
