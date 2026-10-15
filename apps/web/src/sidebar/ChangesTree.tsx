@@ -11,7 +11,7 @@ import { useWrites } from '../writes/WritesProvider'
 import { FileTree } from './FileTree'
 import { filterFiles, type TreeStatus } from './filters'
 import { StatusFilter } from './StatusFilter'
-import { CopyItems, FileMenu } from './tree-menus'
+import { FileMenu, FolderMenu } from './tree-menus'
 
 const selectFiles = (state: SessionState) => state.files
 
@@ -55,7 +55,18 @@ export function ChangesTree() {
           selected={selected}
           onOpenFile={open}
           menuFor={(row) => {
-            if (row.kind === 'directory') return <CopyItems path={row.path} />
+            if (row.kind === 'directory') {
+              const inside = files.filter(
+                (file) => file.path.startsWith(`${row.path}/`) && file.status !== 'conflicted',
+              )
+              return (
+                <FolderMenu
+                  path={row.path}
+                  writes={kinds}
+                  onWrite={(kind) => void writes.performAll(kind, inside, `${inside.length} files in ${row.path}`)}
+                />
+              )
+            }
             const file = byPath.get(row.path)
             return (
               <FileMenu

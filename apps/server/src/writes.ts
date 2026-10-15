@@ -1,17 +1,34 @@
 import {
   abortOperation,
+  addRemote,
   checkoutDetached,
   cherryPick,
+  cleanUntracked,
   commit,
+  continueOperation,
+  createTag,
   deleteBranch,
+  deleteRemoteBranch,
+  deleteTag,
   discardFile,
   discardHunk,
   fetchAll,
+  fetchRemote,
+  forcePush,
+  markResolved,
   mergeRef,
   pull,
   push,
+  pushTags,
+  rebaseOnto,
+  removeRemote,
+  renameBranch,
+  resetTo,
+  resolveConflict,
   restoreLatest,
   revertCommit,
+  setUpstream,
+  skipCommit,
   snapshot,
   stageAll,
   stageFile,
@@ -19,7 +36,10 @@ import {
   stashApply,
   stashDrop,
   stashSave,
+  stashStaged,
   switchBranch,
+  trackRemote,
+  undoCommit,
   unmergedPaths,
   unstageAll,
   unstageFile,
@@ -30,11 +50,24 @@ import {
   CheckoutRequestSchema,
   CommitRequestSchema,
   DeleteBranchSchema,
+  FetchRemoteSchema,
+  MessageSchema,
+  NameSchema,
+  PathRequestSchema,
+  RebaseSchema,
   RefRequestSchema,
+  RemoteAddSchema,
+  RemoteBranchSchema,
+  RenameBranchSchema,
+  ResetSchema,
+  ResolveSchema,
   StashApplySchema,
   StashDropSchema,
   StashSaveSchema,
   SwitchRequestSchema,
+  TagCreateSchema,
+  TagPushSchema,
+  UpstreamSchema,
   type WriteRequest,
 } from '@duck-diff/protocol'
 import { HttpError } from './errors'
@@ -120,6 +153,63 @@ export async function gitAction(
       return { reason: 'refs', body: {} }
     case 'branch-delete':
       await deleteBranch(repo, DeleteBranchSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'resolve':
+      await resolveConflict(repo, ResolveSchema.parse(await request.json()))
+      return { reason: 'index', body: {} }
+    case 'mark-resolved':
+      await markResolved(repo, PathRequestSchema.parse(await request.json()).path)
+      return { reason: 'index', body: {} }
+    case 'undo-commit':
+      await undoCommit(repo)
+      return { reason: 'refs', body: {} }
+    case 'reset':
+      await resetTo(repo, ResetSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'branch-rename':
+      await renameBranch(repo, RenameBranchSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'set-upstream':
+      await setUpstream(repo, UpstreamSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'force-push':
+      await forcePush(repo)
+      return { reason: 'refs', body: {} }
+    case 'remote-branch-delete':
+      await deleteRemoteBranch(repo, RemoteBranchSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'track':
+      await trackRemote(repo, RefRequestSchema.parse(await request.json()).ref)
+      return { reason: 'refs', body: {} }
+    case 'tag-create':
+      await createTag(repo, TagCreateSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'tag-delete':
+      await deleteTag(repo, NameSchema.parse(await request.json()).name)
+      return { reason: 'refs', body: {} }
+    case 'tag-push':
+      await pushTags(repo, TagPushSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'remote-add':
+      await addRemote(repo, RemoteAddSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'remote-remove':
+      await removeRemote(repo, NameSchema.parse(await request.json()).name)
+      return { reason: 'refs', body: {} }
+    case 'fetch-remote':
+      await fetchRemote(repo, FetchRemoteSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'rebase':
+      return { reason: 'refs', body: await rebaseOnto(repo, RebaseSchema.parse(await request.json()).onto) }
+    case 'continue':
+      return { reason: 'refs', body: await continueOperation(repo) }
+    case 'skip':
+      return { reason: 'refs', body: await skipCommit(repo) }
+    case 'clean':
+      await cleanUntracked(repo)
+      return { reason: 'worktree', body: {} }
+    case 'stash-staged':
+      await stashStaged(repo, MessageSchema.parse(await request.json()).message)
       return { reason: 'refs', body: {} }
     case 'stage-all':
       await stageAll(repo)

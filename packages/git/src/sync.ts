@@ -4,9 +4,9 @@ import { GitError } from './errors'
 import { runGit } from './run'
 
 // Network commands can wait on a slow remote; local ones keep the default.
-const NETWORK_TIMEOUT_MS = 120_000
+export const NETWORK_TIMEOUT_MS = 120_000
 // Pull may want to write a merge message; it must never open an editor from a server.
-const NO_EDITOR = { GIT_EDITOR: 'true' }
+export const NO_EDITOR = { GIT_EDITOR: 'true' }
 
 export interface SyncStatus {
   branch: string | null
@@ -30,7 +30,7 @@ const MARKERS: [string, Operation][] = [
   ['rebase-apply', 'rebase'],
 ]
 
-async function readOperation(repo: string): Promise<Operation | null> {
+export async function readOperation(repo: string): Promise<Operation | null> {
   const gitDir = (await runGit(['rev-parse', '--absolute-git-dir'], { cwd: repo })).trim()
   return MARKERS.find(([marker]) => existsSync(join(gitDir, marker)))?.[1] ?? null
 }
@@ -57,16 +57,19 @@ export async function readSyncStatus(repo: string): Promise<SyncStatus> {
   return status
 }
 
-export async function commit(repo: string, options: { message: string; amend: boolean }): Promise<string> {
+export async function commit(
+  repo: string,
+  options: { message: string; amend: boolean; signoff?: boolean },
+): Promise<string> {
   // Finishing a merge or pick may commit a resolution identical to HEAD, so only plain commits need staged files.
   if (!options.amend && !(await readOperation(repo))) {
     const staged = await runGit(['diff', '--cached', '--name-only'], { cwd: repo })
     if (!staged.trim()) throw new GitError('failed', null, '', 'nothing is staged; stage changes before committing')
   }
-  await runGit(['commit', '--quiet', '--file=-', ...(options.amend ? ['--amend'] : [])], {
-    cwd: repo,
-    input: options.message.endsWith('\n') ? options.message : `${options.message}\n`,
-  })
+  await runGit(
+    ['commit', '--quiet', '--file=-', ...(options.amend ? ['--amend'] : []), ...(options.signoff ? ['--signoff'] : [])],
+    { cwd: repo, input: options.message.endsWith('\n') ? options.message : `${options.message}\n` },
+  )
   return (await runGit(['rev-parse', 'HEAD'], { cwd: repo })).trim()
 }
 
@@ -123,7 +126,7 @@ export async function stashDrop(repo: string, name: string): Promise<void> {
 
 // Merges, picks and reverts that stop on conflicts are not failures: the conflicted files go to the
 // changes view and the status reports the operation until it is committed or aborted.
-async function mayConflict(repo: string, args: string[]): Promise<{ conflicts: boolean }> {
+export async function mayConflict(repo: string, args: string[]): Promise<{ conflicts: boolean }> {
   try {
     await runGit(args, { cwd: repo, env: NO_EDITOR })
     return { conflicts: false }

@@ -70,7 +70,11 @@ export const SyncStatusSchema = z.object({
 })
 export type SyncStatus = z.infer<typeof SyncStatusSchema>
 
-export const CommitRequestSchema = z.object({ message: z.string().trim().min(1).max(100_000), amend: z.boolean() })
+export const CommitRequestSchema = z.object({
+  message: z.string().trim().min(1).max(100_000),
+  amend: z.boolean(),
+  signoff: z.boolean().default(false),
+})
 export type CommitRequest = z.infer<typeof CommitRequestSchema>
 
 export const SwitchRequestSchema = z.object({
@@ -127,3 +131,32 @@ export const ReviewCommentSchema = CreateReviewSchema.extend({
   updatedAt: z.number(),
 })
 export type ReviewComment = z.infer<typeof ReviewCommentSchema>
+
+export const ResolveSchema = z.object({ path: RepoPathSchema, side: z.enum(['ours', 'theirs']) })
+export const PathRequestSchema = z.object({ path: RepoPathSchema })
+export const ResetSchema = z.object({ sha: RefNameSchema, mode: z.enum(['soft', 'mixed', 'hard']) })
+export const RenameBranchSchema = z.object({ from: RefNameSchema, to: RefNameSchema })
+export const UpstreamSchema = z.object({ branch: RefNameSchema, upstream: RefNameSchema })
+export const RemoteBranchSchema = z.object({ remote: RefNameSchema, branch: RefNameSchema })
+export const TagCreateSchema = z.object({ name: RefNameSchema, sha: RefNameSchema, message: z.string().max(10_000) })
+export const NameSchema = z.object({ name: RefNameSchema })
+export const TagPushSchema = z.object({ remote: RefNameSchema, name: RefNameSchema.nullable() })
+// A url that starts with "-" would read as an option to git.
+export const RemoteAddSchema = z.object({
+  name: RefNameSchema,
+  url: z
+    .string()
+    .trim()
+    .min(1)
+    .max(2000)
+    .refine((url) => !url.startsWith('-'), 'invalid url'),
+})
+export const FetchRemoteSchema = z.object({ remote: RefNameSchema, prune: z.boolean() })
+export const RebaseSchema = z.object({ onto: RefNameSchema })
+export const MessageSchema = z.object({ message: z.string().trim().max(1000) })
+
+export const RemoteSchema = z.object({ name: z.string(), url: z.string() })
+export type Remote = z.infer<typeof RemoteSchema>
+export const BlameLineSchema = z.object({ sha: z.string(), author: z.string(), time: z.number(), summary: z.string() })
+export type BlameLine = z.infer<typeof BlameLineSchema>
+export const BlameQuerySchema = z.object({ path: RepoPathSchema, ref: RefNameSchema.optional() })

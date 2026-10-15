@@ -25,7 +25,8 @@ test('stashes the changes, then pops the stash back from the graph', async ({ pa
   await expect(page.getByRole('banner')).toContainText('2 files')
   const box = page.getByRole('form', { name: 'Commit' })
   await box.getByRole('textbox', { name: 'Commit message' }).fill('half done')
-  await box.getByRole('button', { name: 'Stash changes' }).click()
+  await box.getByRole('button', { name: 'More commit actions' }).click()
+  await page.getByRole('button', { name: 'Stash every change' }).click()
   await expect(page.getByText('Stashed your changes')).toBeVisible()
   expect(repo.git('status', '--porcelain')).toBe('')
 

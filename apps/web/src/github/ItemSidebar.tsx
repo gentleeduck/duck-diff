@@ -129,7 +129,7 @@ export function ItemSidebar<T extends ListItem>({
                 {row(item)}
               </div>
             </ContextMenuTrigger>
-            <ContextMenuContent className="w-64">
+            <ContextMenuContent>
               <ContextMenuLabel>
                 #{item.number} {item.title}
               </ContextMenuLabel>

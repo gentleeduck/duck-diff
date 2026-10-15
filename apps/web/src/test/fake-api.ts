@@ -34,6 +34,9 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     tree: async () => ['a.ts', 'b.ts'],
     sync: async () => ({ branch: 'main', upstream: 'origin/main', ahead: 0, behind: 0, staged: 0, operation: null }),
     git: async () => ({}),
+    remotes: async () => [],
+    lastMessage: async () => '',
+    blame: async () => [],
     github: {
       status: async () => ({ repo: null, user: null, source: null }),
       signIn: async () => ({ repo: null, user: null, source: null }),

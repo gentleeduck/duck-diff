@@ -3,6 +3,33 @@ export { readSide, readSideBytes, type Side } from './content'
 export { GitError, type GitErrorCode } from './errors'
 export { type ChangedFile, type FileStatus, listFiles, parseDiffSummary, parseNumstat, parseRaw } from './files'
 export { GRAPH_FORMAT, type GraphOptions, streamGraph } from './graph'
+export {
+  addRemote,
+  type BlameLine,
+  blame,
+  cleanUntracked,
+  continueOperation,
+  createTag,
+  deleteRemoteBranch,
+  deleteTag,
+  fetchRemote,
+  forcePush,
+  lastMessage,
+  listRemotes,
+  markResolved,
+  pushTags,
+  type Remote,
+  rebaseOnto,
+  removeRemote,
+  renameBranch,
+  resetTo,
+  resolveConflict,
+  setUpstream,
+  skipCommit,
+  stashStaged,
+  trackRemote,
+  undoCommit,
+} from './ops'
 export { getPatch, streamDiff, streamPatch } from './patch'
 export { listRefs, type Ref, type RefKind } from './refs'
 export { resolveRepo } from './repo'

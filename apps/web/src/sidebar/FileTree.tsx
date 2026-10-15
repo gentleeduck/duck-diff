@@ -71,7 +71,7 @@ function WithMenu({ items, children }: { items: ReactNode; children: ReactElemen
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="w-60">{items}</ContextMenuContent>
+      <ContextMenuContent>{items}</ContextMenuContent>
     </ContextMenu>
   )
 }

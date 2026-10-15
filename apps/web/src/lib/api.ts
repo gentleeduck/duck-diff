@@ -1,4 +1,6 @@
 import {
+  type BlameLine,
+  BlameLineSchema,
   type ChangedFile,
   ChangedFileSchema,
   type CheckRun,
@@ -33,6 +35,8 @@ import {
   PullSummarySchema,
   type Ref,
   RefSchema,
+  type Remote,
+  RemoteSchema,
   type RepoInfo,
   RepoInfoSchema,
   type ReviewComment,
@@ -76,6 +80,9 @@ export interface Api {
   tree(ref?: string): Promise<string[]>
   file(path: string, ref?: string): Promise<FileContents>
   sync(): Promise<SyncStatus>
+  remotes(): Promise<Remote[]>
+  lastMessage(): Promise<string>
+  blame(path: string, ref?: string): Promise<BlameLine[]>
   git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean }>
   github: GitHubApi
 }
@@ -128,6 +135,26 @@ export type GitAction =
   | 'branch-delete'
   | 'stage-all'
   | 'unstage-all'
+  | 'resolve'
+  | 'mark-resolved'
+  | 'undo-commit'
+  | 'reset'
+  | 'branch-rename'
+  | 'set-upstream'
+  | 'force-push'
+  | 'remote-branch-delete'
+  | 'track'
+  | 'tag-create'
+  | 'tag-delete'
+  | 'tag-push'
+  | 'remote-add'
+  | 'remote-remove'
+  | 'fetch-remote'
+  | 'rebase'
+  | 'continue'
+  | 'skip'
+  | 'clean'
+  | 'stash-staged'
 
 const ContentSchema = z.object({ contents: z.string().nullable() })
 
@@ -230,6 +257,13 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       return json(`/api/file?${params}`, FileContentsSchema)
     },
     sync: () => json('/api/sync', SyncStatusSchema),
+    remotes: () => json('/api/remotes', z.array(RemoteSchema)),
+    lastMessage: async () => (await json('/api/last-message', z.object({ message: z.string() }))).message,
+    blame(path, ref) {
+      const params = new URLSearchParams({ path })
+      if (ref) params.set('ref', ref)
+      return json(`/api/blame?${params}`, z.array(BlameLineSchema))
+    },
     git: (action, body) =>
       send(
         'POST',

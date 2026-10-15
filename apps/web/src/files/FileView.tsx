@@ -1,7 +1,7 @@
-import type { FileContents } from '@duck-diff/protocol'
+import type { BlameLine, FileContents } from '@duck-diff/protocol'
 import { Badge, Button } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Check, Code2, Copy, Eye, FileDiff, History, SquareArrowOutUpRight } from 'lucide-react'
+import { Check, Code2, Copy, Eye, FileDiff, History, SquareArrowOutUpRight, UserSearch } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
@@ -15,6 +15,7 @@ import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
 import { Markdown } from '../markdown/Markdown'
 import { fileGlyph } from '../sidebar/icons'
+import { relativeTime } from '../sidebar/relative-time'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { formatBytes } from '../viewer/file-info'
@@ -29,6 +30,32 @@ function resolveLink(from: string, href: string): string {
   return decodeURIComponent(new URL(href, `http://repo/${from}`).pathname.slice(1))
 }
 
+// The first line of each run from one commit names it; the rest of the run stays quiet.
+function BlameCell({ blame, index }: { blame: BlameLine[] | null; index: number }) {
+  const { graphSelection } = useApp()
+  const { show } = useView()
+  const line = blame?.[index]
+  const first = line && blame?.[index - 1]?.sha !== line.sha
+  if (!line) return <span className="w-60 shrink-0 border-border border-e" />
+  return (
+    <button
+      type="button"
+      title={`${line.summary}\n${line.author}, ${new Date(line.time * 1000).toLocaleString()}`}
+      onClick={() => {
+        graphSelection.set(line.sha)
+        show('graph')
+      }}
+      className="flex w-60 shrink-0 cursor-pointer gap-2 border-border border-e px-2 text-start text-muted-foreground hover:bg-accent/60">
+      {first ? (
+        <>
+          <span className="min-w-0 flex-1 truncate">{line.author}</span>
+          <span className="shrink-0 text-tn-comment">{relativeTime(line.time)}</span>
+        </>
+      ) : null}
+    </button>
+  )
+}
+
 export default function FileView() {
   const { api, fileSelection, fileHistory } = useApp()
   const path = useStore(fileSelection, selectPath)
@@ -41,6 +68,8 @@ export default function FileView() {
   const [copied, setCopied] = useState(false)
   const canOpen = useCanOpen()
   const [preview, setPreview] = useState(true)
+  const [blaming, setBlaming] = useState(false)
+  const [blame, setBlame] = useState<BlameLine[] | null>(null)
   useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
 
   useEffect(() => {
@@ -56,6 +85,20 @@ export default function FileView() {
       alive = false
     }
   }, [api, path])
+
+  // Read once per file while blame is on; untracked files have none and show a plain gutter.
+  useEffect(() => {
+    setBlame(null)
+    if (!path || !blaming) return
+    let alive = true
+    api.blame(path).then(
+      (next) => alive && setBlame(next),
+      () => alive && setBlame([]),
+    )
+    return () => {
+      alive = false
+    }
+  }, [api, path, blaming])
 
   const lines = useMemo(() => (contents?.text ?? '').replace(/\n$/, '').split('\n'), [contents])
   const tokens =
@@ -117,6 +160,15 @@ export default function FileView() {
             </Button>
           ) : null}
           <IconTool
+            label={blaming ? 'Hide blame' : 'Blame: who changed each line'}
+            onClick={() => {
+              // Blame reads against lines, so a rendered Markdown file shows its source while it is on.
+              if (!blaming) setPreview(false)
+              setBlaming(!blaming)
+            }}>
+            <UserSearch />
+          </IconTool>
+          <IconTool
             label="File history"
             onClick={() => {
               fileHistory.set(path)
@@ -162,6 +214,7 @@ export default function FileView() {
                 key={virtual.index}
                 className="absolute inset-x-0 flex hover:bg-accent/40"
                 style={{ height: lineHeight, transform: `translateY(${virtual.start}px)` }}>
+                {blaming ? <BlameCell blame={blame} index={virtual.index} /> : null}
                 <span className="w-14 shrink-0 select-none pe-3 text-end text-tn-gutter tabular-nums">
                   {virtual.index + 1}
                 </span>

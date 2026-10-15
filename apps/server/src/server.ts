@@ -1,5 +1,6 @@
-import { readSyncStatus, resolveRepo } from '@duck-diff/git'
+import { blame, lastMessage, listRemotes, readSyncStatus, resolveRepo } from '@duck-diff/git'
 import {
+  BlameQuerySchema,
   type ChangeReason,
   CreateReviewSchema,
   decodeTarget,
@@ -80,6 +81,12 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           return new Response(null, { status: 204 })
         }
         if (url.pathname === '/api/sync') return Response.json(await readSyncStatus(repo))
+        if (url.pathname === '/api/remotes') return Response.json(await listRemotes(repo))
+        if (url.pathname === '/api/last-message') return Response.json({ message: await lastMessage(repo) })
+        if (url.pathname === '/api/blame') {
+          const { path, ref } = BlameQuerySchema.parse(Object.fromEntries(url.searchParams))
+          return Response.json(await blame(repo, path, ref))
+        }
         if (url.pathname.startsWith('/api/github/')) return await handleGitHub(github, repo, url, request, enqueue)
         if (url.pathname.startsWith('/api/git/') && request.method === 'POST') {
           const result = await enqueue(() => gitAction(repo, url.pathname.slice(9), request))

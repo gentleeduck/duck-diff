@@ -11,11 +11,11 @@ const ContextMenuGroup = ContextMenuPrimitive.Group
 const ContextMenuSub = ContextMenuPrimitive.Sub
 
 const SURFACE =
-  'z-50 min-w-48 overflow-y-auto overflow-x-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=open]:animate-in'
+  'z-50 min-w-48 max-w-[32rem] overflow-y-auto overflow-x-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=open]:animate-in'
 
 // Rows match the page's 28px controls, with 16px icons.
 const ROW =
-  'relative flex h-7 cursor-default select-none items-center gap-2 rounded-sm px-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0'
+  'relative flex h-7 cursor-default select-none items-center gap-2 whitespace-nowrap rounded-sm px-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0'
 
 const ContextMenuContent = React.forwardRef<
   React.ComponentRef<typeof ContextMenuPrimitive.Content>,

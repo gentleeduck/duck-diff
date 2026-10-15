@@ -9,6 +9,7 @@ import { useRefs } from '../hooks/useRefs'
 import { useStore } from '../lib/store'
 import { NewBranchDialog } from './NewBranchDialog'
 import { RefMenu } from './RefMenu'
+import { Remotes } from './Remotes'
 import type { GraphState } from './store'
 
 const GROUPS: { kind: Ref['kind']; title: string; glyph: string }[] = [
@@ -156,6 +157,7 @@ export function GraphSidebar() {
             </section>
           )
         })}
+        <Remotes />
       </div>
     </div>
   )

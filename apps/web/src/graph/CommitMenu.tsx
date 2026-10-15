@@ -4,12 +4,15 @@ import {
   ContextMenuItem,
   ContextMenuLabel,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from '@duck-diff/ui'
-import { Cherry, Copy, FileDiff, GitBranchPlus, GitCompareArrows, LocateFixed, Undo2 } from 'lucide-react'
+import { Cherry, Copy, FileDiff, GitBranchPlus, GitCompareArrows, History, LocateFixed, Tag, Undo2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { relativeTime } from '../sidebar/relative-time'
 import { useCommitActions } from './commit-actions'
@@ -29,7 +32,7 @@ export function CommitMenu({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="w-64">
+      <ContextMenuContent>
         <ContextMenuLabel>
           {sha.slice(0, 7)} {entry.subject}
         </ContextMenuLabel>
@@ -58,6 +61,27 @@ export function CommitMenu({
           <Undo2 />
           Revert
         </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void actions.tag(sha)}>
+          <Tag />
+          Create tag here...
+        </ContextMenuItem>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <History />
+            Reset current branch here
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-64">
+            <ContextMenuItem onSelect={() => void actions.reset(sha, 'soft')}>
+              Soft: keep changes staged
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => void actions.reset(sha, 'mixed')}>
+              Mixed: keep changes unstaged
+            </ContextMenuItem>
+            <ContextMenuItem destructive onSelect={() => void actions.reset(sha, 'hard')}>
+              Hard: discard changes...
+            </ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => void actions.copy(sha, 'sha')}>
           <Copy />

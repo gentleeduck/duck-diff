@@ -9,6 +9,8 @@ import { type WriteKind, writeRequest } from '../viewer/actions'
 
 interface Writes {
   perform(kind: WriteKind, file: ChangedFile, hunk?: { index: number; hunk: Hunk }): Promise<void>
+  // Many files with one question and one toast, for a folder or a whole section.
+  performAll(kind: WriteKind, files: ChangedFile[], what: string): Promise<void>
   undo(): Promise<void>
 }
 
@@ -63,7 +65,41 @@ export function WritesProvider({ children }: { children: ReactNode }) {
     [api, session, confirm, undo],
   )
 
-  const value = useMemo(() => ({ perform, undo }), [perform, undo])
+  const performAll = useCallback<Writes['performAll']>(
+    async (kind, files, what) => {
+      if (files.length === 0) return
+      if (kind === 'discard' && !(await confirm(`Discard ${what}? You can undo it right after.`))) return
+      let failed = 0
+      // One at a time: every write takes the index lock.
+      for (const file of files) {
+        try {
+          await api.write(writeRequest(kind, file))
+        } catch {
+          failed++
+        }
+      }
+      const label = `${DONE[kind]} ${what}`
+      if (failed) toast.error(`${label}, but ${failed} of ${files.length} could not be written`)
+      else if (kind === 'discard') {
+        // Each discarded file left its own snapshot, newest first, so undo takes them all back.
+        const restoreAll = async () => {
+          const restored: string[] = []
+          for (let i = 0; i < files.length - failed; i++) restored.push(...((await api.undo()).restored ?? []))
+          toast(
+            restored.length
+              ? `Restored ${restored.length} ${restored.length === 1 ? 'file' : 'files'}`
+              : 'Nothing left to undo',
+          )
+          void session.reload()
+        }
+        toast(label, { duration: 10_000, action: { label: 'Undo', onClick: () => void restoreAll() } })
+      } else toast(label)
+      void session.reload()
+    },
+    [api, session, confirm],
+  )
+
+  const value = useMemo(() => ({ perform, performAll, undo }), [perform, performAll, undo])
   return (
     <WritesContext.Provider value={value}>
       {children}

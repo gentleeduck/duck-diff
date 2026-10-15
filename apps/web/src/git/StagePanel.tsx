@@ -1,6 +1,6 @@
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@duck-diff/ui'
-import { ChevronDown, ChevronRight, Minus, Plus, Undo2 } from 'lucide-react'
+import { ArrowLeftToLine, ArrowRightToLine, Check, ChevronDown, ChevronRight, Minus, Plus, Undo2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
@@ -41,6 +41,7 @@ function Row({
   onSelect(): void
 }) {
   const { api, fileHistory, session, viewer } = useApp()
+  const { run } = useGit()
   const { target, navigate } = useTarget()
   const writes = useWrites()
   const canOpen = useCanOpen()
@@ -83,6 +84,30 @@ function Row({
           <span className={`min-w-0 truncate ${file.status === 'deleted' ? 'line-through' : ''}`}>{name}</span>
           <span className="min-w-0 flex-1 truncate text-muted-foreground">{folder}</span>
           <span className="hidden shrink-0 group-focus-within:flex group-hover:flex">
+            {conflicted ? (
+              <>
+                <IconTool
+                  label={`Take ours for ${file.path}`}
+                  tip="Keep ours (this branch)"
+                  onClick={() => void run('resolve', { path: file.path, side: 'ours' }, `Kept ours in ${file.path}`)}>
+                  <ArrowLeftToLine />
+                </IconTool>
+                <IconTool
+                  label={`Take theirs for ${file.path}`}
+                  tip="Take theirs (incoming)"
+                  onClick={() =>
+                    void run('resolve', { path: file.path, side: 'theirs' }, `Took theirs in ${file.path}`)
+                  }>
+                  <ArrowRightToLine />
+                </IconTool>
+                <IconTool
+                  label={`Mark ${file.path} resolved`}
+                  tip="Mark resolved (stage as it is)"
+                  onClick={() => void run('mark-resolved', { path: file.path }, `Resolved ${file.path}`)}>
+                  <Check />
+                </IconTool>
+              </>
+            ) : null}
             {kinds.includes('discard') ? (
               <IconTool
                 label={`Discard ${file.path}`}
@@ -110,7 +135,7 @@ function Row({
           </span>
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-60">
+      <ContextMenuContent>
         <FileMenu
           path={file.path}
           openLabel="Show changes"
@@ -179,6 +204,7 @@ export function StagePanel() {
   const { stage } = useApp()
   const { run } = useGit()
   const state = useStore(stage, selectStage)
+  const writes = useWrites()
   const [selected, setSelected] = useState<string | null>(null)
   useEffect(() => stage.load(), [stage])
 
@@ -186,14 +212,19 @@ export function StagePanel() {
   if (!state.staged.length && !state.unstaged.length) {
     return <p className="p-3 text-muted-foreground">Nothing to commit. The working tree is clean.</p>
   }
+  const conflicts = state.unstaged.filter((file) => file.status === 'conflicted')
+  const changes = state.unstaged.filter((file) => file.status !== 'conflicted')
+  const common = { selected, onSelect: setSelected }
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
+      {conflicts.length ? (
+        <Section title="Merge conflicts" side="unstaged" files={conflicts} {...common} actions={null} />
+      ) : null}
       <Section
         title="Staged changes"
         side="staged"
         files={state.staged}
-        selected={selected}
-        onSelect={setSelected}
+        {...common}
         actions={
           <IconTool label="Unstage all" onClick={() => void run('unstage-all', undefined, 'Unstaged everything')}>
             <Minus />
@@ -203,13 +234,19 @@ export function StagePanel() {
       <Section
         title="Changes"
         side="unstaged"
-        files={state.unstaged}
-        selected={selected}
-        onSelect={setSelected}
+        files={changes}
+        {...common}
         actions={
-          <IconTool label="Stage all" onClick={() => void run('stage-all', undefined, 'Staged everything')}>
-            <Plus />
-          </IconTool>
+          <>
+            <IconTool
+              label="Discard all changes"
+              onClick={() => void writes.performAll('discard', changes, `all ${changes.length} changed files`)}>
+              <Undo2 />
+            </IconTool>
+            <IconTool label="Stage all" onClick={() => void run('stage-all', undefined, 'Staged everything')}>
+              <Plus />
+            </IconTool>
+          </>
         }
       />
     </div>

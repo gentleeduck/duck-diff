@@ -26,6 +26,7 @@ import { Sidebar } from '../sidebar/Sidebar'
 import { WritesProvider } from '../writes/WritesProvider'
 import { ActivityRail } from './ActivityRail'
 import { AppProvider, useApp } from './AppProvider'
+import { AskDialog } from './Ask'
 import { Shell } from './Shell'
 import { StatusBar } from './StatusBar'
 import { useThemeClass } from './useThemeClass'
@@ -180,6 +181,7 @@ export function App({ api }: { api?: Api }) {
         <WritesProvider>
           <GitProvider>
             <Screen />
+            <AskDialog />
             <Toaster position="bottom-right" />
           </GitProvider>
         </WritesProvider>
