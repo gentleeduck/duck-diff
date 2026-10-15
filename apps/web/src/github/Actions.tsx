@@ -76,7 +76,9 @@ export function Actions() {
             {failed ? <p className="p-4 text-removed">{failed}</p> : null}
             {!items && !failed ? <ListRowsSkeleton twoLines /> : null}
             {items?.length === 0 ? (
-              <p className="p-8 text-center text-muted-foreground">No workflow runs in this repository.</p>
+              <p className="p-8 text-center text-muted-foreground">
+                No workflow runs here. CI has never yelled at you; cherish it.
+              </p>
             ) : null}
             {items?.map((run) => {
               const state = runState(run)

@@ -6,6 +6,7 @@ import type { Mounted, Terminal } from './xterm'
 
 const selectFontSize = (settings: Settings) => settings.fontSize
 const selectWeight = (settings: Settings) => settings.fontWeight
+const selectTheme = (settings: Settings) => settings.theme
 
 interface SurfaceProps {
   label: string
@@ -21,6 +22,7 @@ export function TerminalSurface({ label, readOnly = false, attach, autoFocus = f
   const { settings } = useApp()
   const fontSize = useStore(settings, selectFontSize)
   const fontWeight = useStore(settings, selectWeight)
+  const theme = useStore(settings, selectTheme)
   const host = useRef<HTMLElement>(null)
   const current = useRef<Mounted | null>(null)
   // Read at mount; later changes are applied below without rebuilding the terminal.
@@ -71,6 +73,13 @@ export function TerminalSurface({ label, readOnly = false, attach, autoFocus = f
     mounted.terminal.options.fontWeight = fontWeight
     mounted.fit()
   }, [fontSize, fontWeight])
+
+  // The theme lands on <html> in an effect of its own; reading the colors a frame later sees the new ones.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the theme is the trigger
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => current.current?.retheme())
+    return () => cancelAnimationFrame(frame)
+  }, [theme])
 
   return <section aria-label={label} ref={host} className="h-full min-h-0 w-full overflow-hidden ps-2 pt-1" />
 }

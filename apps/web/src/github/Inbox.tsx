@@ -117,7 +117,7 @@ export function Inbox() {
             {!items && !failed ? <ListRowsSkeleton twoLines /> : null}
             {items?.length === 0 ? (
               <p className="p-8 text-center text-muted-foreground">
-                {all ? 'No notifications for this repository.' : 'All caught up.'}
+                {all ? 'No notifications for this repository.' : 'All caught up. Inbox zero, duck hero.'}
               </p>
             ) : null}
             {items?.map((entry) => (

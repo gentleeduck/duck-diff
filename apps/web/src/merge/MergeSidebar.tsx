@@ -11,7 +11,7 @@ export function MergeSidebar() {
   const conflicts = selectConflicts(useStage())
   const current = useStore(mergeFile, selectPath)
   const paths = conflicts ? conflicts.split('\n') : []
-  if (!paths.length) return <p className="p-3 text-muted-foreground">No conflicted files.</p>
+  if (!paths.length) return <p className="p-3 text-muted-foreground">No conflicted files. Peace in the pond.</p>
   const active = current ?? paths[0]
   return (
     <ul aria-label="Conflicted files" className="flex flex-col p-2">

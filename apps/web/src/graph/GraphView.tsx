@@ -161,7 +161,7 @@ export default function GraphView() {
 
   if (state.status === 'error') return <p className="p-4 text-removed">Could not read the history: {state.error}</p>
   if (state.status !== 'idle' && state.entries.length === 0 && state.status === 'ready') {
-    return <p className="p-4 text-muted-foreground">This repository has no commits yet.</p>
+    return <p className="p-4 text-muted-foreground">No commits yet. git commit -m "quack" and we are in business.</p>
   }
   if (state.entries.length === 0) return <GraphSkeleton />
 

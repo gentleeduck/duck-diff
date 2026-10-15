@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { useSettings } from '../hooks/useSettings'
 import { DEFAULT_SETTINGS, type Settings } from '../state/settings'
+import { ThemePicker } from './ThemePicker'
 
 const selectAll = (state: Settings) => state
 
@@ -162,20 +163,7 @@ export function SettingsPopover() {
           </ToggleGroup>
         </Row>
         <Row label="Theme">
-          <ToggleGroup
-            type="single"
-            value={settings.themeType}
-            onValueChange={(value: string) => value && set('themeType', value as Settings['themeType'])}>
-            <ToggleGroupItem value="system" size="sm">
-              System
-            </ToggleGroupItem>
-            <ToggleGroupItem value="light" size="sm">
-              Light
-            </ToggleGroupItem>
-            <ToggleGroupItem value="dark" size="sm">
-              Dark
-            </ToggleGroupItem>
-          </ToggleGroup>
+          <ThemePicker value={settings.theme} onChange={(theme) => set('theme', theme)} />
         </Row>
         {choice('lineDiffType', INLINE, 'Inline changes')}
         {choice('diffIndicators', INDICATORS, 'Change markers')}

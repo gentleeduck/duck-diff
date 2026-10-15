@@ -219,7 +219,7 @@ export function StagePanel() {
 
   if (!state.loaded) return <TreeSkeleton count={6} />
   if (!state.staged.length && !state.unstaged.length) {
-    return <p className="p-3 text-muted-foreground">Nothing to commit. The working tree is clean.</p>
+    return <p className="p-3 text-muted-foreground">Nothing to commit. Clean tree, clear conscience.</p>
   }
   const conflicts = state.unstaged.filter((file) => file.status === 'conflicted')
   const changes = state.unstaged.filter((file) => file.status !== 'conflicted')

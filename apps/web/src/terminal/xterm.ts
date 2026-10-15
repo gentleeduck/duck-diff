@@ -10,15 +10,15 @@ export type { Terminal }
 const css = (name: string, fallback: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
 
-// kitty's tokyonight-night, with the page's own tokens where it has them.
+// kitty's tokyonight-night shape, colored from the page's theme.
 function theme(): ITheme {
   return {
     background: css('--background', '#1a1b26'),
     foreground: css('--foreground', '#c0caf5'),
     cursor: css('--foreground', '#c0caf5'),
     cursorAccent: css('--background', '#1a1b26'),
-    selectionBackground: '#283457',
-    black: '#15161e',
+    selectionBackground: css('--tn-bg-highlight', '#283457'),
+    black: css('--tn-bg-dark', '#15161e'),
     red: css('--tn-red', '#f7768e'),
     green: css('--tn-green', '#9ece6a'),
     yellow: css('--tn-yellow', '#e0af68'),
@@ -26,7 +26,7 @@ function theme(): ITheme {
     magenta: css('--tn-magenta', '#bb9af7'),
     cyan: css('--tn-cyan', '#7dcfff'),
     white: css('--tn-fg-dark', '#a9b1d6'),
-    brightBlack: '#414868',
+    brightBlack: css('--tn-gutter', '#414868'),
     brightRed: css('--tn-red', '#f7768e'),
     brightGreen: css('--tn-green', '#9ece6a'),
     brightYellow: css('--tn-yellow', '#e0af68'),
@@ -40,6 +40,8 @@ function theme(): ITheme {
 export interface Mounted {
   terminal: Terminal
   fit(): void
+  // Reads the page's colors again, after the theme changed.
+  retheme(): void
   dispose(): void
 }
 
@@ -88,5 +90,12 @@ export function mountTerminal(
     } catch {}
   }
   doFit()
-  return { terminal, fit: doFit, dispose: () => terminal.dispose() }
+  return {
+    terminal,
+    fit: doFit,
+    retheme: () => {
+      terminal.options.theme = theme()
+    },
+    dispose: () => terminal.dispose(),
+  }
 }

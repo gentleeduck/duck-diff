@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { LinesSkeleton } from '../app/skeletons'
+import { THEME_NAMES, THEMES } from '../app/themes'
 import { presets } from '../compare/model'
 import { openFile } from '../files/open-file'
 import { useGit } from '../git/GitProvider'
@@ -58,9 +59,10 @@ const TOGGLES: Toggle[] = [
       hidePatterns: prev.hidePatterns.map((entry) => (entry.id === 'tests' ? { ...entry, enabled: true } : entry)),
     }),
   },
-  { label: 'Light theme', apply: (prev) => ({ ...prev, themeType: 'light' }) },
-  { label: 'Dark theme', apply: (prev) => ({ ...prev, themeType: 'dark' }) },
-  { label: 'System theme', apply: (prev) => ({ ...prev, themeType: 'system' }) },
+  ...THEME_NAMES.map((theme) => ({
+    label: `Theme: ${THEMES[theme].label}`,
+    apply: (prev: Settings) => ({ ...prev, theme }),
+  })),
 ]
 
 const VIEWS: { view: View; label: string }[] = [

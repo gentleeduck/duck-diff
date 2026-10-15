@@ -88,7 +88,8 @@ export function ChecksList({ number }: { number: number }) {
         <ListRowsSkeleton count={4} />
       </div>
     )
-  if (!runs.length) return <p className="p-4 text-muted-foreground">No checks ran on this pull request.</p>
+  if (!runs.length)
+    return <p className="p-4 text-muted-foreground">No checks ran on this pull request. Living dangerously.</p>
   const { text } = summary(runs)
   return (
     <section aria-label="Checks" className="rounded-md border border-border">

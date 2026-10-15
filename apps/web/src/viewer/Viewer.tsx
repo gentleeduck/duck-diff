@@ -99,11 +99,11 @@ function crossKeys(selection: CodeSelection, rows: readonly DiffRow[]): Set<stri
 const sourceKey = (item: NoteItem) => item.fileDiff.cacheKey ?? item.id
 
 const EMPTY: Record<DiffTarget['kind'], string> = {
-  local: 'Nothing to commit. The working tree matches the last commit.',
-  staged: 'Nothing is staged. Stage files or hunks from the working tree to see them here.',
-  unstaged: 'No unstaged changes. Everything left is already staged.',
-  range: 'These two points have the same content.',
-  commit: 'This commit changes no files.',
+  local: 'Nothing to commit. The pond is still: the working tree matches the last commit.',
+  staged: 'Nothing staged yet. Stage files or hunks from the working tree and they land here.',
+  unstaged: 'No unstaged changes. Everything left is staged; go commit, you magnificent duck.',
+  range: 'Same content on both sides. Two refs, one tree: git has déjà vu.',
+  commit: 'This commit changes no files. An empty commit; bold move.',
 }
 const selectSettings = (state: Settings) => state
 const selectReviews = (state: ReviewsState) => state

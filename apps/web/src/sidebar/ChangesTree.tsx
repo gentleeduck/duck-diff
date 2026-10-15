@@ -109,7 +109,9 @@ export function ChangesTree() {
         <HiddenNotice count={files.length} />
       ) : loading ? null : (
         <p className="p-3 text-tn-comment">
-          {files.length === 0 ? 'No changes in this comparison.' : 'No files match the filter.'}
+          {files.length === 0
+            ? 'No changes in this comparison. Nothing to see, waddle along.'
+            : 'No files match the filter.'}
         </p>
       )}
     </div>

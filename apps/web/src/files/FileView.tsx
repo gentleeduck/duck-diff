@@ -110,7 +110,7 @@ export default function FileView() {
   }, [line, contents, virtualizer])
 
   if (!path) {
-    return <p className="p-4 text-muted-foreground">Pick a file on the left to read it here.</p>
+    return <p className="p-4 text-muted-foreground">Pick a file on the left to read it here. No file, no quack.</p>
   }
 
   const status = changed.find((file) => file.path === path)
