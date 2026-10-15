@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto'
+import { symlinkSync } from 'node:fs'
+import { join } from 'node:path'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import { listFiles, parseDiffSummary } from '../index'
@@ -108,5 +111,25 @@ describe('parseDiffSummary', () => {
       { path: 'new.ts', additions: 2, deletions: 2 },
       { path: 'image.png', additions: null, deletions: null },
     ])
+  })
+})
+
+describe('symlinks in the working tree', () => {
+  let linked: TestRepo
+  afterEach(() => linked.cleanup())
+
+  it('lists an untracked link to a folder instead of failing the whole list', async () => {
+    linked = createRepo()
+    linked.write('a.txt', 'a\n')
+    linked.commit('a')
+    linked.write('real/x.txt', 'x\n')
+    linked.git('add', 'real')
+    linked.git('commit', '-q', '-m', 'real')
+    symlinkSync('real', join(linked.path, 'link'))
+    const files = await listFiles(linked.path, { kind: 'local' })
+    const link = files.find((file) => file.path === 'link')
+    expect(link?.status).toBe('untracked')
+    // git stores a link as its target text, so its sha is that text's blob.
+    expect(link?.newSha).toBe(createHash('sha1').update('blob 4\0real').digest('hex'))
   })
 })
