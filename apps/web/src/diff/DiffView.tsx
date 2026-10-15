@@ -81,11 +81,20 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
       context.prefetch(item)
     }
   }, [lastIndex, page, context])
-  // The file whose rows fill the top of the view keeps its header pinned above them.
+  // The file at the top keeps its header pinned. It takes over as soon as the file's own header starts to
+  // scroll away (not once it is gone), so there is never a frame without one; the gap after a file
+  // already belongs to the next.
   const scrollTop = virtualizer.scrollOffset ?? 0
   const first = items.find((virtual) => virtual.end > scrollTop)
   const firstRow = first ? page.rows[first.index] : undefined
-  const pinned = firstRow && firstRow.type !== 'header' && firstRow.type !== 'end' ? firstRow.item : null
+  const pinned =
+    !first || !firstRow
+      ? null
+      : firstRow.type === 'end'
+        ? (page.rows[first.index + 1]?.item ?? null)
+        : firstRow.type === 'header' && first.start >= scrollTop
+          ? null
+          : firstRow.item
 
   const content = useMemo(
     () => (row: PageRow) => {
@@ -111,7 +120,7 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         }}>
         {pinned ? (
           <div className="sticky top-0 z-20 h-0">
-            <div>{renderHeader(pinned)}</div>
+            <div className="bg-card shadow-[0_1px_0_var(--border)]">{renderHeader(pinned)}</div>
           </div>
         ) : null}
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
