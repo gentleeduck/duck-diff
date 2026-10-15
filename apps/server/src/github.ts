@@ -334,12 +334,56 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
       const { check_runs } = await call<{ check_runs: RawCheckRun[] }>(
         `${base}/commits/${head.sha}/check-runs?per_page=100`,
       )
-      return check_runs.map((run) => ({
-        name: run.name,
-        status: run.status,
-        conclusion: run.conclusion,
-        url: run.html_url ?? '',
-      }))
+      return check_runs.map((run) => {
+        // Actions links read .../actions/runs/<run>/job/<job>.
+        const ids = /\/actions\/runs\/(\d+)\/job\/(\d+)/.exec(run.html_url ?? '')
+        return {
+          name: run.name,
+          status: run.status,
+          conclusion: run.conclusion,
+          url: run.html_url ?? '',
+          runId: ids ? Number(ids[1]) : null,
+          jobId: ids ? Number(ids[2]) : null,
+        }
+      })
+    },
+    async rerunFailed(runId: number): Promise<void> {
+      await call(`${await repoPath()}/actions/runs/${runId}/rerun-failed-jobs`, { method: 'POST' })
+    },
+    // The end of a job's log, where a failure says what went wrong.
+    async jobLog(jobId: number): Promise<string> {
+      const auth = await token()
+      if (!auth) throw new HttpError(401, 'unauthorized', 'not signed in to GitHub')
+      const response = await fetcher(`${apiBase}${await repoPath()}/actions/jobs/${jobId}/logs`, {
+        headers: { authorization: `Bearer ${auth.token}`, 'x-github-api-version': '2022-11-28' },
+      })
+      if (!response.ok) throw new HttpError(502, 'failed', `GitHub: could not read the log (${response.status})`)
+      return (await response.text()).split('\n').slice(-200).join('\n')
+    },
+    async updateBranch(number: number): Promise<void> {
+      await call(`${await repoPath()}/pulls/${number}/update-branch`, { method: 'PUT', body: JSON.stringify({}) })
+    },
+    async setAutoMerge(number: number, enabled: boolean, method: string): Promise<void> {
+      const { nodeId } = await this.pull(number)
+      const mutation = enabled
+        ? 'mutation($id: ID!, $method: PullRequestMergeMethod!) { enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $method }) { clientMutationId } }'
+        : 'mutation($id: ID!) { disablePullRequestAutoMerge(input: { pullRequestId: $id }) { clientMutationId } }'
+      await graphql(mutation, enabled ? { id: nodeId, method: method.toUpperCase() } : { id: nodeId })
+    },
+    async deleteHead(number: number): Promise<void> {
+      const pull = await this.pull(number)
+      if (!pull.sameRepo) throw new HttpError(409, 'bad-request', 'the branch lives in a fork')
+      await call(`${await repoPath()}/git/refs/heads/${pull.headRef}`, { method: 'DELETE' })
+    },
+    async restoreHead(number: number): Promise<void> {
+      const pull = await this.pull(number)
+      await call(`${await repoPath()}/git/refs`, {
+        method: 'POST',
+        body: JSON.stringify({ ref: `refs/heads/${pull.headRef}`, sha: pull.headSha }),
+      })
+    },
+    async setBase(number: number, base: string): Promise<void> {
+      await call(`${await repoPath()}/pulls/${number}`, { method: 'PATCH', body: JSON.stringify({ base }) })
     },
     async pull(number: number): Promise<PullDetails> {
       const base = `${await repoPath()}`
@@ -367,6 +411,13 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         mergeableState: raw.mergeable_state ?? 'unknown',
         nodeId: raw.node_id,
         locked: raw.locked ?? false,
+        autoMerge: Boolean(raw.auto_merge),
+        sameRepo: raw.head.repo?.full_name === raw.base.repo?.full_name,
+        // GitHub drops head.repo when the branch's repo is gone; a deleted branch shows as a missing ref.
+        headExists: await call(`${base}/git/ref/heads/${encodeURIComponent(raw.head.ref)}`).then(
+          () => true,
+          () => false,
+        ),
         body: raw.body ?? '',
         headSha: raw.head.sha,
         baseSha: raw.base.sha,
@@ -513,6 +564,9 @@ interface RawPull {
 }
 interface RawPullDetails extends RawPull {
   body: string | null
+  auto_merge?: unknown
+  head: { ref: string; sha: string; repo: { full_name: string } | null }
+  base: { ref: string; sha: string; repo: { full_name: string } | null }
   node_id: string
   locked?: boolean
   commits: number

@@ -60,6 +60,10 @@ export const PullDetailsSchema = PullSummarySchema.extend({
   mergeableState: z.string(),
   nodeId: z.string(),
   locked: z.boolean(),
+  autoMerge: z.boolean(),
+  // The head branch lives in this repo (not a fork), so it can be deleted or restored here.
+  sameRepo: z.boolean(),
+  headExists: z.boolean(),
   body: z.string(),
   headSha: z.string(),
   baseSha: z.string(),
@@ -102,6 +106,9 @@ export const CheckRunSchema = z.object({
     .enum(['success', 'failure', 'neutral', 'cancelled', 'skipped', 'timed_out', 'action_required', 'stale'])
     .nullable(),
   url: z.string(),
+  // GitHub Actions ids, when the run came from a workflow, for its log and re-run.
+  runId: z.number().int().nullable(),
+  jobId: z.number().int().nullable(),
 })
 export type CheckRun = z.infer<typeof CheckRunSchema>
 
@@ -284,3 +291,7 @@ export const PullCommitSchema = z.object({
   date: z.string(),
 })
 export type PullCommit = z.infer<typeof PullCommitSchema>
+
+export const AutoMergeSchema = z.object({ enabled: z.boolean(), method: z.enum(['merge', 'squash', 'rebase']) })
+export const BaseSchema = z.object({ base: z.string().min(1).max(256) })
+export const RerunSchema = z.object({ runId: z.number().int() })

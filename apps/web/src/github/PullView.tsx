@@ -30,6 +30,7 @@ import {
 import { lazy, type ReactNode, Suspense, useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { ask } from '../app/Ask'
 import { useTarget } from '../hooks/useTarget'
 import type { MergeMethod, ReviewEvent } from '../lib/api'
 import { ChecksList } from './Checks'
@@ -154,7 +155,19 @@ function Files({ number }: { number: number }) {
   )
 }
 
-function MergeBox({ pull, busy, onMerge }: { pull: PullDetails; busy: boolean; onMerge(method: MergeMethod): void }) {
+function MergeBox({
+  pull,
+  busy,
+  onMerge,
+  onUpdate,
+  onAutoMerge,
+}: {
+  pull: PullDetails
+  busy: boolean
+  onMerge(method: MergeMethod): void
+  onUpdate(): void
+  onAutoMerge(enabled: boolean, method: MergeMethod): void
+}) {
   const [method, setMethod] = useState<MergeMethod>('squash')
   const blocked = pull.mergeable === false || pull.draft
   const note = pull.draft
@@ -165,7 +178,9 @@ function MergeBox({ pull, busy, onMerge }: { pull: PullDetails; busy: boolean; o
         ? 'Merging is blocked by required reviews or checks.'
         : pull.mergeableState === 'unstable'
           ? 'Some checks were not successful.'
-          : 'This branch has no conflicts with the base branch.'
+          : pull.mergeableState === 'behind'
+            ? 'This branch is out of date with the base branch.'
+            : 'This branch has no conflicts with the base branch.'
   return (
     <section
       aria-label="Merge"
@@ -175,8 +190,16 @@ function MergeBox({ pull, busy, onMerge }: { pull: PullDetails; busy: boolean; o
           className={`flex size-8 items-center justify-center rounded-full ${blocked ? 'bg-muted' : 'bg-added text-background'}`}>
           <GitMerge className="size-4" />
         </span>
-        <span className="text-foreground">{note}</span>
+        <span className="min-w-0 flex-1 text-foreground">{note}</span>
+        {pull.mergeableState === 'behind' ? (
+          <Button size="sm" variant="outline" onClick={onUpdate}>
+            Update branch
+          </Button>
+        ) : null}
       </div>
+      {pull.autoMerge ? (
+        <p className="text-tn-cyan">Auto-merge is on: GitHub merges this once every requirement passes.</p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <Popover>
           <PopoverTrigger asChild>
@@ -195,6 +218,9 @@ function MergeBox({ pull, busy, onMerge }: { pull: PullDetails; busy: boolean; o
             </Button>
           </PopoverContent>
         </Popover>
+        <Button size="sm" variant="outline" onClick={() => onAutoMerge(!pull.autoMerge, method)}>
+          {pull.autoMerge ? 'Disable auto-merge' : 'Enable auto-merge'}
+        </Button>
         <Select value={method} onValueChange={(value: string) => value && setMethod(value as MergeMethod)}>
           <SelectTrigger aria-label="Merge method" className="h-7 w-52">
             <SelectValue />
@@ -362,7 +388,26 @@ export default function PullView({ number, onChanged }: { number: number; onChan
           <span>
             {pull.merged ? 'merged' : 'wants to merge'} {pull.commits} {pull.commits === 1 ? 'commit' : 'commits'} into
           </span>
-          <code className="rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue">{pull.baseRef}</code>
+          {pull.state === 'open' ? (
+            <button
+              type="button"
+              title="Change the base branch"
+              className="cursor-pointer rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue hover:bg-tn-blue/25"
+              onClick={async () => {
+                const values = await ask.prompt({
+                  title: 'Change the base branch',
+                  fields: [{ name: 'base', label: 'Base branch', initial: pull.baseRef }],
+                  action: 'Change base',
+                })
+                const base = values?.base
+                if (base && base !== pull.baseRef)
+                  void act('base', () => api.github.setBase(number, base), `Now merging into ${base}`)
+              }}>
+              {pull.baseRef}
+            </button>
+          ) : (
+            <code className="rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue">{pull.baseRef}</code>
+          )}
           <span>from</span>
           <code className="rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue">{pull.headRef}</code>
         </div>
@@ -424,7 +469,43 @@ export default function PullView({ number, onChanged }: { number: number; onChan
                   pull={pull}
                   busy={busy === 'merge'}
                   onMerge={(method) => void act('merge', () => api.github.merge(number, method), `Merged #${number}`)}
+                  onUpdate={() =>
+                    void act('update', () => api.github.updateBranch(number), 'Updating the branch from its base')
+                  }
+                  onAutoMerge={(enabled, method) =>
+                    void act(
+                      'auto',
+                      () => api.github.setAutoMerge(number, enabled, method),
+                      enabled ? 'Auto-merge is on' : 'Auto-merge is off',
+                    )
+                  }
                 />
+              ) : null}
+              {pull.merged && pull.sameRepo ? (
+                <section
+                  aria-label="Merged"
+                  className="flex flex-wrap items-center gap-3 rounded-md border border-tn-magenta/50 p-4">
+                  <span className="flex size-8 items-center justify-center rounded-full bg-tn-magenta text-background">
+                    <GitMerge className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1 text-foreground">
+                    Pull request merged.{' '}
+                    {pull.headExists ? `The ${pull.headRef} branch can be deleted.` : `${pull.headRef} was deleted.`}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={busy === 'branch'}
+                    onClick={() =>
+                      void act(
+                        'branch',
+                        () => api.github.setHeadBranch(number, !pull.headExists),
+                        pull.headExists ? `Deleted ${pull.headRef}` : `Restored ${pull.headRef}`,
+                      )
+                    }>
+                    {pull.headExists ? 'Delete branch' : 'Restore branch'}
+                  </Button>
+                </section>
               ) : null}
               <Composer
                 draft={draft}

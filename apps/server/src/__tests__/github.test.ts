@@ -175,7 +175,12 @@ function fakeGitHub(calls: Call[]) {
     if (path === '/repos/o/r/commits/h1/check-runs') {
       return Response.json({
         check_runs: [
-          { name: 'test', status: 'completed', conclusion: 'success', html_url: 'https://ci/1' },
+          {
+            name: 'test',
+            status: 'completed',
+            conclusion: 'success',
+            html_url: 'https://github.com/o/r/actions/runs/11/job/22',
+          },
           { name: 'lint', status: 'in_progress', conclusion: null, html_url: null },
         ],
       })
@@ -315,8 +320,15 @@ describe('/api/github', () => {
   it("reads the check runs on a pull request's head commit", async () => {
     await start({ token: 't', remote: 'git@github.com:o/r.git' })
     expect(await (await call('GET', '/api/github/pulls/7/checks')).json()).toEqual([
-      { name: 'test', status: 'completed', conclusion: 'success', url: 'https://ci/1' },
-      { name: 'lint', status: 'in_progress', conclusion: null, url: '' },
+      {
+        name: 'test',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://github.com/o/r/actions/runs/11/job/22',
+        runId: 11,
+        jobId: 22,
+      },
+      { name: 'lint', status: 'in_progress', conclusion: null, url: '', runId: null, jobId: null },
     ])
   })
 

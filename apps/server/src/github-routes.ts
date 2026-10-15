@@ -1,5 +1,7 @@
 import { runGit } from '@duck-diff/git'
 import {
+  AutoMergeSchema,
+  BaseSchema,
   CreateIssueSchema,
   CreatePullSchema,
   DraftSchema,
@@ -12,6 +14,7 @@ import {
   type PullRefs,
   ReactSchema,
   ReplySchema,
+  RerunSchema,
   ResolveThreadSchema,
   ReviewersSchema,
   SetTokenSchema,
@@ -54,6 +57,14 @@ export async function handleGitHub(
     return Response.json(await github.status())
   }
   // Avatars are a nicety, so being signed out or offline answers with none rather than an error.
+  if (area === 'rerun' && post) {
+    await github.rerunFailed(RerunSchema.parse(await body()).runId)
+    return new Response(null, { status: 204 })
+  }
+  if (area === 'job-log' && id !== undefined) {
+    if (!Number.isInteger(number)) throw new HttpError(400, 'bad-request', 'bad job id')
+    return new Response(await github.jobLog(number), { headers: { 'content-type': 'text/plain; charset=utf-8' } })
+  }
   if (area === 'options') return Response.json(await github.options())
   if (area === 'mentions') return Response.json(await github.mentions())
   if (area === 'references')
@@ -107,6 +118,25 @@ export async function handleGitHub(
     if (action === undefined) return Response.json(await github.pull(number))
     if (action === 'checks') return Response.json(await github.checks(number))
     if (action === 'commits') return Response.json(await github.pullCommits(number))
+    if (action === 'update-branch' && post) {
+      await github.updateBranch(number)
+      return new Response(null, { status: 204 })
+    }
+    if (action === 'auto-merge' && post) {
+      const { enabled, method } = AutoMergeSchema.parse(await body())
+      await github.setAutoMerge(number, enabled, method)
+      return new Response(null, { status: 204 })
+    }
+    if (action === 'branch' && post) {
+      const { exists } = z.object({ exists: z.boolean() }).parse(await body())
+      if (exists) await github.restoreHead(number)
+      else await github.deleteHead(number)
+      return new Response(null, { status: 204 })
+    }
+    if (action === 'base' && post) {
+      await github.setBase(number, BaseSchema.parse(await body()).base)
+      return new Response(null, { status: 204 })
+    }
     if (action === 'review-state') return Response.json(await github.reviewState(number))
     if (action === 'resolve' && post) {
       const { thread, resolved } = ResolveThreadSchema.parse(await body())

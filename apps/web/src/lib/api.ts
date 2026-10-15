@@ -149,6 +149,13 @@ export interface GitHubApi {
   reviewState(number: number): Promise<ReviewState>
   resolveThread(number: number, thread: string, resolved: boolean): Promise<void>
   setViewed(number: number, path: string, viewed: boolean): Promise<void>
+  updateBranch(number: number): Promise<void>
+  setAutoMerge(number: number, enabled: boolean, method: MergeMethod): Promise<void>
+  // Deletes the head branch after a merge, or restores it.
+  setHeadBranch(number: number, exists: boolean): Promise<void>
+  setBase(number: number, base: string): Promise<void>
+  rerunFailed(runId: number): Promise<void>
+  jobLog(jobId: number): Promise<string>
   merge(number: number, method: MergeMethod): Promise<void>
   issues(state: ItemState): Promise<IssueSummary[]>
   issue(number: number): Promise<IssueDetails>
@@ -278,6 +285,12 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     reviewState: (number) => json(`/api/github/pulls/${number}/review-state`, ReviewStateSchema),
     resolveThread: (number, thread, resolved) => post(`/api/github/pulls/${number}/resolve`, { thread, resolved }),
     setViewed: (number, path, viewed) => post(`/api/github/pulls/${number}/viewed`, { path, viewed }),
+    updateBranch: (number) => post(`/api/github/pulls/${number}/update-branch`, {}),
+    setAutoMerge: (number, enabled, method) => post(`/api/github/pulls/${number}/auto-merge`, { enabled, method }),
+    setHeadBranch: (number, exists) => post(`/api/github/pulls/${number}/branch`, { exists }),
+    setBase: (number, base) => post(`/api/github/pulls/${number}/base`, { base }),
+    rerunFailed: (runId) => post('/api/github/rerun', { runId }),
+    jobLog: async (jobId) => (await request(`/api/github/job-log/${jobId}`)).text(),
     merge: (number, method) => post(`/api/github/pulls/${number}/merge`, { method }),
     issues: (state) => json(`/api/github/issues?state=${state}`, z.array(IssueSummarySchema)),
     issue: (number) => json(`/api/github/issues/${number}`, IssueDetailsSchema),
