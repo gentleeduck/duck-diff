@@ -14,7 +14,7 @@ const job = (id: string, status: Job['status'] = 'running'): Job => ({
 
 describe('jobs store', () => {
   it('keeps jobs newest first and follows a live job from its first byte', () => {
-    const jobs = createJobs({ jobs: async () => [], jobOutput: async () => '' })
+    const jobs = createJobs({ jobs: async () => [], jobOutput: async () => '', clearJobs: async () => {} })
     jobs.apply({ type: 'job', job: job('a') })
     jobs.apply({ type: 'job-output', id: 'a', data: 'one ' })
     const seen: string[] = []
@@ -30,7 +30,7 @@ describe('jobs store', () => {
 
   it('reads the output of a job that ran before the page opened', async () => {
     const jobOutput = vi.fn(async () => 'earlier')
-    const jobs = createJobs({ jobs: async () => [job('old', 'ok')], jobOutput })
+    const jobs = createJobs({ jobs: async () => [job('old', 'ok')], jobOutput, clearJobs: async () => {} })
     await jobs.load()
     const seen: string[] = []
     jobs.follow('old', (data) => seen.push(data))
@@ -39,7 +39,7 @@ describe('jobs store', () => {
   })
 
   it('counts the jobs still running', () => {
-    const jobs = createJobs({ jobs: async () => [], jobOutput: async () => '' })
+    const jobs = createJobs({ jobs: async () => [], jobOutput: async () => '', clearJobs: async () => {} })
     jobs.apply({ type: 'job', job: job('a') })
     jobs.apply({ type: 'job', job: job('b', 'failed') })
     expect(jobs.get().running).toBe(1)
@@ -58,6 +58,7 @@ describe('jobs store, loading twice at once', () => {
         return [job('a', 'ok'), job('b', 'ok')]
       },
       jobOutput: async () => '',
+      clearJobs: async () => {},
     })
     const first = jobs.load()
     const second = jobs.load()

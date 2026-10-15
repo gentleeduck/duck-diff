@@ -183,6 +183,10 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           await cache?.clear()
           return new Response(null, { status: 204 })
         }
+        if (url.pathname === '/api/jobs' && request.method === 'DELETE') {
+          jobs.clear()
+          return new Response(null, { status: 204 })
+        }
         if (url.pathname === '/api/jobs') return Response.json(jobs.list())
         if (url.pathname.startsWith('/api/jobs/') && url.pathname.endsWith('/output')) {
           const output = jobs.output(decodeURIComponent(url.pathname.slice(10, -7)))

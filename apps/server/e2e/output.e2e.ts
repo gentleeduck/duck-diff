@@ -26,6 +26,10 @@ test('shows the commands a commit ran and what its hook printed', async ({ page,
   expect(output).toContain('git commit --file=-')
   expect(output).toContain('pre-commit hook says hi')
 
+  await page.getByRole('button', { name: 'Clear the list' }).click()
+  await expect(page.getByRole('list', { name: 'Actions' })).toHaveCount(0)
+  expect(await page.evaluate(async () => (await (await fetch('/api/jobs')).json()).length)).toBe(0)
+
   await page.keyboard.press('Control+`')
   await expect(page.getByRole('region', { name: 'Bottom panel' })).toBeHidden()
 })

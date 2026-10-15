@@ -189,6 +189,7 @@ export interface Api {
   // The actions run lately, newest first, and what one printed.
   jobs(): Promise<Job[]>
   jobOutput(id: string): Promise<string>
+  clearJobs(): Promise<void>
   // Shells running on the server, which a reloaded page reattaches to.
   terminals(): Promise<{ id: string; title: string; cwd: string }[]>
   closeTerminal(id: string): Promise<void>
@@ -564,6 +565,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
         z.object({ sha: z.string().optional(), conflicts: z.boolean().optional(), stopped: z.boolean().optional() }),
       ),
     jobs: () => json('/api/jobs', z.array(JobSchema)),
+    clearJobs: () => sendEmpty('DELETE', '/api/jobs'),
     terminals: () => json('/api/terminals', z.array(z.object({ id: z.string(), title: z.string(), cwd: z.string() }))),
     clearCache: () => sendEmpty('POST', '/api/cache/clear'),
     closeTerminal: (id) => sendEmpty('DELETE', `/api/terminals/${encodeURIComponent(id)}`),

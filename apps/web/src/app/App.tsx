@@ -344,7 +344,7 @@ export function App({ api }: { api?: Api }) {
           <GitProvider>
             <Screen />
             <AskDialog />
-            <Toaster position="bottom-right" />
+            <Toaster position="bottom-right" style={{ '--width': '28rem' } as React.CSSProperties} />
           </GitProvider>
         </WritesProvider>
       </TooltipProvider>

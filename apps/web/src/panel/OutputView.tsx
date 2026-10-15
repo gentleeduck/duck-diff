@@ -1,7 +1,8 @@
 import type { Job } from '@duck-diff/protocol'
-import { Check, LoaderCircle, X } from 'lucide-react'
+import { Check, ListX, LoaderCircle, X } from 'lucide-react'
 import { memo, useCallback } from 'react'
 import { useApp } from '../app/AppProvider'
+import { IconTool } from '../app/IconTool'
 import { useStore } from '../lib/store'
 import { relativeTime } from '../sidebar/relative-time'
 import { TerminalSurface } from '../terminal/TerminalSurface'
@@ -43,27 +44,35 @@ export const OutputView = memo(function OutputView() {
   }
   return (
     <div className="flex h-full min-h-0">
-      <ul aria-label="Actions" className="w-96 max-w-[45%] shrink-0 overflow-y-auto border-border border-e py-1">
-        {list.map((job) => (
-          <li key={job.id}>
-            <button
-              type="button"
-              aria-current={job.id === id}
-              title={`${job.command}, ${relativeTime(job.startedAt / 1000)}`}
-              onClick={() => panel.show('output', job.id)}
-              className={`flex h-7 w-full cursor-pointer items-center gap-2 px-3 text-start ${
-                job.id === id ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/40'
-              }`}>
-              <StatusIcon status={job.status} />
-              <span className="shrink-0 text-foreground">{job.title}</span>
-              <span className="min-w-0 flex-1 truncate pe-0.5 opacity-70">
-                {job.command === job.title ? '' : job.command}
-              </span>
-              <span className="shrink-0 tabular-nums opacity-70">{took(job)}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <div className="flex w-96 max-w-[45%] shrink-0 flex-col border-border border-e">
+        <div className="flex h-7 shrink-0 items-center justify-between border-border border-b ps-3 pe-1 text-muted-foreground">
+          <span>{list.length === 1 ? '1 action' : `${list.length} actions`}</span>
+          <IconTool label="Clear the list" onClick={() => void jobs.clear().then(() => panel.show('output', null))}>
+            <ListX />
+          </IconTool>
+        </div>
+        <ul aria-label="Actions" className="min-h-0 flex-1 overflow-y-auto py-1">
+          {list.map((job) => (
+            <li key={job.id}>
+              <button
+                type="button"
+                aria-current={job.id === id}
+                title={`${job.command}, ${relativeTime(job.startedAt / 1000)}`}
+                onClick={() => panel.show('output', job.id)}
+                className={`flex h-7 w-full cursor-pointer items-center gap-2 px-3 text-start ${
+                  job.id === id ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/40'
+                }`}>
+                <StatusIcon status={job.status} />
+                <span className="shrink-0 text-foreground">{job.title}</span>
+                <span className="min-w-0 flex-1 truncate pe-0.5 opacity-70">
+                  {job.command === job.title ? '' : job.command}
+                </span>
+                <span className="shrink-0 tabular-nums opacity-70">{took(job)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
       <div className="min-w-0 flex-1">
         <TerminalSurface key={id} label={`Output of ${shown.title}`} readOnly attach={attach} />
       </div>

@@ -13,11 +13,13 @@ export interface Jobs extends Store<JobsState> {
   apply(event: ServerEvent): void
   // Hands over everything the job printed so far, then each chunk as it arrives, until stopped.
   follow(id: string, onData: (data: string) => void): () => void
+  // Empties the list here and on the server, keeping a job still running.
+  clear(): Promise<void>
 }
 
 const KEEP = 50
 
-export function createJobs(api: Pick<Api, 'jobs' | 'jobOutput'>): Jobs {
+export function createJobs(api: Pick<Api, 'jobs' | 'jobOutput' | 'clearJobs'>): Jobs {
   const store = createStore<JobsState>({ jobs: [], running: 0 })
   // Output of the jobs this page saw start; older ones are read from the server when opened.
   const outputs = new Map<string, string>()
@@ -51,6 +53,10 @@ export function createJobs(api: Pick<Api, 'jobs' | 'jobOutput'>): Jobs {
       const before = outputs.get(event.id)
       if (before !== undefined) outputs.set(event.id, before + event.data)
       for (const listener of followers.get(event.id) ?? []) listener(event.data)
+    },
+    async clear() {
+      await api.clearJobs()
+      put(store.get().jobs.filter((job) => job.status === 'running'))
     },
     follow(id, onData) {
       let stopped = false
