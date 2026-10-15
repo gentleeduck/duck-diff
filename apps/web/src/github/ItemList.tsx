@@ -156,7 +156,7 @@ export function ItemList({ kind, label, selection, row, version = 0, actions, me
   const totals = { open: state === 'open' ? total : otherTotal, closed: state === 'closed' ? total : otherTotal }
   return (
     <div ref={page} className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
+      <div className="flex w-full flex-col gap-4 p-6">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-64 flex-1">
             <Popover>

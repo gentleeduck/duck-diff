@@ -446,3 +446,13 @@ body {
 ::highlight(duck-symbol) {
   background-color: color-mix(in oklab, var(--tn-yellow) 28%, transparent);
 }
+
+/* sonner ships unlayered CSS that would win over the base layer; toast text follows the
+   page's one size, weight and style through selectors deeper than sonner's own. */
+html body [data-sonner-toaster] [data-sonner-toast][data-styled],
+html body [data-sonner-toaster] [data-sonner-toast][data-styled] * {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: var(--dd-weight);
+  font-style: var(--dd-style);
+}

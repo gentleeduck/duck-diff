@@ -82,7 +82,7 @@ export function Actions() {
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see workflow runs.</p>
   return (
     <div ref={page} className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
+      <div className="flex w-full flex-col gap-4 p-6">
         <div className="rounded-md border border-border">
           <div className="flex items-center gap-2 border-border border-b bg-card px-4 py-1">
             <span className="flex-1">{items ? `${items.length} workflow runs` : 'Workflow runs'}</span>

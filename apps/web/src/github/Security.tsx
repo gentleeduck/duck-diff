@@ -108,7 +108,7 @@ export function Security() {
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see security alerts.</p>
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 p-6">
+      <div className="flex w-full flex-col gap-3 p-6">
         {failed ? <p className="text-removed">{failed}</p> : null}
         {!found && !failed ? ['a', 'b', 'c'].map((key) => <Skeleton key={key} className="h-14" />) : null}
         {found?.unavailable.map((entry) => (

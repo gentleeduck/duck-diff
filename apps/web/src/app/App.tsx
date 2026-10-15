@@ -130,7 +130,7 @@ function Screen() {
     <Button
       size="sm"
       variant="outline"
-      className="shrink-0 justify-start gap-2 px-[5px] text-muted-foreground @6xl/top:w-48 @6xl/top:ps-2 @6xl/top:pe-[5px] @7xl/top:w-80"
+      className="size-7 shrink-0 justify-start gap-2 px-0! text-muted-foreground @max-6xl/top:justify-center @6xl/top:w-48 @6xl/top:ps-2! @6xl/top:pe-1! @7xl/top:w-80"
       aria-label="Search files and actions"
       title="Search files and actions (Ctrl K)"
       onClick={() => openPalette()}>

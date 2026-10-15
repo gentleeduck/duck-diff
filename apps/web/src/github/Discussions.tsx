@@ -60,7 +60,7 @@ function DiscussionView({ number, onBack }: { number: number; onBack(): void }) 
   if (!discussion) return <Skeleton className="m-6 h-40" />
   return (
     <div className="h-full overflow-y-auto">
-      <article aria-label={discussion.title} className="mx-auto flex max-w-4xl flex-col gap-4 p-6">
+      <article aria-label={discussion.title} className="flex w-full flex-col gap-4 p-6">
         <header className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="ghost" onClick={onBack}>
             <ArrowLeft />
@@ -194,7 +194,7 @@ export function Discussions() {
   if (open !== null) return <DiscussionView number={open} onBack={() => setOpen(null)} />
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-6xl flex-col gap-2 p-6">
+      <div className="flex w-full flex-col gap-2 p-6">
         {failed ? <p className="text-removed">{failed}</p> : null}
         {!items && !failed ? SKELETONS.map((key) => <Skeleton key={key} className="h-12" />) : null}
         {items?.length === 0 ? (
