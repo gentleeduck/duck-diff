@@ -67,7 +67,7 @@ export async function commit(
     if (!staged.trim()) throw new GitError('failed', null, '', 'nothing is staged; stage changes before committing')
   }
   await runGit(
-    ['commit', '--quiet', '--file=-', ...(options.amend ? ['--amend'] : []), ...(options.signoff ? ['--signoff'] : [])],
+    ['commit', '--file=-', ...(options.amend ? ['--amend'] : []), ...(options.signoff ? ['--signoff'] : [])],
     { cwd: repo, input: options.message.endsWith('\n') ? options.message : `${options.message}\n` },
   )
   return (await runGit(['rev-parse', 'HEAD'], { cwd: repo })).trim()
@@ -78,28 +78,28 @@ export async function push(repo: string): Promise<void> {
   const { branch, upstream } = await readSyncStatus(repo)
   if (!branch) throw new GitError('failed', null, '', 'HEAD is detached; switch to a branch to push')
   if (upstream) {
-    await runGit(['push', '--quiet'], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
+    await runGit(['push'], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
     return
   }
   const remotes = (await runGit(['remote'], { cwd: repo })).split('\n').filter(Boolean)
   const remote = remotes.includes('origin') ? 'origin' : remotes[0]
   if (!remote) throw new GitError('failed', null, '', 'this repository has no remote to push to')
-  await runGit(['push', '--quiet', '--set-upstream', remote, branch], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
+  await runGit(['push', '--set-upstream', remote, branch], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
 }
 
 export async function pull(repo: string): Promise<void> {
-  await runGit(['pull', '--quiet', '--no-edit'], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS, env: NO_EDITOR })
+  await runGit(['pull', '--no-edit'], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS, env: NO_EDITOR })
 }
 
 export async function fetchAll(repo: string): Promise<void> {
-  await runGit(['fetch', '--quiet', '--all', '--prune'], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
+  await runGit(['fetch', '--all', '--prune'], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
 }
 
 export async function switchBranch(
   repo: string,
   options: { branch: string; create: boolean; start?: string },
 ): Promise<void> {
-  const args = options.create ? ['switch', '--quiet', '-c', options.branch] : ['switch', '--quiet', options.branch]
+  const args = options.create ? ['switch', '-c', options.branch] : ['switch', options.branch]
   if (options.create && options.start) args.push(options.start)
   await runGit(args, { cwd: repo })
 }

@@ -43,6 +43,8 @@ import {
   IssueSummarySchema,
   type ItemExtras,
   ItemExtrasSchema,
+  type Job,
+  JobSchema,
   type ListPage,
   ListPageSchema,
   type ListQuery,
@@ -179,6 +181,9 @@ export interface Api {
     hover(query: LspQuery): Promise<LspHover>
   }
   git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean; stopped?: boolean }>
+  // The actions run lately, newest first, and what one printed.
+  jobs(): Promise<Job[]>
+  jobOutput(id: string): Promise<string>
   github: GitHubApi
 }
 
@@ -542,6 +547,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
         body ?? {},
         z.object({ sha: z.string().optional(), conflicts: z.boolean().optional(), stopped: z.boolean().optional() }),
       ),
+    jobs: () => json('/api/jobs', z.array(JobSchema)),
+    jobOutput: async (id) => (await request(`/api/jobs/${encodeURIComponent(id)}/output`)).text(),
     commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),
     commitStat: (sha) => json(`/api/commit-stat?sha=${encodeURIComponent(sha)}`, CommitStatSchema),
     reviews: (target) => json(`/api/reviews?target=${encodeTarget(target)}`, z.array(ReviewCommentSchema)),

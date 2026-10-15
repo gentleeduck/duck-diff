@@ -27,6 +27,7 @@ export type Action =
   | 'font-reset'
   | 'back'
   | 'forward'
+  | 'toggle-panel'
 
 interface KeyLike {
   key: string
@@ -68,6 +69,8 @@ function isTyping(target: KeyLike['target']): boolean {
 export function resolveKey(event: KeyLike): Action | null {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') return 'palette'
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') return 'toggle-sidebar'
+  // Works from inside a terminal too, as it does in editors.
+  if (event.ctrlKey && event.key === '`') return 'toggle-panel'
   // The browser's own zoom keys size the page through the font settings instead, so they persist.
   if ((event.ctrlKey || event.metaKey) && (event.key === '=' || event.key === '+')) return 'font-bigger'
   if ((event.ctrlKey || event.metaKey) && event.key === '-') return 'font-smaller'

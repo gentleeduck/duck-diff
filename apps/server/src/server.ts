@@ -30,6 +30,7 @@ import { handleGitHub } from './github-routes'
 import { createGitHubWatch } from './github-watch'
 import type { GitLabOptions } from './gitlab'
 import { Hub } from './hub'
+import { createJobs, jobTitle } from './jobs'
 import { createNavigator, type NavigatorOptions } from './lsp/navigator'
 import { type NvimRunner, openKeys, runNvim, tcdKeys } from './nvim'
 import { createRepoList } from './repos'
@@ -91,6 +92,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const notify = (reason: ChangeReason) => hub.broadcast({ type: 'changed', reason })
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
   const enqueue = createWriteQueue()
+  const jobs = createJobs((event) => hub.broadcast(event))
   const reviews = createReviewStore(repo, options.dataDir)
   const github = createForge(repo, { github: options.github, gitlab: options.gitlab })
   const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
@@ -126,6 +128,12 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           notify('saved')
           return new Response(null, { status: 204 })
         }
+        if (url.pathname === '/api/jobs') return Response.json(jobs.list())
+        if (url.pathname.startsWith('/api/jobs/') && url.pathname.endsWith('/output')) {
+          const output = jobs.output(decodeURIComponent(url.pathname.slice(10, -7)))
+          if (output === null) throw new HttpError(404, 'not-found', 'no such job')
+          return new Response(output, { headers: { 'content-type': 'text/plain; charset=utf-8' } })
+        }
         if (url.pathname === '/api/sync') return Response.json(await readSyncStatus(repo))
         if (url.pathname === '/api/remotes') return Response.json(await listRemotes(repo))
         if (url.pathname === '/api/last-message') return Response.json({ message: await lastMessage(repo) })
@@ -143,7 +151,10 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         }
         if (url.pathname.startsWith('/api/github/')) return await handleGitHub(github, repo, url, request, enqueue)
         if (url.pathname.startsWith('/api/git/') && request.method === 'POST') {
-          const result = await enqueue(() => gitAction(repo, url.pathname.slice(9), request))
+          const result = await enqueue(() => {
+            const action = url.pathname.slice(9)
+            return jobs.run(jobTitle(action), () => gitAction(repo, action, request))
+          })
           notify(result.reason)
           return Response.json(result.body)
         }
@@ -154,12 +165,12 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         }
         if (url.pathname === '/api/write' && request.method === 'POST') {
           const write = WriteRequestSchema.parse(await request.json())
-          await enqueue(() => applyWrite(repo, write, options.undoCache))
+          await enqueue(() => jobs.run(jobTitle(write.action), () => applyWrite(repo, write, options.undoCache)))
           notify('index')
           return new Response(null, { status: 204 })
         }
         if (url.pathname === '/api/undo' && request.method === 'POST') {
-          const restored = await enqueue(() => undoLatest(repo, options.undoCache))
+          const restored = await enqueue(() => jobs.run('Undo', () => undoLatest(repo, options.undoCache)))
           if (restored) notify('worktree')
           return Response.json({ restored })
         }

@@ -10,6 +10,8 @@ import { type Api, createApi } from '../lib/api'
 import { createStore, type Store } from '../lib/store'
 import { readTarget } from '../lib/target-url'
 import { type PullTab, readView, type View } from '../lib/view-url'
+import { createJobs, type Jobs } from '../panel/jobs'
+import { createPanel, type Panel } from '../panel/panel'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
@@ -63,6 +65,10 @@ export interface AppContextValue {
   // GitHub's review threads for the pull request the diff shows.
   pullReview: PullReview
   viewer: RefObject<DiffViewHandle | null>
+  // The git actions run from any page, with their commands and output.
+  jobs: Jobs
+  // The bottom panel: output and terminals.
+  panel: Panel
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -101,8 +107,14 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       pullReview: createPullReview(client),
       items: createItemIndex(client),
       viewer,
+      jobs: createJobs(client),
+      panel: createPanel(),
     }
   }, [api])
+
+  useEffect(() => {
+    value.jobs.load().catch(() => {})
+  }, [value])
 
   // Tabs are saved per repository, so they come back once the page knows which one it shows.
   useEffect(() => {

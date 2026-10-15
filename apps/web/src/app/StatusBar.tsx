@@ -1,14 +1,20 @@
+import { LoaderCircle, ScrollText } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSession } from '../hooks/useSession'
+import { useStore } from '../lib/store'
 import type { LiveState } from '../live/useLiveRefresh'
+import type { JobsState } from '../panel/jobs'
 import { relativeTime } from '../sidebar/relative-time'
 import type { SessionState } from '../state/session'
+import { useApp } from './AppProvider'
 
 const STATUS = {
   open: { label: 'Live', color: 'var(--diff-added)' },
   connecting: { label: 'Connecting', color: 'var(--muted-foreground)' },
   closed: { label: 'Reconnecting', color: 'var(--warning)' },
 }
+
+const selectRunning = (state: JobsState) => state.running
 
 const selectLoad = (state: SessionState) => `${state.status}:${state.loadedAt}:${state.error ?? ''}`
 
@@ -21,6 +27,8 @@ export function StatusBar({ live }: { live: LiveState }) {
     return () => clearInterval(timer)
   }, [])
   const indicator = STATUS[live.status]
+  const { jobs, panel } = useApp()
+  const running = useStore(jobs, selectRunning)
 
   return (
     <>
@@ -34,6 +42,18 @@ export function StatusBar({ live }: { live: LiveState }) {
           {live.repo.head && <span className="ml-1.5 opacity-70">{live.repo.head.slice(0, 7)}</span>}
         </span>
       )}
+      <button
+        type="button"
+        onClick={panel.toggle}
+        title="Commands and output (Ctrl `)"
+        className="flex cursor-pointer items-center gap-1.5 hover:text-foreground">
+        {running ? (
+          <LoaderCircle className="size-3.5 animate-spin text-tn-blue" />
+        ) : (
+          <ScrollText className="size-3.5" />
+        )}
+        {running ? `Running ${running}` : 'Output'}
+      </button>
       <span className="ml-auto" aria-live="polite">
         {status === 'loading' && 'Loading changes'}
         {status === 'error' && <span className="text-removed">Could not load changes: {error}</span>}

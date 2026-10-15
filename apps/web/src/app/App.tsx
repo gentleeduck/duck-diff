@@ -24,6 +24,7 @@ import { useDesktopNotices } from '../live/useDesktopNotices'
 import { useLiveRefresh } from '../live/useLiveRefresh'
 import { MergeSidebar } from '../merge/MergeSidebar'
 import { Palette } from '../palette/Palette'
+import { BottomPanel } from '../panel/BottomPanel'
 import { CommentsSheet } from '../review/CommentsSheet'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
@@ -310,6 +311,7 @@ function Screen() {
         onTogglePanel={togglePanel}
         viewer={<Suspense fallback={null}>{screen.main}</Suspense>}
         aside={<SymbolPanel />}
+        bottom={<BottomPanel />}
         status={<StatusBar live={live} />}
       />
       <Palette open={palette} onOpenChange={setPalette} />

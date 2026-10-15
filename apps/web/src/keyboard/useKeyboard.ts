@@ -27,6 +27,7 @@ const ANYWHERE = new Set<Action>([
   'palette',
   'help',
   'toggle-sidebar',
+  'toggle-panel',
   'font-bigger',
   'font-smaller',
   'font-reset',
@@ -37,7 +38,7 @@ const ANYWHERE = new Set<Action>([
 const WRITES: Partial<Record<Action, WriteKind>> = { stage: 'stage', unstage: 'unstage', discard: 'discard' }
 
 export function useKeyboard(open: { palette(): void; help(): void; show(view: View): void }) {
-  const { api, session, settings, viewer, reviews, viewed, view } = useApp()
+  const { api, session, settings, viewer, reviews, viewed, view, panel } = useApp()
   const writes = useWrites()
   const position = useRef<Position>({ item: 0, hunk: 0 })
   const handlers = useRef(open)
@@ -64,6 +65,7 @@ export function useKeyboard(open: { palette(): void; help(): void; show(view: Vi
       if (action === 'back') return void back()
       if (action === 'forward') return void forward()
       if (action === 'help') return handlers.current.help()
+      if (action === 'toggle-panel') return panel.toggle()
       if (action === 'toggle-sidebar') return settings.set((prev) => ({ ...prev, sidebar: !prev.sidebar }))
       if (action === 'font-bigger') return settings.set((prev) => resize(prev, 1))
       if (action === 'font-smaller') return settings.set((prev) => resize(prev, -1))
@@ -119,5 +121,5 @@ export function useKeyboard(open: { palette(): void; help(): void; show(view: Vi
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [api, session, settings, viewer, reviews, viewed, writes, view])
+  }, [api, session, settings, viewer, reviews, viewed, writes, view, panel])
 }

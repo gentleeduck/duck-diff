@@ -15,6 +15,8 @@ interface ShellProps {
   viewer: ReactNode
   // A panel docked on the right of the page, like the symbol panel; null when closed.
   aside?: ReactNode
+  // The output and terminal panel under the page; null when closed.
+  bottom?: ReactNode
   status: ReactNode
 }
 
@@ -74,6 +76,7 @@ export function Shell({
   onTogglePanel,
   viewer,
   aside,
+  bottom,
   status,
 }: ShellProps) {
   const shown = sidebar !== null && panelShown
@@ -110,7 +113,10 @@ export function Shell({
           </nav>
         ) : null}
         {shown ? <ResizeHandle width={width} onResize={setWidth} /> : null}
-        <main className="h-full min-w-0 flex-1">{viewer}</main>
+        <div className="flex h-full min-w-0 flex-1 flex-col">
+          <main className="min-h-0 w-full flex-1">{viewer}</main>
+          {bottom}
+        </div>
         {aside}
       </div>
       <footer className="flex h-7 shrink-0 items-center gap-4 border-border border-t bg-card px-4 text-muted-foreground">

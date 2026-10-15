@@ -19,7 +19,7 @@ function eventsUrl(): string {
 
 // Keeps the page in step with the repo: every change the server reports becomes one coalesced reload.
 export function useLiveRefresh(): LiveState {
-  const { api, session, reviews, refs } = useApp()
+  const { api, session, reviews, refs, jobs } = useApp()
   const [state, setState] = useState<LiveState>({ status: 'connecting', repo: null })
 
   useEffect(() => {
@@ -37,9 +37,12 @@ export function useLiveRefresh(): LiveState {
           // A new server build took over on the same port; the page it serves is new too.
           if (event.build && build && event.build !== build) return window.location.reload()
           build = event.build ?? build
+          // Actions that ran while the page was away still show.
+          jobs.load().catch(() => {})
           return setState((prev) => ({ ...prev, repo: event.repo }))
         }
         if (event.type === 'github') return topicChanged(event.topic)
+        if (event.type === 'job' || event.type === 'job-output') return jobs.apply(event)
         if (event.type === 'navigate') {
           pushUrl(writeTarget(event.target, window.location.search))
           void session.load(event.target)
@@ -61,7 +64,7 @@ export function useLiveRefresh(): LiveState {
       refresher.dispose()
       dispose()
     }
-  }, [api, session, reviews, refs])
+  }, [api, session, reviews, refs, jobs])
 
   return state
 }

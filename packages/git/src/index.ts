@@ -59,7 +59,7 @@ export {
 export { getPatch, streamDiff, streamPatch } from './patch'
 export { listRefs, type Ref, type RefKind } from './refs'
 export { resolveRepo } from './repo'
-export { type RunOptions, runGit, streamGit } from './run'
+export { type OutputSink, type RunOptions, runGit, streamGit, withOutput } from './run'
 export { classify, findSymbol, SYMBOL_NAME, type SymbolHit, type SymbolKind, type SymbolResult } from './symbols'
 export {
   abortOperation,
