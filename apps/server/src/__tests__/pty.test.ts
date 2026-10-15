@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTerminals, type TerminalPeer, type Terminals } from '../pty'
@@ -35,7 +35,7 @@ describe('terminals', () => {
     rmSync(dir, { recursive: true, force: true })
   })
   const make = (options: Partial<Parameters<typeof createTerminals>[0]> = {}) => {
-    dir = mkdtempSync(join(tmpdir(), 'duck-pty-'))
+    dir = realpathSync(mkdtempSync(join(tmpdir(), 'duck-pty-')))
     terminals = createTerminals({ cwd: dir, shell: '/bin/sh', args: [], flushMs: 2, ...options })
     return terminals
   }

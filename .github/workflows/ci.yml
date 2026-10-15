@@ -19,14 +19,15 @@ jobs:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile
       - run: bun run ci
+      # Before e2e too: opening a file runs nvim in a page terminal when nvim is on PATH.
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
       - run: bunx playwright install --with-deps chromium
         working-directory: apps/server
       - run: bun run test:e2e
       # Budgets are checked on Linux only; the macOS runners are too uneven to time.
       - run: bun run bench
         if: runner.os == 'Linux'
-      - uses: rhysd/action-setup-vim@v1
-        with:
-          neovim: true
-          version: stable
       - run: bun run test:nvim
