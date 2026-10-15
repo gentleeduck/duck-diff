@@ -36,6 +36,7 @@ import { WritesProvider } from '../writes/WritesProvider'
 import { ActivityRail } from './ActivityRail'
 import { AppProvider, useApp } from './AppProvider'
 import { AskDialog } from './Ask'
+import { ScrollKeeper } from './ScrollKeeper'
 import { Shell } from './Shell'
 import { StatusBar } from './StatusBar'
 import { TruncationTooltip } from './TruncationTooltip'
@@ -333,6 +334,7 @@ function Screen() {
       <Palette open={palette} onOpenChange={setPalette} initial={paletteInput} />
       <KeymapsDialog open={help} onOpenChange={setHelp} />
       <TruncationTooltip />
+      <ScrollKeeper view={view} />
       <KeymapsPicker run={runCommand} onEdit={() => setHelp(true)} />
       <WhichKey />
     </>

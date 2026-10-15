@@ -33,6 +33,14 @@ export interface Tabs extends Store<TabsState> {
   restore(repo: string, storage?: Pick<Storage, 'getItem' | 'setItem'> | null): void
 }
 
+const PULL = /^refs\/duck-diff\/pr\/\d+$/
+
+function sameComparison(a: DiffTarget, b: DiffTarget): boolean {
+  if (a.kind !== 'range' || b.kind !== 'range') return false
+  if (a.from === b.from && a.to === b.to) return true
+  return a.to === b.to && PULL.test(a.to)
+}
+
 let counter = 0
 const newId = () => `tab-${Date.now().toString(36)}-${(counter++).toString(36)}`
 
@@ -66,6 +74,13 @@ export function createTabs(initial: DiffTarget): Tabs {
       if (existing) {
         set({ tabs, active: existing.id })
         return existing
+      }
+      // Switching between .. and ... or picking another base for the same pull request edits the comparison
+      // the tab shows, rather than opening a second tab of the same name.
+      const current = tabs.find((tab) => tab.id === store.get().active)
+      if (current && current.id !== ROOT && sameComparison(current.target, target)) {
+        set({ tabs: tabs.map((tab) => (tab.id === current.id ? { ...tab, target } : tab)), active: current.id })
+        return find(current.id) as DiffTab
       }
       const tab: DiffTab = { id: newId(), target, path: null }
       set({ tabs: [...tabs, tab], active: tab.id })
@@ -118,6 +133,8 @@ export function createTabs(initial: DiffTarget): Tabs {
         for (const entry of Array.isArray(saved) ? saved : []) {
           const parsed = DiffTargetSchema.safeParse((entry as { target?: unknown })?.target)
           if (!parsed.success || isWorkingTree(parsed.data) || have.has(targetKey(parsed.data))) continue
+          // Tabs saved before .. and ... shared a tab come back as one.
+          if ([...tabs, ...back].some((tab) => sameComparison(tab.target, parsed.data))) continue
           have.add(targetKey(parsed.data))
           const path = (entry as { path?: unknown }).path
           back.push({ id: newId(), target: parsed.data, path: typeof path === 'string' ? path : null })

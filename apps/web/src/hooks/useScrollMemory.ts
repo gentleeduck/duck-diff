@@ -1,4 +1,5 @@
 import { type RefObject, useEffect, useRef } from 'react'
+import { OWN_MEMORY } from '../app/ScrollKeeper'
 import { isPopping, position } from '../lib/history'
 
 // Where each scroll container was, per history entry and as last seen, so back, forward and coming back to a
@@ -76,6 +77,8 @@ export function useScrollMemory(ref: RefObject<HTMLElement | null>, key: string 
     current.stop?.()
     attached.current = { element, key }
     if (!element || key === null) return
+    // The page-wide ScrollKeeper leaves this container to its own memory.
+    element.setAttribute(OWN_MEMORY, '')
     let settling = 0
     const place = (popped: boolean) => {
       const { entry, last } = scrollMemoryKeys(key)

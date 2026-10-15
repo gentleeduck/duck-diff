@@ -104,3 +104,23 @@ test("a file in a commit's list opens the whole commit, scrolled to that file", 
     /many\/c\.ts/,
   )
 })
+
+test('a side list keeps its place when the page is left and opened again', async ({ page, app, repo }) => {
+  for (let i = 0; i < 80; i++) repo.git('branch', `topic/${String(i).padStart(2, '0')}`)
+  await page.goto(`${app.url}&view=graph`)
+  const list = page.locator('[aria-label="Branches and tags"]').locator('.overflow-y-auto, .overflow-auto').first()
+  await expect(list).toBeVisible()
+  await expect
+    .poll(() =>
+      list.evaluate((element) => {
+        element.scrollTop = 600
+        element.dispatchEvent(new Event('scroll'))
+        return element.scrollTop
+      }),
+    )
+    .toBeGreaterThan(300)
+  const kept = await list.evaluate((element) => element.scrollTop)
+  await page.getByRole('button', { name: 'Releases', exact: true }).click()
+  await page.getByRole('button', { name: 'Commit graph', exact: true }).click()
+  await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBe(kept)
+})
