@@ -32,6 +32,8 @@ export const RepoInfoSchema = z.object({
   branch: z.string().nullable(),
   head: z.string().nullable(),
   nvim: z.boolean(),
+  // The server build, which changes when a new binary takes over in place.
+  build: z.string().optional(),
 })
 export type RepoInfo = z.infer<typeof RepoInfoSchema>
 

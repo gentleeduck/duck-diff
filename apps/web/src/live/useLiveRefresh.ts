@@ -24,6 +24,7 @@ export function useLiveRefresh(): LiveState {
 
   useEffect(() => {
     const refresher = createRefresher(() => session.reload())
+    let build: string | undefined
     const dispose = connectEvents({
       url: eventsUrl(),
       onStatus: (status) => {
@@ -32,7 +33,12 @@ export function useLiveRefresh(): LiveState {
       },
       onOpen: setTopicSender,
       onEvent: (event) => {
-        if (event.type === 'hello') return setState((prev) => ({ ...prev, repo: event.repo }))
+        if (event.type === 'hello') {
+          // A new server build took over on the same port; the page it serves is new too.
+          if (event.build && build && event.build !== build) return window.location.reload()
+          build = event.build ?? build
+          return setState((prev) => ({ ...prev, repo: event.repo }))
+        }
         if (event.type === 'github') return topicChanged(event.topic)
         if (event.type === 'navigate') {
           pushUrl(writeTarget(event.target, window.location.search))

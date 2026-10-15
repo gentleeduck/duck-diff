@@ -28,8 +28,8 @@ end
 
 local start
 
----Starts the server for `root` once and hands the same one back afterwards, unless a newer build has
----been installed since it started: then the old one stops and the new build serves instead.
+---Starts the server for `root` once and hands the same one back afterwards. A newer build installed
+---since then takes over inside the running server (same process, port and token), so it is kept.
 ---@param callback fun(err: string?, server: DuckDiffServer?)
 function M.ensure(root, callback)
   binary.ensure(function(err, bin)
@@ -38,11 +38,8 @@ function M.ensure(root, callback)
     end
     local running = servers[root]
     if running then
-      if running.stamp == stamp(bin) then
-        return callback(nil, running)
-      end
-      vim.notify('duck-diff: a new build is installed, restarting the server', vim.log.levels.INFO)
-      M.stop(root)
+      running.stamp = stamp(bin)
+      return callback(nil, running)
     end
     start(root, bin, callback)
   end)

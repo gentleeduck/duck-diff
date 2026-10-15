@@ -3,7 +3,8 @@ import { RepoInfoSchema } from './api'
 import { DiffTargetSchema } from './git'
 
 export const ServerEventSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('hello'), repo: RepoInfoSchema }),
+  // build changes when a new server binary has taken over, which tells an open page to reload.
+  z.object({ type: z.literal('hello'), repo: RepoInfoSchema, build: z.string().optional() }),
   z.object({ type: z.literal('changed'), reason: z.enum(['worktree', 'index', 'refs', 'saved', 'reviews']) }),
   // Neovim asked for another comparison while a page is already open.
   z.object({ type: z.literal('navigate'), target: DiffTargetSchema }),

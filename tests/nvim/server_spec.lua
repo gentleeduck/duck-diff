@@ -51,7 +51,7 @@ return {
     eq(nil, server.get(dir))
   end,
 
-  ['restarts the server when a new build is installed'] = function()
+  ['a new build takes over the running server in place'] = function()
     -- A private copy, so replacing it stands in for installing a new build.
     local bin = vim.fn.tempname()
     vim.fn.system({ 'cp', BINARY, bin })
@@ -61,22 +61,25 @@ return {
       server.ensure(dir, cb)
     end)
     eq(nil, first.err)
-    local same = await(function(cb)
-      server.ensure(dir, cb)
-    end)
-    eq(first.value.url, same.value.url)
+    local function info()
+      local out = vim.fn.system({ 'curl', '-s', '-H', 'x-duck-diff-token: ' .. first.value.token, first.value.origin .. '/api/repo' })
+      local ok, decoded = pcall(vim.json.decode, out)
+      return ok and decoded or nil
+    end
+    local before = info().build
     vim.fn.system({ 'cp', BINARY, bin .. '.new' })
     vim.fn.system({ 'mv', bin .. '.new', bin })
-    local second = await(function(cb)
+    vim.wait(10000, function()
+      local now = info()
+      return now ~= nil and now.build ~= before
+    end, 200)
+    local after = info()
+    assert(after and after.build ~= before, 'expected the new build to answer on the same port and token')
+    eq(false, first.value.process:is_closing())
+    local again = await(function(cb)
       server.ensure(dir, cb)
     end)
-    eq(nil, second.err)
-    assert(second.value.url ~= first.value.url, 'expected a new server after the install')
-    vim.wait(3000, function()
-      return first.value.process:is_closing()
-    end)
-    eq(true, first.value.process:is_closing())
-    eq(second.value.url, server.get(dir).url)
+    eq(first.value.url, again.value.url)
     server.stop_all()
   end,
 

@@ -8,6 +8,7 @@ import {
   listWorktrees,
   readBisect,
   readCommit,
+  readCommitStat,
   readConflict,
   readInsights,
   readSide,
@@ -35,10 +36,10 @@ import { z } from 'zod'
 import { HttpError } from './errors'
 import { iterableToStream } from './stream'
 
-export async function repoInfo(repo: string, nvim = false): Promise<RepoInfo> {
+export async function repoInfo(repo: string, nvim = false, build?: string): Promise<RepoInfo> {
   const branch = (await runGit(['branch', '--show-current'], { cwd: repo })).trim() || null
   const head = (await runGit(['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: repo, okExitCodes: [1] })).trim()
-  return { root: repo, branch, head: head || null, nvim }
+  return { root: repo, branch, head: head || null, nvim, ...(build ? { build } : {}) }
 }
 
 const PatchQuery = z.object({
@@ -104,10 +105,10 @@ async function sideQuery(repo: string, url: URL) {
   return { target, side: query.side, path: query.side === 'old' ? (query.oldPath ?? query.path) : query.path }
 }
 
-export async function handleApi(repo: string, url: URL, nvim = false): Promise<Response> {
+export async function handleApi(repo: string, url: URL, nvim = false, build?: string): Promise<Response> {
   switch (url.pathname) {
     case '/api/repo':
-      return Response.json(await repoInfo(repo, nvim))
+      return Response.json(await repoInfo(repo, nvim, build))
     case '/api/refs':
       return Response.json(await listRefs(repo))
     case '/api/files':
@@ -167,6 +168,10 @@ export async function handleApi(repo: string, url: URL, nvim = false): Promise<R
       const contents = await readTreeFile(repo, ref ?? null, path)
       if (!contents) throw new HttpError(404, 'not-found', `no file ${path}`)
       return Response.json(contents)
+    }
+    case '/api/commit-stat': {
+      const { sha } = z.object({ sha: RefNameSchema }).parse(Object.fromEntries(url.searchParams))
+      return Response.json(await readCommitStat(repo, sha))
     }
     case '/api/commit': {
       const { sha } = z.object({ sha: RefNameSchema }).parse(Object.fromEntries(url.searchParams))

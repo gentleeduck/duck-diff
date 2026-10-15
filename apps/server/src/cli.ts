@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import type { Handshake } from '@duck-diff/protocol'
 import { type Command, parseArgs, USAGE, VERSION } from './args'
+import { buildStamp, watchBinary } from './self-update'
 import { createServer } from './server'
 
 async function main(): Promise<number> {
@@ -26,9 +27,19 @@ async function main(): Promise<number> {
     finish = resolve
   })
 
+  // Read once and cleared, so sibling servers and other children never inherit them.
+  const takeover = { port: Number(process.env.DUCK_DIFF_PORT) || 0, token: process.env.DUCK_DIFF_TOKEN || undefined }
+  delete process.env.DUCK_DIFF_PORT
+  delete process.env.DUCK_DIFF_TOKEN
+  // A compiled server runs from its own binary; from source there is nothing to watch.
+  const binary = Bun.main.includes('$bunfs') ? process.execPath : null
   const server = await createServer({
     repo: command.repo,
-    port: command.port,
+    // After replacing itself the server comes back on the same port with the same token, so open pages
+    // and Neovim keep talking to it.
+    port: takeover.port || command.port,
+    token: takeover.token,
+    build: binary ? buildStamp(binary) : 'source',
     idleTimeoutMs: command.idleTimeoutMs,
     nvim: command.nvim,
     repos: command.more,
@@ -42,6 +53,17 @@ async function main(): Promise<number> {
   const handshake: Handshake = { port: server.port, token: server.token, url: server.url }
   process.stdout.write(`${JSON.stringify(handshake)}\n`)
 
+  // A new build installed over this binary takes over in place: same process, so Neovim's pipe and the
+  // plugin's handle stay, and pages reconnect and reload.
+  const execve = process.execve
+  const stopWatching =
+    binary && execve
+      ? watchBinary(binary, () => {
+          const env = { ...process.env, DUCK_DIFF_PORT: String(server.port), DUCK_DIFF_TOKEN: server.token }
+          void server.stop().then(() => execve(binary, [binary, ...process.argv.slice(2)], env))
+        })
+      : () => {}
+
   process.on('SIGINT', () => finish(0))
   process.on('SIGTERM', () => finish(0))
   // The plugin keeps stdin open; when Neovim dies the pipe closes and the server follows.
@@ -49,6 +71,7 @@ async function main(): Promise<number> {
   process.stdin.resume()
 
   const code = await finished
+  stopWatching()
   await server.stop()
   return code
 }

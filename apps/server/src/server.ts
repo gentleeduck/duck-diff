@@ -62,6 +62,8 @@ export interface ServerOptions {
   lsp?: NavigatorOptions
   // How a worktree or submodule gets its own server; tests swap in a fake.
   startSibling?: StartServer
+  // The build this server runs; pages reload when it changes under them.
+  build?: string
   // More repositories for the switcher, from repeated --repo; given means remember this one too.
   repos?: string[]
   // How often the GitHub watcher looks at what is due, and seconds between asks per topic; tests make both quick.
@@ -231,7 +233,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           ])
           return new Response(null, { status: 204 })
         }
-        if (url.pathname.startsWith('/api/')) return await handleApi(repo, url, Boolean(options.nvim))
+        if (url.pathname.startsWith('/api/')) return await handleApi(repo, url, Boolean(options.nvim), options.build)
         const response = serveWeb(url.pathname)
         // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
         if (response.headers.get('content-type')?.startsWith('text/html')) {
@@ -246,8 +248,8 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
       async open(socket) {
         hub.add(socket)
         // The repo can disappear under a running server; a missing hello is better than a crash.
-        const info = await repoInfo(repo, Boolean(options.nvim)).catch(() => null)
-        if (info) socket.send(JSON.stringify({ type: 'hello', repo: info }))
+        const info = await repoInfo(repo, Boolean(options.nvim), options.build).catch(() => null)
+        if (info) socket.send(JSON.stringify({ type: 'hello', repo: info, build: options.build }))
       },
       close(socket) {
         hub.remove(socket)
