@@ -12,7 +12,7 @@ import {
 import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
 import { glide } from '../lib/glide'
 import type { Note, NoteItem } from '../review/annotations'
-import type { Page, PageRow } from './page'
+import { anchorId, type Page, type PageRow } from './page'
 import { LineRow, RowContext, type RowContextValue } from './RowViews'
 import { useCodeScrollX } from './useCodeScrollX'
 
@@ -136,6 +136,45 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
   const first = items.find((virtual) => virtual.end > scrollTop)
   const firstRow = first ? page.rows[first.index] : undefined
   const pinned = !first || !firstRow || (firstRow.type === 'header' && first.start >= scrollTop) ? null : firstRow.item
+  // When the page is rebuilt under the reader (a file's full text arrives and its gaps open, the files
+  // reload), the row at the top of the screen stays where it was, instead of everything above it pushing
+  // the reading place down. Only within one comparison; another one returns to its own remembered place.
+  const anchor = useRef<{ rows: { id: string; delta: number }[]; scrollKey: string | undefined } | null>(null)
+  const shownPage = useRef(page)
+  useLayoutEffect(() => {
+    if (shownPage.current === page) return
+    shownPage.current = page
+    const held = anchor.current
+    const element = scroller.current
+    if (!held || !element || held.scrollKey !== scrollKey) return
+    // The first of the rows that were on screen that still exists; a gap bar that just opened does not.
+    const where = new Map(page.rows.map((row, index) => [anchorId(row), index]))
+    for (const { id, delta } of held.rows) {
+      const index = where.get(id)
+      const start = index === undefined ? undefined : virtualizer.measurementsCache[index]?.start
+      if (start === undefined) continue
+      const top = start - delta
+      if (Math.abs(element.scrollTop - top) > 1) element.scrollTop = top
+      return
+    }
+  }, [page, scrollKey, virtualizer])
+  useLayoutEffect(() => {
+    const element = scroller.current
+    if (!element) return
+    const top = element.scrollTop
+    const rows = virtualizer
+      .getVirtualItems()
+      .filter((virtual) => virtual.start >= top)
+      .flatMap((virtual) => {
+        const row = page.rows[virtual.index]
+        return row && !(row.type === 'row' && row.row.type === 'gap')
+          ? [{ id: anchorId(row), delta: virtual.start - top }]
+          : []
+      })
+      .slice(0, 8)
+    if (rows.length) anchor.current = { rows, scrollKey }
+  })
+
   // Header rows in page order, for finding the one after the pinned file.
   const headers = useMemo(() => [...page.starts.values()].sort((a, b) => a - b), [page])
   const pinnedBox = useRef<HTMLDivElement>(null)

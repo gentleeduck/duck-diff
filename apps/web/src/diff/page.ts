@@ -78,3 +78,16 @@ export function buildPage(
   }
   return { rows, starts, lines, files }
 }
+
+// What a row is, as opposed to where it sits: the same code line keeps it when a gap above opens and every
+// row key in the file changes. The diff keeps that row in place on screen across such a rebuild.
+export function anchorId(row: PageRow): string {
+  if (row.type !== 'row') return row.key
+  const diff = row.row
+  const id = row.item.id
+  if (diff.type === 'gap') return `${id}:gap:${diff.before}`
+  if (diff.type === 'hunk') return `${id}:hunk:${diff.index}`
+  const line = diff.type === 'line' ? diff.line : (diff.right ?? diff.left)
+  if (!line) return row.key
+  return line.newNo !== null ? `${id}:new:${line.newNo}` : `${id}:old:${line.oldNo}`
+}
