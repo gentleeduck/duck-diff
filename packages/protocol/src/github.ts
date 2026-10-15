@@ -201,7 +201,8 @@ export const PullRefsSchema = z.object({ base: z.string(), head: z.string() })
 export type PullRefs = z.infer<typeof PullRefsSchema>
 
 export const ListFilterSchema = z.enum(['all', 'mine', 'review-requested', 'assigned', 'mentioned'])
-export const ListSortSchema = z.enum(['updated', 'created', 'comments'])
+// GitHub's sorts: newest first by default, with -asc for the other way round.
+export const ListSortSchema = z.enum(['updated', 'created', 'comments', 'updated-asc', 'created-asc', 'comments-asc'])
 export const ListQuerySchema = z.object({
   kind: z.enum(['pr', 'issue']),
   state: z.enum(['open', 'closed']).default('open'),
@@ -225,6 +226,9 @@ export const ListItemSchema = z.object({
   assignees: z.array(GitHubUserSchema),
   milestone: z.string().nullable(),
   updatedAt: z.string(),
+  // When it was opened, and closed or merged, for the row's "opened 2 days ago" line.
+  createdAt: z.string().default(''),
+  closedAt: z.string().nullable().default(null),
   url: z.string(),
   // Pull requests only.
   review: z.enum(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED']).nullable(),

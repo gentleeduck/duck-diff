@@ -230,7 +230,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         input.kind === 'pr' ? 'is:pr' : 'is:issue',
         `is:${input.state}`,
         FILTERS[input.filter],
-        `sort:${input.sort}-desc`,
+        `sort:${input.sort.endsWith('-asc') ? input.sort : `${input.sort}-desc`}`,
         input.query,
       ]
         .filter(Boolean)
@@ -995,7 +995,7 @@ const SEARCH = `query($q: String!, $after: String) {
     pageInfo { hasNextPage endCursor }
     nodes {
       ... on Issue {
-        number title state url updatedAt
+        number title state url updatedAt createdAt closedAt
         author { login avatarUrl }
         labels(first: 10) { nodes { name color } }
         comments { totalCount }
@@ -1003,7 +1003,7 @@ const SEARCH = `query($q: String!, $after: String) {
         milestone { title }
       }
       ... on PullRequest {
-        number title state url updatedAt isDraft merged reviewDecision
+        number title state url updatedAt createdAt closedAt mergedAt isDraft merged reviewDecision
         author { login avatarUrl }
         labels(first: 10) { nodes { name color } }
         comments { totalCount }
@@ -1021,6 +1021,9 @@ interface RawNode {
   state: 'OPEN' | 'CLOSED' | 'MERGED'
   url: string
   updatedAt: string
+  createdAt?: string
+  closedAt?: string | null
+  mergedAt?: string | null
   isDraft?: boolean
   merged?: boolean
   reviewDecision?: ListItem['review']
@@ -1048,6 +1051,8 @@ function listItem(node: RawNode): ListItem {
     assignees: node.assignees.nodes.map((entry) => ({ login: entry.login, avatarUrl: entry.avatarUrl })),
     milestone: node.milestone?.title ?? null,
     updatedAt: node.updatedAt,
+    createdAt: node.createdAt ?? node.updatedAt,
+    closedAt: node.mergedAt ?? node.closedAt ?? null,
     url: node.url,
     review: node.reviewDecision ?? null,
     checks: node.commits?.nodes[0]?.commit.statusCheckRollup?.state ?? null,

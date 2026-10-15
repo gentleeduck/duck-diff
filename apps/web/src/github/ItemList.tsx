@@ -1,5 +1,6 @@
 import type { ListItem, ListQuery } from '@duck-diff/protocol'
 import {
+  Button,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -7,20 +8,19 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
   Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Skeleton,
 } from '@duck-diff/ui'
-import { Check, CircleDot, Copy, FileText, RefreshCw, SquareArrowOutUpRight } from 'lucide-react'
+import { Check, ChevronDown, CircleDot, Copy, FileText, RefreshCw, Search, SquareArrowOutUpRight } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import type { Store } from '../lib/store'
+import { ListFilters } from './ListFilters'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { usePoll } from './usePoll'
@@ -46,12 +46,6 @@ const FILTERS: { value: ListQuery['filter']; label: string; kinds: ListQuery['ki
   { value: 'assigned', label: 'Assigned to me', kinds: ['pr', 'issue'] },
   { value: 'mentioned', label: 'Mentioning me', kinds: ['pr', 'issue'] },
 ]
-const SORTS: { value: ListQuery['sort']; label: string }[] = [
-  { value: 'updated', label: 'Updated' },
-  { value: 'created', label: 'Newest' },
-  { value: 'comments', label: 'Most comments' },
-]
-
 async function copy(text: string, what: string) {
   await navigator.clipboard.writeText(text)
   toast(`Copied the ${what}`)
@@ -164,37 +158,38 @@ export function ItemList({ kind, label, selection, row, version = 0, actions, me
     <div ref={page} className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Input
-            className="min-w-64 flex-1"
-            aria-label={`Search ${label.toLowerCase()}`}
-            placeholder={`Search ${label.toLowerCase()}: label:bug author:octo fix`}
-            value={typed}
-            onChange={(event) => setTyped(event.target.value)}
-          />
-          <Select value={filter} onValueChange={(value: string) => value && setFilter(value as ListQuery['filter'])}>
-            <SelectTrigger aria-label="Filter" className="h-7 w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {FILTERS.filter((entry) => entry.kinds.includes(kind)).map((entry) => (
-                <SelectItem key={entry.value} value={entry.value}>
-                  {entry.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={sort} onValueChange={(value: string) => value && setSort(value as ListQuery['sort'])}>
-            <SelectTrigger aria-label="Sort" className="h-7 w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SORTS.map((entry) => (
-                <SelectItem key={entry.value} value={entry.value}>
-                  {entry.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex min-w-64 flex-1">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button size="sm" variant="outline" className="rounded-e-none">
+                  Filters
+                  <ChevronDown />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="flex w-60 flex-col p-1">
+                {FILTERS.filter((entry) => entry.kinds.includes(kind)).map((entry) => (
+                  <button
+                    key={entry.value}
+                    type="button"
+                    onClick={() => setFilter(entry.value)}
+                    className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-start hover:bg-accent">
+                    <span className="w-4">{filter === entry.value ? <Check className="size-4" /> : null}</span>
+                    {entry.label}
+                  </button>
+                ))}
+              </PopoverContent>
+            </Popover>
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute start-2 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="rounded-s-none border-s-0 ps-8"
+                aria-label={`Search ${label.toLowerCase()}`}
+                placeholder={`is:${kind} is:${state} ${typed ? '' : 'label:bug author:octo fix'}`.trim()}
+                value={typed}
+                onChange={(event) => setTyped(event.target.value)}
+              />
+            </div>
+          </div>
           <IconTool label={`Reload ${label.toLowerCase()}`} onClick={reload}>
             <RefreshCw />
           </IconTool>
@@ -204,7 +199,7 @@ export function ItemList({ kind, label, selection, row, version = 0, actions, me
           <div
             role="tablist"
             aria-label="State"
-            className="flex items-center gap-4 border-border border-b bg-card px-4 py-2">
+            className="flex flex-wrap items-center gap-4 border-border border-b bg-card px-4 py-2">
             {(['open', 'closed'] as const).map((value) => (
               <button
                 key={value}
@@ -217,6 +212,16 @@ export function ItemList({ kind, label, selection, row, version = 0, actions, me
                 {totals[value] === null ? '' : totals[value]?.toLocaleString()} {value === 'open' ? 'Open' : 'Closed'}
               </button>
             ))}
+            <ListFilters
+              kind={kind}
+              query={typed}
+              onQuery={(next) => {
+                setTyped(next)
+                setQuery(next.trim())
+              }}
+              sort={sort}
+              onSort={setSort}
+            />
           </div>
           <div role="listbox" aria-label={label}>
             {failed ? <p className="p-4 text-removed">{failed}</p> : null}

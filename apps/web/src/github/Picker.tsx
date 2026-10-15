@@ -17,12 +17,18 @@ export function Picker({
   selected,
   single = false,
   onApply,
+  trigger,
+  live = false,
 }: {
   title: string
   load(): Promise<Choice[]>
   selected: string[]
   single?: boolean
   onApply(next: string[]): void
+  // What opens it; the sidebar's gear when absent.
+  trigger?: ReactNode
+  // Applies each pick at once (list filters) instead of when the picker closes (sidebar edits).
+  live?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [choices, setChoices] = useState<Choice[] | null>(null)
@@ -37,19 +43,20 @@ export function Picker({
       load().then(setChoices, () => setChoices([]))
       return
     }
+    if (live) return
     const before = [...selected].sort().join('\n')
     const after = [...picked].sort().join('\n')
     if (before !== after) onApply([...picked])
   }
 
   const toggle = (value: string) => {
-    if (single) {
-      setPicked(picked.has(value) ? new Set() : new Set([value]))
-      return
-    }
-    const next = new Set(picked)
-    if (!next.delete(value)) next.add(value)
+    const next = single ? new Set(picked.has(value) ? [] : [value]) : new Set(picked)
+    if (!single && !next.delete(value)) next.add(value)
     setPicked(next)
+    if (live) {
+      onApply([...next])
+      if (single) setOpen(false)
+    }
   }
 
   const needle = filter.trim().toLowerCase()
@@ -57,11 +64,13 @@ export function Picker({
   return (
     <Popover open={open} onOpenChange={toggleOpen}>
       <PopoverTrigger asChild>
-        <span>
-          <IconTool label={`Edit ${title.toLowerCase()}`} onClick={() => {}}>
-            <Settings />
-          </IconTool>
-        </span>
+        {trigger ?? (
+          <span>
+            <IconTool label={`Edit ${title.toLowerCase()}`} onClick={() => {}}>
+              <Settings />
+            </IconTool>
+          </span>
+        )}
       </PopoverTrigger>
       <PopoverContent align="end" className="flex w-72 flex-col gap-1 p-1">
         <p className="px-2 pt-1 text-muted-foreground">{title}</p>

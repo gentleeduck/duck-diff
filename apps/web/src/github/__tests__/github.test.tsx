@@ -1,5 +1,5 @@
 import type { PullDetails } from '@duck-diff/protocol'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../../app/App'
 import type { GitHubApi } from '../../lib/api'
@@ -55,6 +55,7 @@ function githubApi(overrides: Partial<GitHubApi> = {}): GitHubApi {
           milestone: null,
           review: 'APPROVED' as const,
           checks: 'SUCCESS' as const,
+          closedAt: null,
         },
       ],
       total: 1,
@@ -175,7 +176,35 @@ describe('GitHub views', () => {
     await waitFor(() =>
       expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'pr', query: 'label:bug' })),
     )
-    expect(screen.getByLabelText('Approved')).toBeTruthy()
+    expect(screen.getByText('· Approved')).toBeTruthy()
+  })
+
+  it('filters by author and label from the header menus, writing them into the search', async () => {
+    const list = vi.fn(githubApi().list)
+    const options = async () => ({
+      labels: [{ name: 'area: web', color: 'ff0000', description: '' }],
+      milestones: [],
+      people: [author],
+      teams: [],
+    })
+    render(<App api={fakeApi({ github: githubApi({ list, options }) })} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Filter by author' }))
+    const authors = await screen.findByRole('listbox', { name: 'Filter by author' })
+    fireEvent.click(await within(authors).findByRole('option', { name: /octo/ }))
+    await waitFor(() =>
+      expect(list).toHaveBeenCalledWith(expect.objectContaining({ state: 'open', query: 'author:octo' })),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Filter by label' }))
+    const labels = await screen.findByRole('listbox', { name: 'Filter by label' })
+    fireEvent.click(await within(labels).findByRole('option', { name: /area: web/ }))
+    await waitFor(() =>
+      expect(list).toHaveBeenCalledWith(
+        expect.objectContaining({ state: 'open', query: 'author:octo label:"area: web"' }),
+      ),
+    )
+    expect((screen.getByLabelText('Search pull requests') as HTMLInputElement).value).toBe(
+      'author:octo label:"area: web"',
+    )
   })
 
   it('shows the timeline, quotes a comment into the box, and reacts', async () => {
