@@ -29,9 +29,12 @@ export function createGraph(api: Api): Graph {
     current = controller
     store.set((prev) => ({ ...prev, status: 'loading', error: null }))
     try {
-      const refs = await api.refs()
+      // Both at once: the log does not need the refs to start streaming, only to name remote branches.
+      const [refs, body] = await Promise.all([
+        api.refs(),
+        api.graph({ all: store.get().all, limit: LIMIT }, controller.signal),
+      ])
       const remotes = new Set(refs.filter((ref) => ref.kind === 'remote').map((ref) => ref.name))
-      const body = await api.graph({ all: store.get().all, limit: LIMIT }, controller.signal)
       const layout = createLayout()
       const entries: GraphEntry[] = []
       const rows: GraphRow[] = []

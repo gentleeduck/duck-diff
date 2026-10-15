@@ -93,7 +93,16 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
     // The highlighter starts with the page and loads the changed files' grammars while the diff is read,
     // so the first rows arrive colored.
     highlighter.warm([])
-    void value.session.load(value.session.get().target)
+    // The diff is read first only when it is the page being opened; other views get their own data out
+    // first and the diff follows once the page is idle.
+    const loadDiff = () => void value.session.load(value.session.get().target)
+    const opening = value.view.get()
+    if (opening === 'changes') loadDiff()
+    else {
+      if (opening === 'graph') void value.graph.load()
+      const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 300))
+      idle(loadDiff, { timeout: 1500 })
+    }
     let warmed = false
     return value.session.subscribe(() => {
       const files = value.session.get().files

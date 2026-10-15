@@ -118,9 +118,16 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     return slug
   }
 
+  // Finding the token can mean running `gh auth token`, so it is looked up once and kept until GitHub
+  // refuses it.
+  let found: Promise<{ token: string; source: GitHubStatus['source'] } | null> | null = null
   async function token(): Promise<{ token: string; source: GitHubStatus['source'] } | null> {
     if (pasted) return { token: pasted, source: 'token' }
-    return findToken()
+    found ??= findToken().then((result) => {
+      if (!result) found = null
+      return result
+    })
+    return found
   }
 
   async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -147,6 +154,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
       },
     })
     if (response.status === 304 && cached) return { status: 200, body: cached.body as T }
+    if (response.status === 401) found = null
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { message?: string } | null
       throw new HttpError(
