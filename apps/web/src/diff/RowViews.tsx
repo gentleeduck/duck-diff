@@ -1,17 +1,20 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { ChevronsUpDown, MessageSquarePlus, Minus, Plus, Undo2 } from 'lucide-react'
-import { createContext, memo, useContext, useMemo } from 'react'
+import { createContext, memo, useContext, useMemo, useSyncExternalStore } from 'react'
 import type { NoteItem } from '../review/annotations'
 import type { Settings } from '../state/settings'
 import type { WriteKind } from '../viewer/actions'
 import { Code } from './Code'
 import type { Token } from './highlight'
+import { highlighter } from './highlighter'
 import type { DiffLine, DiffRow } from './rows'
 import { changedRanges } from './words'
 
 export interface RowContextValue {
   settings: Settings
   tokens(item: NoteItem, side: 'old' | 'new', line: number): Token[] | undefined
+  // Starts a file's colors before it scrolls into view.
+  prefetch(item: NoteItem): void
   kinds(item: NoteItem): WriteKind[]
   comment(item: NoteItem, line: DiffLine, side: 'additions' | 'deletions'): void
   write(kind: WriteKind, item: NoteItem, hunk: number): void
@@ -96,6 +99,12 @@ function Cell({
   numbers: 'both' | 'one'
 }) {
   const { settings, tokens } = useRow()
+  const tokenSide = line?.kind === 'deletion' ? 'old' : 'new'
+  const tokenLine = line ? (tokenSide === 'old' ? line.oldNo : line.newNo) : null
+  // Each line listens for its own colors, so a file's tokens landing repaints just its rows on screen.
+  const lineTokens = useSyncExternalStore(highlighter.subscribe, () =>
+    tokenLine === null ? undefined : tokens(item, tokenSide, tokenLine),
+  )
   const marks = useMemo(() => {
     if (!line?.partner || settings.lineDiffType === 'none') return undefined
     const mode = settings.lineDiffType === 'char' ? 'char' : 'word'
@@ -109,8 +118,6 @@ function Cell({
       <div className="min-w-0 flex-1 bg-[repeating-linear-gradient(-45deg,transparent_0_6px,var(--border)_6px_7px)]" />
     )
 
-  const tokenSide = line.kind === 'deletion' ? 'old' : 'new'
-  const tokenLine = tokenSide === 'old' ? line.oldNo : line.newNo
   const wrap = settings.overflow === 'wrap'
   return (
     <div
@@ -138,11 +145,7 @@ function Cell({
       </span>
       <code
         className={`min-w-0 flex-1 pe-4 ${wrap ? 'whitespace-pre-wrap break-all' : 'overflow-hidden whitespace-pre'}`}>
-        <Code
-          text={line.text}
-          tokens={tokenLine === null ? undefined : tokens(item, tokenSide, tokenLine)}
-          marks={marks}
-        />
+        <Code text={line.text} tokens={lineTokens} marks={marks} />
       </code>
     </div>
   )
