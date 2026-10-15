@@ -9,9 +9,12 @@ import type {
   GitHubUser,
   IssueDetails,
   IssueSummary,
+  ItemExtras,
+  LinkedItem,
   ListItem,
   ListPage,
   ListQuery,
+  MergeInfo,
   Notification,
   Options,
   PendingComment,
@@ -26,6 +29,7 @@ import type {
   WorkflowRun,
 } from '@duck-diff/protocol'
 import { HttpError } from './errors'
+import { applyEdits, type SuggestionEdit, suggestionLines } from './suggestions'
 
 export interface GitHubOptions {
   fetch?: typeof fetch
@@ -171,6 +175,23 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     return result.data
   }
 
+  async function ownerAndName(): Promise<[string, string]> {
+    const name = await repoSlug()
+    if (!name) throw new HttpError(409, 'bad-request', 'this repository has no GitHub remote named origin')
+    return name.split('/') as [string, string]
+  }
+
+  async function nodeIdOf(number: number): Promise<string> {
+    const [owner, name] = await ownerAndName()
+    const data = await graphql<{ repository: { issueOrPullRequest: { id: string } | null } }>(
+      'query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { issueOrPullRequest(number: $number) { ... on Issue { id } ... on PullRequest { id } } } }',
+      { owner, repo: name, number },
+    )
+    const id = data.repository.issueOrPullRequest?.id
+    if (!id) throw new HttpError(404, 'not-found', `no issue or pull request #${number}`)
+    return id
+  }
+
   async function repoPath(): Promise<string> {
     const name = await repoSlug()
     if (!name) throw new HttpError(409, 'bad-request', 'this repository has no GitHub remote named origin')
@@ -241,16 +262,126 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         call<{ number: number; title: string }[]>(`${base}/milestones?state=open&per_page=100`),
         this.mentions(),
       ])
+      // Only organization repos have teams, and listing them needs more access than the rest.
+      const teams = await call<{ slug: string; name: string }[]>(`${base}/teams?per_page=100`).catch(() => [])
       return {
         labels: labels.map((label) => ({ name: label.name, color: label.color, description: label.description ?? '' })),
         milestones: milestones.map((milestone) => ({ number: milestone.number, title: milestone.title })),
         people,
+        teams: teams.map((team) => ({ slug: team.slug, name: team.name })),
       }
     },
+    // Teams come as "org/slug" beside plain logins; GitHub takes them in a separate list by slug.
     async requestReviewers(number: number, input: { add: string[]; remove: string[] }): Promise<void> {
       const path = `${await repoPath()}/pulls/${number}/requested_reviewers`
-      if (input.add.length) await call(path, { method: 'POST', body: JSON.stringify({ reviewers: input.add }) })
-      if (input.remove.length) await call(path, { method: 'DELETE', body: JSON.stringify({ reviewers: input.remove }) })
+      const split = (names: string[]) =>
+        JSON.stringify({
+          reviewers: names.filter((name) => !name.includes('/')),
+          team_reviewers: names.filter((name) => name.includes('/')).map((name) => name.slice(name.indexOf('/') + 1)),
+        })
+      if (input.add.length) await call(path, { method: 'POST', body: split(input.add) })
+      if (input.remove.length) await call(path, { method: 'DELETE', body: split(input.remove) })
+    },
+    async extras(number: number): Promise<ItemExtras> {
+      const [owner, name] = await ownerAndName()
+      const data = await graphql<RawExtras>(EXTRAS, { owner, repo: name, number })
+      const item = data.repository.issueOrPullRequest
+      if (!item) throw new HttpError(404, 'not-found', `no issue or pull request #${number}`)
+      const pull = item.__typename === 'PullRequest'
+      const refs = (pull ? item.closingIssuesReferences : item.closedByPullRequestsReferences)?.nodes ?? []
+      // Projects need the read:project scope, so a token without it still gets the rest.
+      const projects = await graphql<RawProjects>(PROJECTS, { owner, repo: name, number }).then(
+        (found) =>
+          (found.repository.issueOrPullRequest?.projectItems?.nodes ?? []).map((node) => ({
+            title: node.project.title,
+            status: node.fieldValueByName?.name ?? null,
+            url: node.project.url,
+          })),
+        () => null,
+      )
+      return {
+        subscription: item.viewerSubscription ?? 'UNSUBSCRIBED',
+        pinned: pull ? null : Boolean(item.isPinned),
+        projects,
+        linked: refs.map(
+          (ref): LinkedItem => ({
+            number: ref.number,
+            title: ref.title,
+            pull: !pull,
+            state: ref.state.toLowerCase() as LinkedItem['state'],
+          }),
+        ),
+      }
+    },
+    // Commits review suggestions to the head branch as one commit, like GitHub's "Commit suggestions".
+    async applySuggestions(number: number, ids: number[], message: string): Promise<void> {
+      const base = await repoPath()
+      const raw = await call<RawPullDetails>(`${base}/pulls/${number}`)
+      const headRepo = raw.head.repo?.full_name
+      if (!headRepo) throw new HttpError(409, 'stale', 'the head branch of this pull request is gone')
+      const comments = await Promise.all(
+        ids.map((id) =>
+          call<{ path: string; line: number | null; start_line: number | null; side: string; body: string }>(
+            `${base}/pulls/comments/${id}`,
+          ),
+        ),
+      )
+      const byPath = new Map<string, SuggestionEdit[]>()
+      for (const comment of comments) {
+        const lines = suggestionLines(comment.body)
+        if (lines === null) throw new HttpError(400, 'bad-request', `a comment on ${comment.path} has no suggestion`)
+        if (comment.line === null || comment.side !== 'RIGHT')
+          throw new HttpError(409, 'stale', `the suggestion on ${comment.path} is outdated`)
+        const edits = byPath.get(comment.path) ?? []
+        edits.push({ start: comment.start_line ?? comment.line, end: comment.line, lines })
+        byPath.set(comment.path, edits)
+      }
+      const additions = await Promise.all(
+        [...byPath].map(async ([path, edits]) => {
+          const file = await call<{ content: string }>(
+            `/repos/${headRepo}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${raw.head.sha}`,
+          )
+          const text = Buffer.from(file.content, 'base64').toString('utf8')
+          return { path, contents: Buffer.from(applyEdits(text, edits), 'utf8').toString('base64') }
+        }),
+      )
+      // The expected head makes GitHub refuse when someone pushed since the page was read.
+      await graphql(
+        'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }',
+        {
+          input: {
+            branch: { repositoryNameWithOwner: headRepo, branchName: raw.head.ref },
+            expectedHeadOid: raw.head.sha,
+            message: { headline: message },
+            fileChanges: { additions },
+          },
+        },
+      )
+    },
+    async setSubscribed(number: number, subscribed: boolean): Promise<void> {
+      await graphql(
+        'mutation($id: ID!, $state: SubscriptionState!) { updateSubscription(input: { subscribableId: $id, state: $state }) { clientMutationId } }',
+        { id: await nodeIdOf(number), state: subscribed ? 'SUBSCRIBED' : 'UNSUBSCRIBED' },
+      )
+    },
+    async setPinned(number: number, pinned: boolean): Promise<void> {
+      const mutation = pinned
+        ? 'mutation($id: ID!) { pinIssue(input: { issueId: $id }) { clientMutationId } }'
+        : 'mutation($id: ID!) { unpinIssue(input: { issueId: $id }) { clientMutationId } }'
+      await graphql(mutation, { id: await nodeIdOf(number) })
+    },
+    async transfer(number: number, target: string): Promise<{ number: number; url: string }> {
+      const [owner, name] = target.split('/')
+      const found = await graphql<{ repository: { id: string } | null }>(
+        'query($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { id } }',
+        { owner, repo: name },
+      ).catch(() => ({ repository: null }))
+      if (!found.repository) throw new HttpError(404, 'not-found', `GitHub: no repository ${target} you can write to`)
+      const moved = await graphql<{ transferIssue: { issue: { number: number; url: string } } }>(
+        'mutation($id: ID!, $repo: ID!) { transferIssue(input: { issueId: $id, repositoryId: $repo }) { issue { number url } } }',
+        { id: await nodeIdOf(number), repo: found.repository.id },
+      )
+      return moved.transferIssue.issue
     },
     async setPullState(number: number, state: 'open' | 'closed'): Promise<void> {
       await call(`${await repoPath()}/pulls/${number}`, { method: 'PATCH', body: JSON.stringify({ state }) })
@@ -435,8 +566,16 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
       if (!response.ok) throw new HttpError(502, 'failed', `GitHub: could not read the log (${response.status})`)
       return (await response.text()).split('\n').slice(-200).join('\n')
     },
-    async updateBranch(number: number): Promise<void> {
-      await call(`${await repoPath()}/pulls/${number}/update-branch`, { method: 'PUT', body: JSON.stringify({}) })
+    // REST only merges the base in; rebasing the head onto it needs GraphQL.
+    async updateBranch(number: number, method: 'merge' | 'rebase' = 'merge'): Promise<void> {
+      if (method === 'merge') {
+        await call(`${await repoPath()}/pulls/${number}/update-branch`, { method: 'PUT', body: JSON.stringify({}) })
+        return
+      }
+      await graphql(
+        'mutation($id: ID!) { updatePullRequestBranch(input: { pullRequestId: $id, updateMethod: REBASE }) { clientMutationId } }',
+        { id: await nodeIdOf(number) },
+      )
     },
     async setAutoMerge(number: number, enabled: boolean, method: string): Promise<void> {
       const { nodeId } = await this.pull(number)
@@ -476,6 +615,10 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
       }
       for (const requested of raw.requested_reviewers ?? []) {
         latest.set(requested.login, { ...user(requested), state: null })
+      }
+      const [owner] = await ownerAndName()
+      for (const team of raw.requested_teams ?? []) {
+        latest.set(`${owner}/${team.slug}`, { login: `${owner}/${team.slug}`, avatarUrl: '', state: null })
       }
       return {
         ...pullSummary(raw),
@@ -584,11 +727,53 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         : 'mutation($id: ID!, $path: String!) { unmarkFileAsViewed(input: { pullRequestId: $id, path: $path }) { clientMutationId } }'
       await graphql(mutation, { id: nodeId, path })
     },
-    async merge(number: number, method: string): Promise<void> {
+    async merge(
+      number: number,
+      input: { method: string; title?: string; message?: string; sha?: string },
+    ): Promise<void> {
       await call(`${await repoPath()}/pulls/${number}/merge`, {
         method: 'PUT',
-        body: JSON.stringify({ merge_method: method }),
+        body: JSON.stringify({
+          merge_method: input.method,
+          ...(input.title ? { commit_title: input.title } : {}),
+          ...(input.message !== undefined ? { commit_message: input.message } : {}),
+          ...(input.sha ? { sha: input.sha } : {}),
+        }),
       })
+    },
+    async mergeInfo(number: number): Promise<MergeInfo> {
+      const [owner, name] = await ownerAndName()
+      const data = await graphql<RawMergeInfo>(MERGE_INFO, { owner, repo: name, number })
+      const repo = data.repository
+      const pull = repo.pullRequest
+      if (!pull) throw new HttpError(404, 'not-found', `no pull request #${number}`)
+      const methods = [
+        ...(repo.squashMergeAllowed ? (['squash'] as const) : []),
+        ...(repo.mergeCommitAllowed ? (['merge'] as const) : []),
+        ...(repo.rebaseMergeAllowed ? (['rebase'] as const) : []),
+      ]
+      const lower = (value: string) => value.toLowerCase() as MergeInfo['defaultMethod']
+      const preferred = lower(repo.viewerDefaultMergeMethod)
+      return {
+        methods,
+        defaultMethod: methods.includes(preferred) ? preferred : (methods[0] ?? 'merge'),
+        autoMergeAllowed: repo.autoMergeAllowed,
+        deleteBranchOnMerge: repo.deleteBranchOnMerge,
+        reviewDecision: pull.reviewDecision,
+        requiredApprovals: pull.baseRef?.branchProtectionRule?.requiredApprovingReviewCount ?? null,
+        mergeState: pull.mergeStateStatus,
+        canMergeAsAdmin: pull.viewerCanMergeAsAdmin,
+        autoMerge: pull.autoMergeRequest
+          ? {
+              by: pull.autoMergeRequest.enabledBy?.login ?? 'someone',
+              method: lower(pull.autoMergeRequest.mergeMethod),
+            }
+          : null,
+        squashTitle: repo.squashMergeCommitTitle,
+        squashMessage: repo.squashMergeCommitMessage,
+        mergeTitle: repo.mergeCommitTitle,
+        mergeMessage: repo.mergeCommitMessage,
+      }
     },
     async issues(state: 'open' | 'closed'): Promise<IssueSummary[]> {
       const raw = await call<RawIssue[]>(`${await repoPath()}/issues?state=${state}&per_page=50&sort=updated`)
@@ -651,6 +836,7 @@ interface RawPullDetails extends RawPull {
   locked?: boolean
   commits: number
   requested_reviewers?: RawUser[]
+  requested_teams?: { slug: string }[]
   assignees?: RawUser[]
   milestone?: { title: string } | null
   mergeable_state?: string
@@ -1007,5 +1193,98 @@ function release(raw: RawRelease): Release {
     publishedAt: raw.published_at,
     author: user(raw.author),
     url: raw.html_url,
+  }
+}
+
+const EXTRAS = `query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issueOrPullRequest(number: $number) {
+      __typename
+      ... on Issue {
+        viewerSubscription
+        isPinned
+        closedByPullRequestsReferences(first: 10, includeClosedPrs: true) { nodes { number title state } }
+      }
+      ... on PullRequest {
+        viewerSubscription
+        closingIssuesReferences(first: 10) { nodes { number title state } }
+      }
+    }
+  }
+}`
+
+interface RawRefs {
+  nodes: { number: number; title: string; state: string }[]
+}
+
+interface RawExtras {
+  repository: {
+    issueOrPullRequest: {
+      __typename: 'Issue' | 'PullRequest'
+      viewerSubscription?: ItemExtras['subscription'] | null
+      isPinned?: boolean
+      closedByPullRequestsReferences?: RawRefs
+      closingIssuesReferences?: RawRefs
+    } | null
+  }
+}
+
+const PROJECT_ITEMS = `projectItems(first: 10) {
+  nodes {
+    project { title url }
+    fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
+  }
+}`
+
+const PROJECTS = `query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issueOrPullRequest(number: $number) {
+      ... on Issue { ${PROJECT_ITEMS} }
+      ... on PullRequest { ${PROJECT_ITEMS} }
+    }
+  }
+}`
+
+interface RawProjects {
+  repository: {
+    issueOrPullRequest: {
+      projectItems?: {
+        nodes: { project: { title: string; url: string }; fieldValueByName: { name?: string } | null }[]
+      }
+    } | null
+  }
+}
+
+const MERGE_INFO = `query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed autoMergeAllowed deleteBranchOnMerge
+    viewerDefaultMergeMethod squashMergeCommitTitle squashMergeCommitMessage mergeCommitTitle mergeCommitMessage
+    pullRequest(number: $number) {
+      reviewDecision mergeStateStatus viewerCanMergeAsAdmin
+      autoMergeRequest { enabledBy { login } mergeMethod }
+      baseRef { branchProtectionRule { requiredApprovingReviewCount } }
+    }
+  }
+}`
+
+interface RawMergeInfo {
+  repository: {
+    mergeCommitAllowed: boolean
+    squashMergeAllowed: boolean
+    rebaseMergeAllowed: boolean
+    autoMergeAllowed: boolean
+    deleteBranchOnMerge: boolean
+    viewerDefaultMergeMethod: string
+    squashMergeCommitTitle: MergeInfo['squashTitle']
+    squashMergeCommitMessage: MergeInfo['squashMessage']
+    mergeCommitTitle: MergeInfo['mergeTitle']
+    mergeCommitMessage: MergeInfo['mergeMessage']
+    pullRequest: {
+      reviewDecision: MergeInfo['reviewDecision']
+      mergeStateStatus: string
+      viewerCanMergeAsAdmin: boolean
+      autoMergeRequest: { enabledBy: { login: string } | null; mergeMethod: string } | null
+      baseRef: { branchProtectionRule: { requiredApprovingReviewCount: number | null } | null } | null
+    } | null
   }
 }

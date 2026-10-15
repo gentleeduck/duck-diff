@@ -1,6 +1,7 @@
 import type { Thread, TimelineEvent } from '@duck-diff/protocol'
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
 import {
+  ArrowDown,
   Check,
   CircleCheck,
   CircleDot,
@@ -15,7 +16,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
@@ -308,6 +309,35 @@ export function ThreadView({
           </Line>
         )
       })}
+      <NewActivity thread={thread} />
     </div>
   )
 }
+
+const who = (event: TimelineEvent) =>
+  event.kind === 'event' ? event.actor.login : event.kind === 'commit' ? null : event.author.login
+
+// Polls bring in what others wrote while the page was open; a pill says so and jumps to it.
+function NewActivity({ thread }: { thread: Thread }) {
+  const [seen, setSeen] = useState(() => new Set(thread.timeline.map(key)))
+  const end = useRef<HTMLDivElement>(null)
+  const fresh = thread.timeline.filter((event) => !seen.has(key(event)) && who(event) !== thread.viewer.login)
+  const catchUp = () => {
+    setSeen(new Set(thread.timeline.map(key)))
+    end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }
+  return (
+    <div ref={end}>
+      {fresh.length ? (
+        <div className="pointer-events-none sticky bottom-4 z-20 flex justify-center">
+          <Button size="sm" className="pointer-events-auto shadow-md" onClick={catchUp}>
+            <ArrowDown />
+            {fresh.length} new {fresh.length === 1 ? 'update' : 'updates'}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+const key = (event: TimelineEvent) => `${event.kind}:${event.kind === 'commit' ? event.sha : event.id}`

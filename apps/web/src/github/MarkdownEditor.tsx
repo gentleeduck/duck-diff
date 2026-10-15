@@ -1,8 +1,11 @@
 import { Tabs, TabsList, TabsTrigger, Textarea } from '@duck-diff/ui'
 import { CircleDot, GitPullRequest } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { Avatar } from './Conversation'
+
+const MAX_ATTACH = 512 * 1024
 
 const Markdown = lazy(() => import('../markdown/Markdown').then((module) => ({ default: module.Markdown })))
 
@@ -106,6 +109,28 @@ export function MarkdownEditor({
     }
   }, [api, sign, typed, dismissed])
 
+  // GitHub's API has no upload for attachments (github.com uses the browser session), so text files
+  // go in as code blocks and anything else is refused with that reason.
+  const attach = async (files: File[]) => {
+    const blocks: string[] = []
+    for (const file of files) {
+      const text = file.size <= MAX_ATTACH ? await file.text() : null
+      if (text === null || text.includes('\u0000')) {
+        toast.error(`${file.name}: GitHub only takes images and binaries through github.com; text files work here`)
+        continue
+      }
+      const fence = text.includes('```') ? '~~~' : '```'
+      const lang = file.name.includes('.') ? (file.name.split('.').pop() ?? '') : ''
+      blocks.push(
+        `<details><summary>${file.name}</summary>\n\n${fence}${lang}\n${text.replace(/\n$/, '')}\n${fence}\n</details>`,
+      )
+    }
+    if (!blocks.length) return
+    const at = area.current?.selectionStart ?? value.length
+    const insert = `${at && !value.slice(0, at).endsWith('\n') ? '\n' : ''}${blocks.join('\n\n')}\n`
+    onChange(value.slice(0, at) + insert + value.slice(at))
+  }
+
   const accept = (suggestion: Suggestion) => {
     if (!typing) return
     const next = value.slice(0, typing.start) + suggestion.insert + value.slice(caret)
@@ -142,6 +167,19 @@ export function MarkdownEditor({
               setDismissed(false)
             }}
             onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
+            onDragOver={(event) => {
+              if (event.dataTransfer.types.includes('Files')) event.preventDefault()
+            }}
+            onDrop={(event) => {
+              if (!event.dataTransfer.files.length) return
+              event.preventDefault()
+              void attach([...event.dataTransfer.files])
+            }}
+            onPaste={(event) => {
+              if (!event.clipboardData.files.length) return
+              event.preventDefault()
+              void attach([...event.clipboardData.files])
+            }}
             onKeyDown={(event) => {
               if (suggestions.length) {
                 if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {

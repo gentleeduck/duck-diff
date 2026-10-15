@@ -2,6 +2,7 @@ import type { GitHubUser, Reviewer } from '@duck-diff/protocol'
 import { Check, CircleDot, Eye, MessageSquare, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Avatar } from './Conversation'
+import { ItemExtras } from './ItemExtras'
 import { Labels } from './Labels'
 
 const REVIEW_ICON: Record<NonNullable<Reviewer['state']> | 'requested', ReactNode> = {
@@ -13,7 +14,7 @@ const REVIEW_ICON: Record<NonNullable<Reviewer['state']> | 'requested', ReactNod
   requested: <CircleDot className="size-4 text-tn-yellow" />,
 }
 
-function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
     <section aria-label={title} className="flex flex-col gap-2 border-border border-b pb-3 last:border-b-0">
       <h3 className="flex items-center justify-between text-muted-foreground">
@@ -45,12 +46,15 @@ export function ItemSidebar({
   assignees,
   labels,
   milestone,
+  number,
   actions = {},
 }: {
   reviewers?: Reviewer[]
   assignees: GitHubUser[]
   labels: { name: string; color: string }[]
   milestone: string | null
+  // Reads linked work, projects and the subscription when given.
+  number?: number
   actions?: Partial<Record<'reviewers' | 'assignees' | 'labels' | 'milestone', ReactNode>>
 }) {
   return (
@@ -87,6 +91,7 @@ export function ItemSidebar({
       <Section title="Milestone" action={actions.milestone}>
         <p className={milestone ? 'text-foreground' : 'text-muted-foreground'}>{milestone ?? 'No milestone'}</p>
       </Section>
+      {number === undefined ? null : <ItemExtras number={number} />}
     </aside>
   )
 }

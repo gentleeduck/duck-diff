@@ -1,15 +1,5 @@
 import type { PullCommit, PullDetails } from '@duck-diff/protocol'
-import {
-  Button,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@duck-diff/ui'
+import { Button } from '@duck-diff/ui'
 import {
   ArrowLeft,
   Check,
@@ -32,12 +22,14 @@ import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { useTarget } from '../hooks/useTarget'
-import type { MergeMethod, ReviewEvent } from '../lib/api'
+import type { ReviewEvent } from '../lib/api'
 import { ChecksList } from './Checks'
 import { Avatar, Comment, Composer } from './Conversation'
 import { ItemSidebar } from './ItemSidebar'
+import { MergeBox } from './MergeBox'
 import { ReviewChanges } from './ReviewChanges'
 import { sidebarActions } from './SidebarEditors'
+import { useGitHub } from './SignIn'
 import { StatePill } from './StatePill'
 import { ThreadMenu } from './ThreadMenu'
 import { ThreadView } from './Timeline'
@@ -46,12 +38,6 @@ import { usePoll } from './usePoll'
 import { EditableTitle, useThread } from './useThread'
 
 const Viewer = lazy(() => import('../viewer/Viewer'))
-
-const MERGE_METHODS: { value: MergeMethod; label: string }[] = [
-  { value: 'squash', label: 'Squash and merge' },
-  { value: 'merge', label: 'Create a merge commit' },
-  { value: 'rebase', label: 'Rebase and merge' },
-]
 
 type Tab = 'conversation' | 'commits' | 'checks' | 'files'
 
@@ -155,91 +141,9 @@ function Files({ number }: { number: number }) {
   )
 }
 
-function MergeBox({
-  pull,
-  busy,
-  onMerge,
-  onUpdate,
-  onAutoMerge,
-}: {
-  pull: PullDetails
-  busy: boolean
-  onMerge(method: MergeMethod): void
-  onUpdate(): void
-  onAutoMerge(enabled: boolean, method: MergeMethod): void
-}) {
-  const [method, setMethod] = useState<MergeMethod>('squash')
-  const blocked = pull.mergeable === false || pull.draft
-  const note = pull.draft
-    ? 'This pull request is still a draft.'
-    : pull.mergeable === false
-      ? 'This branch has conflicts that must be resolved.'
-      : pull.mergeableState === 'blocked'
-        ? 'Merging is blocked by required reviews or checks.'
-        : pull.mergeableState === 'unstable'
-          ? 'Some checks were not successful.'
-          : pull.mergeableState === 'behind'
-            ? 'This branch is out of date with the base branch.'
-            : 'This branch has no conflicts with the base branch.'
-  return (
-    <section
-      aria-label="Merge"
-      className={`flex flex-col gap-3 rounded-md border p-4 ${blocked ? 'border-border' : 'border-added/50'}`}>
-      <div className="flex items-center gap-3">
-        <span
-          className={`flex size-8 items-center justify-center rounded-full ${blocked ? 'bg-muted' : 'bg-added text-background'}`}>
-          <GitMerge className="size-4" />
-        </span>
-        <span className="min-w-0 flex-1 text-foreground">{note}</span>
-        {pull.mergeableState === 'behind' ? (
-          <Button size="sm" variant="outline" onClick={onUpdate}>
-            Update branch
-          </Button>
-        ) : null}
-      </div>
-      {pull.autoMerge ? (
-        <p className="text-tn-cyan">Auto-merge is on: GitHub merges this once every requirement passes.</p>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button size="sm" disabled={blocked} loading={busy}>
-              <GitMerge />
-              {MERGE_METHODS.find((option) => option.value === method)?.label}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="flex w-80 flex-col gap-2">
-            <p>
-              {MERGE_METHODS.find((option) => option.value === method)?.label} #{pull.number} into{' '}
-              <code className="text-tn-cyan">{pull.baseRef}</code> on GitHub?
-            </p>
-            <Button size="sm" className="self-end" loading={busy} onClick={() => onMerge(method)}>
-              Confirm merge
-            </Button>
-          </PopoverContent>
-        </Popover>
-        <Button size="sm" variant="outline" onClick={() => onAutoMerge(!pull.autoMerge, method)}>
-          {pull.autoMerge ? 'Disable auto-merge' : 'Enable auto-merge'}
-        </Button>
-        <Select value={method} onValueChange={(value: string) => value && setMethod(value as MergeMethod)}>
-          <SelectTrigger aria-label="Merge method" className="h-7 w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {MERGE_METHODS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </section>
-  )
-}
-
 export default function PullView({ number, onChanged }: { number: number; onChanged(): void }) {
   const { api, pullSelection } = useApp()
+  const github = useGitHub()
   const [pull, setPull] = useState<PullDetails | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -312,6 +216,10 @@ export default function PullView({ number, onChanged }: { number: number; onChan
 
   const review = (event: ReviewEvent, body: string, clear: () => void, done: string) =>
     act(event, () => api.github.review(number, event, body).then(clear), done)
+  const refreshAll = async () => {
+    await Promise.all([load(), reloadThread()])
+    onChanged()
+  }
   const reload = () => {
     void load()
     void reloadThread()
@@ -465,21 +373,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
                 <Comment author={pull.author} createdAt={pull.createdAt} body={pull.body} />
               )}
               {pull.state === 'open' ? (
-                <MergeBox
-                  pull={pull}
-                  busy={busy === 'merge'}
-                  onMerge={(method) => void act('merge', () => api.github.merge(number, method), `Merged #${number}`)}
-                  onUpdate={() =>
-                    void act('update', () => api.github.updateBranch(number), 'Updating the branch from its base')
-                  }
-                  onAutoMerge={(enabled, method) =>
-                    void act(
-                      'auto',
-                      () => api.github.setAutoMerge(number, enabled, method),
-                      enabled ? 'Auto-merge is on' : 'Auto-merge is off',
-                    )
-                  }
-                />
+                <MergeBox pull={pull} repo={github.status?.repo ?? ''} onChanged={() => refreshAll()} />
               ) : null}
               {pull.merged && pull.sameRepo ? (
                 <section
@@ -557,6 +451,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
               assignees={pull.assignees}
               labels={pull.labels}
               milestone={pull.milestone}
+              number={number}
               actions={sidebarActions({
                 api,
                 number,

@@ -3,9 +3,11 @@ import type { GraphRow, Segment } from './layout'
 
 export const LANE_WIDTH = 16
 // A filled dot for a commit, a ring around a dot for a merge, a wider hollow ring for HEAD.
-const DOT = 4
-const RING = 4.5
-const HEAD = 6
+const DOT = 5
+const RING = 5
+const HEAD = 6.5
+// One weight for lanes and rings, so the graph reads as one stroke like the UI's bold type.
+const LINE = 3
 
 // Lane colors from the terminal's palette, in the order new branches pick them.
 const COLORS = [
@@ -62,16 +64,16 @@ export const GraphLines = memo(function GraphLines({
           d={path(segment, height)}
           fill="none"
           stroke={laneColor(segment.color)}
-          strokeWidth={2}
+          strokeWidth={LINE}
           strokeLinecap="round"
         />
       ))}
       {head ? (
-        <circle cx={cx} cy={cy} r={HEAD} fill="var(--background)" stroke={dot} strokeWidth={2} />
+        <circle cx={cx} cy={cy} r={HEAD} fill="var(--background)" stroke={dot} strokeWidth={LINE} />
       ) : merge ? (
         <>
-          <circle cx={cx} cy={cy} r={RING} fill="var(--background)" stroke={dot} strokeWidth={1.5} />
-          <circle cx={cx} cy={cy} r={1.75} fill={dot} />
+          <circle cx={cx} cy={cy} r={RING} fill="var(--background)" stroke={dot} strokeWidth={LINE * 0.8} />
+          <circle cx={cx} cy={cy} r={2} fill={dot} />
         </>
       ) : (
         <circle cx={cx} cy={cy} r={DOT} fill={dot} />

@@ -7,14 +7,14 @@ import { useApp } from '../app/AppProvider'
 
 type Outcome = 'passed' | 'failed' | 'running' | 'skipped'
 
-function outcome(run: CheckRun): Outcome {
+export function outcome(run: CheckRun): Outcome {
   if (run.status !== 'completed') return 'running'
   if (run.conclusion === 'success') return 'passed'
   if (run.conclusion === 'skipped' || run.conclusion === 'neutral') return 'skipped'
   return 'failed'
 }
 
-const LOOK: Record<Outcome, { icon: typeof CircleCheck; className: string }> = {
+export const LOOK: Record<Outcome, { icon: typeof CircleCheck; className: string }> = {
   passed: { icon: CircleCheck, className: 'text-added' },
   failed: { icon: CircleX, className: 'text-removed' },
   running: { icon: CircleDashed, className: 'text-tn-yellow' },

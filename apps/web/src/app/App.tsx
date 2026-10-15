@@ -207,13 +207,17 @@ function Screen() {
   const screen = screens[view]
   const panel = useSettings(selectPanel)
   const unread = useUnread()
+  const { settings } = useApp()
+  const togglePanel = () => settings.set((prev) => ({ ...prev, sidebar: !prev.sidebar }))
   return (
     <>
       <Shell
         rail={<ActivityRail views={SHIPPED} badges={{ inbox: unread }} />}
         topBar={screen.top}
-        sidebar={panel ? screen.side : null}
+        sidebar={screen.side}
         sidebarLabel={screen.label}
+        panelShown={panel}
+        onTogglePanel={togglePanel}
         viewer={<Suspense fallback={null}>{screen.main}</Suspense>}
         status={<StatusBar live={live} />}
       />

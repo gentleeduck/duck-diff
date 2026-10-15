@@ -144,8 +144,15 @@ function Cell({
         {settings.diffIndicators === 'classic' ? SIGN[line.kind] : ''}
       </span>
       <code
+        data-code
         className={`min-w-0 flex-1 pe-4 ${wrap ? 'whitespace-pre-wrap break-all' : 'overflow-hidden whitespace-pre'}`}>
-        <Code text={line.text} tokens={lineTokens} marks={marks} />
+        {wrap ? (
+          <Code text={line.text} tokens={lineTokens} marks={marks} />
+        ) : (
+          <span className="inline-block translate-x-[calc(var(--code-x,0px)*-1)]">
+            <Code text={line.text} tokens={lineTokens} marks={marks} />
+          </span>
+        )}
       </code>
     </div>
   )

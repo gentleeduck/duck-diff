@@ -132,8 +132,11 @@ describe('GitHub views', () => {
     fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Squash and merge' }))
     expect(merge).not.toHaveBeenCalled()
-    fireEvent.click(await screen.findByRole('button', { name: 'Confirm merge' }))
-    await waitFor(() => expect(merge).toHaveBeenCalledWith(7, 'squash'))
+    expect(((await screen.findByLabelText('Commit title')) as HTMLInputElement).value).toBe('Add things (#7)')
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm squash and merge' }))
+    await waitFor(() =>
+      expect(merge).toHaveBeenCalledWith(7, 'squash', { title: 'Add things (#7)', message: '', sha: 'h' }),
+    )
   })
 
   it('opens a pull request from the current branch, titled by its latest commit', async () => {
@@ -199,6 +202,7 @@ describe('GitHub views', () => {
     const options = async () => ({
       labels: [{ name: 'bug', color: 'ff0000', description: 'Something broke' }],
       milestones: [],
+      teams: [],
       people: [],
     })
     render(<App api={fakeApi({ github: githubApi({ editThread, options }) })} />)
@@ -253,6 +257,40 @@ describe('GitHub views', () => {
         assignees: [],
       }),
     )
+  })
+
+  it('shows linked work in the sidebar and subscribes to the thread', async () => {
+    const setSubscribed = vi.fn(async () => {})
+    const extras = async () => ({
+      subscription: 'UNSUBSCRIBED' as const,
+      pinned: null,
+      projects: [{ title: 'Roadmap', status: 'In progress', url: 'p' }],
+      linked: [{ number: 3, title: 'Graph lanes overlap', pull: false, state: 'open' as const }],
+    })
+    render(<App api={fakeApi({ github: githubApi({ extras, setSubscribed }) })} />)
+    fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
+    expect(await screen.findByRole('button', { name: /Graph lanes overlap/ })).toBeTruthy()
+    expect(screen.getByText('In progress')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Subscribe' }))
+    await waitFor(() => expect(setSubscribed).toHaveBeenCalledWith(7, true))
+  })
+
+  it('blocks merging until an admin ticks the bypass', async () => {
+    const base = fakeApi().github
+    const mergeInfo = async () => ({
+      ...(await base.mergeInfo(7)),
+      mergeState: 'BLOCKED',
+      reviewDecision: 'REVIEW_REQUIRED' as const,
+      requiredApprovals: 2,
+      canMergeAsAdmin: true,
+    })
+    render(<App api={fakeApi({ github: githubApi({ mergeInfo }) })} />)
+    fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
+    expect(await screen.findByText('Review required')).toBeTruthy()
+    const button = (await screen.findByRole('button', { name: 'Squash and merge' })) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    fireEvent.click(screen.getByLabelText(/bypass rules/))
+    expect(((await screen.findByRole('button', { name: /bypass/ })) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('says so when the repo has no GitHub remote', async () => {

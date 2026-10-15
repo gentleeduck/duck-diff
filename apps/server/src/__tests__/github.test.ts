@@ -195,11 +195,71 @@ function fakeGitHub(calls: Call[]) {
         },
       })
     }
-    if (
-      path === '/graphql' &&
-      String((JSON.parse(String(init?.body)) as { query: string }).query).startsWith('mutation')
-    ) {
-      return Response.json({ data: {} })
+    const query = path === '/graphql' ? String((JSON.parse(String(init?.body)) as { query: string }).query) : ''
+    if (query.includes('viewerSubscription')) {
+      return Response.json({
+        data: {
+          repository: {
+            issueOrPullRequest: {
+              __typename: 'Issue',
+              viewerSubscription: 'SUBSCRIBED',
+              isPinned: true,
+              closedByPullRequestsReferences: { nodes: [{ number: 7, title: 'Add things', state: 'MERGED' }] },
+            },
+          },
+        },
+      })
+    }
+    if (query.includes('projectItems')) return Response.json({ errors: [{ message: 'missing read:project' }] })
+    if (query.includes('mergeStateStatus')) {
+      return Response.json({
+        data: {
+          repository: {
+            mergeCommitAllowed: false,
+            squashMergeAllowed: true,
+            rebaseMergeAllowed: true,
+            autoMergeAllowed: true,
+            deleteBranchOnMerge: true,
+            viewerDefaultMergeMethod: 'MERGE',
+            squashMergeCommitTitle: 'PR_TITLE',
+            squashMergeCommitMessage: 'PR_BODY',
+            mergeCommitTitle: 'MERGE_MESSAGE',
+            mergeCommitMessage: 'PR_TITLE',
+            pullRequest: {
+              reviewDecision: 'REVIEW_REQUIRED',
+              mergeStateStatus: 'BLOCKED',
+              viewerCanMergeAsAdmin: true,
+              autoMergeRequest: null,
+              baseRef: { branchProtectionRule: { requiredApprovingReviewCount: 2 } },
+            },
+          },
+        },
+      })
+    }
+    if (query.includes('issueOrPullRequest(number: $number) { ... on Issue { id }')) {
+      return Response.json({ data: { repository: { issueOrPullRequest: { id: 'I_9' } } } })
+    }
+    if (query.includes('name: $repo) { id }')) return Response.json({ data: { repository: { id: 'R_2' } } })
+    if (query.includes('transferIssue')) {
+      return Response.json({
+        data: { transferIssue: { issue: { number: 4, url: 'https://github.com/o/other/issues/4' } } },
+      })
+    }
+    if (query.startsWith('mutation')) return Response.json({ data: {} })
+    if (path === '/repos/o/r/pulls/comments/31') {
+      return Response.json({ path: 'src/a.ts', line: 3, start_line: 2, side: 'RIGHT', body: '```suggestion\nB\n```' })
+    }
+    if (path === '/repos/o/r/pulls/comments/32') {
+      return Response.json({
+        path: 'src/a.ts',
+        line: 5,
+        start_line: null,
+        side: 'RIGHT',
+        body: 'nit\n```suggestion\n```',
+      })
+    }
+    if (path === '/repos/o/r/contents/src/a.ts') {
+      return Response.json({ content: Buffer.from('1\n2\n3\n4\n5\n').toString('base64') })
     }
     if (path === '/graphql') {
       return Response.json({
@@ -248,7 +308,16 @@ function fakeGitHub(calls: Call[]) {
       })
     }
     if (path === '/repos/o/r/pulls/7' && method === 'GET') {
-      return Response.json({ ...pull, body: 'Why', mergeable: true, additions: 3, deletions: 1, changed_files: 2 })
+      return Response.json({
+        ...pull,
+        head: { ...pull.head, repo: { full_name: 'o/r' } },
+        requested_teams: [{ slug: 'web' }],
+        body: 'Why',
+        mergeable: true,
+        additions: 3,
+        deletions: 1,
+        changed_files: 2,
+      })
     }
     if (path === '/repos/o/r/issues/7/comments' && method === 'GET') {
       return Response.json([{ id: 1, user, body: 'Looks good', created_at: '2026-10-02T00:00:00Z' }])
@@ -340,7 +409,10 @@ describe('/api/github', () => {
       headSha: 'h1',
       changedFiles: 2,
       comments: [{ body: 'Looks good' }],
-      reviewers: [{ login: 'duck', state: 'APPROVED' }],
+      reviewers: [
+        { login: 'duck', state: 'APPROVED' },
+        { login: 'o/web', state: null },
+      ],
     })
   })
 
@@ -469,12 +541,15 @@ describe('/api/github', () => {
       labels: [{ name: 'bug', color: 'f00', description: '' }],
       milestones: [{ number: 3, title: 'v1' }],
       people: [{ login: 'octo', avatarUrl: 'https://a/octo.png' }],
+      teams: [],
     })
-    expect((await call('POST', '/api/github/pulls/7/reviewers', { add: ['duck'], remove: ['old'] })).status).toBe(204)
+    expect(
+      (await call('POST', '/api/github/pulls/7/reviewers', { add: ['duck', 'o/web'], remove: ['old'] })).status,
+    ).toBe(204)
     const reviewerCalls = calls.filter((entry) => entry.path.endsWith('/requested_reviewers'))
     expect(reviewerCalls.map((entry) => [entry.method, entry.body])).toEqual([
-      ['POST', { reviewers: ['duck'] }],
-      ['DELETE', { reviewers: ['old'] }],
+      ['POST', { reviewers: ['duck'], team_reviewers: ['web'] }],
+      ['DELETE', { reviewers: ['old'], team_reviewers: [] }],
     ])
     expect((await call('PATCH', '/api/github/threads/9', { labels: ['bug'], milestone: 3 })).status).toBe(204)
     expect(calls.find((entry) => entry.method === 'PATCH' && entry.path === '/repos/o/r/issues/9')?.body).toEqual({
@@ -544,6 +619,97 @@ describe('/api/github', () => {
       { id: 9, conclusion: 'failure', branch: 'feat' },
     ])
     expect((await call('POST', '/api/github/runs', { runId: 9, action: 'rerun-failed' })).status).toBe(204)
+  })
+
+  it('reads linked work and subscription, then subscribes, pins and transfers an issue', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    expect(await (await call('GET', '/api/github/threads/9/extras')).json()).toEqual({
+      subscription: 'SUBSCRIBED',
+      pinned: true,
+      projects: null,
+      linked: [{ number: 7, title: 'Add things', pull: true, state: 'merged' }],
+    })
+    const last = () =>
+      calls.filter((entry) => entry.path === '/graphql').at(-1)?.body as { query: string; variables: unknown }
+    expect((await call('POST', '/api/github/threads/9/subscription', { subscribed: false })).status).toBe(204)
+    expect(last().query).toContain('updateSubscription')
+    expect(last().variables).toEqual({ id: 'I_9', state: 'UNSUBSCRIBED' })
+    expect((await call('POST', '/api/github/threads/9/pin', { pinned: false })).status).toBe(204)
+    expect(last().query).toContain('unpinIssue')
+    expect((await call('POST', '/api/github/threads/9/transfer', { repo: 'o/other' })).json()).resolves.toEqual({
+      number: 4,
+      url: 'https://github.com/o/other/issues/4',
+    })
+    expect((await call('POST', '/api/github/threads/9/transfer', { repo: 'not a repo' })).status).toBe(400)
+  })
+
+  it('lists requested teams as org/slug reviewers and reads merge settings', async () => {
+    await start({ token: 't', remote: 'git@github.com:o/r.git' })
+    const pullPage = (await (await call('GET', '/api/github/pulls/7')).json()) as { reviewers: { login: string }[] }
+    expect(pullPage.reviewers.map((reviewer) => reviewer.login)).toContain('o/web')
+    expect(await (await call('GET', '/api/github/pulls/7/merge-info')).json()).toEqual({
+      methods: ['squash', 'rebase'],
+      defaultMethod: 'squash',
+      autoMergeAllowed: true,
+      deleteBranchOnMerge: true,
+      reviewDecision: 'REVIEW_REQUIRED',
+      requiredApprovals: 2,
+      mergeState: 'BLOCKED',
+      canMergeAsAdmin: true,
+      autoMerge: null,
+      squashTitle: 'PR_TITLE',
+      squashMessage: 'PR_BODY',
+      mergeTitle: 'MERGE_MESSAGE',
+      mergeMessage: 'PR_TITLE',
+    })
+  })
+
+  it('merges with a commit title and head guard, and updates the branch by rebase', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    const merged = await call('POST', '/api/github/pulls/7/merge', {
+      method: 'squash',
+      title: 'Add things (#7)',
+      message: 'Why',
+      sha: 'h1',
+    })
+    expect(merged.status).toBe(204)
+    expect(calls.findLast((entry) => entry.path === '/repos/o/r/pulls/7/merge')?.body).toEqual({
+      merge_method: 'squash',
+      commit_title: 'Add things (#7)',
+      commit_message: 'Why',
+      sha: 'h1',
+    })
+    expect((await call('POST', '/api/github/pulls/7/update-branch', { method: 'rebase' })).status).toBe(204)
+    const mutation = calls.filter((entry) => entry.path === '/graphql').at(-1)?.body as { query: string }
+    expect(mutation.query).toContain('updatePullRequestBranch')
+  })
+
+  it('commits a batch of suggestions to the head branch as one commit', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    const answer = await call('POST', '/api/github/pulls/7/suggestions', {
+      ids: [31, 32],
+      message: 'Apply suggestions',
+    })
+    expect(answer.status).toBe(204)
+    const commit = calls.filter((entry) => entry.path === '/graphql').at(-1)?.body as {
+      query: string
+      variables: {
+        input: {
+          branch: unknown
+          expectedHeadOid: string
+          fileChanges: { additions: { path: string; contents: string }[] }
+        }
+      }
+    }
+    expect(commit.query).toContain('createCommitOnBranch')
+    expect(commit.variables.input.branch).toEqual({ repositoryNameWithOwner: 'o/r', branchName: 'feat' })
+    expect(commit.variables.input.expectedHeadOid).toBe('h1')
+    const [file] = commit.variables.input.fileChanges.additions
+    expect(file?.path).toBe('src/a.ts')
+    expect(Buffer.from(file?.contents ?? '', 'base64').toString()).toBe('1\nB\n4\n')
   })
 
   it('lists issues without the pull requests GitHub mixes in', async () => {

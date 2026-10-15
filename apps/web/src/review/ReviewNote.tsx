@@ -1,8 +1,9 @@
 import { Badge, Button, Textarea } from '@duck-diff/ui'
-import { CircleCheck, FilePen } from 'lucide-react'
+import { CircleCheck, FilePen, GitCommitHorizontal, ListPlus, ListX } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { ask } from '../app/Ask'
 import { Body as GitHubBody, Comment as GitHubComment } from '../github/Conversation'
 import type { PullReviewState } from '../github/pull-review'
 import { useStore } from '../lib/store'
@@ -11,6 +12,60 @@ import type { Draft, Note } from './annotations'
 import { ImagePreview } from './ImagePreview'
 
 const selectPull = (state: PullReviewState) => state.number
+const selectBatch = (state: PullReviewState) => state.batch
+const HAS_SUGGESTION = /```suggestion/
+
+// Commit one suggestion, or the batch it belongs to, with a message the user can change.
+function SuggestionActions({ id, outdated }: { id: number; outdated: boolean }) {
+  const { pullReview } = useApp()
+  const batch = useStore(pullReview, selectBatch)
+  const [busy, setBusy] = useState(false)
+  const inBatch = batch.includes(id)
+  if (outdated) return <span className="text-muted-foreground">Outdated suggestions cannot be applied.</span>
+  const commit = async (ids: number[]) => {
+    const answer = await ask.prompt({
+      title: ids.length === 1 ? 'Commit suggestion' : `Commit ${ids.length} suggestions`,
+      body: 'Commits to the pull request branch on GitHub.',
+      fields: [
+        {
+          name: 'message',
+          label: 'Commit message',
+          initial: ids.length === 1 ? 'Apply suggestion from code review' : 'Apply suggestions from code review',
+        },
+      ],
+      action: 'Commit changes',
+    })
+    if (!answer) return
+    setBusy(true)
+    try {
+      await pullReview.commitSuggestions(ids, answer.message ?? '')
+      toast(ids.length === 1 ? 'Committed the suggestion' : `Committed ${ids.length} suggestions`)
+    } catch (error) {
+      toast.error((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      {inBatch && batch.length > 1 ? (
+        <Button size="sm" loading={busy} onClick={() => void commit(batch)}>
+          <GitCommitHorizontal />
+          Commit {batch.length} suggestions
+        </Button>
+      ) : (
+        <Button size="sm" variant="outline" loading={busy} onClick={() => void commit([id])}>
+          <GitCommitHorizontal />
+          Commit suggestion
+        </Button>
+      )}
+      <Button size="sm" variant="ghost" onClick={() => pullReview.toggleBatch(id)}>
+        {inBatch ? <ListX /> : <ListPlus />}
+        {inBatch ? 'Remove from batch' : 'Add suggestion to batch'}
+      </Button>
+    </>
+  )
+}
 
 const toComment = (draft: Draft, body: string) => ({
   body: body.trim(),
@@ -180,7 +235,14 @@ function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['t
   return (
     <div className="mx-3 my-2 max-w-3xl divide-y divide-border rounded-md border border-border bg-card font-normal font-sans">
       {thread.map((comment) => (
-        <GitHubComment key={comment.id} {...comment} bare />
+        <div key={comment.id}>
+          <GitHubComment {...comment} bare />
+          {HAS_SUGGESTION.test(comment.body) ? (
+            <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
+              <SuggestionActions id={comment.id} outdated={comment.line === null || Boolean(state?.outdated)} />
+            </div>
+          ) : null}
+        </div>
       ))}
       <div className="flex items-center gap-2 p-2">
         {replying && root ? (

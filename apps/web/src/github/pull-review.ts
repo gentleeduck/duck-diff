@@ -26,6 +26,8 @@ export interface PullReviewState {
   threads: Map<number, ThreadState>
   // Files the signed-in user marked viewed on GitHub.
   viewed: Set<string>
+  // Suggestion comments gathered to commit together, like GitHub's "Add suggestion to batch".
+  batch: number[]
 }
 
 export interface PullReview extends Store<PullReviewState> {
@@ -37,9 +39,17 @@ export interface PullReview extends Store<PullReviewState> {
   submit(event: ReviewEvent, body: string): Promise<void>
   resolve(root: number, resolved: boolean): Promise<void>
   setViewed(path: string, viewed: boolean): Promise<void>
+  toggleBatch(id: number): void
+  commitSuggestions(ids: number[], message: string): Promise<void>
 }
 
-const EMPTY: Omit<PullReviewState, 'number'> = { comments: [], pending: [], threads: new Map(), viewed: new Set() }
+const EMPTY: Omit<PullReviewState, 'number'> = {
+  comments: [],
+  pending: [],
+  threads: new Map(),
+  viewed: new Set(),
+  batch: [],
+}
 
 export function createPullReview(api: Api): PullReview {
   const store = createStore<PullReviewState>({ number: null, ...EMPTY })
@@ -91,6 +101,18 @@ export function createPullReview(api: Api): PullReview {
         else next.delete(path)
         return { ...prev, viewed: next }
       })
+    },
+    toggleBatch: (id) =>
+      store.set((prev) => ({
+        ...prev,
+        batch: prev.batch.includes(id) ? prev.batch.filter((entry) => entry !== id) : [...prev.batch, id],
+      })),
+    async commitSuggestions(ids, message) {
+      const { number } = store.get()
+      if (number === null) return
+      await api.github.applySuggestions(number, ids, message)
+      store.set((prev) => ({ ...prev, batch: prev.batch.filter((id) => !ids.includes(id)) }))
+      await read(number)
     },
     async post(input) {
       const { number } = store.get()

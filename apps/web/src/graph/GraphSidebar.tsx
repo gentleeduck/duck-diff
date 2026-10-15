@@ -1,12 +1,13 @@
 import type { Ref } from '@duck-diff/protocol'
 import { Button, Label, Popover, PopoverContent, PopoverTrigger, Switch } from '@duck-diff/ui'
-import { ArchiveRestore, ArrowRightLeft, GitMerge, PackageOpen, Trash2 } from 'lucide-react'
+import { ArchiveRestore, ArrowRightLeft, FileDiff, GitMerge, PackageOpen, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 import { useStore } from '../lib/store'
+import { useCommitActions } from './commit-actions'
 import { NewBranchDialog } from './NewBranchDialog'
 import { RefMenu } from './RefMenu'
 import { Remotes } from './Remotes'
@@ -22,10 +23,14 @@ const GROUPS: { kind: Ref['kind']; title: string; glyph: string }[] = [
 const selectAll = (state: GraphState) => state.all
 
 // Hidden until hover or focus so the list reads as names; keyboard users still tab onto them.
-function StashActions({ name }: { name: string }) {
+function StashActions({ name, sha }: { name: string; sha: string }) {
   const { run } = useGit()
+  const commit = useCommitActions()
   return (
     <span className="flex opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
+      <IconTool label={`Show the changes in ${name}`} tip="Show changes" onClick={() => commit.showChanges(sha)}>
+        <FileDiff />
+      </IconTool>
       <IconTool
         label={`Apply ${name}`}
         onClick={() => void run('stash-apply', { name, pop: false }, `Applied ${name}`)}>
@@ -147,7 +152,7 @@ export function GraphSidebar() {
                       </span>
                       {ref.current ? <span className="text-tn-green">current</span> : null}
                     </Button>
-                    {kind === 'stash' ? <StashActions name={ref.name} /> : null}
+                    {kind === 'stash' ? <StashActions name={ref.name} sha={ref.sha} /> : null}
                     {(kind === 'branch' || kind === 'remote') && !ref.current ? (
                       <BranchActions name={ref.name} local={kind === 'branch'} />
                     ) : null}

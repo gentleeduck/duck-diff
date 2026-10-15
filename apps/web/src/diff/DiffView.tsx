@@ -3,6 +3,7 @@ import { forwardRef, type ReactNode, useCallback, useEffect, useImperativeHandle
 import type { Note, NoteItem } from '../review/annotations'
 import type { Page, PageRow } from './page'
 import { LineRow, RowContext, type RowContextValue } from './RowViews'
+import { useCodeScrollX } from './useCodeScrollX'
 
 export type ScrollTarget =
   | { type: 'item'; id: string; align?: 'start' | 'center' }
@@ -44,6 +45,25 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
     },
     [page, lineHeight],
   )
+  // The longest line on the page, in columns, sets how far the code can scroll sideways.
+  const widest = useMemo(() => {
+    const tab = context.settings.tabSize
+    const columns = (text: string | undefined) => {
+      if (!text) return 0
+      let tabs = 0
+      for (let i = text.indexOf('\t'); i !== -1; i = text.indexOf('\t', i + 1)) tabs++
+      return text.length + tabs * (tab - 1)
+    }
+    let max = 0
+    for (const row of page.rows) {
+      if (row.type !== 'row') continue
+      const diff = row.row
+      if (diff.type === 'line') max = Math.max(max, columns(diff.line.text))
+      else if (diff.type === 'pair') max = Math.max(max, columns(diff.left?.text), columns(diff.right?.text))
+    }
+    return max
+  }, [page, context.settings.tabSize])
+  const sideways = useCodeScrollX(scroller, widest, !wrap)
   const getItemKey = useCallback((index: number) => page.rows[index]?.key ?? index, [page])
   const virtualizer = useVirtualizer({
     count: page.rows.length,
@@ -118,6 +138,7 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
           lineHeight: `${lineHeight}px`,
           tabSize: context.settings.tabSize,
         }}>
+        {sideways.probe}
         {pinned ? (
           <div className="sticky top-0 z-20 h-0">
             <div className="bg-card shadow-[0_1px_0_var(--border)]">{renderHeader(pinned)}</div>
@@ -142,6 +163,7 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
             )
           })}
         </div>
+        {sideways.scrollbar}
       </div>
     </RowContext.Provider>
   )

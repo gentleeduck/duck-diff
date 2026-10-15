@@ -29,9 +29,13 @@ import {
   IssueDetailsSchema,
   type IssueSummary,
   IssueSummarySchema,
+  type ItemExtras,
+  ItemExtrasSchema,
   type ListPage,
   ListPageSchema,
   type ListQuery,
+  type MergeInfo,
+  MergeInfoSchema,
   type Notification,
   NotificationSchema,
   type Options,
@@ -138,6 +142,12 @@ export interface GitHubApi {
   setPullState(number: number, state: ItemState): Promise<void>
   setDraft(number: number, draft: boolean): Promise<void>
   setLocked(number: number, locked: boolean): Promise<void>
+  extras(number: number): Promise<ItemExtras>
+  setSubscribed(number: number, subscribed: boolean): Promise<void>
+  applySuggestions(number: number, ids: number[], message: string): Promise<void>
+  setPinned(number: number, pinned: boolean): Promise<void>
+  // Moves an issue to another repo ("owner/name"), answering with where it landed.
+  transfer(number: number, repo: string): Promise<{ number: number; url: string }>
   editComment(id: number, body: string): Promise<void>
   deleteComment(id: number): Promise<void>
   react(target: { issue: number } | { comment: number }, content: Reaction): Promise<void>
@@ -157,7 +167,8 @@ export interface GitHubApi {
   reviewState(number: number): Promise<ReviewState>
   resolveThread(number: number, thread: string, resolved: boolean): Promise<void>
   setViewed(number: number, path: string, viewed: boolean): Promise<void>
-  updateBranch(number: number): Promise<void>
+  updateBranch(number: number, method?: 'merge' | 'rebase'): Promise<void>
+  mergeInfo(number: number): Promise<MergeInfo>
   setAutoMerge(number: number, enabled: boolean, method: MergeMethod): Promise<void>
   // Deletes the head branch after a merge, or restores it.
   setHeadBranch(number: number, exists: boolean): Promise<void>
@@ -179,7 +190,7 @@ export interface GitHubApi {
   runs(): Promise<WorkflowRun[]>
   runAction(runId: number, action: 'rerun' | 'rerun-failed' | 'cancel'): Promise<void>
   jobLog(jobId: number): Promise<string>
-  merge(number: number, method: MergeMethod): Promise<void>
+  merge(number: number, method: MergeMethod, commit?: { title?: string; message?: string; sha?: string }): Promise<void>
   issues(state: ItemState): Promise<IssueSummary[]>
   issue(number: number): Promise<IssueDetails>
   createIssue(input: { title: string; body: string; labels?: string[]; assignees?: string[] }): Promise<IssueSummary>
@@ -278,6 +289,17 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     setPullState: (number, state) => post(`/api/github/pulls/${number}/state`, { state }),
     setDraft: (number, draft) => post(`/api/github/pulls/${number}/draft`, { draft }),
     setLocked: (number, locked) => post(`/api/github/threads/${number}/lock`, { locked }),
+    extras: (number) => json(`/api/github/threads/${number}/extras`, ItemExtrasSchema),
+    setSubscribed: (number, subscribed) => post(`/api/github/threads/${number}/subscription`, { subscribed }),
+    applySuggestions: (number, ids, message) => post(`/api/github/pulls/${number}/suggestions`, { ids, message }),
+    setPinned: (number, pinned) => post(`/api/github/threads/${number}/pin`, { pinned }),
+    transfer: (number, repo) =>
+      send(
+        'POST',
+        `/api/github/threads/${number}/transfer`,
+        { repo },
+        z.object({ number: z.number(), url: z.string() }),
+      ),
     editComment: (id, body) => sendEmpty('PATCH', `/api/github/comments/${id}`, { body }),
     deleteComment: (id) => sendEmpty('DELETE', `/api/github/comments/${id}`),
     react: (target, content) => post('/api/github/react', { target, content }),
@@ -310,7 +332,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     reviewState: (number) => json(`/api/github/pulls/${number}/review-state`, ReviewStateSchema),
     resolveThread: (number, thread, resolved) => post(`/api/github/pulls/${number}/resolve`, { thread, resolved }),
     setViewed: (number, path, viewed) => post(`/api/github/pulls/${number}/viewed`, { path, viewed }),
-    updateBranch: (number) => post(`/api/github/pulls/${number}/update-branch`, {}),
+    updateBranch: (number, method = 'merge') => post(`/api/github/pulls/${number}/update-branch`, { method }),
+    mergeInfo: (number) => json(`/api/github/pulls/${number}/merge-info`, MergeInfoSchema),
     setAutoMerge: (number, enabled, method) => post(`/api/github/pulls/${number}/auto-merge`, { enabled, method }),
     setHeadBranch: (number, exists) => post(`/api/github/pulls/${number}/branch`, { exists }),
     setBase: (number, base) => post(`/api/github/pulls/${number}/base`, { base }),
@@ -322,7 +345,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     runs: () => json('/api/github/runs', z.array(WorkflowRunSchema)),
     runAction: (runId, action) => post('/api/github/runs', { runId, action }),
     jobLog: async (jobId) => (await request(`/api/github/job-log/${jobId}`)).text(),
-    merge: (number, method) => post(`/api/github/pulls/${number}/merge`, { method }),
+    merge: (number, method, commit = {}) => post(`/api/github/pulls/${number}/merge`, { method, ...commit }),
     issues: (state) => json(`/api/github/issues?state=${state}`, z.array(IssueSummarySchema)),
     issue: (number) => json(`/api/github/issues/${number}`, IssueDetailsSchema),
     createIssue: (input) => send('POST', '/api/github/issues', input, IssueSummarySchema),

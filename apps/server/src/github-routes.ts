@@ -1,5 +1,6 @@
 import { runGit } from '@duck-diff/git'
 import {
+  ApplySuggestionsSchema,
   AutoMergeSchema,
   BaseSchema,
   CreateIssueSchema,
@@ -10,6 +11,7 @@ import {
   ListQuerySchema,
   LockSchema,
   MergePullSchema,
+  PinSchema,
   PostCommentSchema,
   PostReviewCommentSchema,
   type PullRefs,
@@ -21,6 +23,9 @@ import {
   RunActionSchema,
   SetTokenSchema,
   SubmitReviewSchema,
+  SubscriptionSchema,
+  TransferSchema,
+  UpdateBranchSchema,
   ViewedSchema,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
@@ -125,6 +130,18 @@ export async function handleGitHub(
       await github.setLocked(number, LockSchema.parse(await body()).locked)
       return new Response(null, { status: 204 })
     }
+    if (action === 'extras') return Response.json(await github.extras(number))
+    if (action === 'subscription' && post) {
+      await github.setSubscribed(number, SubscriptionSchema.parse(await body()).subscribed)
+      return new Response(null, { status: 204 })
+    }
+    if (action === 'pin' && post) {
+      await github.setPinned(number, PinSchema.parse(await body()).pinned)
+      return new Response(null, { status: 204 })
+    }
+    if (action === 'transfer' && post) {
+      return Response.json(await github.transfer(number, TransferSchema.parse(await body()).repo))
+    }
     return Response.json(await github.thread(number))
   }
   if (area === 'avatars') return Response.json(await github.avatars().catch(() => ({})))
@@ -142,7 +159,7 @@ export async function handleGitHub(
     if (action === 'checks') return Response.json(await github.checks(number))
     if (action === 'commits') return Response.json(await github.pullCommits(number))
     if (action === 'update-branch' && post) {
-      await github.updateBranch(number)
+      await github.updateBranch(number, UpdateBranchSchema.parse(await body()).method)
       return new Response(null, { status: 204 })
     }
     if (action === 'auto-merge' && post) {
@@ -160,6 +177,12 @@ export async function handleGitHub(
       await github.setBase(number, BaseSchema.parse(await body()).base)
       return new Response(null, { status: 204 })
     }
+    if (action === 'suggestions' && post) {
+      const { ids, message } = ApplySuggestionsSchema.parse(await body())
+      await github.applySuggestions(number, ids, message)
+      return new Response(null, { status: 204 })
+    }
+    if (action === 'merge-info') return Response.json(await github.mergeInfo(number))
     if (action === 'review-state') return Response.json(await github.reviewState(number))
     if (action === 'resolve' && post) {
       const { thread, resolved } = ResolveThreadSchema.parse(await body())
@@ -200,7 +223,7 @@ export async function handleGitHub(
       return new Response(null, { status: 204 })
     }
     if (action === 'merge' && post) {
-      await github.merge(number, MergePullSchema.parse(await body()).method)
+      await github.merge(number, MergePullSchema.parse(await body()))
       return new Response(null, { status: 204 })
     }
     if (action === 'fetch' && post) {

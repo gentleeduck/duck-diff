@@ -7,6 +7,7 @@ import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
+import { useCodeScrollX } from '../diff/useCodeScrollX'
 import { useCanOpen } from '../hooks/useCanOpen'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
@@ -113,6 +114,15 @@ export default function FileView() {
     estimateSize: () => lineHeight,
     overscan: 30,
   })
+  const widest = useMemo(
+    () =>
+      lines.reduce(
+        (max, line) => Math.max(max, line.length + (line.split('\t').length - 1) * (settings.tabSize - 1)),
+        0,
+      ),
+    [lines, settings.tabSize],
+  )
+  const sideways = useCodeScrollX(scroller, widest, true)
 
   if (!path) {
     return <p className="p-4 text-muted-foreground">Pick a file on the left to read it here.</p>
@@ -208,6 +218,7 @@ export default function FileView() {
           ref={scroller}
           className="min-h-0 flex-1 overflow-auto"
           style={{ fontSize: settings.fontSize, lineHeight: `${lineHeight}px`, tabSize: settings.tabSize }}>
+          {sideways.probe}
           <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((virtual) => (
               <div
@@ -218,12 +229,15 @@ export default function FileView() {
                 <span className="w-14 shrink-0 select-none pe-3 text-end text-tn-gutter tabular-nums">
                   {virtual.index + 1}
                 </span>
-                <code className="min-w-0 flex-1 whitespace-pre pe-4">
-                  <Code text={lines[virtual.index] ?? ''} tokens={tokens?.get(virtual.index + 1)} />
+                <code data-code className="min-w-0 flex-1 overflow-hidden whitespace-pre pe-4">
+                  <span className="inline-block translate-x-[calc(var(--code-x,0px)*-1)]">
+                    <Code text={lines[virtual.index] ?? ''} tokens={tokens?.get(virtual.index + 1)} />
+                  </span>
                 </code>
               </div>
             ))}
           </div>
+          {sideways.scrollbar}
         </div>
       ) : null}
     </section>

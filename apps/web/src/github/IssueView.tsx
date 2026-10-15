@@ -162,6 +162,7 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
             assignees={issue.assignees}
             labels={issue.labels}
             milestone={issue.milestone}
+            number={number}
             actions={sidebarActions({
               api,
               number,

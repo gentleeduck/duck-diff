@@ -1,4 +1,5 @@
 import type { GitHubUser, Options, Reviewer } from '@duck-diff/protocol'
+import { Users } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Api } from '../lib/api'
 import { Avatar } from './Conversation'
@@ -50,7 +51,19 @@ export function sidebarActions({
     reviewers: reviewers ? (
       <Picker
         title="Reviewers"
-        load={people(api)}
+        load={async () => {
+          const found = await options(api)
+          const [owner] = (await api.github.status()).repo?.split('/') ?? ['']
+          return [
+            ...(await people(api)()),
+            ...found.teams.map((team) => ({
+              value: `${owner}/${team.slug}`,
+              label: `${owner}/${team.slug}`,
+              detail: team.name,
+              icon: <Users className="size-4 shrink-0" />,
+            })),
+          ]
+        }}
         selected={reviewers.filter((reviewer) => reviewer.state === null).map((reviewer) => reviewer.login)}
         onApply={(next) => {
           const before = new Set(

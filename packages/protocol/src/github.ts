@@ -142,7 +142,33 @@ export const ReviewStateSchema = z.object({
 export type ReviewState = z.infer<typeof ReviewStateSchema>
 export const ResolveThreadSchema = z.object({ thread: z.string().min(1), resolved: z.boolean() })
 export const ViewedSchema = z.object({ path: z.string().min(1), viewed: z.boolean() })
-export const MergePullSchema = z.object({ method: z.enum(['merge', 'squash', 'rebase']) })
+export const MergePullSchema = z.object({
+  method: z.enum(['merge', 'squash', 'rebase']),
+  title: z.string().max(1000).optional(),
+  message: z.string().max(65_000).optional(),
+  // The head the page showed; GitHub refuses the merge when someone pushed since.
+  sha: z.string().max(64).optional(),
+})
+export const UpdateBranchSchema = z.object({ method: z.enum(['merge', 'rebase']).default('merge') })
+
+// What GitHub's merge box decides from: repo merge settings, protection and the viewer's rights.
+export const MergeInfoSchema = z.object({
+  methods: z.array(z.enum(['merge', 'squash', 'rebase'])),
+  defaultMethod: z.enum(['merge', 'squash', 'rebase']),
+  autoMergeAllowed: z.boolean(),
+  deleteBranchOnMerge: z.boolean(),
+  reviewDecision: z.enum(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED']).nullable(),
+  requiredApprovals: z.number().int().nullable(),
+  // CLEAN, BEHIND, BLOCKED, DIRTY, UNSTABLE, HAS_HOOKS, DRAFT or UNKNOWN while GitHub computes it.
+  mergeState: z.string(),
+  canMergeAsAdmin: z.boolean(),
+  autoMerge: z.object({ by: z.string(), method: z.enum(['merge', 'squash', 'rebase']) }).nullable(),
+  squashTitle: z.enum(['PR_TITLE', 'COMMIT_OR_PR_TITLE']),
+  squashMessage: z.enum(['PR_BODY', 'COMMIT_MESSAGES', 'BLANK']),
+  mergeTitle: z.enum(['PR_TITLE', 'MERGE_MESSAGE']),
+  mergeMessage: z.enum(['PR_TITLE', 'PR_BODY', 'BLANK']),
+})
+export type MergeInfo = z.infer<typeof MergeInfoSchema>
 export const CreatePullSchema = z.object({
   title: z.string().trim().min(1).max(256),
   body: z.string().max(65_000),
@@ -282,6 +308,8 @@ export const OptionsSchema = z.object({
   labels: z.array(z.object({ name: z.string(), color: z.string(), description: z.string() })),
   milestones: z.array(z.object({ number: z.number().int(), title: z.string() })),
   people: z.array(GitHubUserSchema),
+  // Requested as reviewers by "org/slug", the way GitHub names them.
+  teams: z.array(z.object({ slug: z.string(), name: z.string() })),
 })
 export type Options = z.infer<typeof OptionsSchema>
 export const ReactSchema = z.object({
@@ -385,4 +413,36 @@ export type WorkflowRun = z.infer<typeof WorkflowRunSchema>
 export const RunActionSchema = z.object({
   runId: z.number().int(),
   action: z.enum(['rerun', 'rerun-failed', 'cancel']),
+})
+
+export const LinkedItemSchema = z.object({
+  number: z.number().int(),
+  title: z.string(),
+  pull: z.boolean(),
+  state: z.enum(['open', 'closed', 'merged']),
+})
+export type LinkedItem = z.infer<typeof LinkedItemSchema>
+
+// What GitHub shows under the labels: notifications, projects, linked work. Only GraphQL has these.
+export const ItemExtrasSchema = z.object({
+  subscription: z.enum(['SUBSCRIBED', 'UNSUBSCRIBED', 'IGNORED']),
+  // Null on pull requests, which cannot be pinned.
+  pinned: z.boolean().nullable(),
+  // Null when the token cannot read projects.
+  projects: z.array(z.object({ title: z.string(), status: z.string().nullable(), url: z.string() })).nullable(),
+  linked: z.array(LinkedItemSchema),
+})
+export type ItemExtras = z.infer<typeof ItemExtrasSchema>
+
+export const SubscriptionSchema = z.object({ subscribed: z.boolean() })
+export const ApplySuggestionsSchema = z.object({
+  ids: z.array(z.number().int()).min(1).max(50),
+  message: z.string().trim().min(1).max(1000),
+})
+export const PinSchema = z.object({ pinned: z.boolean() })
+export const TransferSchema = z.object({
+  repo: z
+    .string()
+    .trim()
+    .regex(/^[\w.-]+\/[\w.-]+$/, 'owner/name'),
 })
