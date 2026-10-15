@@ -29,7 +29,7 @@ import { Avatar } from './Conversation'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
-import { usePoll } from './usePoll'
+import { useLive } from './useLive'
 
 const SKELETONS = ['a', 'b', 'c', 'd', 'e']
 
@@ -67,8 +67,7 @@ export function Actions() {
   useEffect(() => {
     if (ready) void load()
   }, [ready, load])
-  // Running jobs move quickly, so this page asks more often than the lists.
-  usePoll(load, 15_000)
+  useLive('runs', load)
 
   const act = async (run: WorkflowRun, action: 'rerun' | 'rerun-failed' | 'cancel') => {
     try {

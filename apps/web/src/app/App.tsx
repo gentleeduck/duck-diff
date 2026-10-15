@@ -20,6 +20,7 @@ import { useKeyboard } from '../keyboard/useKeyboard'
 import type { Api } from '../lib/api'
 import { useStore } from '../lib/store'
 import type { View } from '../lib/view-url'
+import { useDesktopNotices } from '../live/useDesktopNotices'
 import { useLiveRefresh } from '../live/useLiveRefresh'
 import { MergeSidebar } from '../merge/MergeSidebar'
 import { Palette } from '../palette/Palette'
@@ -86,6 +87,7 @@ function Screen() {
   const { view, show } = useView()
   useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true), show })
   const live = useLiveRefresh()
+  useDesktopNotices()
   useUrlSync()
   // Bumped when a page changes an item, so its list reloads.
   const [pullsVersion, setPullsVersion] = useState(0)

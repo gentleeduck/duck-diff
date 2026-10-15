@@ -19,7 +19,7 @@ import { IconTool } from '../app/IconTool'
 import type { MergeMethod } from '../lib/api'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { LOOK, outcome } from './Checks'
-import { usePoll } from './usePoll'
+import { useLive } from './useLive'
 
 const METHODS: Record<MergeMethod, { label: string; short: string; detail: string }> = {
   merge: {
@@ -202,7 +202,8 @@ export function MergeBox({
   useEffect(() => {
     void load()
   }, [load, pull.headSha])
-  usePoll(load, 20_000)
+  // The item moves when its checks finish; the runs list moves while they run.
+  useLive([`item:${number}`, 'runs'], load)
 
   useEffect(() => {
     if (info && method === null) setMethod(info.defaultMethod)

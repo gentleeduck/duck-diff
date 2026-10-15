@@ -11,6 +11,7 @@ import {
 import {
   BlameQuerySchema,
   type ChangeReason,
+  ClientMessageSchema,
   CreateReviewSchema,
   decodeTarget,
   LspQuerySchema,
@@ -20,10 +21,12 @@ import {
   UpdateReviewSchema,
   WriteRequestSchema,
 } from '@duck-diff/protocol'
+import type { ServerWebSocket } from 'bun'
 import { createToken, isAuthorized, tokenCookie } from './auth'
 import { errorResponse, HttpError } from './errors'
 import { createGitHub, type GitHubOptions } from './github'
 import { handleGitHub } from './github-routes'
+import { createGitHubWatch } from './github-watch'
 import { Hub } from './hub'
 import { createNavigator, type NavigatorOptions } from './lsp/navigator'
 import { type NvimRunner, openKeys, runNvim, tcdKeys } from './nvim'
@@ -55,6 +58,9 @@ export interface ServerOptions {
   lsp?: NavigatorOptions
   // How a worktree or submodule gets its own server; tests swap in a fake.
   startSibling?: StartServer
+  // How often the GitHub watcher looks at what is due, and seconds between asks per topic; tests make both quick.
+  githubTickMs?: number
+  githubEvery?: Partial<Record<string, number>>
 }
 
 export interface RunningServer {
@@ -81,6 +87,12 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const github = createGitHub(repo, options.github)
   const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
   const siblings = createSiblings(options.startSibling ?? startSibling(options.nvim ?? null))
+  const watch = createGitHubWatch<ServerWebSocket<unknown>>(
+    github,
+    (socket, topic) => socket.send(JSON.stringify({ type: 'github', topic })),
+    options.githubEvery,
+  )
+  const watching = setInterval(() => void watch.tick(), options.githubTickMs ?? 5000)
 
   const server = Bun.serve({
     hostname: HOST,
@@ -207,8 +219,20 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
       },
       close(socket) {
         hub.remove(socket)
+        watch.unsubscribe(socket)
       },
-      message() {},
+      message(socket, raw) {
+        let data: unknown
+        try {
+          data = JSON.parse(String(raw))
+        } catch {
+          return
+        }
+        const parsed = ClientMessageSchema.safeParse(data)
+        if (!parsed.success) return
+        watch.subscribe(socket, parsed.data.topics)
+        void watch.tick()
+      },
     },
   })
 
@@ -221,6 +245,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     notify,
     async stop() {
       stopWatching()
+      clearInterval(watching)
       hub.dispose()
       await navigator.stop()
       await siblings.stop()

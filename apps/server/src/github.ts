@@ -31,6 +31,11 @@ import type {
 import { HttpError } from './errors'
 import { applyEdits, type SuggestionEdit, suggestionLines } from './suggestions'
 
+interface RawItemTime {
+  updatedAt: string
+  commits?: { nodes?: { commit?: { statusCheckRollup?: { state?: string } | null } }[] }
+}
+
 export interface GitHubOptions {
   fetch?: typeof fetch
   // Where the token comes from when the page has not supplied one; tests replace it.
@@ -206,7 +211,64 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     return `/repos/${name}`
   }
 
+  // The watcher's own ETags, apart from the pages' so a probe never answers a page from stale memory.
+  const probeTags = new Map<string, string>()
+  const PROBES: Record<string, string> = {
+    notifications: '/notifications?all=false&per_page=50',
+    pulls: '/pulls?state=all&sort=updated&direction=desc&per_page=20',
+    issues: '/issues?state=all&sort=updated&direction=desc&per_page=20',
+    runs: '/actions/runs?per_page=20',
+  }
+
   return {
+    async probe(topic: string): Promise<{ changed: boolean | null; pollSeconds?: number }> {
+      const suffix = PROBES[topic]
+      const auth = await token()
+      if (!suffix || !auth) return { changed: false }
+      const path = `${await repoPath()}${suffix}`
+      const before = probeTags.get(path)
+      const response = await fetcher(`${apiBase}${path}`, {
+        headers: {
+          accept: 'application/vnd.github+json',
+          authorization: `Bearer ${auth.token}`,
+          'x-github-api-version': '2022-11-28',
+          ...(before ? { 'if-none-match': before } : {}),
+        },
+      })
+      const poll = Number(response.headers.get('x-poll-interval'))
+      const pollSeconds = Number.isFinite(poll) && poll > 0 ? poll : undefined
+      if (response.status === 304) return { changed: false, pollSeconds }
+      if (!response.ok) return { changed: false, pollSeconds }
+      await response.arrayBuffer()
+      const etag = response.headers.get('etag')
+      if (etag) probeTags.set(path, etag)
+      return { changed: before === undefined ? null : etag !== before, pollSeconds }
+    },
+
+    // A pull request's checks finishing does not move its updatedAt, so the head's check state counts too.
+    async itemsUpdatedAt(numbers: number[]): Promise<Map<number, string>> {
+      if (!numbers.length || !(await token())) return new Map()
+      const [owner, name] = await ownerAndName()
+      const fields = numbers
+        .map(
+          (number) =>
+            `i${number}: issueOrPullRequest(number: ${number}) { ... on Issue { updatedAt } ... on PullRequest { updatedAt commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } }`,
+        )
+        .join(' ')
+      const data = await graphql<{ repository: Record<string, RawItemTime | null> }>(
+        `query($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { ${fields} } }`,
+        { owner, repo: name },
+      )
+      const times = new Map<number, string>()
+      for (const number of numbers) {
+        const item = data.repository[`i${number}`]
+        if (!item) continue
+        const checks = item.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state ?? ''
+        times.set(number, `${item.updatedAt}|${checks}`)
+      }
+      return times
+    },
+
     async status(): Promise<GitHubStatus> {
       const [name, auth] = await Promise.all([repoSlug(), token()])
       if (!auth) return { repo: name, user: null, source: null }

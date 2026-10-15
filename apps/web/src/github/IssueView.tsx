@@ -23,7 +23,7 @@ import { StatePill } from './StatePill'
 import { ThreadMenu } from './ThreadMenu'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
-import { usePoll } from './usePoll'
+import { useLive } from './useLive'
 import { EditableTitle, useThread } from './useThread'
 
 const CLOSE_REASONS = [
@@ -115,7 +115,7 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
     }
   }, [load])
 
-  usePoll(() => Promise.all([api.github.issue(number).then(setIssue, () => {}), reloadThread(true)]), 20_000)
+  useLive(`item:${number}`, () => Promise.all([api.github.issue(number).then(setIssue, () => {}), reloadThread(true)]))
   const page = useRef<HTMLElement>(null)
   useScrollMemory(page, issue && thread ? `issue:${number}` : null)
 

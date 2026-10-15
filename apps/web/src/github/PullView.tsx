@@ -38,7 +38,7 @@ import { StatePill } from './StatePill'
 import { ThreadMenu } from './ThreadMenu'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
-import { usePoll } from './usePoll'
+import { useLive } from './useLive'
 import { EditableTitle, useThread } from './useThread'
 
 const Viewer = lazy(() => import('../viewer/Viewer'))
@@ -199,7 +199,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
     }
   }, [load])
 
-  usePoll(() => Promise.all([api.github.pull(number).then(setPull, () => {}), reloadThread(true)]), 20_000)
+  useLive(`item:${number}`, () => Promise.all([api.github.pull(number).then(setPull, () => {}), reloadThread(true)]))
   // The conversation is ready once its thread has read; the other tabs carry their own heights.
   useScrollMemory(page, pull && (tab !== 'conversation' || thread) ? `pull:${number}:${tab}` : null)
 

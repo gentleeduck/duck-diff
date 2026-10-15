@@ -10,7 +10,7 @@ import { useView } from '../hooks/useView'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
-import { usePoll } from './usePoll'
+import { useLive } from './useLive'
 
 const SKELETONS = ['a', 'b', 'c', 'd']
 
@@ -51,7 +51,7 @@ export function useUnread(): number {
     [api, ready],
   )
   useEffect(() => void read(), [read])
-  usePoll(read, 90_000)
+  useLive('notifications', read)
   return count
 }
 
@@ -81,7 +81,7 @@ export function Inbox() {
     setItems(null)
     void load()
   }, [ready, load])
-  usePoll(load, 45_000)
+  useLive('notifications', load)
 
   const markRead = async (id: string | null) => {
     try {

@@ -5,6 +5,7 @@ import { connectEvents, type EventsStatus } from '../lib/events'
 import { pushUrl } from '../lib/history'
 import { writeTarget } from '../lib/target-url'
 import { createRefresher } from './refresher'
+import { setTopicSender, topicChanged } from './topics'
 
 export interface LiveState {
   status: EventsStatus
@@ -25,9 +26,14 @@ export function useLiveRefresh(): LiveState {
     const refresher = createRefresher(() => session.reload())
     const dispose = connectEvents({
       url: eventsUrl(),
-      onStatus: (status) => setState((prev) => ({ ...prev, status })),
+      onStatus: (status) => {
+        setState((prev) => ({ ...prev, status }))
+        if (status !== 'open') setTopicSender(null)
+      },
+      onOpen: setTopicSender,
       onEvent: (event) => {
         if (event.type === 'hello') return setState((prev) => ({ ...prev, repo: event.repo }))
+        if (event.type === 'github') return topicChanged(event.topic)
         if (event.type === 'navigate') {
           pushUrl(writeTarget(event.target, window.location.search))
           void session.load(event.target)
