@@ -22,7 +22,6 @@ import { createPlaceStores, type PlaceStores } from '../router/stores'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
-import { createStage, type Stage } from '../state/stage'
 import { createTabs, type Tabs } from '../state/tabs'
 import { createViewedStore, type Viewed } from '../state/viewed'
 import { createTerminalTabs, type TerminalTabs } from '../terminal/tabs'
@@ -34,8 +33,6 @@ export interface AppContextValue extends PlaceStores {
   session: Session
   // Branches, tags and recent commits, shared by every picker.
   refs: Refs
-  // Staged and unstaged files, for the stage panel.
-  stage: Stage
   settings: Store<Settings>
   reviews: Reviews
   viewed: Viewed
@@ -99,7 +96,6 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
         refs: () => queryClient.fetchQuery(queries.git.refs()),
         commits: () => queryClient.fetchQuery(queries.git.commits({ head: 'HEAD', limit: 50 })),
       }),
-      stage: createStage(client, session),
       settings: createSettingsStore(),
       reviews: createReviews(client),
       viewed: createViewedStore(),
@@ -148,7 +144,7 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
 
   // Tabs are saved per repository, so they come back once the page knows which one it shows.
   useEffect(() => {
-    value.api.repo().then(
+    value.queryClient.fetchQuery(value.queries.git.repo()).then(
       (info) => value.tabs.restore(info.root),
       () => {},
     )

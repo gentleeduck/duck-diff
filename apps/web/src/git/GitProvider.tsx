@@ -1,8 +1,9 @@
 import type { SyncStatus } from '@duck-diff/protocol'
 import { useQuery } from '@tanstack/react-query'
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { useFirstDiff } from '../hooks/useFirstDiff'
 import type { GitAction } from '../lib/api'
 import { useRefresh } from '../query/useRefresh'
 
@@ -76,13 +77,7 @@ export function GitProvider({ children }: { children: ReactNode }) {
 
   // Branch and counts follow every change in the repo, from this page or from the terminal. The first
   // read waits for the diff to load so it never slows the first paint.
-  const [settled, setSettled] = useState(false)
-  useEffect(() => {
-    const done = () => session.get().status === 'ready' || session.get().status === 'error'
-    if (done()) return setSettled(true)
-    return session.subscribe(() => done() && setSettled(true))
-  }, [session])
-  const sync = useQuery({ ...queries.git.sync(), enabled: settled })
+  const sync = useQuery({ ...queries.git.sync(), enabled: useFirstDiff() })
   const status = sync.isError ? null : (sync.data ?? null)
 
   const showOutput = useMemo(() => ({ label: 'Show output', onClick: () => panel.show('output', null) }), [panel])

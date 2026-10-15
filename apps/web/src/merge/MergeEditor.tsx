@@ -2,7 +2,7 @@ import type { ConflictBlock, ConflictFile } from '@duck-diff/protocol'
 import { Badge, Button, Skeleton, Textarea } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftToLine, ArrowRightToLine, Check, ChevronsUpDown, ExternalLink, Pencil, RotateCcw } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useMemo, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
@@ -10,6 +10,7 @@ import { useGit } from '../git/GitProvider'
 import { useCanOpen } from '../hooks/useCanOpen'
 import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
+import { useStage } from '../state/stage'
 import {
   blockLines,
   type Choice,
@@ -336,11 +337,10 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
 // both, the base, or a hand edit, and Mark resolved writes the result and stages it.
 export default function MergeEditor() {
   const app = useApp()
-  const { mergeFile, stage, queries } = app
+  const { mergeFile, queries } = app
   const { show } = useView()
   const path = useStore(mergeFile, selectPath)
-  const conflictKey = useStore(stage, selectConflicts)
-  useEffect(() => stage.load(), [stage])
+  const conflictKey = selectConflicts(useStage())
   const shown = path ?? conflictKey.split('\n')[0] ?? null
   const conflict = useQuery({ ...queries.git.conflict(shown ?? ''), enabled: Boolean(shown) })
   const file = conflict.data

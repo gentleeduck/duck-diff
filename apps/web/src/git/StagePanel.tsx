@@ -11,17 +11,16 @@ import {
   Plus,
   Undo2,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useCanOpen } from '../hooks/useCanOpen'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
-import { useStore } from '../lib/store'
 import { openMerge } from '../merge/open-merge'
 import { fileGlyph } from '../sidebar/icons'
 import { FileMenu } from '../sidebar/tree-menus'
-import type { StageState } from '../state/stage'
+import { useStage } from '../state/stage'
 import type { WriteKind } from '../viewer/actions'
 import { useWrites } from '../writes/WritesProvider'
 import { useGit } from './GitProvider'
@@ -37,8 +36,6 @@ const LETTER: Record<FileStatus, { letter: string; className: string }> = {
   deleted: { letter: 'D', className: 'text-removed' },
   conflicted: { letter: '!', className: 'text-removed' },
 }
-
-const selectStage = (state: StageState) => state
 
 function Row({
   file,
@@ -214,12 +211,10 @@ function Section({
 
 // The index at a glance, like an editor's source control view: what will be committed, and what will not.
 export function StagePanel() {
-  const { stage } = useApp()
   const { run } = useGit()
-  const state = useStore(stage, selectStage)
+  const state = useStage()
   const writes = useWrites()
   const [selected, setSelected] = useState<string | null>(null)
-  useEffect(() => stage.load(), [stage])
 
   if (!state.loaded) return <p className="p-3 text-muted-foreground">Reading the index...</p>
   if (!state.staged.length && !state.unstaged.length) {

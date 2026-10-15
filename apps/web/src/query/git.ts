@@ -28,6 +28,15 @@ export function gitQueries(api: Api) {
         queryFn: () => api.commits(query),
         meta: { topics: ['refs'] },
       }),
+    stage: () =>
+      queryOptions({
+        queryKey: ['git', 'stage'],
+        queryFn: async () => {
+          const [staged, unstaged] = await Promise.all([api.files({ kind: 'staged' }), api.files({ kind: 'unstaged' })])
+          return { staged, unstaged, loaded: true }
+        },
+        meta: { topics: ['index', 'worktree'] },
+      }),
     // What a pull request from head into base would carry, as GitHub's compare page shows it.
     compare: (base: string, head: string) =>
       queryOptions({

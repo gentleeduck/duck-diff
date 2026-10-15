@@ -19,7 +19,7 @@ function eventsUrl(): string {
 
 // Keeps the page in step with the repo: every change the server reports becomes one coalesced reload.
 export function useLiveRefresh(): LiveState {
-  const { api, session, reviews, refs, jobs, place } = useApp()
+  const { session, reviews, refs, jobs, place, queries } = useApp()
   const [state, setState] = useState<LiveState>({ status: 'connecting', repo: null })
   const client = useQueryClient()
 
@@ -69,7 +69,7 @@ export function useLiveRefresh(): LiveState {
         refresher.notify()
         if (event.reason === 'refs') {
           void refs.reload()
-          api.repo().then(
+          client.fetchQuery(queries.git.repo()).then(
             (repo) => setState((prev) => ({ ...prev, repo })),
             () => {},
           )
@@ -80,7 +80,7 @@ export function useLiveRefresh(): LiveState {
       refresher.dispose()
       dispose()
     }
-  }, [api, session, reviews, refs, jobs, client, place])
+  }, [session, reviews, refs, jobs, client, place, queries])
 
   return state
 }

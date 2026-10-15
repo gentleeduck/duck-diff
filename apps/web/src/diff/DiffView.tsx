@@ -118,7 +118,10 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         const index = page.starts.get(id)
         const element = scroller.current
         const start = index === undefined ? undefined : virtualizer.measurementsCache[index]?.start
-        if (element && start !== undefined && start < element.scrollTop) element.scrollTop = start
+        if (!element || start === undefined || start >= element.scrollTop) return
+        element.scrollTop = start
+        // The rows held for the next rebuild were the ones before this jump; a rebuild now must not undo it.
+        anchor.current = null
       },
     }),
     [page, virtualizer],

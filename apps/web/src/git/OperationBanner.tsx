@@ -3,9 +3,8 @@ import { Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
 import { GitMerge, TriangleAlert } from 'lucide-react'
 import { useApp } from '../app/AppProvider'
 import { useView } from '../hooks/useView'
-import { useStore } from '../lib/store'
 import { openMerge } from '../merge/open-merge'
-import type { StageState } from '../state/stage'
+import { type StageState, useStage } from '../state/stage'
 import { useGit } from './GitProvider'
 
 const NAMES: Record<NonNullable<SyncStatus['operation']>, string> = {
@@ -22,7 +21,7 @@ export function OperationBanner() {
   const { status, busy, run } = useGit()
   const app = useApp()
   const { show } = useView()
-  const conflicts = useStore(app.stage, countConflicts)
+  const conflicts = countConflicts(useStage())
   const operation = status?.operation
   if (!operation) return null
   return (
