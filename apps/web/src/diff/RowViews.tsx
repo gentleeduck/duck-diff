@@ -155,11 +155,11 @@ function Cell({
       onPointerEnter={() => dragOver(item, line, side)}
       className={`group/line relative flex min-w-0 flex-1 ${settings.backgrounds ? BG[line.kind] : ''} ${MARK[line.kind]} ${
         markKind === 'draft'
-          ? 'bg-tn-yellow/10! shadow-[inset_3px_0_0_var(--tn-yellow)]'
+          ? 'bg-tn-yellow/20! shadow-[inset_3px_0_0_var(--tn-yellow)]'
           : markKind === 'comment'
             ? 'shadow-[inset_3px_0_0_color-mix(in_oklab,var(--tn-yellow)_55%,transparent)]'
             : ''
-      } [&_[data-pick]]:rounded-sm [&_[data-pick]]:bg-tn-yellow/30 [&_[data-pick]]:ring-1 [&_[data-pick]]:ring-tn-yellow/50
+      }
       }`}>
       {settings.lineNumbers ? (
         <span className="relative flex shrink-0 select-none text-tn-gutter tabular-nums">
@@ -186,14 +186,38 @@ function Cell({
         data-code
         className={`min-w-0 flex-1 pe-4 ${wrap ? 'whitespace-pre-wrap break-all' : 'overflow-hidden whitespace-pre'}`}>
         {wrap ? (
-          <Code text={line.text} tokens={lineTokens} marks={marks} picks={picks} />
+          <Code text={line.text} tokens={lineTokens} marks={marks} />
         ) : (
-          <span className="inline-block translate-x-[calc(var(--code-x,0px)*-1)]">
-            <Code text={line.text} tokens={lineTokens} marks={marks} picks={picks} />
+          <span className="relative inline-block translate-x-[calc(var(--code-x,0px)*-1)]">
+            {picks ? <Pick text={line.text} range={picks[0]} tabSize={settings.tabSize} /> : null}
+            <Code text={line.text} tokens={lineTokens} marks={marks} />
           </span>
         )}
       </code>
     </div>
+  )
+}
+
+// Screen column of a character, with tabs advancing to their next stop.
+function column(text: string, index: number, tabSize: number): number {
+  let col = 0
+  for (let i = 0; i < index && i < text.length; i++) col = text[i] === '\t' ? col + tabSize - (col % tabSize) : col + 1
+  return col
+}
+
+// The words a comment is on, drawn behind the text rather than splitting it, so a selection being made over
+// the same text is never re-rendered away under the pointer.
+function Pick({ text, range, tabSize }: { text: string; range: [number, number] | undefined; tabSize: number }) {
+  if (!range) return null
+  const from = column(text, range[0], tabSize)
+  const to = column(text, range[1], tabSize)
+  return (
+    <span
+      data-pick
+      aria-hidden
+      className="pointer-events-none absolute inset-y-0 -z-10 rounded-sm bg-tn-yellow/30 ring-1 ring-tn-yellow/50"
+      style={{ left: `${from}ch`, width: `${to - from}ch` }}
+    />
   )
 }
 

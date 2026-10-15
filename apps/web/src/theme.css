@@ -233,3 +233,9 @@ body {
 .gh-markdown .issue-link {
   color: var(--tn-blue);
 }
+
+/* Dragging over code selects lines; the yellow line mark shows it, so the browser's text highlight stays hidden. */
+[data-diff-view] [data-code]::selection,
+[data-diff-view] [data-code] *::selection {
+  background: transparent;
+}

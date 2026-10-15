@@ -1,6 +1,4 @@
-import { Button } from '@duck-diff/ui'
-import { MessageSquarePlus } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
 export interface CodeSelection {
   item: string
@@ -51,49 +49,46 @@ export function readSelection(root: HTMLElement): { selection: CodeSelection; re
   }
 }
 
-// Selecting words in the code offers a comment on exactly those words, as a button beside the selection.
-export function SelectionComment({
-  root,
-  onComment,
-}: {
-  root: () => HTMLElement | null
-  onComment(selection: CodeSelection): void
-}) {
-  const [found, setFound] = useState<{ selection: CodeSelection; rect: DOMRect } | null>(null)
+// Dragging over code selects lines, not text: the lines light up as one block while the mouse is down,
+// and letting go opens a comment on them. Part of one line keeps its exact words.
+export function useLineSelection(
+  root: () => HTMLElement | null,
+  onSelecting: (selection: CodeSelection | null) => void,
+  onDone: (selection: CodeSelection) => void,
+) {
+  const latest = useRef({ onSelecting, onDone })
+  latest.current = { onSelecting, onDone }
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const check = () => {
-      clearTimeout(timer)
-      timer = setTimeout(() => {
-        const element = root()
-        setFound(element ? readSelection(element) : null)
-      }, 120)
+    let down = false
+    let current: CodeSelection | null = null
+    const onDown = (event: PointerEvent) => {
+      const element = root()
+      down = event.button === 0 && Boolean(element?.contains(event.target as Node))
+      current = null
     }
-    const hide = () => setFound(null)
-    document.addEventListener('selectionchange', check)
-    const element = root()
-    element?.addEventListener('scroll', hide, { passive: true })
+    const onChange = () => {
+      const element = root()
+      if (!down || !element) return
+      current = readSelection(element)?.selection ?? null
+      latest.current.onSelecting(current)
+    }
+    const onUp = () => {
+      if (!down) return
+      down = false
+      const picked = current
+      current = null
+      latest.current.onSelecting(null)
+      if (!picked) return
+      window.getSelection()?.removeAllRanges()
+      latest.current.onDone(picked)
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    document.addEventListener('selectionchange', onChange)
+    document.addEventListener('pointerup', onUp, true)
     return () => {
-      clearTimeout(timer)
-      document.removeEventListener('selectionchange', check)
-      element?.removeEventListener('scroll', hide)
+      document.removeEventListener('pointerdown', onDown, true)
+      document.removeEventListener('selectionchange', onChange)
+      document.removeEventListener('pointerup', onUp, true)
     }
   }, [root])
-  if (!found) return null
-  return (
-    <div className="fixed z-40" style={{ top: found.rect.bottom + 6, left: Math.max(8, found.rect.right - 140) }}>
-      <Button
-        size="sm"
-        className="shadow-md"
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => {
-          onComment(found.selection)
-          window.getSelection()?.removeAllRanges()
-          setFound(null)
-        }}>
-        <MessageSquarePlus />
-        Comment
-      </Button>
-    </div>
-  )
 }

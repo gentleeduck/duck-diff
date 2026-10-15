@@ -46,32 +46,63 @@ test('drags from a line comment button over the next line to comment on both', a
   await expect(page.getByText('Lines 1 to 2')).toBeVisible()
 })
 
-test('selecting words offers a comment on exactly them, highlighted before and after saving', async ({ page, app }) => {
+// Screen points for a character span in a code line, for dragging the mouse over it.
+async function span(code: import('@playwright/test').Locator, from: number, to: number) {
+  return code.evaluate(
+    (element, { start, end }) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+      let at = 0
+      const range = document.createRange()
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const text = node.textContent ?? ''
+        if (at <= start && start <= at + text.length) range.setStart(node, start - at)
+        if (at <= end && end <= at + text.length) range.setEnd(node, end - at)
+        at += text.length
+      }
+      const box = range.getBoundingClientRect()
+      return { x1: box.left + 1, x2: box.right - 1, y: box.top + box.height / 2 }
+    },
+    { start: from, end: to },
+  )
+}
+
+test('dragging over words opens a comment on exactly them, highlighted before and after saving', async ({
+  page,
+  app,
+}) => {
   await page.goto(app.url)
   await expect(page.getByRole('banner')).toContainText('2 files')
   const code = page.locator('[data-side="additions"][data-line="1"] [data-code]').filter({ hasText: 'answer = 42' })
-  await expect(code).toContainText('export const answer = 42')
-  // Colors re-render the line's pieces, which would drop a selection made before they land.
   await expect(code.locator('.tok').first()).toBeVisible()
-  // Select "answer" by its characters, as a mouse drag would.
-  await code.evaluate((element) => {
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
-    let at = 0
-    const range = document.createRange()
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const text = node.textContent ?? ''
-      if (at <= 13 && 13 <= at + text.length) range.setStart(node, 13 - at)
-      if (at <= 19 && 19 <= at + text.length) range.setEnd(node, 19 - at)
-      at += text.length
-    }
-    window.getSelection()?.removeAllRanges()
-    window.getSelection()?.addRange(range)
-  })
-  await page.getByRole('button', { name: 'Comment', exact: true }).click()
+  const { x1, x2, y } = await span(code, 13, 19)
+  await page.mouse.move(x1, y)
+  await page.mouse.down()
+  await page.mouse.move(x2, y, { steps: 5 })
+  // The highlight covers exactly the dragged words: one block, as wide as "answer".
+  const pick = page.locator('[data-pick]')
+  await expect(pick).toHaveCount(1)
+  expect(Math.abs(((await pick.boundingBox())?.width ?? 0) - (x2 - x1 + 2))).toBeLessThan(3)
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('answer')
+  await page.mouse.up()
   await expect(page.getByText('Commenting on')).toContainText('answer')
-  await expect(page.locator('[data-pick]')).toHaveText(['answer'])
   await page.getByRole('textbox', { name: 'New comment' }).fill('Rename this')
   await page.getByRole('button', { name: 'Save comment' }).click()
   await expect(page.getByText('Rename this')).toBeVisible()
-  await expect(page.locator('[data-pick]')).toHaveText(['answer'])
+  await expect(pick).toHaveCount(1)
+})
+
+test('dragging across lines selects them whole and opens a comment on release', async ({ page, app }) => {
+  await page.goto(app.url)
+  await expect(page.getByRole('banner')).toContainText('2 files')
+  const first = page.locator('[data-side="additions"][data-line="1"] [data-code]').filter({ hasText: 'answer = 42' })
+  const second = page.locator('[data-side="additions"][data-line="2"] [data-code]').filter({ hasText: 'name' })
+  await expect(first.locator('.tok').first()).toBeVisible()
+  const start = await span(first, 7, 12)
+  const end = await span(second, 7, 12)
+  await page.mouse.move(start.x1, start.y)
+  await page.mouse.down()
+  await page.mouse.move(end.x2, end.y, { steps: 5 })
+  await page.mouse.up()
+  await expect(page.getByText('Commenting on lines 1 to 2')).toBeVisible()
+  await expect(page.locator('[data-pick]')).toHaveCount(0)
 })

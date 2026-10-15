@@ -14,7 +14,7 @@ import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
 import { isPopping } from '../lib/history'
 import { itemId } from '../lib/items'
-import { useStore } from '../lib/store'
+import { createStore, useStore } from '../lib/store'
 import { isTestFile } from '../lib/tests'
 import { lineHash } from '../review/anchor'
 import { createAnnotator, type Note, type NoteItem } from '../review/annotations'
@@ -28,7 +28,7 @@ import { actionsFor, type WriteKind } from './actions'
 import { FileActions } from './FileActions'
 import { FileHeader } from './FileHeader'
 import { fileNote } from './file-info'
-import { type CodeSelection, SelectionComment } from './SelectionComment'
+import { type CodeSelection, useLineSelection } from './line-selection'
 import { visibleItems } from './visible-items'
 import { WriteButtons } from './WriteButtons'
 
@@ -256,7 +256,9 @@ export default function Viewer() {
       const item = index === undefined ? undefined : page.rows[index]?.item
       if (!item) return
       const lines = sideLines(page.files.get(item.id)?.rows ?? [], picked.side, picked.startLine, picked.endLine)
-      const whole = picked.startCol === 0 && picked.endCol >= (lines.at(-1)?.length ?? 0)
+      // Several lines are taken whole; part of one line keeps its exact words.
+      const whole =
+        picked.startLine < picked.endLine || (picked.startCol === 0 && picked.endCol >= (lines.at(-1)?.length ?? 0))
       reviews.startDraft({
         path: item.fileDiff.name,
         side: picked.side,
@@ -269,6 +271,8 @@ export default function Viewer() {
     },
     [page, reviews],
   )
+  const selecting = useMemo(() => createStore<CodeSelection | null>(null), [])
+  useLineSelection(diffRoot, selecting.set, commentOnSelection)
 
   const anchor = useRef(0)
   const dragging = useRef(false)
@@ -333,7 +337,7 @@ export default function Viewer() {
           context.comment(item, line, side, true)
       },
       subscribeMarks(listener) {
-        const stops = [reviews.subscribe(listener), pullReview.subscribe(listener)]
+        const stops = [reviews.subscribe(listener), pullReview.subscribe(listener), selecting.subscribe(listener)]
         return () => {
           for (const stop of stops) stop()
         }
@@ -341,6 +345,11 @@ export default function Viewer() {
       lineMark(item, side, number, length) {
         if (number === null) return ''
         const path = item.fileDiff.name
+        const live = selecting.get()
+        if (live && live.item === item.id && live.side === side && number >= live.startLine && number <= live.endLine) {
+          const partial = live.startLine === live.endLine
+          return `draft${partial ? markCols({ start: live.startLine, end: live.endLine, startCol: live.startCol, endCol: live.endCol }, number, length) : ''}`
+        }
         const open = reviews.get().draft
         const draft =
           open && open.path === path && open.side === side
@@ -383,6 +392,7 @@ export default function Viewer() {
       loadSource,
       sourcePath,
       pullReview,
+      selecting,
     ],
   )
 
@@ -472,7 +482,6 @@ export default function Viewer() {
         renderNote={renderNote}
         scrollKey={shownKey}
       />
-      <SelectionComment root={diffRoot} onComment={commentOnSelection} />
     </div>
   )
 }
