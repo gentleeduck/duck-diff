@@ -117,14 +117,16 @@ describe('GitHub views', () => {
     expect(await screen.findByRole('option', { name: /Add things/ })).toBeTruthy()
   })
 
-  it('lists pull requests, opens one with its conversation, and approves it', async () => {
+  it('lists pull requests, opens one with its conversation, and approves it from Review changes', async () => {
     const review = vi.fn(async () => {})
     render(<App api={fakeApi({ github: githubApi({ review }) })} />)
     fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
     expect(await screen.findByText('Why this exists')).toBeTruthy()
     expect(screen.getByText('Looks good')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
-    await waitFor(() => expect(review).toHaveBeenCalledWith(7, 'APPROVE', ''))
+    // As on GitHub, the verdict is given from Review changes, not from the comment box.
+    fireEvent.click(await screen.findByRole('button', { name: /Review changes/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }))
+    await waitFor(() => expect(review).toHaveBeenCalledWith(7, 'APPROVE', '', []))
   })
 
   it('merges only after the confirm', async () => {

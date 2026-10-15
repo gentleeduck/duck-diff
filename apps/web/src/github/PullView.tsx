@@ -2,7 +2,7 @@ import type { PullCommit, PullDetails } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
 import {
   ArrowLeft,
-  Check,
+  Copy,
   Eye,
   FileDiff,
   GitCommitHorizontal,
@@ -15,18 +15,19 @@ import {
   LockOpen,
   MessageSquare,
   SquareArrowOutUpRight,
-  X,
 } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
+import { IconTool } from '../app/IconTool'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useTarget } from '../hooks/useTarget'
 import type { ReviewEvent } from '../lib/api'
 import { useStore } from '../lib/store'
 import type { PullTab } from '../lib/view-url'
 import { ChecksList } from './Checks'
+import { CodeMenu } from './CodeMenu'
 import { Avatar, Comment, Composer } from './Conversation'
 import { ItemSidebar } from './ItemSidebar'
 import { MergeBox } from './MergeBox'
@@ -43,6 +44,23 @@ import { EditableTitle, useThread } from './useThread'
 const Viewer = lazy(() => import('../viewer/Viewer'))
 
 type Tab = PullTab
+
+// GitHub's five squares beside a diff stat: green for added lines, red for removed, in proportion.
+function DiffBlocks({ additions, deletions }: { additions: number; deletions: number }) {
+  const total = additions + deletions
+  const green = total ? Math.round((additions / total) * 5) : 0
+  const red = total ? Math.min(5 - green, Math.round((deletions / total) * 5)) : 0
+  return (
+    <span aria-hidden className="flex gap-0.5">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <span
+          key={i}
+          className={`size-2 rounded-[1px] ${i < green ? 'bg-added' : i < green + red ? 'bg-removed' : 'bg-muted'}`}
+        />
+      ))}
+    </span>
+  )
+}
 
 function TabButton({
   id,
@@ -157,6 +175,11 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   const tab = useStore(pullTab, selectTab)
   const setTab = (next: Tab) => pullTab.set(next)
   const { thread, draft, reload: reloadThread } = useThread(number)
+  // Review changes works from every tab, so the pull request's review state reads with the page.
+  const { pullReview } = useApp()
+  useEffect(() => {
+    pullReview.load(number).catch(() => {})
+  }, [pullReview, number])
   const page = useRef<HTMLElement>(null)
 
   const load = useCallback(
@@ -225,7 +248,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
     )
   }
 
-  const review = (event: ReviewEvent, body: string, clear: () => void, done: string) =>
+  const _review = (event: ReviewEvent, body: string, clear: () => void, done: string) =>
     act(event, () => api.github.review(number, event, body).then(clear), done)
   const refreshAll = async () => {
     await Promise.all([load(), reloadThread()])
@@ -254,6 +277,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
               Open on GitHub
             </a>
           </Button>
+          <CodeMenu pull={pull} />
           <ThreadMenu
             actions={[
               ...(pull.state === 'open'
@@ -329,6 +353,14 @@ export default function PullView({ number, onChanged }: { number: number; onChan
           )}
           <span>from</span>
           <code className="rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue">{pull.headRef}</code>
+          <IconTool
+            label={`Copy ${pull.headRef}`}
+            tip="Copy branch name"
+            onClick={() =>
+              void navigator.clipboard.writeText(pull.headRef).then(() => toast('Copied the branch name'))
+            }>
+            <Copy />
+          </IconTool>
         </div>
         <div role="tablist" aria-label="Pull request" className="flex items-end border-border border-b">
           <TabButton
@@ -362,14 +394,13 @@ export default function PullView({ number, onChanged }: { number: number; onChan
             label="Files changed"
             count={pull.changedFiles}
           />
-          {tab === 'files' ? (
-            <span className="ms-auto pb-1.5">
-              <ReviewChanges />
+          <span className="ms-auto flex items-center gap-3 pb-1.5">
+            <span className="flex items-center gap-1.5 tabular-nums">
+              <span className="text-added">+{pull.additions.toLocaleString()}</span>
+              <span className="text-removed">-{pull.deletions.toLocaleString()}</span>
+              <DiffBlocks additions={pull.additions} deletions={pull.deletions} />
             </span>
-          ) : null}
-          <span className={`${tab === 'files' ? 'ms-3' : 'ms-auto'} pb-2 tabular-nums`}>
-            <span className="text-added">+{pull.additions.toLocaleString()}</span>{' '}
-            <span className="text-removed">-{pull.deletions.toLocaleString()}</span>
+            {pull.state === 'open' ? <ReviewChanges /> : null}
           </span>
         </div>
         {tab === 'commits' ? <Commits number={number} /> : null}
@@ -428,41 +459,24 @@ export default function PullView({ number, onChanged }: { number: number; onChan
                   if (!(await act('comment', () => api.github.comment(number, body), 'Commented')))
                     throw new Error('unsent')
                 }}>
-                {(body, clear) =>
-                  pull.state === 'open' ? (
-                    <>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        loading={busy === 'state'}
-                        onClick={() =>
-                          void act('state', () => api.github.setPullState(number, 'closed'), `Closed #${number}`)
-                        }>
-                        <GitPullRequestClosed />
-                        Close pull request
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={!body.trim()}
-                        loading={busy === 'REQUEST_CHANGES'}
-                        onClick={() => review('REQUEST_CHANGES', body, clear, 'Requested changes')}>
-                        <X />
-                        Request changes
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        loading={busy === 'APPROVE'}
-                        onClick={() => review('APPROVE', body, clear, 'Approved')}>
-                        <Check />
-                        Approve
-                      </Button>
-                    </>
-                  ) : null
+                {() =>
+                  pull.merged ? null : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      loading={busy === 'state'}
+                      onClick={() =>
+                        void act(
+                          'state',
+                          () => api.github.setPullState(number, pull.state === 'open' ? 'closed' : 'open'),
+                          pull.state === 'open' ? `Closed #${number}` : `Reopened #${number}`,
+                        )
+                      }>
+                      {pull.state === 'open' ? <GitPullRequestClosed className="text-removed" /> : <GitPullRequest />}
+                      {pull.state === 'open' ? 'Close pull request' : 'Reopen pull request'}
+                    </Button>
+                  )
                 }
               </Composer>
             </div>
