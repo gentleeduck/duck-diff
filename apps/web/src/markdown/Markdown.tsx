@@ -7,6 +7,7 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
+import { fencePath } from './fence'
 
 const EXTERNAL = /^(https?:|mailto:|#)/i
 const REMOTE = /^(https?:|data:|\/\/)/i
@@ -61,7 +62,7 @@ function withoutMarker(children: ReactNode): ReactNode {
 
 function Fenced({ language, text }: { language: string; text: string }) {
   useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
-  const tokens = highlighter.text(`md:${language}:${text.length}:${text.slice(0, 64)}`, `file.${language}`, text)
+  const tokens = highlighter.text(`md:${language}:${text.length}:${text.slice(0, 64)}`, fencePath(language), text)
   return (
     <code>
       {text.split('\n').map((line, index) => (
@@ -103,8 +104,11 @@ export function Markdown({
   text,
   onLocalLink,
   imageUrl,
+  float = false,
 }: {
   text: string
+  // Set tight for a hover float: code flush and wrapped, little room between blocks.
+  float?: boolean
   onLocalLink?: (href: string) => void
   // Where a relative image is read from, for a file's README; without it relative images stay as written.
   imageUrl?: (src: string) => string
@@ -131,7 +135,7 @@ export function Markdown({
       />
     )
   return (
-    <div className="gh-markdown text-foreground">
+    <div className={`gh-markdown text-foreground ${float ? 'float' : ''}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw, [rehypeSanitize, SCHEMA]]}

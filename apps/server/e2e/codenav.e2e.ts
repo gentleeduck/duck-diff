@@ -50,7 +50,7 @@ test('a language server tells two functions of the same name apart', async ({ pa
   await code.getByText('load', { exact: true }).hover()
   const card = page.getByRole('dialog', { name: 'About load' })
   await expect(card).toContainText('load(): number')
-  await card.getByRole('button', { name: 'Peek references' }).click()
+  await card.getByRole('button', { name: /References/ }).click()
   await expect(card.getByRole('list', { name: 'References' })).toContainText('src/b.ts:1')
   await expect(card.getByRole('list', { name: 'References' })).not.toContainText('src/a.ts')
   await page.keyboard.press('Escape')

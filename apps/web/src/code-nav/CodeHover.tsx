@@ -1,6 +1,4 @@
 import type { LspHover, LspLocation } from '@duck-diff/protocol'
-import { Button } from '@duck-diff/ui'
-import { ListTree, SquareArrowOutUpRight, TextSearch } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useApp } from '../app/AppProvider'
@@ -14,7 +12,8 @@ import { type LocateSymbol, targetOf } from './useSymbolClick'
 
 const DELAY_MS = 450
 const GRACE_MS = 200
-const WIDTH = 560
+// Wide enough for a type signature on one line most of the time; longer ones wrap.
+const WIDTH = 900
 // Hovering back over a name answers at once; a spot is asked again only after the code may have changed.
 const RECENT_MS = 30_000
 const hovers = new Map<string, { at: number; read: Promise<LspHover | null> }>()
@@ -156,6 +155,34 @@ export function CodeHover({ root, locate }: { root: () => HTMLElement | null; lo
     }
   }, [root, app])
 
+  // While the float is open, gd, gr and gR act on its name, as they would in Neovim.
+  const actions = useRef({ definition: () => {}, references: () => {}, uses: () => {} })
+  useEffect(() => {
+    if (!shown) return
+    let g = 0
+    const onKey = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return
+      if (event.key === 'g' && !g) {
+        g = window.setTimeout(() => {
+          g = 0
+        }, 600)
+        return
+      }
+      const run =
+        g && { d: actions.current.definition, r: actions.current.references, R: actions.current.uses }[event.key]
+      clearTimeout(g)
+      g = 0
+      if (!run) return
+      event.preventDefault()
+      run()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      clearTimeout(g)
+      window.removeEventListener('keydown', onKey, true)
+    }
+  }, [shown])
+
   if (!shown) return null
   const { target, rect, hover } = shown
   const width = Math.min(WIDTH, window.innerWidth - 32)
@@ -172,53 +199,68 @@ export function CodeHover({ root, locate }: { root: () => HTMLElement | null; lo
     show('files')
     close()
   }
+  const definition = () => {
+    close()
+    void goToDefinition(app, target, () => show('files'))
+  }
+  const references = () => setPeeking((now) => !now)
+  const uses = () => {
+    close()
+    app.symbol.set(target)
+  }
+  actions.current = { definition, references, uses }
   return createPortal(
     <div
       ref={card}
       role="dialog"
       aria-label={`About ${target.name}`}
-      className="fixed z-50 flex flex-col overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
+      className="fixed z-50 flex flex-col overflow-hidden rounded-sm border border-tn-cyan/60 bg-popover text-popover-foreground shadow-lg"
       style={{ left, width, ...(below ? { top: rect.bottom + 4 } : { bottom: window.innerHeight - rect.top + 4 }) }}>
-      <div className="max-h-64 overflow-y-auto px-3 py-2 [&_pre]:my-0">
-        <Markdown text={hover.contents ?? ''} />
+      {/* A slim line of actions on top, then the signature and its doc comment, as Neovim's hover float. */}
+      <div className="flex h-7 shrink-0 items-center border-border border-b px-1 text-muted-foreground">
+        <HoverAction keys="gd" label="Definition" onClick={definition} />
+        <HoverAction keys="gr" label="References" pressed={peeking} onClick={references} />
+        <HoverAction keys="gR" label="All uses" onClick={uses} />
+        <span
+          className="ms-auto truncate px-1.5"
+          title={hover.source === 'nvim' ? 'Answered by a Neovim client' : 'Answered by a language server'}>
+          {hover.source === 'nvim' ? 'Neovim' : hover.server}
+        </span>
+      </div>
+      <div className="max-h-[min(28rem,60vh)] overflow-y-auto px-2.5 py-1.5">
+        <Markdown text={hover.contents ?? ''} float />
       </div>
       {peeking ? (
         <div className="border-border border-t">
           <Peek target={target} onOpen={open} />
         </div>
       ) : null}
-      <div className="flex items-center gap-1 border-border border-t px-2 py-1">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            close()
-            void goToDefinition(app, target, () => show('files'))
-          }}>
-          <SquareArrowOutUpRight />
-          Go to definition
-        </Button>
-        <Button size="sm" variant="ghost" aria-pressed={peeking} onClick={() => setPeeking((now) => !now)}>
-          <ListTree />
-          Peek references
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            close()
-            app.symbol.set(target)
-          }}>
-          <TextSearch />
-          All uses
-        </Button>
-        <span
-          className="ms-auto truncate text-muted-foreground"
-          title={hover.source === 'nvim' ? 'Answered by a Neovim client' : 'Answered by a language server'}>
-          {hover.source === 'nvim' ? 'Neovim' : hover.server}
-        </span>
-      </div>
     </div>,
     document.body,
+  )
+}
+
+function HoverAction({
+  keys,
+  label,
+  pressed,
+  onClick,
+}: {
+  keys: string
+  label: string
+  pressed?: boolean
+  onClick(): void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={`flex h-6 cursor-pointer items-center gap-1.5 rounded-sm px-1.5 hover:bg-accent hover:text-foreground ${
+        pressed ? 'bg-accent text-foreground' : ''
+      }`}>
+      <span className="text-tn-blue">{keys}</span>
+      {label}
+    </button>
   )
 }
