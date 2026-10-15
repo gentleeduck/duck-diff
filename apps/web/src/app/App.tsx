@@ -88,8 +88,16 @@ function Screen() {
   // Bumped when a page changes an item, so its list reloads.
   const [pullsVersion, setPullsVersion] = useState(0)
   const [issuesVersion, setIssuesVersion] = useState(0)
-  const pullsChanged = () => setPullsVersion((n) => n + 1)
-  const issuesChanged = () => setIssuesVersion((n) => n + 1)
+  const { items } = useApp()
+  // A change made here is a change the palette's saved list should see too.
+  const pullsChanged = () => {
+    setPullsVersion((n) => n + 1)
+    void items.refresh()
+  }
+  const issuesChanged = () => {
+    setIssuesVersion((n) => n + 1)
+    void items.refresh()
+  }
   const search = (
     <Button
       size="sm"
@@ -98,7 +106,7 @@ function Screen() {
       aria-label="Search files and actions"
       onClick={() => setPalette(true)}>
       <SearchIcon />
-      <span className="min-w-0 flex-1 truncate text-start">Search files</span>
+      <span className="min-w-0 flex-1 truncate text-start">Search or jump to...</span>
       <Kbd className="ms-auto">Ctrl K</Kbd>
     </Button>
   )

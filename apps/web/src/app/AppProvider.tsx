@@ -1,8 +1,9 @@
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
 import type { DiffViewHandle } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
+import { createItemIndex, type ItemIndex } from '../github/item-index'
 import { createPullReview, type PullReview } from '../github/pull-review'
-import { createGitHub, type GitHub } from '../github/store'
+import { createGitHub, type GitHub, isReady } from '../github/store'
 import { createGraph, type Graph } from '../graph/store'
 import { type Api, createApi } from '../lib/api'
 import { createStore, type Store } from '../lib/store'
@@ -49,6 +50,8 @@ interface AppContextValue {
   pullTab: Store<PullTab>
   // The file last jumped to in the diff, so back and forward can return to it.
   diffFile: Store<string | null>
+  // Every pull request and issue, saved per repo, for the palette's search.
+  items: ItemIndex
   // GitHub's review threads for the pull request the diff shows.
   pullReview: PullReview
   viewer: RefObject<DiffViewHandle | null>
@@ -85,6 +88,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       pullTab: createStore<PullTab>('conversation'),
       diffFile: createStore<string | null>(null),
       pullReview: createPullReview(client),
+      items: createItemIndex(client),
       viewer,
     }
   }, [api])
@@ -110,6 +114,17 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       warmed = true
       highlighter.warm(files.slice(0, 40).map((file) => file.path))
     })
+  }, [value])
+
+  // The saved pull requests and issues show as soon as the repo is known, then refresh from GitHub.
+  useEffect(() => {
+    const { github, items } = value
+    const sync = () => {
+      const state = github.get()
+      if (isReady(state) && state.status?.repo) items.open(state.status.repo)
+    }
+    sync()
+    return github.subscribe(sync)
   }, [value])
 
   // Comments belong to a target, so they follow the session to whatever comparison it loads.
