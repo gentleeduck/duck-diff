@@ -51,7 +51,18 @@ const PLUMBING = new Set([
 
 const subcommand = (args: string[]) => args.find((arg, at) => !arg.startsWith('-') && args[at - 1] !== '-c')
 
+// Options that make git run another program. No caller builds them, so one here came from input.
+const RUNS_PROGRAM = /^--(upload-pack|receive-pack|exec)(=|$)/
+
+// A remote, branch or tag name from the page must not reach git as an option.
+export function notOption(value: string, what: string): string {
+  if (value.startsWith('-')) throw new GitError('failed', null, '', `refused ${what} "${value}": it reads as an option`)
+  return value
+}
+
 function spawnGit(args: string[], options: RunOptions) {
+  const option = args.find((arg) => RUNS_PROGRAM.test(arg))
+  if (option) throw new GitError('failed', null, '', `refused git option ${option.split('=')[0]}`)
   const sink = sinks.getStore()
   // Hooks run under git with pipes, not a terminal; most tools still print color when asked.
   const env = sink ? { ...ENV, ...options.env, FORCE_COLOR: '1' } : options.env ? { ...ENV, ...options.env } : ENV

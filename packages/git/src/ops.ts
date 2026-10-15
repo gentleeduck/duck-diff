@@ -1,5 +1,5 @@
 import { GitError } from './errors'
-import { runGit } from './run'
+import { notOption, runGit } from './run'
 import { mayConflict, NETWORK_TIMEOUT_MS, NO_EDITOR, readOperation } from './sync'
 
 const network = (repo: string) => ({ cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
@@ -55,7 +55,10 @@ export async function forcePush(repo: string) {
 }
 
 export async function deleteRemoteBranch(repo: string, options: { remote: string; branch: string }) {
-  await runGit(['push', options.remote, '--delete', options.branch], network(repo))
+  await runGit(
+    ['push', notOption(options.remote, 'remote'), '--delete', notOption(options.branch, 'branch')],
+    network(repo),
+  )
 }
 
 // origin/feature becomes a local feature that tracks it.
@@ -75,7 +78,10 @@ export async function deleteTag(repo: string, name: string) {
 }
 
 export async function pushTags(repo: string, options: { remote: string; name: string | null }) {
-  await runGit(['push', options.remote, options.name ? `refs/tags/${options.name}` : '--tags'], network(repo))
+  await runGit(
+    ['push', notOption(options.remote, 'remote'), options.name ? `refs/tags/${options.name}` : '--tags'],
+    network(repo),
+  )
 }
 
 export interface Remote {
@@ -94,7 +100,7 @@ export async function listRemotes(repo: string): Promise<Remote[]> {
 }
 
 export async function addRemote(repo: string, options: { name: string; url: string }) {
-  await runGit(['remote', 'add', options.name, options.url], { cwd: repo })
+  await runGit(['remote', 'add', notOption(options.name, 'remote'), notOption(options.url, 'url')], { cwd: repo })
 }
 
 export async function removeRemote(repo: string, name: string) {
@@ -102,7 +108,7 @@ export async function removeRemote(repo: string, name: string) {
 }
 
 export async function fetchRemote(repo: string, options: { remote: string; prune: boolean }) {
-  await runGit(['fetch', ...(options.prune ? ['--prune'] : []), options.remote], network(repo))
+  await runGit(['fetch', ...(options.prune ? ['--prune'] : []), notOption(options.remote, 'remote')], network(repo))
 }
 
 export function rebaseOnto(repo: string, onto: string): Promise<{ conflicts: boolean }> {
