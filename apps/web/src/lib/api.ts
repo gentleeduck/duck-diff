@@ -91,6 +91,8 @@ export interface GitHubApi {
   pulls(state: ItemState): Promise<PullSummary[]>
   createPull(input: CreatePull): Promise<PullSummary>
   defaultBranch(): Promise<string>
+  // email (lower case) -> avatar url; empty when signed out.
+  avatars(): Promise<Record<string, string>>
   pull(number: number): Promise<PullDetails>
   checks(number: number): Promise<CheckRun[]>
   fetchPull(number: number): Promise<PullRefs>
@@ -164,6 +166,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     pull: (number) => json(`/api/github/pulls/${number}`, PullDetailsSchema),
     checks: (number) => json(`/api/github/pulls/${number}/checks`, z.array(CheckRunSchema)),
     createPull: (input) => send('POST', '/api/github/pulls', input, PullSummarySchema),
+    avatars: () => json('/api/github/avatars', z.record(z.string(), z.string())),
     defaultBranch: async () => (await json('/api/github/default-branch', z.object({ branch: z.string() }))).branch,
     fetchPull: (number) => send('POST', `/api/github/pulls/${number}/fetch`, {}, PullRefsSchema),
     comment: (number, body) =>

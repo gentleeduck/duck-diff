@@ -2,23 +2,18 @@ import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@duck-di
 import { Cherry, GitBranchPlus, GitCompareArrows, LocateFixed, Undo2 } from 'lucide-react'
 import { useState } from 'react'
 import { useGit } from '../git/GitProvider'
-import { useTarget } from '../hooks/useTarget'
-import { useView } from '../hooks/useView'
-
-// Branch names git would reject are caught by the server; this only blocks the obvious blanks.
-const usable = (name: string) => name.trim().length > 0 && !/\s/.test(name.trim())
+import { usableBranchName as usable, useCommitActions } from './commit-actions'
 
 export function CommitActions({ sha }: { sha: string }) {
-  const { busy, run } = useGit()
-  const { navigate } = useTarget()
-  const { show } = useView()
+  const { busy } = useGit()
+  const actions = useCommitActions()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const short = sha.slice(0, 7)
 
   const create = async () => {
     if (!usable(name)) return
-    if (await run('switch', { branch: name.trim(), create: true, start: sha }, `Created ${name.trim()} at ${short}`)) {
+    if (await actions.createBranch(name.trim(), sha)) {
       setOpen(false)
       setName('')
     }
@@ -30,10 +25,7 @@ export function CommitActions({ sha }: { sha: string }) {
         size="sm"
         variant="outline"
         title="Everything that changed between this commit and HEAD"
-        onClick={() => {
-          navigate({ kind: 'range', from: sha, to: 'HEAD', mode: 'two-dot' })
-          show('changes')
-        }}>
+        onClick={() => actions.compareWithHead(sha)}>
         <GitCompareArrows />
         Compare with HEAD
       </Button>
@@ -72,7 +64,7 @@ export function CommitActions({ sha }: { sha: string }) {
         variant="outline"
         loading={busy === 'cherry-pick'}
         title="Apply this commit's change on top of the current branch"
-        onClick={() => void run('cherry-pick', { ref: sha }, `Cherry-picked ${short}`)}>
+        onClick={() => void actions.cherryPick(sha)}>
         <Cherry />
         Cherry-pick
       </Button>
@@ -81,7 +73,7 @@ export function CommitActions({ sha }: { sha: string }) {
         variant="outline"
         loading={busy === 'revert'}
         title="Add a commit that undoes this one"
-        onClick={() => void run('revert', { ref: sha }, `Reverted ${short}`)}>
+        onClick={() => void actions.revert(sha)}>
         <Undo2 />
         Revert
       </Button>
@@ -90,7 +82,7 @@ export function CommitActions({ sha }: { sha: string }) {
         variant="outline"
         loading={busy === 'checkout'}
         title="Detached HEAD: look around without moving a branch"
-        onClick={() => void run('checkout', { sha }, `Checked out ${short}`)}>
+        onClick={() => void actions.checkout(sha)}>
         <LocateFixed />
         Checkout
       </Button>

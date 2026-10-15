@@ -1,6 +1,18 @@
-import { Skeleton, Tabs, TabsList, TabsTrigger } from '@duck-diff/ui'
-import { RefreshCw } from 'lucide-react'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuLabel,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  Skeleton,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+} from '@duck-diff/ui'
+import { Copy, FileText, RefreshCw, SquareArrowOutUpRight } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { IconTool } from '../app/IconTool'
 import type { ItemState } from '../lib/api'
 import type { Store } from '../lib/store'
@@ -11,6 +23,7 @@ import { isReady } from './store'
 export interface ListItem {
   number: number
   title: string
+  url: string
 }
 
 interface Props<T extends ListItem> {
@@ -21,12 +34,27 @@ interface Props<T extends ListItem> {
   // Bumped by the page after it changes an item, so the list shows the new state.
   version?: number
   actions?: ReactNode
+  // Extra right-click items, above the shared open and copy ones.
+  menuFor?(item: T, reload: () => void): ReactNode
 }
 
 const selectNumber = (value: number | null) => value
+
+async function copy(text: string, what: string) {
+  await navigator.clipboard.writeText(text)
+  toast(`Copied the ${what}`)
+}
 const SKELETONS = ['a', 'b', 'c', 'd', 'e', 'f']
 
-export function ItemSidebar<T extends ListItem>({ label, load, selection, row, version = 0, actions }: Props<T>) {
+export function ItemSidebar<T extends ListItem>({
+  label,
+  load,
+  selection,
+  row,
+  version = 0,
+  actions,
+  menuFor,
+}: Props<T>) {
   const github = useGitHub()
   const ready = isReady(github)
   const selected = useStore(selection, selectNumber)
@@ -86,19 +114,45 @@ export function ItemSidebar<T extends ListItem>({ label, load, selection, row, v
           </p>
         ) : null}
         {items?.map((item) => (
-          <div
-            key={item.number}
-            role="option"
-            tabIndex={0}
-            aria-selected={item.number === selected}
-            title={item.title}
-            onClick={() => selection.set(item.number)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') selection.set(item.number)
-            }}
-            className="flex cursor-pointer gap-2 rounded-md px-2 py-1.5 hover:bg-accent/60 aria-selected:bg-accent">
-            {row(item)}
-          </div>
+          <ContextMenu key={item.number}>
+            <ContextMenuTrigger asChild>
+              <div
+                role="option"
+                tabIndex={0}
+                aria-selected={item.number === selected}
+                title={item.title}
+                onClick={() => selection.set(item.number)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') selection.set(item.number)
+                }}
+                className="flex cursor-pointer gap-2 rounded-md px-2 py-1.5 hover:bg-accent/60 aria-selected:bg-accent">
+                {row(item)}
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-64">
+              <ContextMenuLabel>
+                #{item.number} {item.title}
+              </ContextMenuLabel>
+              <ContextMenuItem onSelect={() => selection.set(item.number)}>
+                <FileText />
+                Open
+              </ContextMenuItem>
+              {menuFor?.(item, reload)}
+              <ContextMenuItem onSelect={() => window.open(item.url, '_blank', 'noreferrer')}>
+                <SquareArrowOutUpRight />
+                Open on GitHub
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem onSelect={() => void copy(item.url, 'link')}>
+                <Copy />
+                Copy link
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => void copy(`#${item.number}`, 'number')}>
+                <Copy />
+                Copy number
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
         ))}
       </div>
     </div>

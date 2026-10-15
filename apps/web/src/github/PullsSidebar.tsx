@@ -1,6 +1,10 @@
 import type { PullSummary } from '@duck-diff/protocol'
-import { GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft } from 'lucide-react'
+import { ContextMenuItem } from '@duck-diff/ui'
+import { FileDiff, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft } from 'lucide-react'
+import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { useTarget } from '../hooks/useTarget'
+import { useView } from '../hooks/useView'
 import { ItemSidebar } from './ItemSidebar'
 import { Labels } from './Labels'
 import { NewPull } from './NewPull'
@@ -16,6 +20,18 @@ export function PullIcon({ pull }: { pull: Pick<PullSummary, 'state' | 'merged' 
 
 export function PullsSidebar({ version, onChanged }: { version: number; onChanged(): void }) {
   const { api, pullSelection } = useApp()
+  const { navigate } = useTarget()
+  const { show } = useView()
+  // The same fetch as the page's Review files: the head lands in a local ref, then the diff shows it.
+  const reviewFiles = async (number: number) => {
+    try {
+      const refs = await api.github.fetchPull(number)
+      navigate({ kind: 'range', from: refs.base, to: refs.head, mode: 'merge-base' })
+      show('changes')
+    } catch (error) {
+      toast.error((error as Error).message)
+    }
+  }
   return (
     <ItemSidebar
       label="Pull requests"
@@ -23,6 +39,12 @@ export function PullsSidebar({ version, onChanged }: { version: number; onChange
       selection={pullSelection}
       version={version}
       actions={<NewPull onCreated={onChanged} />}
+      menuFor={(pull: PullSummary) => (
+        <ContextMenuItem onSelect={() => void reviewFiles(pull.number)}>
+          <FileDiff />
+          Review files
+        </ContextMenuItem>
+      )}
       row={(pull: PullSummary) => (
         <>
           <span className="pt-1">

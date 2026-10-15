@@ -53,6 +53,10 @@ function fakeGitHub(calls: Call[]) {
     if (path === '/repos/o/r/pulls' && method === 'GET') return Response.json([pull])
     if (path === '/repos/o/r/pulls' && method === 'POST') return Response.json({ ...pull, number: 8 }, { status: 201 })
     if (path === '/repos/o/r') return Response.json({ default_branch: 'trunk' })
+    if (path === '/repos/o/r/commits' && url.searchParams.get('page') === '1') {
+      return Response.json([{ commit: { author: { email: 'Octo@X.dev' } }, author: user }])
+    }
+    if (path === '/repos/o/r/commits') return Response.json([])
     if (path === '/repos/o/r/commits/h1/check-runs') {
       return Response.json({
         check_runs: [
@@ -187,6 +191,15 @@ describe('/api/github', () => {
       { name: 'test', status: 'completed', conclusion: 'success', url: 'https://ci/1' },
       { name: 'lint', status: 'in_progress', conclusion: null, url: '' },
     ])
+  })
+
+  it('maps commit emails to avatars, and answers none when signed out', async () => {
+    await start({ token: 't', remote: 'git@github.com:o/r.git' })
+    expect(await (await call('GET', '/api/github/avatars')).json()).toEqual({ 'octo@x.dev': 'https://a/octo.png' })
+    await server?.stop()
+    repo?.cleanup()
+    await start({ token: null, remote: 'git@github.com:o/r.git' })
+    expect(await (await call('GET', '/api/github/avatars')).json()).toEqual({})
   })
 
   it('lists issues without the pull requests GitHub mixes in', async () => {

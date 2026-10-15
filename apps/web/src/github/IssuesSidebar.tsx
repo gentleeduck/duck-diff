@@ -1,5 +1,14 @@
 import type { IssueSummary } from '@duck-diff/protocol'
-import { Button, Dialog, DialogContent, DialogFooter, DialogTitle, Input, Textarea } from '@duck-diff/ui'
+import {
+  Button,
+  ContextMenuItem,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogTitle,
+  Input,
+  Textarea,
+} from '@duck-diff/ui'
 import { CircleCheck, CircleDot, MessageSquare, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -92,6 +101,23 @@ export function IssuesSidebar({ version, onChanged }: { version: number; onChang
       selection={issueSelection}
       version={version}
       actions={<NewIssue onCreated={onChanged} />}
+      menuFor={(issue: IssueSummary, reload) => (
+        <ContextMenuItem
+          onSelect={async () => {
+            const next = issue.state === 'open' ? 'closed' : 'open'
+            try {
+              await api.github.setIssueState(issue.number, next)
+              toast(next === 'closed' ? `Closed #${issue.number}` : `Reopened #${issue.number}`)
+              reload()
+              onChanged()
+            } catch (error) {
+              toast.error((error as Error).message)
+            }
+          }}>
+          {issue.state === 'open' ? <CircleCheck /> : <CircleDot />}
+          {issue.state === 'open' ? 'Close issue' : 'Reopen issue'}
+        </ContextMenuItem>
+      )}
       row={(issue: IssueSummary) => (
         <>
           <span className="pt-1">

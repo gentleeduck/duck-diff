@@ -45,6 +45,8 @@ export async function handleGitHub(
     github.setToken(SetTokenSchema.parse(await body()).token)
     return Response.json(await github.status())
   }
+  // Avatars are a nicety, so being signed out or offline answers with none rather than an error.
+  if (area === 'avatars') return Response.json(await github.avatars().catch(() => ({})))
   if (area === 'default-branch') return Response.json({ branch: await github.defaultBranch() })
   if (area === 'pulls') {
     if (id === undefined && post) {

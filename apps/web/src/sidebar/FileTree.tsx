@@ -1,23 +1,25 @@
 import type { ChangedFile } from '@duck-diff/protocol'
-import { Button } from '@duck-diff/ui'
+import { Button, ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, type ReactElement, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_GLYPH } from './icons'
 import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
+export type { Row as TreeRow }
+
 const ROW_HEIGHT = 28
 
-function TreeRow({
+// Extra props come from a context-menu trigger wrapping the row.
+function TreeItem({
   row,
   file,
   selected,
   onClick,
-}: {
-  row: Row
-  file: ChangedFile | undefined
-  selected: boolean
-  onClick(): void
-}) {
+  ...rest
+}: { row: Row; file: ChangedFile | undefined; selected: boolean; onClick(): void } & Omit<
+  ComponentProps<typeof Button>,
+  'onClick'
+>) {
   const folder = row.kind === 'directory'
   const icon = folder ? { glyph: row.expanded ? FOLDER.open : FOLDER.closed, color: FOLDER.color } : fileGlyph(row.name)
   const status = file ? STATUS_GLYPH[file.status] : null
@@ -33,6 +35,7 @@ function TreeRow({
           : 'text-tn-blue'
   return (
     <Button
+      {...rest}
       size="sm"
       variant="ghost"
       role="treeitem"
@@ -63,6 +66,16 @@ function TreeRow({
   )
 }
 
+function WithMenu({ items, children }: { items: ReactNode; children: ReactElement }) {
+  if (!items) return children
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="w-60">{items}</ContextMenuContent>
+    </ContextMenu>
+  )
+}
+
 interface FileTreeProps {
   label: string
   paths: readonly string[]
@@ -72,9 +85,11 @@ interface FileTreeProps {
   onOpenFile(path: string): void
   // Folders start closed, as in a whole-repo tree; a changes tree opens everything.
   collapsed?: boolean
+  // Right-click menu items for a row, or nothing for no menu.
+  menuFor?(row: Row): ReactNode
 }
 
-export function FileTree({ label, paths, fileFor, selected, onOpenFile, collapsed = false }: FileTreeProps) {
+export function FileTree({ label, paths, fileFor, selected, onOpenFile, collapsed = false, menuFor }: FileTreeProps) {
   const [toggled, setToggled] = useState<ReadonlySet<string>>(new Set())
   const tree = useMemo(() => buildTree(paths), [paths])
   const rows = useMemo(() => visibleRows(tree, toggled, !collapsed), [tree, toggled, collapsed])
@@ -111,7 +126,14 @@ export function FileTree({ label, paths, fileFor, selected, onOpenFile, collapse
           if (!row) return null
           return (
             <div key={row.path} className="absolute inset-x-0" style={{ transform: `translateY(${virtual.start}px)` }}>
-              <TreeRow row={row} file={fileFor(row.path)} selected={row.path === selected} onClick={() => open(row)} />
+              <WithMenu items={menuFor?.(row)}>
+                <TreeItem
+                  row={row}
+                  file={fileFor(row.path)}
+                  selected={row.path === selected}
+                  onClick={() => open(row)}
+                />
+              </WithMenu>
             </div>
           )
         })}

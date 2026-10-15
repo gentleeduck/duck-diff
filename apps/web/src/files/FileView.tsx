@@ -7,6 +7,7 @@ import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
+import { useCanOpen } from '../hooks/useCanOpen'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
@@ -38,16 +39,9 @@ export default function FileView() {
   const [contents, setContents] = useState<FileContents | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const [canOpen, setCanOpen] = useState(false)
+  const canOpen = useCanOpen()
   const [preview, setPreview] = useState(true)
   useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
-
-  useEffect(() => {
-    api.repo().then(
-      (info) => setCanOpen(info.nvim),
-      () => {},
-    )
-  }, [api])
 
   useEffect(() => {
     if (!path) return

@@ -42,6 +42,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
         throw new Error('no pull requests')
       },
       defaultBranch: async () => 'main',
+      avatars: async () => ({}),
       pull: async () => {
         throw new Error('no pull requests')
       },

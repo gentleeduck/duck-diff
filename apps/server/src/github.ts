@@ -75,6 +75,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   const findToken = options.findToken ?? defaultFindToken
   const apiBase = options.apiBase ?? 'https://api.github.com'
   let pasted: string | null = null
+  let avatarMap: Promise<Record<string, string>> | null = null
   let slug: Promise<string | null> | null = null
 
   const repoSlug = () => {
@@ -139,6 +140,27 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     },
     async defaultBranch(): Promise<string> {
       return (await call<{ default_branch: string }>(await repoPath())).default_branch
+    },
+    // email -> avatar url from the latest commits GitHub knows, read once; unknown authors get initials.
+    avatars(): Promise<Record<string, string>> {
+      avatarMap ??= (async () => {
+        const base = await repoPath()
+        const pages = await Promise.all(
+          [1, 2, 3].map((page) =>
+            call<RawCommit[]>(`${base}/commits?per_page=100&page=${page}`).catch(() => [] as RawCommit[]),
+          ),
+        )
+        const map: Record<string, string> = {}
+        for (const commit of pages.flat()) {
+          const email = commit.commit.author?.email?.toLowerCase()
+          if (email && commit.author?.avatar_url) map[email] ??= commit.author.avatar_url
+        }
+        return map
+      })().catch((error) => {
+        avatarMap = null
+        throw error
+      })
+      return avatarMap
     },
     async checks(number: number): Promise<CheckRun[]> {
       const base = await repoPath()
@@ -264,6 +286,10 @@ interface RawPullDetails extends RawPull {
   additions: number
   deletions: number
   changed_files: number
+}
+interface RawCommit {
+  commit: { author: { email: string } | null }
+  author: RawUser | null
 }
 interface RawCheckRun {
   name: string

@@ -1,17 +1,26 @@
 import { Input } from '@duck-diff/ui'
 import { useCallback, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { useCanOpen } from '../hooks/useCanOpen'
 import { useSession } from '../hooks/useSession'
+import { useTarget } from '../hooks/useTarget'
 import { itemId } from '../lib/items'
 import type { SessionState } from '../state/session'
+import { actionsFor } from '../viewer/actions'
+import { useWrites } from '../writes/WritesProvider'
 import { FileTree } from './FileTree'
 import { filterFiles, type TreeStatus } from './filters'
 import { StatusFilter } from './StatusFilter'
+import { CopyItems, FileMenu } from './tree-menus'
 
 const selectFiles = (state: SessionState) => state.files
 
 export function ChangesTree() {
-  const { viewer } = useApp()
+  const { api, viewer, fileHistory, viewed } = useApp()
+  const { target } = useTarget()
+  const kinds = useMemo(() => actionsFor(target), [target])
+  const writes = useWrites()
+  const canOpen = useCanOpen()
   const files = useSession(selectFiles)
   const [statuses, setStatuses] = useState<ReadonlySet<TreeStatus>>(new Set())
   const [query, setQuery] = useState('')
@@ -39,7 +48,29 @@ export function ChangesTree() {
         <StatusFilter files={files} value={statuses} onChange={setStatuses} />
       </div>
       {visible.length > 0 ? (
-        <FileTree label="Changed files" paths={paths} fileFor={fileFor} selected={selected} onOpenFile={open} />
+        <FileTree
+          label="Changed files"
+          paths={paths}
+          fileFor={fileFor}
+          selected={selected}
+          onOpenFile={open}
+          menuFor={(row) => {
+            if (row.kind === 'directory') return <CopyItems path={row.path} />
+            const file = byPath.get(row.path)
+            return (
+              <FileMenu
+                path={row.path}
+                openLabel="Go to file"
+                onOpen={() => open(row.path)}
+                onHistory={() => fileHistory.set(row.path)}
+                onNeovim={canOpen ? () => void api.open(row.path, 1) : undefined}
+                onViewed={file ? () => viewed.toggle(target, file) : undefined}
+                writes={file && file.status !== 'conflicted' ? kinds : []}
+                onWrite={(kind) => file && void writes.perform(kind, file)}
+              />
+            )
+          }}
+        />
       ) : (
         <p className="p-3 text-tn-comment">
           {files.length === 0 ? 'No changes in this comparison.' : 'No files match the filter.'}

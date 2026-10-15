@@ -1,12 +1,14 @@
 import type { Ref } from '@duck-diff/protocol'
 import { Button, Label, Popover, PopoverContent, PopoverTrigger, Switch } from '@duck-diff/ui'
 import { ArchiveRestore, ArrowRightLeft, GitMerge, PackageOpen, Trash2 } from 'lucide-react'
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 import { useStore } from '../lib/store'
+import { NewBranchDialog } from './NewBranchDialog'
+import { RefMenu } from './RefMenu'
 import type { GraphState } from './store'
 
 const GROUPS: { kind: Ref['kind']; title: string; glyph: string }[] = [
@@ -106,9 +108,11 @@ export function GraphSidebar() {
   const { refs } = useRefs()
   const all = useStore(graph, selectAll)
   const allId = useId()
+  const [branchFrom, setBranchFrom] = useState<string | null>(null)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <NewBranchDialog sha={branchFrom} onClose={() => setBranchFrom(null)} />
       <div className="flex items-center justify-between gap-2 border-border border-b p-3">
         <Label htmlFor={allId}>Every branch</Label>
         <Switch
@@ -126,26 +130,28 @@ export function GraphSidebar() {
             <section key={kind} aria-label={title} className="mb-3">
               <h3 className="px-2 pb-1 text-tn-comment">{title}</h3>
               {list.map((ref) => (
-                <div key={ref.name} className="group flex items-center">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="min-w-0 flex-1 justify-start gap-2"
-                    title={ref.subject ?? ref.name}
-                    onClick={() => graphSelection.set(ref.sha)}>
-                    <span className={`w-5 shrink-0 text-center ${ref.current ? 'text-tn-green' : 'text-tn-blue'}`}>
-                      {glyph}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-start">
-                      {kind === 'stash' ? (ref.subject ?? ref.name) : ref.name}
-                    </span>
-                    {ref.current ? <span className="text-tn-green">current</span> : null}
-                  </Button>
-                  {kind === 'stash' ? <StashActions name={ref.name} /> : null}
-                  {(kind === 'branch' || kind === 'remote') && !ref.current ? (
-                    <BranchActions name={ref.name} local={kind === 'branch'} />
-                  ) : null}
-                </div>
+                <RefMenu key={ref.name} refEntry={ref} onNewBranch={setBranchFrom}>
+                  <div className="group flex items-center">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="min-w-0 flex-1 justify-start gap-2"
+                      title={ref.subject ?? ref.name}
+                      onClick={() => graphSelection.set(ref.sha)}>
+                      <span className={`w-5 shrink-0 text-center ${ref.current ? 'text-tn-green' : 'text-tn-blue'}`}>
+                        {glyph}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-start">
+                        {kind === 'stash' ? (ref.subject ?? ref.name) : ref.name}
+                      </span>
+                      {ref.current ? <span className="text-tn-green">current</span> : null}
+                    </Button>
+                    {kind === 'stash' ? <StashActions name={ref.name} /> : null}
+                    {(kind === 'branch' || kind === 'remote') && !ref.current ? (
+                      <BranchActions name={ref.name} local={kind === 'branch'} />
+                    ) : null}
+                  </div>
+                </RefMenu>
               ))}
             </section>
           )
