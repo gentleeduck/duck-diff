@@ -119,6 +119,9 @@ export const CreateReviewSchema = z.object({
   line: z.number().int().min(1),
   // The first line when the comment covers a range ending at line.
   startLine: z.number().int().min(1).optional(),
+  // Character columns when the comment is on selected words: from startCol on the first line to endCol on the last.
+  startCol: z.number().int().min(0).optional(),
+  endCol: z.number().int().min(0).optional(),
   lineHash: z.string().min(1).max(64),
   body: z.string().trim().min(1).max(20_000),
 })

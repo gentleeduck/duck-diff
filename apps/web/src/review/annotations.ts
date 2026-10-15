@@ -9,6 +9,9 @@ export interface Draft {
   line: number
   // Set when the comment covers several lines, ending at line.
   startLine?: number
+  // Set when the comment is on selected words rather than whole lines.
+  startCol?: number
+  endCol?: number
   lineHash: string
   // The lines as they read now, for a suggested change to start from.
   text?: string

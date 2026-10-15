@@ -21,8 +21,10 @@ export interface RowContextValue {
   // Drag from a line's comment button over other lines to cover them all.
   startSelect(item: NoteItem, line: DiffLine, side: 'additions' | 'deletions'): void
   dragOver(item: NoteItem, line: DiffLine, side: 'additions' | 'deletions'): void
-  subscribeDraft(listener: () => void): () => void
-  inDraft(item: NoteItem, side: 'additions' | 'deletions', line: number | null): boolean
+  subscribeMarks(listener: () => void): () => void
+  // How a line is marked for comments: '' for none, 'draft' or 'comment', then '|from-to' when only some
+  // of its characters are picked. A string, so a line re-renders only when its own mark changes.
+  lineMark(item: NoteItem, side: 'additions' | 'deletions', line: number | null, length: number): string
   write(kind: WriteKind, item: NoteItem, hunk: number): void
   expand(item: NoteItem, gap: Extract<DiffRow, { type: 'gap' }>): void
 }
@@ -69,6 +71,8 @@ function Toolbar({ item, line, side }: { item: NoteItem; line: DiffLine; side: '
             variant="ghost"
             size="icon"
             aria-label="Comment on line"
+            // Starting a line selection must not start a text selection under it.
+            onMouseDown={(event) => event.preventDefault()}
             onPointerDown={(event) => {
               if (event.button !== 0) return
               if (event.shiftKey) comment(item, line, side, true)
@@ -114,9 +118,16 @@ function Cell({
   side: 'additions' | 'deletions'
   numbers: 'both' | 'one'
 }) {
-  const { settings, tokens, dragOver, subscribeDraft, inDraft } = useRow()
+  const { settings, tokens, dragOver, subscribeMarks, lineMark } = useRow()
   const number = line ? (side === 'additions' ? line.newNo : line.oldNo) : null
-  const selected = useSyncExternalStore(subscribeDraft, () => inDraft(item, side, number))
+  const mark = useSyncExternalStore(subscribeMarks, () => lineMark(item, side, number, line?.text.length ?? 0))
+  const [markKind, markCols] = mark.split('|')
+  const picks = useMemo(() => {
+    const [from, to] = (markCols ?? '').split('-').map(Number)
+    return markCols && from !== undefined && to !== undefined && to > from
+      ? ([[from, to]] as [number, number][])
+      : undefined
+  }, [markCols])
   const tokenSide = line?.kind === 'deletion' ? 'old' : 'new'
   const tokenLine = line ? (tokenSide === 'old' ? line.oldNo : line.newNo) : null
   // Each line listens for its own colors, so a file's tokens landing repaints just its rows on screen.
@@ -139,9 +150,16 @@ function Cell({
   const wrap = settings.overflow === 'wrap'
   return (
     <div
+      data-line={number ?? undefined}
+      data-side={side}
       onPointerEnter={() => dragOver(item, line, side)}
       className={`group/line relative flex min-w-0 flex-1 ${settings.backgrounds ? BG[line.kind] : ''} ${MARK[line.kind]} ${
-        selected ? 'shadow-[inset_3px_0_0_var(--tn-yellow)] bg-tn-yellow/10!' : ''
+        markKind === 'draft'
+          ? 'bg-tn-yellow/10! shadow-[inset_3px_0_0_var(--tn-yellow)]'
+          : markKind === 'comment'
+            ? 'shadow-[inset_3px_0_0_color-mix(in_oklab,var(--tn-yellow)_55%,transparent)]'
+            : ''
+      } [&_[data-pick]]:rounded-sm [&_[data-pick]]:bg-tn-yellow/30 [&_[data-pick]]:ring-1 [&_[data-pick]]:ring-tn-yellow/50
       }`}>
       {settings.lineNumbers ? (
         <span className="relative flex shrink-0 select-none text-tn-gutter tabular-nums">
@@ -168,10 +186,10 @@ function Cell({
         data-code
         className={`min-w-0 flex-1 pe-4 ${wrap ? 'whitespace-pre-wrap break-all' : 'overflow-hidden whitespace-pre'}`}>
         {wrap ? (
-          <Code text={line.text} tokens={lineTokens} marks={marks} />
+          <Code text={line.text} tokens={lineTokens} marks={marks} picks={picks} />
         ) : (
           <span className="inline-block translate-x-[calc(var(--code-x,0px)*-1)]">
-            <Code text={line.text} tokens={lineTokens} marks={marks} />
+            <Code text={line.text} tokens={lineTokens} marks={marks} picks={picks} />
           </span>
         )}
       </code>

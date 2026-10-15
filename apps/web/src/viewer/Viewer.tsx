@@ -28,6 +28,7 @@ import { actionsFor, type WriteKind } from './actions'
 import { FileActions } from './FileActions'
 import { FileHeader } from './FileHeader'
 import { fileNote } from './file-info'
+import { type CodeSelection, SelectionComment } from './SelectionComment'
 import { visibleItems } from './visible-items'
 import { WriteButtons } from './WriteButtons'
 
@@ -37,6 +38,21 @@ const selectStatus = (state: SessionState) => state.status
 const selectFolders = (folders: ReadonlySet<string>) => folders
 // Above this a file keeps hunk-only colors; tokenizing it whole would cost more than it shows.
 const FULL_LINES = 3000
+
+interface MarkRange {
+  start: number
+  end: number
+  startCol?: number
+  endCol?: number
+}
+
+// The picked characters on one line of a word selection: from startCol on its first line, to endCol on its last.
+function markCols(range: MarkRange, number: number, length: number): string {
+  if (range.startCol === undefined || range.endCol === undefined) return ''
+  const from = number === range.start ? range.startCol : 0
+  const to = number === range.end ? range.endCol : length
+  return `|${from}-${to}`
+}
 
 // One side's text for lines from..to, read off the rows the diff already built.
 function sideLines(rows: readonly DiffRow[], side: 'additions' | 'deletions', from: number, to: number): string[] {
@@ -207,6 +223,53 @@ export default function Viewer() {
     [diffFile, reveal, shownKey],
   )
 
+  // Lines that already carry a comment stay marked, over the whole range it covers.
+  const commentRanges = useRef(new Map<string, MarkRange[]>())
+  commentRanges.current = useMemo(() => {
+    const ranges = new Map<string, MarkRange[]>()
+    const add = (path: string, side: string, range: MarkRange) => {
+      const key = `${path}|${side}`
+      ranges.set(key, [...(ranges.get(key) ?? []), range])
+    }
+    for (const comment of comments)
+      add(comment.path, comment.side, {
+        start: comment.startLine ?? comment.line,
+        end: comment.line,
+        startCol: comment.startCol,
+        endCol: comment.endCol,
+      })
+    for (const comment of remote) {
+      if (comment.line === null || comment.inReplyTo !== null) continue
+      add(comment.path, comment.side === 'LEFT' ? 'deletions' : 'additions', {
+        start: comment.startLine ?? comment.line,
+        end: comment.line,
+      })
+    }
+    return ranges
+  }, [comments, remote])
+
+  const diffRoot = useCallback(() => document.querySelector<HTMLElement>('[data-diff-view]'), [])
+  // A comment on selected words covers their lines and keeps the exact columns, so the words stay highlighted.
+  const commentOnSelection = useCallback(
+    (picked: CodeSelection) => {
+      const index = page.starts.get(picked.item)
+      const item = index === undefined ? undefined : page.rows[index]?.item
+      if (!item) return
+      const lines = sideLines(page.files.get(item.id)?.rows ?? [], picked.side, picked.startLine, picked.endLine)
+      const whole = picked.startCol === 0 && picked.endCol >= (lines.at(-1)?.length ?? 0)
+      reviews.startDraft({
+        path: item.fileDiff.name,
+        side: picked.side,
+        line: picked.endLine,
+        ...(picked.startLine < picked.endLine ? { startLine: picked.startLine } : {}),
+        ...(whole ? {} : { startCol: picked.startCol, endCol: picked.endCol }),
+        lineHash: lineHash(lines.at(-1) ?? ''),
+        text: lines.join('\n'),
+      })
+    },
+    [page, reviews],
+  )
+
   const anchor = useRef(0)
   const dragging = useRef(false)
   useEffect(() => {
@@ -269,11 +332,25 @@ export default function Viewer() {
         if (dragging.current && open?.path === item.fileDiff.name && open.side === side)
           context.comment(item, line, side, true)
       },
-      subscribeDraft: reviews.subscribe,
-      inDraft(item, side, number) {
+      subscribeMarks(listener) {
+        const stops = [reviews.subscribe(listener), pullReview.subscribe(listener)]
+        return () => {
+          for (const stop of stops) stop()
+        }
+      },
+      lineMark(item, side, number, length) {
+        if (number === null) return ''
+        const path = item.fileDiff.name
         const open = reviews.get().draft
-        if (!open || number === null || open.path !== item.fileDiff.name || open.side !== side) return false
-        return number >= (open.startLine ?? open.line) && number <= open.line
+        const draft =
+          open && open.path === path && open.side === side
+            ? { start: open.startLine ?? open.line, end: open.line, startCol: open.startCol, endCol: open.endCol }
+            : null
+        if (draft && number >= draft.start && number <= draft.end) return `draft${markCols(draft, number, length)}`
+        const hit = commentRanges.current
+          .get(`${path}|${side}`)
+          ?.find((range) => number >= range.start && number <= range.end)
+        return hit ? `comment${markCols(hit, number, length)}` : ''
       },
       write(kind: WriteKind, item, index) {
         const file = byPath.get(item.fileDiff.name)
@@ -305,6 +382,7 @@ export default function Viewer() {
       setContents,
       loadSource,
       sourcePath,
+      pullReview,
     ],
   )
 
@@ -385,13 +463,16 @@ export default function Viewer() {
     return <p className="p-6 text-muted-foreground">{EMPTY[target.kind]}</p>
   }
   return (
-    <DiffView
-      ref={viewer}
-      page={page}
-      context={context}
-      renderHeader={renderHeader}
-      renderNote={renderNote}
-      scrollKey={shownKey}
-    />
+    <div className="relative h-full">
+      <DiffView
+        ref={viewer}
+        page={page}
+        context={context}
+        renderHeader={renderHeader}
+        renderNote={renderNote}
+        scrollKey={shownKey}
+      />
+      <SelectionComment root={diffRoot} onComment={commentOnSelection} />
+    </div>
   )
 }

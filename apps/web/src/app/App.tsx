@@ -23,7 +23,6 @@ import type { View } from '../lib/view-url'
 import { useLiveRefresh } from '../live/useLiveRefresh'
 import { Palette } from '../palette/Palette'
 import { CommentsSheet } from '../review/CommentsSheet'
-import { FontSizeMenu } from '../settings/FontSizeMenu'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
 import type { Settings } from '../state/settings'
@@ -104,7 +103,6 @@ function Screen() {
           {search}
           <CommentsSheet />
           <SyncButtons />
-          <FontSizeMenu />
           <SettingsPopover />
         </>
       ),
@@ -119,7 +117,7 @@ function Screen() {
           <GraphTitle />
           <FindCommit />
           <SyncButtons />
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: <GraphSidebar />,
@@ -133,7 +131,6 @@ function Screen() {
           <h1 className="min-w-0 flex-1">Files</h1>
           {search}
           <SyncButtons />
-          <FontSizeMenu />
           <SettingsPopover />
         </>
       ),
@@ -147,7 +144,7 @@ function Screen() {
           <GitHubTitle title="Pull requests" />
           {search}
           <SyncButtons />
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: null,
@@ -160,7 +157,7 @@ function Screen() {
           <GitHubTitle title="Issues" />
           {search}
           <SyncButtons />
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: null,
@@ -172,7 +169,7 @@ function Screen() {
         <>
           <GitHubTitle title="Notifications" />
           {search}
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: null,
@@ -184,7 +181,7 @@ function Screen() {
         <>
           <GitHubTitle title="Releases" />
           {search}
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: null,
@@ -196,7 +193,7 @@ function Screen() {
         <>
           <GitHubTitle title="Actions" />
           {search}
-          <FontSizeMenu />
+          <SettingsPopover />
         </>
       ),
       side: null,

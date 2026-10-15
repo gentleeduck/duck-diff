@@ -39,7 +39,39 @@ test('drags from a line comment button over the next line to comment on both', a
     await page.mouse.up()
     await expect(page.getByText('Commenting on lines 1 to 2')).toBeVisible({ timeout: 1000 })
   }).toPass()
+  // Dragging lines selects whole lines, never text under the pointer.
+  expect(await page.evaluate(() => window.getSelection()?.isCollapsed ?? true)).toBe(true)
   await page.getByRole('textbox', { name: 'New comment' }).fill('Both lines')
   await page.getByRole('button', { name: 'Save comment' }).click()
   await expect(page.getByText('Lines 1 to 2')).toBeVisible()
+})
+
+test('selecting words offers a comment on exactly them, highlighted before and after saving', async ({ page, app }) => {
+  await page.goto(app.url)
+  await expect(page.getByRole('banner')).toContainText('2 files')
+  const code = page.locator('[data-side="additions"][data-line="1"] [data-code]').filter({ hasText: 'answer = 42' })
+  await expect(code).toContainText('export const answer = 42')
+  // Colors re-render the line's pieces, which would drop a selection made before they land.
+  await expect(code.locator('.tok').first()).toBeVisible()
+  // Select "answer" by its characters, as a mouse drag would.
+  await code.evaluate((element) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+    let at = 0
+    const range = document.createRange()
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = node.textContent ?? ''
+      if (at <= 13 && 13 <= at + text.length) range.setStart(node, 13 - at)
+      if (at <= 19 && 19 <= at + text.length) range.setEnd(node, 19 - at)
+      at += text.length
+    }
+    window.getSelection()?.removeAllRanges()
+    window.getSelection()?.addRange(range)
+  })
+  await page.getByRole('button', { name: 'Comment', exact: true }).click()
+  await expect(page.getByText('Commenting on')).toContainText('answer')
+  await expect(page.locator('[data-pick]')).toHaveText(['answer'])
+  await page.getByRole('textbox', { name: 'New comment' }).fill('Rename this')
+  await page.getByRole('button', { name: 'Save comment' }).click()
+  await expect(page.getByText('Rename this')).toBeVisible()
+  await expect(page.locator('[data-pick]')).toHaveText(['answer'])
 })

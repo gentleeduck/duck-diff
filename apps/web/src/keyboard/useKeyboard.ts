@@ -4,7 +4,7 @@ import { useApp } from '../app/AppProvider'
 import { back, forward } from '../lib/history'
 import type { View } from '../lib/view-url'
 import { lineHash, lineText } from '../review/anchor'
-import { resize } from '../settings/FontSizeMenu'
+import { resize } from '../settings/resize'
 import { BASE_FONT } from '../state/settings'
 import { actionsFor, firstChange, type WriteKind } from '../viewer/actions'
 import { visibleItems } from '../viewer/visible-items'
@@ -65,8 +65,8 @@ export function useKeyboard(open: { palette(): void; help(): void; show(view: Vi
       if (action === 'forward') return void forward()
       if (action === 'help') return handlers.current.help()
       if (action === 'toggle-sidebar') return settings.set((prev) => ({ ...prev, sidebar: !prev.sidebar }))
-      if (action === 'font-bigger') return settings.set((prev) => resize(prev, 'both', 1))
-      if (action === 'font-smaller') return settings.set((prev) => resize(prev, 'both', -1))
+      if (action === 'font-bigger') return settings.set((prev) => resize(prev, 1))
+      if (action === 'font-smaller') return settings.set((prev) => resize(prev, -1))
       if (action === 'font-reset')
         return settings.set((prev) => ({ ...prev, fontSize: BASE_FONT, uiFontSize: BASE_FONT }))
       const destination = VIEWS[action]
