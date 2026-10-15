@@ -12,6 +12,7 @@
   <a href="./LICENSE">MIT</a> -
   <a href="./CHANGELOG.md">Changelog</a> -
   <a href="./CONTRIBUTING.md">Contributing</a> -
+  <a href="./SECURITY.md">Security</a> -
   <a href="https://github.com/gentleeduck/duck-diff/releases">Releases</a>
 </p>
 
