@@ -12,6 +12,7 @@ The diff viewer became a git and GitHub controller you can run on its own.
 - `duck-diff update` installs the newest release, checked against its sha256; `install.sh` does the same from
   curl, with `--version`, `--dir` and `--uninstall`.
 - The page opens as an app window, as from Neovim.
+- Starting it prints a short `@gentleduck/diff` banner with the repo, the branch and the link.
 
 ### Git
 
