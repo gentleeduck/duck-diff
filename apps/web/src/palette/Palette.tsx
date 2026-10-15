@@ -29,7 +29,7 @@ import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { useWrites } from '../writes/WritesProvider'
 import { Preview, type PreviewTarget } from './Preview'
-import { parseSearch, rank } from './rank'
+import { parseSearch, rank, rankPaths } from './rank'
 
 const selectFiles = (state: SessionState) => state.files
 const selectItems = (state: ItemIndexState) => state.items
@@ -214,8 +214,7 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
     })
 
     const list: { heading: string; entries: Entry[] }[] = []
-    if (scope === 'file')
-      list.push({ heading: 'Files', entries: rank(tree ?? [], term, (path) => path, 60).map(fileEntry) })
+    if (scope === 'file') list.push({ heading: 'Files', entries: rankPaths(tree ?? [], term, 60).map(fileEntry) })
     else if (scope === 'pr')
       list.push({ heading: 'Pull requests', entries: rank(pulls, term, itemText, 60).map(itemEntry) })
     else if (scope === 'issue')
@@ -234,17 +233,16 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
     else {
       list.push({
         heading: 'Changed files',
-        entries: rank(
+        entries: rankPaths(
           changed.map((file) => file.path),
           term,
-          (path) => path,
           6,
         ).map(changedEntry),
       })
       if (term) {
         list.push({ heading: 'Pull requests', entries: rank(pulls, term, itemText, 5).map(itemEntry) })
         list.push({ heading: 'Issues', entries: rank(issues, term, itemText, 5).map(itemEntry) })
-        list.push({ heading: 'Files', entries: rank(tree ?? [], term, (path) => path, 8).map(fileEntry) })
+        list.push({ heading: 'Files', entries: rankPaths(tree ?? [], term, 8).map(fileEntry) })
       }
       list.push({ heading: 'Commands', entries: rank(commands, term, (entry) => entry.id, term ? 8 : 12) })
     }
@@ -269,7 +267,9 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="h-[min(36rem,85vh)] w-[min(64rem,95vw)] max-w-none p-0" hideClose>
+      <DialogContent
+        className="h-[clamp(min(90vh,28rem),72vh,52rem)] w-[clamp(min(94vw,40rem),80vw,90rem)] max-w-none p-0"
+        hideClose>
         <DialogTitle className="sr-only">Search</DialogTitle>
         <DialogDescription className="sr-only">Files, pull requests, issues and commands</DialogDescription>
         <Command shouldFilter={false} className="flex h-full max-w-none flex-col">
@@ -303,7 +303,7 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
                 </CommandGroup>
               ))}
             </CommandList>
-            <div className="hidden w-[26rem] shrink-0 border-border border-s md:block">
+            <div className="hidden w-[45%] shrink-0 border-border border-s md:block">
               <Preview target={current?.preview ?? null} />
             </div>
           </div>

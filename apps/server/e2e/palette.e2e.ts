@@ -26,3 +26,14 @@ test('> narrows to commands and the scope chips fill the prefix in', async ({ pa
   await expect(dialog.getByRole('option', { name: 'Split view' })).toBeVisible()
   await expect(dialog.getByRole('option')).toHaveCount(1)
 })
+
+test('file: takes a path, piece by piece', async ({ page, app }) => {
+  await page.goto(app.url)
+  await expect(page.getByRole('banner')).toContainText('2 files')
+  await page.keyboard.press('Control+k')
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('combobox').fill('file:src/app')
+  await expect(dialog.getByRole('option').first()).toContainText('src/app.ts')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('region', { name: 'src/app.ts' })).toBeVisible()
+})
