@@ -21,6 +21,10 @@ const ROW = 28
 
 type Mark = { glyph: string; color: string; title: string }
 
+const LINE = 'before:absolute before:inset-y-0 before:start-[9px] before:w-px before:bg-tn-gutter'
+const ELBOW =
+  'before:absolute before:top-0 before:h-1/2 before:start-[9px] before:w-px before:bg-tn-gutter after:absolute after:top-1/2 after:start-[9px] after:end-0 after:h-px after:bg-tn-gutter'
+
 // One row in nvim-tree's look: guides through each folder's chevron, ending in an elbow at a folder's
 // last item; then chevron, icon, git marks and name. Extra props come from a context-menu trigger.
 function TreeItem({
@@ -58,23 +62,22 @@ function TreeItem({
       aria-current={selected || undefined}
       title={marks.length ? `${row.path} (${marks.map((mark) => mark.title).join(', ')})` : row.path}
       className="h-7 w-full items-stretch justify-start gap-0 rounded-none p-0 ps-1 pe-3 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
-      {row.ancestors.map((ancestor, index) => {
-        // The innermost guide belongs to this row's own folder: it stops at an elbow on the last item.
-        const elbow = row.last && index === row.ancestors.length - 1
-        return (
-          <span
-            key={ancestor}
-            className={`relative w-5 shrink-0 self-stretch before:absolute before:start-[9px] before:top-0 before:w-px before:bg-tn-gutter ${
-              elbow
-                ? 'before:h-1/2 after:absolute after:start-[9px] after:top-1/2 after:h-px after:w-2 after:bg-tn-gutter'
-                : 'before:bottom-0'
-            }`}
-          />
-        )
-      })}
-      <span className="w-5 shrink-0 justify-center text-tn-comment">
-        {folder ? (row.expanded ? CHEVRON.open : CHEVRON.closed) : ''}
-      </span>
+      {row.ancestors.map((ancestor, column) => (
+        // A folder's guide runs in the column under its icon, where its items' arrows sit; it is drawn
+        // only while that folder still has items further down.
+        <span
+          key={ancestor}
+          className={`relative w-5 shrink-0 self-stretch ${column > 0 && !row.ancestorsLast[column] ? LINE : ''}`}
+        />
+      ))}
+      {folder ? (
+        <span className="w-5 shrink-0 justify-center text-tn-comment">
+          {row.expanded ? CHEVRON.open : CHEVRON.closed}
+        </span>
+      ) : (
+        // A file stands on its folder's guide: a straight piece, or the elbow when it is the last item.
+        <span className={`relative w-5 shrink-0 self-stretch ${row.depth === 0 ? '' : row.last ? ELBOW : LINE}`} />
+      )}
       <span className="w-5 shrink-0 justify-center" style={{ color: icon.color }}>
         {icon.glyph}
       </span>
@@ -176,6 +179,8 @@ export function FileTree({
   const ROW_HEIGHT = useRowHeight(ROW)
   const virtualizer = useVirtualizer({
     count: rows.length,
+    // Keyed by path, so folding a folder never hands one row's place to another mid-update.
+    getItemKey: (index) => rows[index]?.path ?? index,
     getScrollElement: () => scroller.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 20,
@@ -205,7 +210,10 @@ export function FileTree({
           const row = rows[virtual.index]
           if (!row) return null
           return (
-            <div key={row.path} className="absolute inset-x-0" style={{ transform: `translateY(${virtual.start}px)` }}>
+            <div
+              key={virtual.key}
+              className="absolute inset-x-0"
+              style={{ transform: `translateY(${virtual.start}px)` }}>
               <WithMenu items={menuFor?.(row)}>
                 <TreeItem
                   row={row}

@@ -9,6 +9,9 @@ export interface TreeRow {
   expanded: boolean
   // The last item in its folder, where the folder's guide ends in an elbow.
   last: boolean
+  // For each ancestor, whether it is the last item of its own folder; past such a folder its parent's
+  // guide has nothing left to reach, so it is not drawn.
+  ancestorsLast: boolean[]
 }
 
 interface Dir {
@@ -43,7 +46,7 @@ export function buildTree(paths: readonly string[]): Dir {
 // `toggled` are the ones flipped since.
 export function visibleRows(root: Dir, toggled: ReadonlySet<string>, open = true): TreeRow[] {
   const rows: TreeRow[] = []
-  const walk = (dir: Dir, ancestors: string[]) => {
+  const walk = (dir: Dir, ancestors: string[], ancestorsLast: boolean[]) => {
     const dirNames = [...dir.dirs.keys()].sort(compare)
     const lastDir = dir.files.length === 0 ? dirNames.at(-1) : undefined
     for (const name of dirNames) {
@@ -63,8 +66,9 @@ export function visibleRows(root: Dir, toggled: ReadonlySet<string>, open = true
         ancestors,
         expanded,
         last: name === lastDir,
+        ancestorsLast,
       })
-      if (expanded) walk(child, [...ancestors, child.path])
+      if (expanded) walk(child, [...ancestors, child.path], [...ancestorsLast, name === lastDir])
     }
     const files = [...dir.files].sort(compare)
     for (const [index, name] of files.entries()) {
@@ -77,10 +81,11 @@ export function visibleRows(root: Dir, toggled: ReadonlySet<string>, open = true
         ancestors,
         expanded: false,
         last: index === files.length - 1,
+        ancestorsLast,
       })
     }
   }
-  walk(root, [])
+  walk(root, [], [])
   return rows
 }
 
