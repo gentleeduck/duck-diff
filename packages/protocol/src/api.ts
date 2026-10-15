@@ -181,3 +181,36 @@ export const SymbolQuerySchema = z.object({
   ref: RefNameSchema.optional(),
 })
 export const BlameQuerySchema = z.object({ path: RepoPathSchema, ref: RefNameSchema.optional() })
+
+// Precise navigation from a language server, either Neovim's own clients or one the server starts.
+// Lines and columns are 1-based; columns count UTF-16 units, as JavaScript strings do.
+export const LspQuerySchema = z.object({
+  path: RepoPathSchema,
+  line: z.coerce.number().int().min(1),
+  column: z.coerce.number().int().min(1),
+  ref: RefNameSchema.optional(),
+})
+export type LspQuery = z.infer<typeof LspQuerySchema>
+export const LspSourceSchema = z.enum(['nvim', 'server']).nullable()
+export type LspSource = z.infer<typeof LspSourceSchema>
+export const LspLocationSchema = z.object({
+  path: z.string(),
+  line: z.number().int(),
+  column: z.number().int(),
+  endLine: z.number().int(),
+  endColumn: z.number().int(),
+  text: z.string(),
+})
+export type LspLocation = z.infer<typeof LspLocationSchema>
+export const LspLocationsSchema = z.object({
+  source: LspSourceSchema,
+  server: z.string().nullable(),
+  locations: z.array(LspLocationSchema),
+})
+export type LspLocations = z.infer<typeof LspLocationsSchema>
+export const LspHoverSchema = z.object({
+  source: LspSourceSchema,
+  server: z.string().nullable(),
+  contents: z.string().nullable(),
+})
+export type LspHover = z.infer<typeof LspHoverSchema>

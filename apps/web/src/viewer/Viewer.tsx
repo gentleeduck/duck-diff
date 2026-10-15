@@ -1,7 +1,8 @@
 import { type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
-import { refForSide } from '../code-nav/symbol-at'
+import { CodeHover } from '../code-nav/CodeHover'
+import { refForSide, type SymbolUnder } from '../code-nav/symbol-at'
 import { useSymbolClick } from '../code-nav/useSymbolClick'
 import { DiffView } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
@@ -296,7 +297,17 @@ export default function Viewer() {
     },
     [page, reviews],
   )
-  useSymbolClick(diffRoot, (side) => refForSide(target, side ?? 'additions'))
+  const locateSymbol = useCallback(
+    (found: SymbolUnder) => {
+      const side = found.side ?? 'additions'
+      const index = found.key === null ? undefined : page.starts.get(found.key)
+      const name = index === undefined ? undefined : page.rows[index]?.item.fileDiff.name
+      const path = !name ? null : side === 'deletions' ? (byPath.get(name)?.oldPath ?? name) : name
+      return { ref: refForSide(target, side), path }
+    },
+    [page, byPath, target],
+  )
+  useSymbolClick(diffRoot, locateSymbol)
   const selecting = useMemo(() => createStore<CodeSelection | null>(null), [])
   useLineSelection(diffRoot, selecting.set, commentOnSelection)
 
@@ -517,6 +528,7 @@ export default function Viewer() {
         scrollKey={shownKey}
         onTopItem={onTopItem}
       />
+      <CodeHover root={diffRoot} locate={locateSymbol} />
     </div>
   )
 }

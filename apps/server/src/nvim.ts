@@ -15,3 +15,25 @@ export const runNvim: NvimRunner = (args) =>
     child.on('error', reject)
     child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`nvim exited ${code}`))))
   })
+
+export type NvimEval = (address: string, expr: string) => Promise<string>
+
+export const evalNvim: NvimEval = (address, expr) =>
+  new Promise((resolve, reject) => {
+    const child = spawn('nvim', ['--server', address, '--remote-expr', expr], { stdio: ['ignore', 'pipe', 'ignore'] })
+    let out = ''
+    const timer = setTimeout(() => child.kill(), 15_000)
+    child.stdout.on('data', (chunk: Buffer) => {
+      out += chunk.toString()
+    })
+    child.on('error', reject)
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      code === 0 ? resolve(out) : reject(new Error(`nvim exited ${code}`))
+    })
+  })
+
+// A Lua call with its argument as one Vim string, which only needs its single quotes doubled.
+export function luaCall(module: string, fn: string, argument: string): string {
+  return `luaeval('require("${module}").${fn}(_A)', '${argument.replace(/'/g, "''")}')`
+}

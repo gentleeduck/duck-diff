@@ -1,4 +1,5 @@
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
+import type { SymbolTarget } from '../code-nav/symbol-at'
 import type { DiffViewHandle } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
 import { createItemIndex, type ItemIndex } from '../github/item-index'
@@ -16,7 +17,7 @@ import { createSettingsStore, type Settings } from '../state/settings'
 import { createStage, type Stage } from '../state/stage'
 import { createViewedStore, type Viewed } from '../state/viewed'
 
-interface AppContextValue {
+export interface AppContextValue {
   api: Api
   session: Session
   // Branches, tags and recent commits, shared by every picker.
@@ -41,7 +42,7 @@ interface AppContextValue {
   fileLine: Store<number | null>
   fileAt: Store<string | null>
   // The name clicked in code, whose definitions and uses the symbol panel lists.
-  symbol: Store<{ name: string; ref: string | null } | null>
+  symbol: Store<SymbolTarget | null>
   github: GitHub
   // The pull request and issue open in their views.
   pullSelection: Store<number | null>
@@ -82,7 +83,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       fileSelection: createStore<string | null>(null),
       fileLine: createStore<number | null>(null),
       fileAt: createStore<string | null>(null),
-      symbol: createStore<{ name: string; ref: string | null } | null>(null),
+      symbol: createStore<SymbolTarget | null>(null),
       changesFolders: createStore<ReadonlySet<string>>(new Set()),
       github: createGitHub(client),
       pullSelection: createStore<number | null>(null),

@@ -4,6 +4,7 @@ import {
   type ChangeReason,
   CreateReviewSchema,
   decodeTarget,
+  LspQuerySchema,
   NavigateRequestSchema,
   OpenRequestSchema,
   UpdateReviewSchema,
@@ -14,6 +15,7 @@ import { errorResponse, HttpError } from './errors'
 import { createGitHub, type GitHubOptions } from './github'
 import { handleGitHub } from './github-routes'
 import { Hub } from './hub'
+import { createNavigator, type NavigatorOptions } from './lsp/navigator'
 import { type NvimRunner, openKeys, runNvim } from './nvim'
 import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
@@ -38,6 +40,8 @@ export interface ServerOptions {
   dataDir?: string
   // GitHub access; tests swap in a fake fetch and token.
   github?: GitHubOptions
+  // Language servers; tests swap in a fake one.
+  lsp?: NavigatorOptions
 }
 
 export interface RunningServer {
@@ -62,6 +66,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const enqueue = createWriteQueue()
   const reviews = createReviewStore(repo, options.dataDir)
   const github = createGitHub(repo, options.github)
+  const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
 
   const server = Bun.serve({
     hostname: HOST,
@@ -86,6 +91,14 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         if (url.pathname === '/api/blame') {
           const { path, ref } = BlameQuerySchema.parse(Object.fromEntries(url.searchParams))
           return Response.json(await blame(repo, path, ref))
+        }
+        if (url.pathname.startsWith('/api/lsp/')) {
+          const query = LspQuerySchema.parse(Object.fromEntries(url.searchParams))
+          const kind = url.pathname.slice('/api/lsp/'.length)
+          if (kind === 'definition') return Response.json(await navigator.definition(query))
+          if (kind === 'references') return Response.json(await navigator.references(query))
+          if (kind === 'hover') return Response.json(await navigator.hover(query))
+          throw new HttpError(404, 'not-found', `no ${url.pathname}`)
         }
         if (url.pathname.startsWith('/api/github/')) return await handleGitHub(github, repo, url, request, enqueue)
         if (url.pathname.startsWith('/api/git/') && request.method === 'POST') {
@@ -180,6 +193,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     async stop() {
       stopWatching()
       hub.dispose()
+      await navigator.stop()
       await server.stop(true)
     },
   }

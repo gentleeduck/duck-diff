@@ -34,6 +34,11 @@ import {
   type ListPage,
   ListPageSchema,
   type ListQuery,
+  type LspHover,
+  LspHoverSchema,
+  type LspLocations,
+  LspLocationsSchema,
+  type LspQuery,
   type MergeInfo,
   MergeInfoSchema,
   type Notification,
@@ -78,6 +83,12 @@ import {
 } from '@duck-diff/protocol'
 import { z } from 'zod'
 
+function lspParams(query: LspQuery): URLSearchParams {
+  const params = new URLSearchParams({ path: query.path, line: String(query.line), column: String(query.column) })
+  if (query.ref) params.set('ref', query.ref)
+  return params
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -114,6 +125,12 @@ export interface Api {
   blame(path: string, ref?: string): Promise<BlameLine[]>
   // Where a name is defined and used; ref null searches the working tree.
   symbols(name: string, ref: string | null): Promise<SymbolResult>
+  // Precise answers from a language server; source null means none handles the file.
+  lsp: {
+    definition(query: LspQuery): Promise<LspLocations>
+    references(query: LspQuery): Promise<LspLocations>
+    hover(query: LspQuery): Promise<LspHover>
+  }
   git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean }>
   github: GitHubApi
 }
@@ -408,6 +425,11 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       const params = new URLSearchParams({ name })
       if (ref) params.set('ref', ref)
       return json(`/api/symbols?${params}`, SymbolResultSchema)
+    },
+    lsp: {
+      definition: (query) => json(`/api/lsp/definition?${lspParams(query)}`, LspLocationsSchema),
+      references: (query) => json(`/api/lsp/references?${lspParams(query)}`, LspLocationsSchema),
+      hover: (query) => json(`/api/lsp/hover?${lspParams(query)}`, LspHoverSchema),
     },
     blame(path, ref) {
       const params = new URLSearchParams({ path })

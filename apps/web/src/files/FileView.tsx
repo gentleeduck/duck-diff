@@ -5,6 +5,7 @@ import { Check, Code2, Copy, Eye, FileDiff, History, SquareArrowOutUpRight, User
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { CodeHover } from '../code-nav/CodeHover'
 import { useSymbolClick } from '../code-nav/useSymbolClick'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
@@ -142,7 +143,8 @@ export default function FileView() {
   )
   const sideways = useCodeScrollX(scroller, widest, true)
   useScrollMemory(scroller, path && contents?.text ? scrollKey : null)
-  useSymbolClick(fileRoot, () => at)
+  const locateSymbol = useCallback(() => ({ ref: at, path }), [at, path])
+  useSymbolClick(fileRoot, locateSymbol)
   // Opening at a line (a definition, a use) centres it once the text is in.
   useEffect(() => {
     if (line && contents?.text) requestAnimationFrame(() => virtualizer.scrollToIndex(line - 1, { align: 'center' }))
@@ -163,6 +165,7 @@ export default function FileView() {
 
   return (
     <section aria-label={path} className="flex h-full flex-col">
+      <CodeHover root={fileRoot} locate={locateSymbol} />
       <header className="flex h-11 shrink-0 items-center gap-2 border-border border-b bg-card px-3">
         <span style={{ color: icon.color }}>{icon.glyph}</span>
         <span className="min-w-20 shrink truncate" title={path}>
@@ -262,6 +265,7 @@ export default function FileView() {
                 key={virtual.index}
                 className={`absolute inset-x-0 flex hover:bg-accent/40 ${virtual.index + 1 === line ? 'bg-tn-yellow/15' : ''}`}
                 data-scroll-key={`file:${path}`}
+                data-line={virtual.index + 1}
                 style={{
                   ...sideways.rowStyle(`file:${path}`),
                   height: lineHeight,

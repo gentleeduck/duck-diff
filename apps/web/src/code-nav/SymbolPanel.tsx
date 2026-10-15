@@ -1,4 +1,4 @@
-import type { SymbolHit, SymbolResult } from '@duck-diff/protocol'
+import type { SymbolHit } from '@duck-diff/protocol'
 import { Input, Skeleton } from '@duck-diff/ui'
 import { X } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
@@ -8,12 +8,14 @@ import { openFile } from '../files/open-file'
 import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
 import { fileGlyph } from '../sidebar/icons'
+import { type Found, loadSymbol, sourceLabel } from './load-symbol'
+import type { SymbolTarget } from './symbol-at'
 
-type Symbol = { name: string; ref: string | null } | null
+type Symbol = SymbolTarget | null
 
 // Clicking back and forth between a few names answers from here instead of searching again.
 const RECENT_MS = 30_000
-const recent = new Map<string, { at: number; result: SymbolResult }>()
+const recent = new Map<string, { at: number; result: Found }>()
 const selectSymbol = (value: Symbol) => value
 
 const SECTIONS: { kind: SymbolHit['kind']; title: string }[] = [
@@ -88,7 +90,7 @@ export function SymbolPanel() {
   const { api, symbol } = app
   const current = useStore(symbol, selectSymbol)
   const { show } = useView()
-  const [result, setResult] = useState<SymbolResult | null>(null)
+  const [result, setResult] = useState<Found | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   useHighlight(current?.name ?? null)
@@ -98,14 +100,14 @@ export function SymbolPanel() {
     setFailed(null)
     setFilter('')
     if (!current) return
-    const key = `${current.name}|${current.ref ?? ''}`
+    const key = `${current.name}|${current.ref ?? ''}|${current.at ? `${current.at.path}:${current.at.line}:${current.at.column}` : ''}`
     const cached = recent.get(key)
     if (cached && Date.now() - cached.at < RECENT_MS) {
       setResult(cached.result)
       return
     }
     let alive = true
-    api.symbols(current.name, current.ref).then(
+    loadSymbol(api, current).then(
       (next) => {
         recent.set(key, { at: Date.now(), result: next })
         if (alive) setResult(next)
@@ -137,7 +139,9 @@ export function SymbolPanel() {
 
   if (!current) return null
   const go = (hit: SymbolHit) => {
-    openFile(app, hit.path, { line: hit.line, at: current.ref })
+    // A language server reads other files from the working tree; only the clicked file is at the revision.
+    const atRef = result?.source === 'text' || hit.path === current.at?.path
+    openFile(app, hit.path, { line: hit.line, at: atRef ? current.ref : null })
     show('files')
   }
 
@@ -183,6 +187,17 @@ export function SymbolPanel() {
       <header className="flex h-11 shrink-0 items-center gap-2 border-border border-b ps-3 pe-1">
         <span className="text-muted-foreground">Symbol</span>
         <code className="min-w-0 flex-1 truncate text-tn-yellow">{current.name}</code>
+        {result ? (
+          <span
+            className={`shrink-0 ${result.source === 'text' ? 'text-muted-foreground' : 'text-tn-green'}`}
+            title={
+              result.source === 'text'
+                ? 'Every place the name appears as text; same-named symbols mix'
+                : 'Exact answers from a language server'
+            }>
+            {sourceLabel(result)}
+          </span>
+        ) : null}
         <IconTool label="Close the symbol panel" tip="Close (Esc)" onClick={() => symbol.set(null)}>
           <X />
         </IconTool>

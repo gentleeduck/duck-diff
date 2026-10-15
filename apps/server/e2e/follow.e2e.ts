@@ -37,10 +37,16 @@ test('folding and clicking leave the tree where it is; only a new active file br
   await expect(page.getByRole('banner')).toContainText('42 files')
   const tree = page.getByRole('tree', { name: 'Changed files' })
   const top = () => tree.evaluate((element) => element.scrollTop)
-  await tree.evaluate((element) => {
-    element.scrollTop = 400
-  })
-  await expect.poll(top).toBe(400)
+  // The diff marks its top file once it has loaded, which on a busy machine comes after the tree.
+  await expect(tree.locator('[aria-current="true"]')).toHaveCount(1)
+  await expect
+    .poll(() =>
+      tree.evaluate((element) => {
+        element.scrollTop = 400
+        return element.scrollTop
+      }),
+    )
+    .toBe(400)
   // A folder already on screen, so the click itself needs no scrolling.
   const folders = await tree.locator('[role=treeitem][aria-expanded]').all()
   let folder = folders[0]
