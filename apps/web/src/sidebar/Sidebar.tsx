@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { describeTarget } from '../compare/model'
 import { CommitBox } from '../git/CommitBox'
+import { StagePanel } from '../git/StagePanel'
 import { useTarget } from '../hooks/useTarget'
 import { ChangesTree } from './ChangesTree'
 import { HistoryList } from './HistoryList'
@@ -21,22 +22,30 @@ export function Sidebar() {
   }, [targetPath, fileHistory])
 
   return (
-    <Tabs value={tab} onValueChange={setTab} className="flex h-full min-h-0 flex-col gap-0">
-      <TabsList className="mx-3 mt-3 grid grid-cols-2">
-        <TabsTrigger value="changes">Changes</TabsTrigger>
-        <TabsTrigger value="history">History</TabsTrigger>
-      </TabsList>
-      <TabsContent value="changes" className="mt-0 min-h-0 flex-1">
-        <div className="flex h-full flex-col">
-          <ChangesTree />
-          <CommitBox />
-        </div>
-      </TabsContent>
-      <TabsContent value="history" className="mt-0 min-h-0 flex-1">
-        <div className="flex h-full flex-col">
-          <HistoryList />
-        </div>
-      </TabsContent>
-    </Tabs>
+    <div className="flex h-full min-h-0 flex-col">
+      <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
+        <TabsList className="mx-3 mt-3 grid grid-cols-3">
+          <TabsTrigger value="changes">Changes</TabsTrigger>
+          <TabsTrigger value="stage">Stage</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
+        <TabsContent value="changes" className="mt-0 min-h-0 flex-1">
+          <div className="flex h-full flex-col">
+            <ChangesTree />
+          </div>
+        </TabsContent>
+        <TabsContent value="stage" className="mt-0 min-h-0 flex-1">
+          <div className="flex h-full flex-col">
+            <StagePanel />
+          </div>
+        </TabsContent>
+        <TabsContent value="history" className="mt-0 min-h-0 flex-1">
+          <div className="flex h-full flex-col">
+            <HistoryList />
+          </div>
+        </TabsContent>
+      </Tabs>
+      <CommitBox />
+    </div>
   )
 }

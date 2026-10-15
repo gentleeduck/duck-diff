@@ -42,7 +42,7 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
           title={label}
           // Short names like HEAD never give up room; long branch names truncate first.
           style={{ flexShrink: label.length > 8 ? 1 : 0 }}
-          className="min-w-0 max-w-56 gap-1.5">
+          className="min-w-24 max-w-56 gap-1.5">
           <GitBranch />
           <span className="truncate">{label}</span>
         </Button>

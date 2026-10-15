@@ -16,10 +16,12 @@ import {
   push,
   readSyncStatus,
   revertCommit,
+  stageAll,
   stashApply,
   stashDrop,
   stashSave,
   switchBranch,
+  unstageAll,
 } from '../index'
 
 let repo: TestRepo
@@ -187,5 +189,17 @@ describe('merge, cherry-pick and revert', () => {
     await expect(deleteBranch(repo.path, { name: 'side', force: false })).rejects.toThrow()
     await deleteBranch(repo.path, { name: 'side', force: true })
     expect(repo.git('branch', '--list', 'side')).toBe('')
+  })
+})
+
+describe('stage all and unstage all', () => {
+  it('stages every change including new files, then unstages them all', async () => {
+    withRemote()
+    repo.write('a.txt', 'changed\n')
+    repo.write('new.txt', 'new\n')
+    await stageAll(repo.path)
+    expect(repo.git('diff', '--cached', '--name-only').trim().split('\n')).toEqual(['a.txt', 'new.txt'])
+    await unstageAll(repo.path)
+    expect(repo.git('diff', '--cached', '--name-only').trim()).toBe('')
   })
 })

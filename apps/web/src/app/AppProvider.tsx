@@ -11,6 +11,7 @@ import { createReviews, type Reviews } from '../review/reviews'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
+import { createStage, type Stage } from '../state/stage'
 import { createViewedStore, type Viewed } from '../state/viewed'
 
 interface AppContextValue {
@@ -18,6 +19,8 @@ interface AppContextValue {
   session: Session
   // Branches, tags and recent commits, shared by every picker.
   refs: Refs
+  // Staged and unstaged files, for the stage panel.
+  stage: Stage
   settings: Store<Settings>
   reviews: Reviews
   viewed: Viewed
@@ -51,6 +54,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       api: client,
       session,
       refs: createRefs(client, session),
+      stage: createStage(client, session),
       settings: createSettingsStore(),
       reviews: createReviews(client),
       viewed: createViewedStore(),

@@ -29,6 +29,8 @@ const DOING: Record<GitAction, string> = {
   revert: 'Revert',
   abort: 'Abort',
   'branch-delete': 'Delete branch',
+  'stage-all': 'Stage all',
+  'unstage-all': 'Unstage all',
 }
 
 export function GitProvider({ children }: { children: ReactNode }) {

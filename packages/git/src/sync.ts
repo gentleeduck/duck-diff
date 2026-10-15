@@ -155,3 +155,13 @@ export async function abortOperation(repo: string): Promise<void> {
 export async function deleteBranch(repo: string, options: { name: string; force: boolean }): Promise<void> {
   await runGit(['branch', options.force ? '-D' : '-d', options.name], { cwd: repo })
 }
+
+export async function stageAll(repo: string): Promise<void> {
+  await runGit(['add', '--all'], { cwd: repo })
+}
+
+// Works before the first commit too, where there is no HEAD to reset to.
+export async function unstageAll(repo: string): Promise<void> {
+  const head = await runGit(['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: repo, okExitCodes: [1] })
+  await runGit(head.trim() ? ['reset', '--quiet'] : ['rm', '-r', '--cached', '--quiet', '.'], { cwd: repo })
+}

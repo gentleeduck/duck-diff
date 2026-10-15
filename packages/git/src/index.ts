@@ -21,10 +21,12 @@ export {
   readSyncStatus,
   revertCommit,
   type SyncStatus,
+  stageAll,
   stashApply,
   stashDrop,
   stashSave,
   switchBranch,
+  unstageAll,
 } from './sync'
 export { type DiffTarget, targetArgs, unmergedPaths } from './target'
 export { type FileContents, listTree, readTreeFile, type TreeRef } from './tree'

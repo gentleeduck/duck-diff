@@ -126,6 +126,8 @@ export type GitAction =
   | 'revert'
   | 'abort'
   | 'branch-delete'
+  | 'stage-all'
+  | 'unstage-all'
 
 const ContentSchema = z.object({ contents: z.string().nullable() })
 

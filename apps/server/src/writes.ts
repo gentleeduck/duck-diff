@@ -13,6 +13,7 @@ import {
   restoreLatest,
   revertCommit,
   snapshot,
+  stageAll,
   stageFile,
   stageHunk,
   stashApply,
@@ -20,6 +21,7 @@ import {
   stashSave,
   switchBranch,
   unmergedPaths,
+  unstageAll,
   unstageFile,
   unstageHunk,
 } from '@duck-diff/git'
@@ -119,6 +121,12 @@ export async function gitAction(
     case 'branch-delete':
       await deleteBranch(repo, DeleteBranchSchema.parse(await request.json()))
       return { reason: 'refs', body: {} }
+    case 'stage-all':
+      await stageAll(repo)
+      return { reason: 'index', body: {} }
+    case 'unstage-all':
+      await unstageAll(repo)
+      return { reason: 'index', body: {} }
     case 'stash':
       await stashSave(repo, StashSaveSchema.parse(await request.json()))
       return { reason: 'refs', body: {} }
