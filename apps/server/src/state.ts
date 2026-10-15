@@ -75,7 +75,10 @@ export function pageState(html: string, values: StateValues, queries: string | n
   const saved = queries
     ? `<script id="duck-diff-queries" type="application/json">${queries.replace(/</g, '\\u003c')}</script>`
     : ''
-  return html.replace('</head>', `<script id="duck-diff-state" type="application/json">${json}</script>${saved}</head>`)
+  return html.replace(
+    '</head>',
+    () => `<script id="duck-diff-state" type="application/json">${json}</script>${saved}</head>`,
+  )
 }
 
 // For servers that keep nothing on disk (tests): the same store, held in memory.
@@ -112,7 +115,7 @@ export function pageDiff(
   const colors = tokens ? `,"tokens":${tokens}` : ''
   const seed = `{"key":${JSON.stringify(key)},"files":${files},"patch":${JSON.stringify(patch)}${colors}}`
   const safe = seed.replace(/</g, '\\u003c')
-  return html.replace('</head>', `<script id="duck-diff-diff" type="application/json">${safe}</script></head>`)
+  return html.replace('</head>', () => `<script id="duck-diff-diff" type="application/json">${safe}</script></head>`)
 }
 
 // The comparison a page url opens on, when it opens on the diff: /changes, or / as older links have it.
@@ -133,7 +136,7 @@ export function openingTarget(url: URL): DiffTarget | null {
 export function pageGraph(html: string, key: string, text: string | undefined, refs: string | undefined): string {
   if (text === undefined || refs === undefined || text.length > SEED_MAX) return html
   const seed = `{"key":${JSON.stringify(key)},"text":${JSON.stringify(text)},"refs":${refs}}`.replace(/</g, '\\u003c')
-  return html.replace('</head>', `<script id="duck-diff-graph" type="application/json">${seed}</script></head>`)
+  return html.replace('</head>', () => `<script id="duck-diff-graph" type="application/json">${seed}</script></head>`)
 }
 
 export const opensGraph = (url: URL) =>

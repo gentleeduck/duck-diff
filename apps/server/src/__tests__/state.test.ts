@@ -71,4 +71,13 @@ describe('state store', () => {
     expect(pageDiff(html, 'k', undefined, 'x')).toBe(html)
     expect(pageDiff(html, 'k', '[]', 'x'.repeat(2_000_000))).toBe(html)
   })
+
+  it("keeps $' and $& in the diff as written", () => {
+    const html = '<head></head><body>page</body>'
+    const patch = "+echo $'a' $& $` done\n"
+    const out = pageDiff(html, 'k', '[]', patch)
+    const json = /<script id="duck-diff-diff" type="application\/json">(.*?)<\/script>/s.exec(out)?.[1] ?? ''
+    expect(JSON.parse(json).patch).toBe(patch)
+    expect(out.endsWith('</head><body>page</body>')).toBe(true)
+  })
 })
