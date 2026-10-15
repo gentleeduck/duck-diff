@@ -112,6 +112,11 @@ export const CheckRunSchema = z.object({
   // GitHub Actions ids, when the run came from a workflow, for its log and re-run.
   runId: z.number().int().nullable(),
   jobId: z.number().int().nullable(),
+  // The app that ran it and its icon, a one-line outcome, and how long it took in seconds.
+  app: z.string().nullable().default(null),
+  avatar: z.string().nullable().default(null),
+  summary: z.string().nullable().default(null),
+  seconds: z.number().nullable().default(null),
 })
 export type CheckRun = z.infer<typeof CheckRunSchema>
 

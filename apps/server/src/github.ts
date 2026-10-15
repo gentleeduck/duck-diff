@@ -482,12 +482,16 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     async checks(number: number): Promise<CheckRun[]> {
       const base = await repoPath()
       const { head } = await call<RawPull>(`${base}/pulls/${number}`)
-      const { check_runs } = await call<{ check_runs: RawCheckRun[] }>(
-        `${base}/commits/${head.sha}/check-runs?per_page=100`,
-      )
-      return check_runs.map((run) => {
+      // Checks come from the Checks API; some bots still report through commit statuses instead.
+      const [{ check_runs }, { statuses }] = await Promise.all([
+        call<{ check_runs: RawCheckRun[] }>(`${base}/commits/${head.sha}/check-runs?per_page=100`),
+        call<{ statuses: RawStatus[] }>(`${base}/commits/${head.sha}/status`).catch(() => ({ statuses: [] })),
+      ])
+      const runs = check_runs.map((run): CheckRun => {
         // Actions links read .../actions/runs/<run>/job/<job>.
         const ids = /\/actions\/runs\/(\d+)\/job\/(\d+)/.exec(run.html_url ?? '')
+        const took =
+          run.started_at && run.completed_at ? (Date.parse(run.completed_at) - Date.parse(run.started_at)) / 1000 : null
         return {
           name: run.name,
           status: run.status,
@@ -495,8 +499,27 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
           url: run.html_url ?? '',
           runId: ids ? Number(ids[1]) : null,
           jobId: ids ? Number(ids[2]) : null,
+          app: run.app?.name ?? null,
+          avatar: run.app?.owner?.avatar_url ?? null,
+          summary: run.output?.title ?? null,
+          seconds: took !== null && took >= 0 ? took : null,
         }
       })
+      const reported = statuses.map(
+        (status): CheckRun => ({
+          name: status.context,
+          status: status.state === 'pending' ? 'pending' : 'completed',
+          conclusion: status.state === 'success' ? 'success' : status.state === 'pending' ? null : 'failure',
+          url: status.target_url ?? '',
+          runId: null,
+          jobId: null,
+          app: null,
+          avatar: status.avatar_url,
+          summary: status.description,
+          seconds: null,
+        }),
+      )
+      return [...runs, ...reported]
     },
     async notifications(all: boolean): Promise<Notification[]> {
       const raw = await call<RawNotification[]>(`${await repoPath()}/notifications?all=${all}&per_page=50`)
@@ -869,6 +892,17 @@ interface RawCheckRun {
   status: CheckRun['status']
   conclusion: CheckRun['conclusion']
   html_url: string | null
+  started_at?: string | null
+  completed_at?: string | null
+  output?: { title?: string | null } | null
+  app?: { name?: string; owner?: { avatar_url?: string } | null } | null
+}
+interface RawStatus {
+  context: string
+  state: 'success' | 'pending' | 'failure' | 'error'
+  description: string | null
+  target_url: string | null
+  avatar_url: string | null
 }
 interface RawReviewComment extends RawComment {
   path: string

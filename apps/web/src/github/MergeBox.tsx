@@ -3,17 +3,19 @@ import { Button, Checkbox, Input, Label, Popover, PopoverContent, PopoverTrigger
 import {
   Check,
   ChevronDown,
-  ChevronRight,
   CircleAlert,
   CircleDashed,
   CircleX,
+  Ellipsis,
   GitMerge,
   GitPullRequestDraft,
-  Terminal,
+  RotateCw,
+  SquareArrowOutUpRight,
 } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { IconTool } from '../app/IconTool'
 import type { MergeMethod } from '../lib/api'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { LOOK, outcome } from './Checks'
@@ -40,7 +42,7 @@ const METHODS: Record<MergeMethod, { label: string; short: string; detail: strin
 type Tone = 'good' | 'bad' | 'wait' | 'muted'
 
 const TONE: Record<Tone, { icon: ReactNode; ring: string }> = {
-  good: { icon: <Check className="size-4" />, ring: 'bg-added text-background' },
+  good: { icon: <Check className="size-4" />, ring: 'bg-tn-blue text-background' },
   bad: { icon: <CircleX className="size-4" />, ring: 'bg-removed text-background' },
   wait: { icon: <CircleDashed className="size-4" />, ring: 'bg-tn-yellow text-background' },
   muted: { icon: <CircleAlert className="size-4" />, ring: 'bg-muted text-muted-foreground' },
@@ -71,15 +73,17 @@ function Row({
           {TONE[tone].icon}
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="text-foreground">{title}</span>
+          <span className="font-bold text-foreground">{title}</span>
           {detail ? <span className="text-muted-foreground">{detail}</span> : null}
         </span>
         {action}
         {onToggle ? (
-          <Button size="sm" variant="ghost" onClick={onToggle}>
-            {open ? <ChevronDown /> : <ChevronRight />}
-            {open ? 'Hide' : 'Show all'}
-          </Button>
+          <IconTool
+            label={open ? `Hide ${title.toLowerCase()}` : `Show ${title.toLowerCase()}`}
+            tip={open ? 'Hide' : 'Show all'}
+            onClick={onToggle}>
+            <ChevronDown className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+          </IconTool>
         ) : null}
       </div>
       {open ? children : null}
@@ -266,272 +270,357 @@ export function MergeBox({
 
   const tone: Tone = pull.draft ? 'muted' : conflicts ? 'bad' : canMerge && !unmet ? 'good' : 'muted'
   const border = {
-    good: 'border-added/50',
+    good: 'border-tn-blue/70',
     bad: 'border-removed/50',
     wait: 'border-tn-yellow/50',
     muted: 'border-border',
   }[tone]
 
   return (
-    <section aria-label="Merge" className="flex gap-3">
-      <span
-        className={`mt-3 hidden size-10 shrink-0 items-center justify-center rounded-md sm:flex ${TONE[tone].ring}`}>
-        {pull.draft ? <GitPullRequestDraft className="size-5" /> : <GitMerge className="size-5" />}
-      </span>
-      <div className={`min-w-0 flex-1 rounded-md border ${border}`}>
-        {review ? (
-          <Row
-            tone={review.tone}
-            title={review.title}
-            detail={review.detail}
-            open={showReviews}
-            onToggle={pull.reviewers.length ? () => setShowReviews(!showReviews) : undefined}>
-            <ul className="px-4 pb-3 ps-15">
-              {pull.reviewers.map((reviewer) => (
-                <li key={reviewer.login} className="flex items-center gap-2 py-0.5">
-                  <span className="min-w-0 flex-1 truncate text-foreground">{reviewer.login}</span>
-                  <span className="text-muted-foreground">
-                    {reviewer.state === null
-                      ? 'Review requested'
-                      : reviewer.state === 'APPROVED'
-                        ? 'Approved'
-                        : reviewer.state === 'CHANGES_REQUESTED'
-                          ? 'Requested changes'
-                          : 'Commented'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Row>
-        ) : null}
-        {checks ? (
-          <Row
-            tone={checks.tone}
-            title={checks.title}
-            detail={checks.detail}
-            open={showChecks}
-            onToggle={() => setShowChecks(!showChecks)}>
-            <ul className="max-h-72 overflow-y-auto border-border border-t">
-              {runs.map((run) => {
-                const look = LOOK[outcome(run)]
-                return (
-                  <li key={`${run.name}:${run.url}`} className="flex items-center gap-3 px-4 py-1.5 ps-15">
-                    <look.icon className={`size-4 shrink-0 ${look.className}`} />
-                    <span className="min-w-0 flex-1 truncate text-foreground">{run.name}</span>
-                    {run.url ? (
-                      <a href={run.url} target="_blank" rel="noreferrer" className="text-tn-blue hover:underline">
-                        Details
-                      </a>
-                    ) : null}
+    <section aria-label="Merge" className="flex flex-col gap-2">
+      <div className="flex gap-3">
+        <span
+          className={`mt-3 hidden size-10 shrink-0 items-center justify-center rounded-md sm:flex ${TONE[tone].ring}`}>
+          {pull.draft ? <GitPullRequestDraft className="size-5" /> : <GitMerge className="size-5" />}
+        </span>
+        <div className={`min-w-0 flex-1 rounded-md border ${border}`}>
+          {review ? (
+            <Row
+              tone={review.tone}
+              title={review.title}
+              detail={review.detail}
+              open={showReviews}
+              onToggle={pull.reviewers.length ? () => setShowReviews(!showReviews) : undefined}>
+              <ul className="px-4 pb-3 ps-15">
+                {pull.reviewers.map((reviewer) => (
+                  <li key={reviewer.login} className="flex items-center gap-2 py-0.5">
+                    <span className="min-w-0 flex-1 truncate text-foreground">{reviewer.login}</span>
+                    <span className="text-muted-foreground">
+                      {reviewer.state === null
+                        ? 'Review requested'
+                        : reviewer.state === 'APPROVED'
+                          ? 'Approved'
+                          : reviewer.state === 'CHANGES_REQUESTED'
+                            ? 'Requested changes'
+                            : 'Commented'}
+                    </span>
                   </li>
-                )
-              })}
-            </ul>
-          </Row>
-        ) : null}
-        {pull.draft ? (
-          <Row
-            tone="muted"
-            title="This pull request is still a work in progress"
-            detail="Draft pull requests cannot be merged."
-            action={
-              <Button
-                size="sm"
-                variant="outline"
-                loading={busy === 'ready'}
-                onClick={() => void act('ready', () => api.github.setDraft(number, false), 'Marked ready for review')}>
-                Ready for review
-              </Button>
-            }
-          />
-        ) : conflicts ? (
-          <Row
-            tone="bad"
-            title="This branch has conflicts that must be resolved"
-            detail="Resolve them locally (see the command line instructions below) or on github.com."
-            action={
-              <Button size="sm" variant="outline" asChild>
-                <a href={`${pull.url}/conflicts`} target="_blank" rel="noreferrer">
-                  Resolve conflicts
-                </a>
-              </Button>
-            }
-          />
-        ) : behind ? (
-          <Row
-            tone="muted"
-            title="This branch is out-of-date with the base branch"
-            detail={`Merge the latest changes from ${pull.baseRef} into this branch.`}
-            action={
-              <UpdateButton
-                busy={busy === 'update'}
-                onUpdate={(how) =>
-                  void act(
-                    'update',
-                    () => api.github.updateBranch(number, how),
-                    how === 'rebase' ? 'Rebasing the branch' : 'Updating the branch',
-                  )
-                }
-              />
-            }
-          />
-        ) : state === 'UNKNOWN' ? (
-          <Row tone="wait" title="Checking for the ability to merge automatically..." />
-        ) : (
-          <Row tone="good" title="No conflicts with base branch" detail="Merging can be performed automatically." />
-        )}
-
-        <div className="flex flex-col gap-3 border-border border-t bg-card/50 px-4 py-3">
-          {info.autoMerge ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="min-w-0 flex-1 text-foreground">
-                Auto-merge enabled by {info.autoMerge.by}: this will{' '}
-                {METHODS[info.autoMerge.method].label.toLowerCase()} once all requirements are met.
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                loading={busy === 'auto'}
-                onClick={() =>
-                  void act('auto', () => api.github.setAutoMerge(number, false, method), 'Auto-merge is off')
-                }>
-                Disable auto-merge
-              </Button>
-            </div>
+                ))}
+              </ul>
+            </Row>
           ) : null}
-          {blocked && info.canMergeAsAdmin && !pull.draft && !conflicts ? (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="merge-bypass"
-                checked={bypass}
-                className={VISIBLE_BOX}
-                onCheckedChange={(next) => setBypass(next === true)}
-              />
-              <Label htmlFor="merge-bypass" className="text-tn-yellow">
-                Merge without waiting for requirements to be met (bypass rules)
-              </Label>
-            </div>
+          {checks ? (
+            <Row
+              tone={checks.tone}
+              title={checks.title}
+              detail={checks.detail}
+              open={showChecks}
+              onToggle={() => setShowChecks(!showChecks)}>
+              <ul className="max-h-72 overflow-y-auto border-border border-t bg-background px-4">
+                {runs.map((run) => (
+                  <CheckLine key={`${run.name}:${run.url}`} run={run} />
+                ))}
+              </ul>
+            </Row>
           ) : null}
-          {confirming ? (
-            <form
-              className="flex flex-col gap-2"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void merge()
-              }}>
-              {method === 'rebase' ? (
-                <p className="text-muted-foreground">
-                  Each commit of {pull.headRef} is replayed onto {pull.baseRef}; no merge commit is written.
-                </p>
-              ) : (
-                <>
-                  <Input aria-label="Commit title" value={title} onChange={(event) => setTitle(event.target.value)} />
-                  <Textarea
-                    aria-label="Commit message"
-                    rows={6}
-                    value={message}
-                    onChange={(event) => setMessage(event.target.value)}
-                  />
-                </>
-              )}
-              {pull.sameRepo ? (
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="merge-delete"
-                    checked={deleteAfter}
-                    className={VISIBLE_BOX}
-                    onCheckedChange={(next) => setDeleteAfter(next === true)}
-                  />
-                  <Label htmlFor="merge-delete">Delete {pull.headRef} after merging</Label>
-                </div>
-              ) : null}
-              <div className="flex gap-2">
+          {pull.draft ? (
+            <Row
+              tone="muted"
+              title="This pull request is still a work in progress"
+              detail="Draft pull requests cannot be merged."
+              action={
                 <Button
-                  type="submit"
                   size="sm"
-                  loading={busy === 'merge'}
-                  disabled={method !== 'rebase' && !title.trim()}>
-                  Confirm {METHODS[method].short.toLowerCase()}
+                  variant="outline"
+                  loading={busy === 'ready'}
+                  onClick={() =>
+                    void act('ready', () => api.github.setDraft(number, false), 'Marked ready for review')
+                  }>
+                  Ready for review
                 </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(false)}>
-                  Cancel
+              }
+            />
+          ) : conflicts ? (
+            <Row
+              tone="bad"
+              title="This branch has conflicts that must be resolved"
+              detail="Resolve them locally (see the command line instructions below) or on github.com."
+              action={
+                <Button size="sm" variant="outline" asChild>
+                  <a href={`${pull.url}/conflicts`} target="_blank" rel="noreferrer">
+                    Resolve conflicts
+                  </a>
                 </Button>
-              </div>
-            </form>
+              }
+            />
+          ) : behind ? (
+            <Row
+              tone="muted"
+              title="This branch is out-of-date with the base branch"
+              detail={`Merge the latest changes from ${pull.baseRef} into this branch.`}
+              action={
+                <UpdateButton
+                  busy={busy === 'update'}
+                  onUpdate={(how) =>
+                    void act(
+                      'update',
+                      () => api.github.updateBranch(number, how),
+                      how === 'rebase' ? 'Rebasing the branch' : 'Updating the branch',
+                    )
+                  }
+                />
+              }
+            />
+          ) : state === 'UNKNOWN' ? (
+            <Row tone="wait" title="Checking for the ability to merge automatically..." />
           ) : (
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex">
-                <Button
-                  size="sm"
-                  className="rounded-e-none"
-                  disabled={!canMerge}
-                  variant={canMerge && !unmet ? 'default' : bypass ? 'destructive' : 'secondary'}
-                  onClick={() => void startConfirm()}>
-                  <GitMerge />
-                  {bypass ? `${METHODS[method].short} (bypass)` : METHODS[method].short}
-                </Button>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      size="sm"
-                      aria-label="Choose a merge method"
-                      className="rounded-s-none border-s border-background/30 px-2"
-                      variant={canMerge && !unmet ? 'default' : bypass ? 'destructive' : 'secondary'}>
-                      <ChevronDown />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="flex w-96 flex-col p-1">
-                    {info.methods.map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setMethod(value)}
-                        className="flex cursor-pointer gap-2 rounded-sm p-2 text-start hover:bg-accent">
-                        <span className="w-4 pt-0.5">{value === method ? <Check className="size-4" /> : null}</span>
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="text-foreground">{METHODS[value].label}</span>
-                          <span className="text-muted-foreground">{METHODS[value].detail}</span>
-                        </span>
-                      </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
-              </div>
-              {showAuto ? (
+            <Row tone="good" title="No conflicts with base branch" detail="Merging can be performed automatically." />
+          )}
+
+          <div className="flex flex-col gap-3 border-border border-t bg-card/50 px-4 py-3">
+            {info.autoMerge ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="min-w-0 flex-1 text-foreground">
+                  Auto-merge enabled by {info.autoMerge.by}: this will{' '}
+                  {METHODS[info.autoMerge.method].label.toLowerCase()} once all requirements are met.
+                </span>
                 <Button
                   size="sm"
                   variant="outline"
                   loading={busy === 'auto'}
                   onClick={() =>
-                    void act('auto', () => api.github.setAutoMerge(number, true, method), 'Auto-merge is on')
+                    void act('auto', () => api.github.setAutoMerge(number, false, method), 'Auto-merge is off')
                   }>
-                  Enable auto-merge
+                  Disable auto-merge
                 </Button>
-              ) : null}
-              <span className="flex-1" />
-              <Button size="sm" variant="ghost" onClick={() => setShowCli(!showCli)}>
-                <Terminal />
-                Command line instructions
-              </Button>
-            </div>
-          )}
-          {showCli ? (
-            <div className="flex flex-col gap-1 text-muted-foreground">
-              <p>Check out this branch and merge it locally:</p>
-              <pre className="overflow-x-auto rounded-md bg-tn-dark px-3 py-2 text-foreground">
-                {`git fetch origin pull/${number}/head:${pull.headRef}\ngit switch ${pull.headRef}\ngit merge origin/${pull.baseRef}\n# resolve conflicts, commit, then\ngit push origin ${pull.headRef}`}
-              </pre>
-            </div>
-          ) : null}
-          {!pull.draft && !conflicts && !canMerge && !info.canMergeAsAdmin ? (
-            <p className="flex items-center gap-2 text-muted-foreground">
-              <CircleAlert className="size-4" />
-              Merging is blocked until the requirements above are met.
-            </p>
-          ) : null}
+              </div>
+            ) : null}
+            {blocked && info.canMergeAsAdmin && !pull.draft && !conflicts ? (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="merge-bypass"
+                  checked={bypass}
+                  className={VISIBLE_BOX}
+                  onCheckedChange={(next) => setBypass(next === true)}
+                />
+                <Label htmlFor="merge-bypass" className="text-tn-yellow">
+                  Merge without waiting for requirements to be met (bypass rules)
+                </Label>
+              </div>
+            ) : null}
+            {confirming ? (
+              <form
+                className="flex flex-col gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void merge()
+                }}>
+                {method === 'rebase' ? (
+                  <p className="text-muted-foreground">
+                    Each commit of {pull.headRef} is replayed onto {pull.baseRef}; no merge commit is written.
+                  </p>
+                ) : (
+                  <>
+                    <Input aria-label="Commit title" value={title} onChange={(event) => setTitle(event.target.value)} />
+                    <Textarea
+                      aria-label="Commit message"
+                      rows={6}
+                      value={message}
+                      onChange={(event) => setMessage(event.target.value)}
+                    />
+                  </>
+                )}
+                {pull.sameRepo ? (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="merge-delete"
+                      checked={deleteAfter}
+                      className={VISIBLE_BOX}
+                      onCheckedChange={(next) => setDeleteAfter(next === true)}
+                    />
+                    <Label htmlFor="merge-delete">Delete {pull.headRef} after merging</Label>
+                  </div>
+                ) : null}
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    loading={busy === 'merge'}
+                    disabled={method !== 'rebase' && !title.trim()}>
+                    Confirm {METHODS[method].short.toLowerCase()}
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex">
+                  <Button
+                    size="sm"
+                    className="rounded-e-none"
+                    disabled={!canMerge}
+                    variant={canMerge && !unmet ? 'default' : bypass ? 'destructive' : 'secondary'}
+                    onClick={() => void startConfirm()}>
+                    <GitMerge />
+                    {bypass ? `${METHODS[method].short} (bypass)` : METHODS[method].short}
+                  </Button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        size="sm"
+                        aria-label="Choose a merge method"
+                        className="rounded-s-none border-s border-background/30 px-2"
+                        variant={canMerge && !unmet ? 'default' : bypass ? 'destructive' : 'secondary'}>
+                        <ChevronDown />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="flex w-96 flex-col p-1">
+                      {info.methods.map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setMethod(value)}
+                          className="flex cursor-pointer gap-2 rounded-sm p-2 text-start hover:bg-accent">
+                          <span className="w-4 pt-0.5">{value === method ? <Check className="size-4" /> : null}</span>
+                          <span className="flex min-w-0 flex-1 flex-col">
+                            <span className="text-foreground">{METHODS[value].label}</span>
+                            <span className="text-muted-foreground">{METHODS[value].detail}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                {showAuto ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={busy === 'auto'}
+                    onClick={() =>
+                      void act('auto', () => api.github.setAutoMerge(number, true, method), 'Auto-merge is on')
+                    }>
+                    Enable auto-merge
+                  </Button>
+                ) : null}
+                <span className="text-muted-foreground">
+                  You can also merge this with the command line.{' '}
+                  <button
+                    type="button"
+                    onClick={() => setShowCli(!showCli)}
+                    className="cursor-pointer text-tn-blue underline-offset-2 hover:underline">
+                    {showCli ? 'Hide command line instructions.' : 'View command line instructions.'}
+                  </button>
+                </span>
+              </div>
+            )}
+            {showCli ? (
+              <div className="flex flex-col gap-1 text-muted-foreground">
+                <p>Check out this branch and merge it locally:</p>
+                <pre className="overflow-x-auto rounded-md bg-tn-dark px-3 py-2 text-foreground">
+                  {`git fetch origin pull/${number}/head:${pull.headRef}\ngit switch ${pull.headRef}\ngit merge origin/${pull.baseRef}\n# resolve conflicts, commit, then\ngit push origin ${pull.headRef}`}
+                </pre>
+              </div>
+            ) : null}
+            {!pull.draft && !conflicts && !canMerge && !info.canMergeAsAdmin ? (
+              <p className="flex items-center gap-2 text-muted-foreground">
+                <CircleAlert className="size-4" />
+                Merging is blocked until the requirements above are met.
+              </p>
+            ) : null}
+          </div>
         </div>
       </div>
+      {pull.draft ? null : (
+        <p className="text-end text-muted-foreground">
+          Still in progress?{' '}
+          <button
+            type="button"
+            disabled={busy === 'draft'}
+            onClick={() => void act('draft', () => api.github.setDraft(number, true), 'Converted to draft')}
+            className="cursor-pointer text-foreground underline underline-offset-2 hover:text-tn-blue">
+            Convert to draft
+          </button>
+        </p>
+      )}
     </section>
+  )
+}
+
+// One check, as GitHub lists them under the summary: its mark, the app's icon, its name and how it went.
+function CheckLine({ run }: { run: CheckRun }) {
+  const { api } = useApp()
+  const state = outcome(run)
+  const look = LOOK[state]
+  const took =
+    run.seconds === null
+      ? null
+      : run.seconds < 60
+        ? `${Math.round(run.seconds)}s`
+        : `${Math.floor(run.seconds / 60)}m ${Math.round(run.seconds % 60)}s`
+  const note =
+    run.summary ??
+    (state === 'passed' && took
+      ? `Successful in ${took}`
+      : state === 'failed' && took
+        ? `Failing after ${took}`
+        : state === 'running'
+          ? 'In progress'
+          : state === 'skipped'
+            ? 'Skipped'
+            : null)
+  return (
+    <li className="group flex items-center gap-2 border-border border-b py-2 last:border-b-0">
+      <look.icon className={`size-4 shrink-0 ${look.className}`} />
+      {run.avatar ? (
+        <img src={run.avatar} alt="" className="size-5 shrink-0 rounded-sm" />
+      ) : (
+        <span className="size-5 shrink-0 rounded-sm bg-muted" />
+      )}
+      <span className="shrink-0 text-foreground">{run.name}</span>
+      {note ? (
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">{note}</span>
+      ) : (
+        <span className="flex-1" />
+      )}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={`More for ${run.name}`}
+            className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100">
+            <Ellipsis />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="flex w-52 flex-col p-1">
+          {run.url ? (
+            <Button size="sm" variant="ghost" className="justify-start" asChild>
+              <a href={run.url} target="_blank" rel="noreferrer">
+                <SquareArrowOutUpRight />
+                View details
+              </a>
+            </Button>
+          ) : null}
+          {state === 'failed' && run.runId !== null ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="justify-start"
+              onClick={() =>
+                api.github.rerunFailed(run.runId as number).then(
+                  () => toast('Re-running the failed jobs'),
+                  (error: Error) => toast.error(error.message),
+                )
+              }>
+              <RotateCw />
+              Re-run failed jobs
+            </Button>
+          ) : null}
+        </PopoverContent>
+      </Popover>
+    </li>
   )
 }
 

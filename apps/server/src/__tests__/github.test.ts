@@ -302,8 +302,25 @@ function fakeGitHub(calls: Call[]) {
             status: 'completed',
             conclusion: 'success',
             html_url: 'https://github.com/o/r/actions/runs/11/job/22',
+            started_at: '2026-10-01T00:00:00Z',
+            completed_at: '2026-10-01T00:00:05Z',
+            output: { title: 'All green' },
+            app: { name: 'GitHub Actions', owner: { avatar_url: 'gh.png' } },
           },
           { name: 'lint', status: 'in_progress', conclusion: null, html_url: null },
+        ],
+      })
+    }
+    if (path === '/repos/o/r/commits/h1/status') {
+      return Response.json({
+        statuses: [
+          {
+            context: 'CodeRabbit',
+            state: 'success',
+            description: 'Review skipped',
+            target_url: null,
+            avatar_url: 'cr.png',
+          },
         ],
       })
     }
@@ -451,7 +468,7 @@ describe('/api/github', () => {
     expect(calls.find((entry) => entry.method === 'POST')?.body).toEqual(input)
   })
 
-  it("reads the check runs on a pull request's head commit", async () => {
+  it("reads the check runs and commit statuses on a pull request's head commit", async () => {
     await start({ token: 't', remote: 'git@github.com:o/r.git' })
     expect(await (await call('GET', '/api/github/pulls/7/checks')).json()).toEqual([
       {
@@ -461,8 +478,35 @@ describe('/api/github', () => {
         url: 'https://github.com/o/r/actions/runs/11/job/22',
         runId: 11,
         jobId: 22,
+        app: 'GitHub Actions',
+        avatar: 'gh.png',
+        summary: 'All green',
+        seconds: 5,
       },
-      { name: 'lint', status: 'in_progress', conclusion: null, url: '', runId: null, jobId: null },
+      {
+        name: 'lint',
+        status: 'in_progress',
+        conclusion: null,
+        url: '',
+        runId: null,
+        jobId: null,
+        app: null,
+        avatar: null,
+        summary: null,
+        seconds: null,
+      },
+      {
+        name: 'CodeRabbit',
+        status: 'completed',
+        conclusion: 'success',
+        url: '',
+        runId: null,
+        jobId: null,
+        app: null,
+        avatar: 'cr.png',
+        summary: 'Review skipped',
+        seconds: null,
+      },
     ])
   })
 

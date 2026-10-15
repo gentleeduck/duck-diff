@@ -1,11 +1,45 @@
-import { Tabs, TabsList, TabsTrigger, Textarea } from '@duck-diff/ui'
-import { CircleDot, GitPullRequest } from 'lucide-react'
+import { Textarea } from '@duck-diff/ui'
+import {
+  AtSign,
+  Bold,
+  CircleDot,
+  Code,
+  FileType2,
+  GitPullRequest,
+  Hash,
+  Heading,
+  ImagePlus,
+  Italic,
+  Link,
+  List,
+  ListOrdered,
+  ListTodo,
+  Paperclip,
+  TextQuote,
+} from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { IconTool } from '../app/IconTool'
 import { Avatar } from './Conversation'
+import { applyFormat, type Format } from './markdown-format'
 
 const MAX_ATTACH = 512 * 1024
+
+const TOOLS: ({ label: string; tip: string; icon: typeof Heading; format: Format } | '|')[] = [
+  { label: 'Add a heading', tip: 'Heading', icon: Heading, format: 'heading' },
+  { label: 'Add bold text', tip: 'Bold (Ctrl B)', icon: Bold, format: 'bold' },
+  { label: 'Add italic text', tip: 'Italic (Ctrl I)', icon: Italic, format: 'italic' },
+  '|',
+  { label: 'Add a quote', tip: 'Quote', icon: TextQuote, format: 'quote' },
+  { label: 'Add code', tip: 'Code (Ctrl E)', icon: Code, format: 'code' },
+  { label: 'Add a link', tip: 'Link (Ctrl K)', icon: Link, format: 'link' },
+  '|',
+  { label: 'Add a numbered list', tip: 'Numbered list', icon: ListOrdered, format: 'ordered' },
+  { label: 'Add a bulleted list', tip: 'Bulleted list', icon: List, format: 'bulleted' },
+  { label: 'Add a task list', tip: 'Task list', icon: ListTodo, format: 'task' },
+]
+const SHORTCUTS: Record<string, Format> = { b: 'bold', i: 'italic', e: 'code', k: 'link' }
 
 const Markdown = lazy(() => import('../markdown/Markdown').then((module) => ({ default: module.Markdown })))
 
@@ -45,6 +79,7 @@ export function MarkdownEditor({
 }) {
   const { api } = useApp()
   const area = useRef<HTMLTextAreaElement>(null)
+  const picker = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState('write')
   const [caret, setCaret] = useState(0)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
@@ -144,16 +179,74 @@ export function MarkdownEditor({
     })
   }
 
+  const format = (kind: Format) => {
+    const element = area.current
+    if (!element) return
+    const edit = applyFormat(value, element.selectionStart, element.selectionEnd, kind)
+    onChange(edit.value)
+    requestAnimationFrame(() => {
+      element.focus()
+      element.setSelectionRange(edit.start, edit.end)
+      setCaret(edit.end)
+    })
+  }
+  const insert = (text: string) => {
+    const element = area.current
+    const at = element?.selectionStart ?? value.length
+    const lead = at && !/\s$/.test(value.slice(0, at)) ? ' ' : ''
+    onChange(`${value.slice(0, at)}${lead}${text}${value.slice(at)}`)
+    requestAnimationFrame(() => {
+      element?.focus()
+      const end = at + lead.length + text.length
+      element?.setSelectionRange(end, end)
+      setCaret(end)
+      setDismissed(false)
+    })
+  }
+
   return (
-    <div className="flex flex-col gap-1">
-      <Tabs value={tab} onValueChange={(next) => next !== tab && setTab(next)}>
-        <TabsList className="h-8">
-          <TabsTrigger value="write">Write</TabsTrigger>
-          <TabsTrigger value="preview">Preview</TabsTrigger>
-        </TabsList>
-      </Tabs>
+    <div className="flex flex-col rounded-md border border-border bg-card">
+      <div className="flex items-end gap-1 border-border border-b px-2 pt-2">
+        <div role="tablist" aria-label="Comment mode" className="flex">
+          {(['write', 'preview'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              role="tab"
+              aria-selected={tab === mode}
+              onClick={() => setTab(mode)}
+              className="-mb-px cursor-pointer rounded-t-md border border-transparent px-3 py-1.5 text-muted-foreground hover:text-foreground aria-selected:border-border aria-selected:border-b-background aria-selected:bg-background aria-selected:text-foreground">
+              {mode === 'write' ? 'Write' : 'Preview'}
+            </button>
+          ))}
+        </div>
+        {tab === 'write' ? (
+          <div className="ms-auto flex flex-wrap items-center pb-1">
+            {TOOLS.map((tool, index) =>
+              tool === '|' ? (
+                // biome-ignore lint/suspicious/noArrayIndexKey: the toolbar never reorders
+                <span key={`gap-${index}`} className="mx-1 h-4 w-px bg-border" />
+              ) : (
+                <IconTool key={tool.label} label={tool.label} tip={tool.tip} onClick={() => format(tool.format)}>
+                  <tool.icon />
+                </IconTool>
+              ),
+            )}
+            <span className="mx-1 h-4 w-px bg-border" />
+            <IconTool label="Mention someone" tip="Mention (@)" onClick={() => insert('@')}>
+              <AtSign />
+            </IconTool>
+            <IconTool label="Reference an issue or pull request" tip="Reference (#)" onClick={() => insert('#')}>
+              <Hash />
+            </IconTool>
+            <IconTool label="Attach files" tip="Attach files" onClick={() => picker.current?.click()}>
+              <Paperclip />
+            </IconTool>
+          </div>
+        ) : null}
+      </div>
       {tab === 'write' ? (
-        <div className="relative">
+        <div className="relative p-2">
           <Textarea
             ref={area}
             aria-label={label}
@@ -181,6 +274,13 @@ export function MarkdownEditor({
               void attach([...event.clipboardData.files])
             }}
             onKeyDown={(event) => {
+              const shortcut =
+                (event.ctrlKey || event.metaKey) && !event.shiftKey ? SHORTCUTS[event.key.toLowerCase()] : undefined
+              if (shortcut) {
+                event.preventDefault()
+                event.stopPropagation()
+                return format(shortcut)
+              }
               if (suggestions.length) {
                 if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                   event.preventDefault()
@@ -227,7 +327,7 @@ export function MarkdownEditor({
           ) : null}
         </div>
       ) : (
-        <div className="min-h-24 rounded-md border border-border p-3">
+        <div className="m-2 min-h-24 rounded-md border border-border p-3">
           {value.trim() ? (
             <Suspense fallback={<p className="whitespace-pre-wrap">{value}</p>}>
               <Markdown text={value} />
@@ -237,6 +337,30 @@ export function MarkdownEditor({
           )}
         </div>
       )}
+      <div className="flex items-center gap-3 border-border border-t px-3 py-1.5 text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <FileType2 className="size-4" />
+          Markdown is supported
+        </span>
+        <span className="h-4 w-px bg-border" />
+        <button
+          type="button"
+          onClick={() => picker.current?.click()}
+          className="flex cursor-pointer items-center gap-1.5 hover:text-foreground">
+          <ImagePlus className="size-4" />
+          Paste, drop, or click to add files
+        </button>
+        <input
+          ref={picker}
+          type="file"
+          multiple
+          hidden
+          onChange={(event) => {
+            if (event.target.files?.length) void attach([...event.target.files])
+            event.target.value = ''
+          }}
+        />
+      </div>
     </div>
   )
 }
