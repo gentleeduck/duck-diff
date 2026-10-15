@@ -12,28 +12,39 @@ import {
   useState,
 } from 'react'
 import { useRowHeight } from '../app/useSizes'
-import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_LETTER } from './icons'
+import { CHEVRON, FOLDER, FOLDER_DIRTY, FOLDER_NEW, fileGlyph, isSpecialFile, STATUS_MARK } from './icons'
 import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
 export type { Row as TreeRow }
 
 const ROW = 28
 
-// Extra props come from a context-menu trigger wrapping the row.
+type Mark = { glyph: string; color: string; title: string }
+
+// One row in nvim-tree's look: guides through each folder's chevron, ending in an elbow at a folder's
+// last item; then chevron, icon, git marks and name. Extra props come from a context-menu trigger.
 function TreeItem({
   row,
   file,
+  marks,
   selected,
   onClick,
   ...rest
-}: { row: Row; file: ChangedFile | undefined; selected: boolean; onClick(): void } & Omit<
+}: { row: Row; file: ChangedFile | undefined; marks: Mark[]; selected: boolean; onClick(): void } & Omit<
   ComponentProps<typeof Button>,
   'onClick'
 >) {
   const folder = row.kind === 'directory'
   const icon = folder ? { glyph: row.expanded ? FOLDER.open : FOLDER.closed, color: FOLDER.color } : fileGlyph(row.name)
-  const status = file ? STATUS_LETTER[file.status] : null
   const special = !folder && isSpecialFile(row.name)
+  const deleted = file?.status === 'deleted'
+  const name = folder
+    ? 'text-tn-blue'
+    : special
+      ? 'text-tn-pink underline'
+      : deleted
+        ? 'text-tn-comment line-through'
+        : 'text-foreground'
   return (
     <Button
       {...rest}
@@ -45,31 +56,34 @@ function TreeItem({
       onClick={onClick}
       aria-expanded={folder ? row.expanded : undefined}
       aria-current={selected || undefined}
-      title={status ? `${row.path} (${status.title})` : row.path}
-      className="h-7 w-full items-stretch justify-start gap-0 rounded-none p-0 ps-1 pe-2 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
-      {row.ancestors.map((ancestor) => (
-        // One guide per ancestor, drawn through the middle of that folder's chevron, like the editor's tree.
-        <span
-          key={ancestor}
-          className="relative w-4 shrink-0 self-stretch before:absolute before:inset-y-0 before:start-[7px] before:w-px before:bg-tn-gutter"
-        />
-      ))}
-      <span className="w-4 shrink-0 justify-center text-tn-comment">
+      title={marks.length ? `${row.path} (${marks.map((mark) => mark.title).join(', ')})` : row.path}
+      className="h-7 w-full items-stretch justify-start gap-0 rounded-none p-0 ps-1 pe-3 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
+      {row.ancestors.map((ancestor, index) => {
+        // The innermost guide belongs to this row's own folder: it stops at an elbow on the last item.
+        const elbow = row.last && index === row.ancestors.length - 1
+        return (
+          <span
+            key={ancestor}
+            className={`relative w-5 shrink-0 self-stretch before:absolute before:start-[9px] before:top-0 before:w-px before:bg-tn-gutter ${
+              elbow
+                ? 'before:h-1/2 after:absolute after:start-[9px] after:top-1/2 after:h-px after:w-2 after:bg-tn-gutter'
+                : 'before:bottom-0'
+            }`}
+          />
+        )
+      })}
+      <span className="w-5 shrink-0 justify-center text-tn-comment">
         {folder ? (row.expanded ? CHEVRON.open : CHEVRON.closed) : ''}
       </span>
       <span className="w-5 shrink-0 justify-center" style={{ color: icon.color }}>
         {icon.glyph}
       </span>
-      <span
-        className={`ms-1 min-w-0 flex-1 truncate ${folder ? 'text-tn-blue' : special ? 'text-tn-pink underline' : 'text-foreground'} ${file?.status === 'deleted' ? 'line-through' : ''}`}
-        style={status && !folder ? { color: status.color } : undefined}>
-        {row.name}
-      </span>
-      {status ? (
-        <span className="w-4 shrink-0 justify-end ps-1" style={{ color: status.color }}>
-          {status.letter}
+      {marks.map((mark) => (
+        <span key={mark.glyph} className="w-5 shrink-0 justify-center" style={{ color: mark.color }}>
+          {mark.glyph}
         </span>
-      ) : null}
+      ))}
+      <span className={`ms-0.5 min-w-0 truncate ${name}`}>{row.name}</span>
     </Button>
   )
 }
@@ -123,6 +137,32 @@ export function FileTree({
     [toggled, onToggled],
   )
   const tree = useMemo(() => buildTree(paths), [paths])
+  // Every folder's marks come from the files under it: a change anywhere, a new file anywhere, or both.
+  const folderMarks = useMemo(() => {
+    const marks = new Map<string, { dirty: boolean; fresh: boolean }>()
+    for (const path of paths) {
+      const status = fileFor(path)?.status
+      if (!status) continue
+      const fresh = status === 'added' || status === 'untracked' || status === 'copied'
+      const parts = path.split('/')
+      for (let i = 1; i < parts.length; i++) {
+        const folder = parts.slice(0, i).join('/')
+        const entry = marks.get(folder) ?? { dirty: false, fresh: false }
+        if (fresh) entry.fresh = true
+        else entry.dirty = true
+        marks.set(folder, entry)
+      }
+    }
+    return marks
+  }, [paths, fileFor])
+  const marksFor = (row: Row): Mark[] => {
+    if (row.kind === 'file') {
+      const status = fileFor(row.path)?.status
+      return status ? [STATUS_MARK[status]] : []
+    }
+    const entry = folderMarks.get(row.path)
+    return [...(entry?.dirty ? [FOLDER_DIRTY] : []), ...(entry?.fresh ? [FOLDER_NEW] : [])]
+  }
   const rows = useMemo(() => visibleRows(tree, toggled, !collapsed), [tree, toggled, collapsed])
 
   // A file picked elsewhere (the palette, the README on load) gets its folders opened so it shows.
@@ -170,6 +210,7 @@ export function FileTree({
                 <TreeItem
                   row={row}
                   file={fileFor(row.path)}
+                  marks={marksFor(row)}
                   selected={row.path === selected}
                   onClick={() => open(row)}
                 />

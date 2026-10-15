@@ -65,14 +65,18 @@ export const FOLDER = { closed: '', open: '', color: 'var(--tn-blue)' }
 export const CHEVRON = { closed: '', open: '' }
 
 // Boxed diff glyphs, as in the editor's git column.
-// The editor's git letters: one coloured letter at the end of the row, and the name tinted to match.
-export const STATUS_LETTER: Record<FileStatus, { letter: string; color: string; title: string }> = {
-  modified: { letter: 'M', color: 'var(--tn-yellow)', title: 'Modified' },
-  'type-changed': { letter: 'T', color: 'var(--tn-yellow)', title: 'Type changed' },
-  added: { letter: 'A', color: 'var(--tn-green)', title: 'Added' },
-  untracked: { letter: 'U', color: 'var(--tn-green)', title: 'Untracked' },
-  copied: { letter: 'C', color: 'var(--tn-green)', title: 'Copied' },
-  renamed: { letter: 'R', color: 'var(--tn-magenta)', title: 'Renamed' },
-  deleted: { letter: 'D', color: 'var(--tn-red)', title: 'Deleted' },
-  conflicted: { letter: '!', color: 'var(--tn-red)', title: 'Conflicted' },
+// nvim-tree's git marks (GitHub's octicon diff boxes), between the icon and the name.
+export const STATUS_MARK: Record<FileStatus, { glyph: string; color: string; title: string }> = {
+  modified: { glyph: '\uf459', color: 'var(--tn-fg-dark)', title: 'Modified' },
+  'type-changed': { glyph: '\uf459', color: 'var(--tn-fg-dark)', title: 'Type changed' },
+  added: { glyph: '\uf457', color: 'var(--tn-teal)', title: 'Added' },
+  untracked: { glyph: '\uf457', color: 'var(--tn-teal)', title: 'Untracked' },
+  copied: { glyph: '\uf457', color: 'var(--tn-teal)', title: 'Copied' },
+  renamed: { glyph: '\uf45a', color: 'var(--tn-magenta)', title: 'Renamed' },
+  deleted: { glyph: '\uf458', color: 'var(--tn-red)', title: 'Deleted' },
+  conflicted: { glyph: '\uf47f', color: 'var(--tn-red)', title: 'Conflicted' },
 }
+
+// What a folder holds, as nvim-tree marks it: changed files, new files, or both.
+export const FOLDER_DIRTY = { glyph: '\uf459', color: 'var(--tn-fg-dark)', title: 'Has changes' }
+export const FOLDER_NEW = { glyph: '\uf457', color: 'var(--tn-teal)', title: 'Has new files' }
