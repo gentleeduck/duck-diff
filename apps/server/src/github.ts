@@ -12,6 +12,7 @@ import type {
   ListItem,
   ListPage,
   ListQuery,
+  Options,
   PullCommit,
   PullDetails,
   PullSummary,
@@ -228,7 +229,42 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         viewer: { login: me.login, canEdit: Boolean(repoInfo.permissions?.push) || issue.user?.login === me.login },
       }
     },
-    async editIssue(number: number, input: { title?: string; body?: string }): Promise<void> {
+    async options(): Promise<Options> {
+      const base = await repoPath()
+      const [labels, milestones, people] = await Promise.all([
+        pagesOf<{ name: string; color: string; description: string | null }>(`${base}/labels`, 3),
+        call<{ number: number; title: string }[]>(`${base}/milestones?state=open&per_page=100`),
+        this.mentions(),
+      ])
+      return {
+        labels: labels.map((label) => ({ name: label.name, color: label.color, description: label.description ?? '' })),
+        milestones: milestones.map((milestone) => ({ number: milestone.number, title: milestone.title })),
+        people,
+      }
+    },
+    async requestReviewers(number: number, input: { add: string[]; remove: string[] }): Promise<void> {
+      const path = `${await repoPath()}/pulls/${number}/requested_reviewers`
+      if (input.add.length) await call(path, { method: 'POST', body: JSON.stringify({ reviewers: input.add }) })
+      if (input.remove.length) await call(path, { method: 'DELETE', body: JSON.stringify({ reviewers: input.remove }) })
+    },
+    async setPullState(number: number, state: 'open' | 'closed'): Promise<void> {
+      await call(`${await repoPath()}/pulls/${number}`, { method: 'PATCH', body: JSON.stringify({ state }) })
+    },
+    // REST cannot switch draft state; GitHub's GraphQL mutations take the pull request's node id.
+    async setDraft(number: number, draft: boolean): Promise<void> {
+      const { nodeId } = await this.pull(number)
+      const mutation = draft
+        ? 'mutation($id: ID!) { convertPullRequestToDraft(input: { pullRequestId: $id }) { clientMutationId } }'
+        : 'mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { clientMutationId } }'
+      await graphql(mutation, { id: nodeId })
+    },
+    async setLocked(number: number, locked: boolean): Promise<void> {
+      await call(`${await repoPath()}/issues/${number}/lock`, { method: locked ? 'PUT' : 'DELETE' })
+    },
+    async editIssue(
+      number: number,
+      input: { title?: string; body?: string; assignees?: string[]; labels?: string[]; milestone?: number | null },
+    ): Promise<void> {
       await call(`${await repoPath()}/issues/${number}`, { method: 'PATCH', body: JSON.stringify(input) })
     },
     async editComment(id: number, body: string): Promise<void> {
@@ -327,6 +363,8 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         milestone: raw.milestone?.title ?? null,
         reviewers: [...latest.values()],
         mergeableState: raw.mergeable_state ?? 'unknown',
+        nodeId: raw.node_id,
+        locked: raw.locked ?? false,
         body: raw.body ?? '',
         headSha: raw.head.sha,
         baseSha: raw.base.sha,
@@ -410,6 +448,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
       ])
       return {
         ...issueSummary(raw),
+        locked: raw.locked ?? false,
         assignees: (raw.assignees ?? []).map(user),
         milestone: raw.milestone?.title ?? null,
         body: raw.body ?? '',
@@ -445,6 +484,8 @@ interface RawPull {
 }
 interface RawPullDetails extends RawPull {
   body: string | null
+  node_id: string
+  locked?: boolean
   commits: number
   requested_reviewers?: RawUser[]
   assignees?: RawUser[]
@@ -485,6 +526,7 @@ interface RawIssue {
   pull_request?: unknown
   assignees?: RawUser[]
   milestone?: { title: string } | null
+  locked?: boolean
 }
 
 function pullSummary(raw: RawPull): PullSummary {

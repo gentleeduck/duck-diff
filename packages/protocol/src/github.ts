@@ -58,6 +58,8 @@ export const PullDetailsSchema = PullSummarySchema.extend({
   milestone: z.string().nullable(),
   reviewers: z.array(ReviewerSchema),
   mergeableState: z.string(),
+  nodeId: z.string(),
+  locked: z.boolean(),
   body: z.string(),
   headSha: z.string(),
   baseSha: z.string(),
@@ -84,6 +86,7 @@ export const IssueSummarySchema = z.object({
 export type IssueSummary = z.infer<typeof IssueSummarySchema>
 
 export const IssueDetailsSchema = IssueSummarySchema.extend({
+  locked: z.boolean(),
   assignees: z.array(GitHubUserSchema),
   milestone: z.string().nullable(),
   body: z.string(),
@@ -229,7 +232,23 @@ export type Thread = z.infer<typeof ThreadSchema>
 export const EditIssueSchema = z.object({
   title: z.string().trim().min(1).max(256).optional(),
   body: z.string().max(65_000).optional(),
+  assignees: z.array(z.string().min(1).max(100)).max(10).optional(),
+  labels: z.array(z.string().min(1).max(100)).max(100).optional(),
+  // The milestone's number, or null to clear it.
+  milestone: z.number().int().nullable().optional(),
 })
+export const ReviewersSchema = z.object({
+  add: z.array(z.string().min(1).max(100)).max(15),
+  remove: z.array(z.string().min(1).max(100)).max(15),
+})
+export const DraftSchema = z.object({ draft: z.boolean() })
+export const LockSchema = z.object({ locked: z.boolean() })
+export const OptionsSchema = z.object({
+  labels: z.array(z.object({ name: z.string(), color: z.string(), description: z.string() })),
+  milestones: z.array(z.object({ number: z.number().int(), title: z.string() })),
+  people: z.array(GitHubUserSchema),
+})
+export type Options = z.infer<typeof OptionsSchema>
 export const ReactSchema = z.object({
   target: z.union([z.object({ issue: z.number().int() }), z.object({ comment: z.number().int() })]),
   content: ReactionSchema,

@@ -2,14 +2,17 @@ import { runGit } from '@duck-diff/git'
 import {
   CreateIssueSchema,
   CreatePullSchema,
+  DraftSchema,
   EditIssueSchema,
   ListQuerySchema,
+  LockSchema,
   MergePullSchema,
   PostCommentSchema,
   PostReviewCommentSchema,
   type PullRefs,
   ReactSchema,
   ReplySchema,
+  ReviewersSchema,
   SetTokenSchema,
   SubmitReviewSchema,
 } from '@duck-diff/protocol'
@@ -49,6 +52,7 @@ export async function handleGitHub(
     return Response.json(await github.status())
   }
   // Avatars are a nicety, so being signed out or offline answers with none rather than an error.
+  if (area === 'options') return Response.json(await github.options())
   if (area === 'mentions') return Response.json(await github.mentions())
   if (area === 'references')
     return Response.json(
@@ -81,6 +85,10 @@ export async function handleGitHub(
       await github.editIssue(number, EditIssueSchema.parse(await body()))
       return new Response(null, { status: 204 })
     }
+    if (action === 'lock' && post) {
+      await github.setLocked(number, LockSchema.parse(await body()).locked)
+      return new Response(null, { status: 204 })
+    }
     return Response.json(await github.thread(number))
   }
   if (area === 'avatars') return Response.json(await github.avatars().catch(() => ({})))
@@ -97,6 +105,18 @@ export async function handleGitHub(
     if (action === undefined) return Response.json(await github.pull(number))
     if (action === 'checks') return Response.json(await github.checks(number))
     if (action === 'commits') return Response.json(await github.pullCommits(number))
+    if (action === 'reviewers' && post) {
+      await github.requestReviewers(number, ReviewersSchema.parse(await body()))
+      return new Response(null, { status: 204 })
+    }
+    if (action === 'state' && post) {
+      await github.setPullState(number, State.parse(await body()).state)
+      return new Response(null, { status: 204 })
+    }
+    if (action === 'draft' && post) {
+      await github.setDraft(number, DraftSchema.parse(await body()).draft)
+      return new Response(null, { status: 204 })
+    }
     if (action === 'comments' && post)
       return Response.json(await github.commentOn(number, PostCommentSchema.parse(await body()).body))
     if (action === 'review-comments' && post) {

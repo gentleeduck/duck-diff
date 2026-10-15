@@ -13,10 +13,16 @@ import {
 import {
   ArrowLeft,
   Check,
+  Eye,
   FileDiff,
   GitCommitHorizontal,
   GitMerge,
+  GitPullRequest,
+  GitPullRequestClosed,
+  GitPullRequestDraft,
   ListChecks,
+  Lock,
+  LockOpen,
   MessageSquare,
   SquareArrowOutUpRight,
   X,
@@ -29,7 +35,9 @@ import type { MergeMethod, ReviewEvent } from '../lib/api'
 import { ChecksList } from './Checks'
 import { Avatar, Comment, Composer } from './Conversation'
 import { ItemSidebar } from './ItemSidebar'
+import { sidebarActions } from './SidebarEditors'
 import { StatePill } from './StatePill'
+import { ThreadMenu } from './ThreadMenu'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
 import { usePoll } from './usePoll'
@@ -300,6 +308,52 @@ export default function PullView({ number, onChanged }: { number: number; onChan
               Open on GitHub
             </a>
           </Button>
+          <ThreadMenu
+            actions={[
+              ...(pull.state === 'open'
+                ? [
+                    pull.draft
+                      ? {
+                          label: 'Ready for review',
+                          icon: <Eye />,
+                          run: () =>
+                            void act('draft', () => api.github.setDraft(number, false), 'Marked ready for review'),
+                        }
+                      : {
+                          label: 'Convert to draft',
+                          icon: <GitPullRequestDraft />,
+                          run: () => void act('draft', () => api.github.setDraft(number, true), 'Converted to a draft'),
+                        },
+                  ]
+                : []),
+              pull.locked
+                ? {
+                    label: 'Unlock conversation',
+                    icon: <LockOpen />,
+                    run: () => void act('lock', () => api.github.setLocked(number, false), 'Unlocked the conversation'),
+                  }
+                : {
+                    label: 'Lock conversation',
+                    icon: <Lock />,
+                    run: () => void act('lock', () => api.github.setLocked(number, true), 'Locked the conversation'),
+                  },
+              ...(!pull.merged
+                ? [
+                    {
+                      label: pull.state === 'open' ? 'Close pull request' : 'Reopen pull request',
+                      icon: pull.state === 'open' ? <GitPullRequestClosed /> : <GitPullRequest />,
+                      destructive: pull.state === 'open',
+                      run: () =>
+                        void act(
+                          'state',
+                          () => api.github.setPullState(number, pull.state === 'open' ? 'closed' : 'open'),
+                          pull.state === 'open' ? `Closed #${number}` : `Reopened #${number}`,
+                        ),
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
           <StatePill kind="pr" state={pull.state} merged={pull.merged} draft={pull.draft} />
@@ -380,6 +434,17 @@ export default function PullView({ number, onChanged }: { number: number; onChan
                         type="button"
                         size="sm"
                         variant="outline"
+                        loading={busy === 'state'}
+                        onClick={() =>
+                          void act('state', () => api.github.setPullState(number, 'closed'), `Closed #${number}`)
+                        }>
+                        <GitPullRequestClosed />
+                        Close pull request
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
                         disabled={!body.trim()}
                         loading={busy === 'REQUEST_CHANGES'}
                         onClick={() => review('REQUEST_CHANGES', body, clear, 'Requested changes')}>
@@ -405,6 +470,15 @@ export default function PullView({ number, onChanged }: { number: number; onChan
               assignees={pull.assignees}
               labels={pull.labels}
               milestone={pull.milestone}
+              actions={sidebarActions({
+                api,
+                number,
+                assignees: pull.assignees,
+                labels: pull.labels,
+                milestone: pull.milestone,
+                reviewers: pull.reviewers,
+                reload: () => void load(),
+              })}
             />
           </div>
         ) : null}

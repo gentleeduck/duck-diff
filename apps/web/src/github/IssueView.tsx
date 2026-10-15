@@ -1,12 +1,14 @@
 import type { IssueDetails } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
-import { ArrowLeft, CircleCheck, CircleDot, SquareArrowOutUpRight } from 'lucide-react'
+import { ArrowLeft, CircleCheck, CircleDot, Lock, LockOpen, SquareArrowOutUpRight } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { Comment, Composer } from './Conversation'
 import { ItemSidebar } from './ItemSidebar'
+import { sidebarActions } from './SidebarEditors'
 import { StatePill } from './StatePill'
+import { ThreadMenu } from './ThreadMenu'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
 import { usePoll } from './usePoll'
@@ -109,6 +111,29 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
               Open on GitHub
             </a>
           </Button>
+          <ThreadMenu
+            actions={[
+              issue.locked
+                ? {
+                    label: 'Unlock conversation',
+                    icon: <LockOpen />,
+                    run: () =>
+                      void api.github.setLocked(number, false).then(
+                        () => refresh(),
+                        (error: Error) => toast.error(error.message),
+                      ),
+                  }
+                : {
+                    label: 'Lock conversation',
+                    icon: <Lock />,
+                    run: () =>
+                      void api.github.setLocked(number, true).then(
+                        () => refresh(),
+                        (error: Error) => toast.error(error.message),
+                      ),
+                  },
+            ]}
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2 border-border border-b pb-3 text-muted-foreground">
           <StatePill kind="issue" state={issue.state} />
@@ -133,7 +158,20 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
               )}
             </Composer>
           </div>
-          <ItemSidebar assignees={issue.assignees} labels={issue.labels} milestone={issue.milestone} />
+          <ItemSidebar
+            assignees={issue.assignees}
+            labels={issue.labels}
+            milestone={issue.milestone}
+            actions={sidebarActions({
+              api,
+              number,
+              assignees: issue.assignees,
+              labels: issue.labels,
+              milestone: issue.milestone,
+
+              reload: () => void load(),
+            })}
+          />
         </div>
       </div>
     </article>

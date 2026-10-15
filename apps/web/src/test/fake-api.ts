@@ -46,6 +46,11 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
         throw new Error('no threads')
       },
       editThread: async () => {},
+      options: async () => ({ labels: [], milestones: [], people: [] }),
+      requestReviewers: async () => {},
+      setPullState: async () => {},
+      setDraft: async () => {},
+      setLocked: async () => {},
       editComment: async () => {},
       deleteComment: async () => {},
       react: async () => {},

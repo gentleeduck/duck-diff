@@ -106,6 +106,11 @@ function fakeGitHub(calls: Call[]) {
     }
     if (path === '/repos/o/r/issues/comments/1/reactions/55') return new Response(null, { status: 204 })
     if (path === '/repos/o/r/assignees') return Response.json([user])
+    if (path === '/repos/o/r/labels') return Response.json([{ name: 'bug', color: 'f00', description: null }])
+    if (path === '/repos/o/r/milestones') return Response.json([{ number: 3, title: 'v1' }])
+    if (path === '/repos/o/r/pulls/7/requested_reviewers') return Response.json({})
+    if (path === '/repos/o/r/issues/9' && method === 'PATCH') return Response.json({})
+    if (path === '/repos/o/r/issues/9/lock') return new Response(null, { status: 204 })
     if (path === '/graphql') {
       return Response.json({
         data: {
@@ -353,6 +358,29 @@ describe('/api/github', () => {
     expect(await (await call('GET', '/api/github/issues/1')).json()).toMatchObject({ title: 'Bug' })
     expect(await (await call('GET', '/api/github/issues/1')).json()).toMatchObject({ title: 'Bug' })
     expect(calls.filter((entry) => entry.path === '/repos/o/r/issues/1')).toHaveLength(2)
+  })
+
+  it('edits the sidebar: options, reviewers, labels, milestone, lock and draft', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    expect(await (await call('GET', '/api/github/options')).json()).toEqual({
+      labels: [{ name: 'bug', color: 'f00', description: '' }],
+      milestones: [{ number: 3, title: 'v1' }],
+      people: [{ login: 'octo', avatarUrl: 'https://a/octo.png' }],
+    })
+    expect((await call('POST', '/api/github/pulls/7/reviewers', { add: ['duck'], remove: ['old'] })).status).toBe(204)
+    const reviewerCalls = calls.filter((entry) => entry.path.endsWith('/requested_reviewers'))
+    expect(reviewerCalls.map((entry) => [entry.method, entry.body])).toEqual([
+      ['POST', { reviewers: ['duck'] }],
+      ['DELETE', { reviewers: ['old'] }],
+    ])
+    expect((await call('PATCH', '/api/github/threads/9', { labels: ['bug'], milestone: 3 })).status).toBe(204)
+    expect(calls.find((entry) => entry.method === 'PATCH' && entry.path === '/repos/o/r/issues/9')?.body).toEqual({
+      labels: ['bug'],
+      milestone: 3,
+    })
+    expect((await call('POST', '/api/github/threads/9/lock', { locked: true })).status).toBe(204)
+    expect(calls.some((entry) => entry.method === 'PUT' && entry.path === '/repos/o/r/issues/9/lock')).toBe(true)
   })
 
   it('lists issues without the pull requests GitHub mixes in', async () => {

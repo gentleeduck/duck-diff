@@ -31,6 +31,8 @@ const pull: PullDetails = {
   milestone: null,
   reviewers: [{ login: 'duck', avatarUrl: '', state: 'APPROVED' }],
   mergeableState: 'clean',
+  nodeId: 'PR_7',
+  locked: false,
   comments: [{ id: 1, author, body: 'Looks good', createdAt: '2026-10-02T00:00:00Z' }],
   reviewComments: [],
 }
@@ -184,6 +186,22 @@ describe('GitHub views', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: '+1 reaction, 2' }))
     await waitFor(() => expect(react).toHaveBeenCalledWith({ issue: 7 }, '+1'))
+  })
+
+  it('edits labels from the sidebar picker, sending the change once it closes', async () => {
+    const editThread = vi.fn(async () => {})
+    const options = async () => ({
+      labels: [{ name: 'bug', color: 'ff0000', description: 'Something broke' }],
+      milestones: [],
+      people: [],
+    })
+    render(<App api={fakeApi({ github: githubApi({ editThread, options }) })} />)
+    fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit labels' }))
+    fireEvent.click(await screen.findByRole('option', { name: /bug/ }))
+    expect(editThread).not.toHaveBeenCalled()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    await waitFor(() => expect(editThread).toHaveBeenCalledWith(7, { labels: ['bug'] }))
   })
 
   it('says so when the repo has no GitHub remote', async () => {

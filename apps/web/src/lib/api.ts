@@ -32,6 +32,8 @@ import {
   type ListPage,
   ListPageSchema,
   type ListQuery,
+  type Options,
+  OptionsSchema,
   type PullCommit,
   PullCommitSchema,
   type PullDetails,
@@ -115,7 +117,16 @@ export interface GitHubApi {
   pull(number: number): Promise<PullDetails>
   // Description, timeline and what the viewer may edit, for a pull request or an issue.
   thread(number: number): Promise<Thread>
-  editThread(number: number, input: { title?: string; body?: string }): Promise<void>
+  editThread(
+    number: number,
+    input: { title?: string; body?: string; assignees?: string[]; labels?: string[]; milestone?: number | null },
+  ): Promise<void>
+  // Labels, open milestones and people who can be assigned or asked to review.
+  options(): Promise<Options>
+  requestReviewers(number: number, change: { add: string[]; remove: string[] }): Promise<void>
+  setPullState(number: number, state: ItemState): Promise<void>
+  setDraft(number: number, draft: boolean): Promise<void>
+  setLocked(number: number, locked: boolean): Promise<void>
   editComment(id: number, body: string): Promise<void>
   deleteComment(id: number): Promise<void>
   react(target: { issue: number } | { comment: number }, content: Reaction): Promise<void>
@@ -224,6 +235,11 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     pull: (number) => json(`/api/github/pulls/${number}`, PullDetailsSchema),
     thread: (number) => json(`/api/github/threads/${number}`, ThreadSchema),
     editThread: (number, input) => sendEmpty('PATCH', `/api/github/threads/${number}`, input),
+    options: () => json('/api/github/options', OptionsSchema),
+    requestReviewers: (number, change) => post(`/api/github/pulls/${number}/reviewers`, change),
+    setPullState: (number, state) => post(`/api/github/pulls/${number}/state`, { state }),
+    setDraft: (number, draft) => post(`/api/github/pulls/${number}/draft`, { draft }),
+    setLocked: (number, locked) => post(`/api/github/threads/${number}/lock`, { locked }),
     editComment: (id, body) => sendEmpty('PATCH', `/api/github/comments/${id}`, { body }),
     deleteComment: (id) => sendEmpty('DELETE', `/api/github/comments/${id}`),
     react: (target, content) => post('/api/github/react', { target, content }),
