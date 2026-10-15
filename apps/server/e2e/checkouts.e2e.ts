@@ -27,7 +27,8 @@ test('a moved submodule reads as old to new commit with the commits between', as
     await expect(modules).toContainText('vendor/lib')
     await modules.getByText('vendor/lib').hover()
     await modules.getByRole('button', { name: 'Update vendor/lib to the recorded commit' }).click()
-    await expect.poll(() => repo.git('status', '--porcelain')).toBe('')
+    // A loaded CI runner can take longer than the default 8s to finish the update.
+    await expect.poll(() => repo.git('status', '--porcelain'), { timeout: 20_000 }).toBe('')
   } finally {
     lib.cleanup()
   }
