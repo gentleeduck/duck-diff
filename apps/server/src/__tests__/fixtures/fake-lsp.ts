@@ -1,6 +1,11 @@
 // A tiny language server for tests: answers from the text it was sent, so tests can check syncing.
 const docs = new Map<string, { version: number; text: string }>()
 let configuration: unknown = 'none'
+// Hovers wait for the answer to our configuration request, which can arrive after the hover itself.
+let configured: () => void = () => {}
+const hasConfiguration = new Promise<void>((resolve) => {
+  configured = resolve
+})
 let buffer = Buffer.alloc(0)
 
 function send(message: object) {
@@ -19,7 +24,10 @@ function handle(message: { id?: number; method?: string; params?: Params; result
   const { id, method } = message
   const params = message.params as Params
   if (method === undefined) {
-    if (id === 900) configuration = message.result
+    if (id === 900) {
+      configuration = message.result
+      configured()
+    }
     return
   }
   switch (method) {
@@ -70,10 +78,11 @@ function handle(message: { id?: number; method?: string; params?: Params; result
     case 'textDocument/hover': {
       const doc = docs.get(params.textDocument.uri)
       const first = doc?.text.split('\n')[0] ?? ''
-      return send({
-        id,
-        result: { contents: { kind: 'markdown', value: `v${doc?.version} ${first} ${JSON.stringify(configuration)}` } },
-      })
+      const value = `v${doc?.version} ${first}`
+      void hasConfiguration.then(() =>
+        send({ id, result: { contents: { kind: 'markdown', value: `${value} ${JSON.stringify(configuration)}` } } }),
+      )
+      return
     }
     case 'shutdown':
       return send({ id, result: null })
