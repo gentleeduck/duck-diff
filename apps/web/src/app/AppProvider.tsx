@@ -6,6 +6,7 @@ import { createItemIndex, type ItemIndex } from '../github/item-index'
 import { createPullReview, type PullReview } from '../github/pull-review'
 import { createGitHub, type GitHub, isReady } from '../github/store'
 import { createGraph, type Graph } from '../graph/store'
+import { createKeyOverrides, createKeyState, type KeyOverrides, type KeyState } from '../keys/state'
 import { type Api, createApi } from '../lib/api'
 import { createStore, type Store } from '../lib/store'
 import { readTarget } from '../lib/target-url'
@@ -72,6 +73,9 @@ export interface AppContextValue {
   panel: Panel
   // The shells open in the bottom panel.
   terminalTabs: TerminalTabs
+  // Vim-style keys: the mode, keys typed so far, and the user's own bindings.
+  keys: Store<KeyState>
+  keyOverrides: KeyOverrides
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -113,6 +117,8 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       jobs: createJobs(client),
       panel: createPanel(),
       terminalTabs: createTerminalTabs(client),
+      keys: createKeyState(),
+      keyOverrides: createKeyOverrides(),
     }
   }, [api])
 

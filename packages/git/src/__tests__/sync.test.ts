@@ -112,6 +112,23 @@ describe('sync', () => {
     expect(repo.git('log', '-1', '--format=%s')).toBe('elsewhere')
   })
 
+  it('pulls with rebase, keeping a local commit on top without a merge', async () => {
+    withRemote()
+    await push(repo.path)
+    other = createRepo()
+    other.git('remote', 'add', 'origin', remote)
+    other.git('fetch', '-q', 'origin')
+    other.git('reset', '-q', '--hard', 'origin/main')
+    other.write('b.txt', 'from elsewhere\n')
+    other.commit('elsewhere')
+    other.git('push', '-q', 'origin', 'HEAD:main')
+    repo.write('c.txt', 'mine\n')
+    repo.commit('mine')
+    await pull(repo.path, { rebase: true })
+    expect(repo.git('log', '--format=%s', '-2')).toBe('mine\nelsewhere')
+    expect(repo.git('rev-list', '--merges', '--count', 'HEAD')).toBe('0')
+  })
+
   it('creates and switches branches, and checks out a commit', async () => {
     withRemote()
     await switchBranch(repo.path, { branch: 'feat/x', create: true })

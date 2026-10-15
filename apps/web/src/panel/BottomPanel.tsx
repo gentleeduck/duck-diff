@@ -117,7 +117,11 @@ export function BottomPanel() {
   return (
     <div className={open ? 'contents' : 'hidden'}>
       <ResizeEdge height={height} onResize={panel.resize} />
-      <section aria-label="Bottom panel" style={{ height }} className="flex shrink-0 flex-col bg-background">
+      <section
+        data-region="panel"
+        aria-label="Bottom panel"
+        style={{ height }}
+        className="flex shrink-0 flex-col bg-background">
         <div className="flex h-9 shrink-0 items-stretch border-border border-b bg-card">
           <div role="tablist" aria-label="Panel" className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
             <PanelTab

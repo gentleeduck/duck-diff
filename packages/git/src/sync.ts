@@ -87,8 +87,12 @@ export async function push(repo: string): Promise<void> {
   await runGit(['push', '--set-upstream', remote, branch], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
 }
 
-export async function pull(repo: string): Promise<void> {
-  await runGit(['pull', '--no-edit'], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS, env: NO_EDITOR })
+export async function pull(repo: string, options: { rebase?: boolean } = {}): Promise<void> {
+  await runGit(['pull', '--no-edit', ...(options.rebase ? ['--rebase'] : [])], {
+    cwd: repo,
+    timeoutMs: NETWORK_TIMEOUT_MS,
+    env: NO_EDITOR,
+  })
 }
 
 export async function fetchAll(repo: string): Promise<void> {

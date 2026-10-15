@@ -15,6 +15,7 @@
     "@duck-diff/protocol": "workspace:*",
     "@duck-diff/ui": "workspace:*",
     "@fontsource/jetbrains-mono": "^5.3.0",
+    "@gentleduck/vim": "^0.3.0",
     "@pierre/diffs": "catalog:",
     "@tanstack/react-virtual": "catalog:",
     "@xterm/addon-fit": "^0.11.0",

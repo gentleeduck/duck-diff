@@ -23,3 +23,16 @@ describe('terminal tabs', () => {
     expect(tabs.add().title).toBe('Terminal 2')
   })
 })
+
+describe('running a command in a terminal', () => {
+  it('types into the newest terminal, opening one when there is none', () => {
+    const tabs = createTerminalTabs({ terminals: async () => [], closeTerminal: async () => {} })
+    const first = tabs.run('git status')
+    expect(tabs.get().tabs.map((tab) => tab.key)).toEqual([first])
+    expect(tabs.take(first)).toBe('git status\r')
+    expect(tabs.take(first)).toBe('')
+    const again = tabs.run('ls')
+    expect(again).toBe(first)
+    expect(tabs.take(first)).toBe('ls\r')
+  })
+})

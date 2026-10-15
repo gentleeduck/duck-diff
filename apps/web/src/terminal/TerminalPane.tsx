@@ -1,5 +1,6 @@
 import { memo, useCallback, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { registerTerminal } from './input'
 import { TerminalSurface } from './TerminalSurface'
 import type { TerminalTab } from './tabs'
 import type { Terminal } from './xterm'
@@ -26,7 +27,14 @@ export const TerminalPane = memo(function TerminalPane({ tab, active }: { tab: T
       let stopped = false
       let retry: ReturnType<typeof setTimeout> | null = null
       let delay = 300
+      let ready = false
       const send = (message: unknown) => socket?.readyState === WebSocket.OPEN && socket.send(JSON.stringify(message))
+      // Commands from :Git and :! wait here until the shell is connected.
+      const flush = () => {
+        if (!ready) return
+        const input = terminalTabs.take(key)
+        if (input) send({ type: 'input', data: input })
+      }
 
       const connect = () => {
         const query = id ? `id=${encodeURIComponent(id)}` : `cols=${terminal.cols}&rows=${terminal.rows}`
@@ -48,12 +56,15 @@ export const TerminalPane = memo(function TerminalPane({ tab, active }: { tab: T
             id = control.id
             terminalTabs.setId(key, control.id)
             send({ type: 'resize', cols: terminal.cols, rows: terminal.rows })
+            ready = true
+            flush()
           } else if (control.type === 'exit') {
             stopped = true
             terminalTabs.remove(key)
           }
         }
         current.onclose = (event) => {
+          ready = false
           if (stopped || socket !== current) return
           // The shell is gone (the server restarted without it): the tab goes too.
           if (event.code === 4404 || (!reattached && id)) {
@@ -68,6 +79,8 @@ export const TerminalPane = memo(function TerminalPane({ tab, active }: { tab: T
       const typing = terminal.onData((data) => send({ type: 'input', data }))
       const resizing = terminal.onResize(({ cols, rows }) => send({ type: 'resize', cols, rows }))
       const naming = terminal.onTitleChange((title) => title && terminalTabs.rename(key, title))
+      const queued = terminalTabs.subscribe(flush)
+      const unregister = registerTerminal(key, (data) => send({ type: 'input', data }))
       connect()
       return () => {
         stopped = true
@@ -75,6 +88,8 @@ export const TerminalPane = memo(function TerminalPane({ tab, active }: { tab: T
         typing.dispose()
         resizing.dispose()
         naming.dispose()
+        queued()
+        unregister()
         socket?.close()
       }
     },
@@ -82,7 +97,7 @@ export const TerminalPane = memo(function TerminalPane({ tab, active }: { tab: T
   )
 
   return (
-    <div className={active ? 'h-full' : 'hidden'}>
+    <div data-terminal={key} className={active ? 'h-full' : 'hidden'}>
       <TerminalSurface label={tab.name} attach={attach} autoFocus={active} />
     </div>
   )

@@ -19,6 +19,10 @@ export interface TerminalTabs extends Store<{ tabs: TerminalTab[] }> {
   remove(key: string): void
   // Ends the shell too, like closing a kitty window.
   close(key: string): void
+  // Types a command into the newest terminal (a new one if none) and returns its key.
+  run(command: string): string
+  // Input waiting for a terminal to connect, handed over once.
+  take(key: string): string
 }
 
 let counter = 0
@@ -28,9 +32,10 @@ export function createTerminalTabs(api: Pick<Api, 'terminals' | 'closeTerminal'>
   let numbered = 0
   const update = (key: string, change: Partial<TerminalTab>) =>
     store.set(({ tabs }) => ({ tabs: tabs.map((tab) => (tab.key === key ? { ...tab, ...change } : tab)) }))
+  const queued = new Map<string, string>()
   const remove = (key: string) => store.set(({ tabs }) => ({ tabs: tabs.filter((tab) => tab.key !== key) }))
 
-  return {
+  const tabs: TerminalTabs = {
     ...store,
     async load() {
       const running = await api.terminals()
@@ -57,5 +62,17 @@ export function createTerminalTabs(api: Pick<Api, 'terminals' | 'closeTerminal'>
       if (tab?.id) api.closeTerminal(tab.id).catch(() => {})
       remove(key)
     },
+    run(command) {
+      const key = store.get().tabs.at(-1)?.key ?? tabs.add().key
+      queued.set(key, `${queued.get(key) ?? ''}${command}\r`)
+      store.set((state) => ({ ...state }))
+      return key
+    },
+    take(key) {
+      const input = queued.get(key) ?? ''
+      queued.delete(key)
+      return input
+    },
   }
+  return tabs
 }

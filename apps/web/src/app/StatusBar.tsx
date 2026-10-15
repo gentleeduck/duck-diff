@@ -1,6 +1,8 @@
 import { LoaderCircle, ScrollText } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSession } from '../hooks/useSession'
+import type { KeyState } from '../keys/state'
+import { showKeys } from '../keys/which'
 import { useStore } from '../lib/store'
 import type { LiveState } from '../live/useLiveRefresh'
 import type { JobsState } from '../panel/jobs'
@@ -15,6 +17,13 @@ const STATUS = {
 }
 
 const selectRunning = (state: JobsState) => state.running
+const selectMode = (state: KeyState) => state.mode
+const selectPending = (state: KeyState) => state.pending.join(' ')
+const MODES = {
+  normal: { label: 'NORMAL', color: 'var(--tn-blue)' },
+  insert: { label: 'INSERT', color: 'var(--tn-green)' },
+  terminal: { label: 'TERMINAL', color: 'var(--tn-magenta)' },
+}
 
 const selectLoad = (state: SessionState) => `${state.status}:${state.loadedAt}:${state.error ?? ''}`
 
@@ -27,11 +36,19 @@ export function StatusBar({ live }: { live: LiveState }) {
     return () => clearInterval(timer)
   }, [])
   const indicator = STATUS[live.status]
-  const { jobs, panel } = useApp()
+  const { jobs, panel, keys } = useApp()
   const running = useStore(jobs, selectRunning)
+  const mode = MODES[useStore(keys, selectMode)]
+  const pending = useStore(keys, selectPending)
 
   return (
     <>
+      <span
+        title="Key mode"
+        className="-ms-4 flex h-full items-center px-3 text-background"
+        style={{ background: mode.color }}>
+        {mode.label}
+      </span>
       <span className="flex items-center gap-1.5">
         <span aria-hidden className="size-1.5 rounded-full" style={{ background: indicator.color }} />
         {indicator.label}
@@ -54,6 +71,7 @@ export function StatusBar({ live }: { live: LiveState }) {
         )}
         {running ? `Running ${running}` : 'Output'}
       </button>
+      {pending ? <span className="text-foreground">{showKeys(pending.split(' '))}</span> : null}
       <span className="ml-auto" aria-live="polite">
         {status === 'loading' && 'Loading changes'}
         {status === 'error' && <span className="text-removed">Could not load changes: {error}</span>}

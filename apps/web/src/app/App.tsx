@@ -15,15 +15,17 @@ import type { GraphState } from '../graph/store'
 import { useSettings } from '../hooks/useSettings'
 import { useUrlSync } from '../hooks/useUrlSync'
 import { useView } from '../hooks/useView'
-import { HelpDialog } from '../keyboard/HelpDialog'
-import { useKeyboard } from '../keyboard/useKeyboard'
+import { CommandLine } from '../keys/CommandLine'
+import { KeymapsDialog } from '../keys/KeymapsDialog'
+import { useKeys } from '../keys/useKeys'
+import { WhichKey } from '../keys/WhichKey'
 import type { Api } from '../lib/api'
 import { useStore } from '../lib/store'
 import type { View } from '../lib/view-url'
 import { useDesktopNotices } from '../live/useDesktopNotices'
 import { useLiveRefresh } from '../live/useLiveRefresh'
 import { MergeSidebar } from '../merge/MergeSidebar'
-import { Palette } from '../palette/Palette'
+import { Palette, previousSearch } from '../palette/Palette'
 import { BottomPanel } from '../panel/BottomPanel'
 import { CommentsSheet } from '../review/CommentsSheet'
 import { SettingsPopover } from '../settings/SettingsPopover'
@@ -100,9 +102,14 @@ function Screen() {
   useThemeClass()
   useSizes()
   const [palette, setPalette] = useState(false)
+  const [paletteInput, setPaletteInput] = useState('')
+  const openPalette = (initial = '') => {
+    setPaletteInput(initial)
+    setPalette(true)
+  }
   const [help, setHelp] = useState(false)
   const { view, show } = useView()
-  useKeyboard({ palette: () => setPalette(true), help: () => setHelp(true), show })
+  useKeys({ palette: openPalette, resume: () => openPalette(previousSearch()), keymaps: () => setHelp(true), show })
   const live = useLiveRefresh()
   useDesktopNotices()
   useUrlSync()
@@ -123,13 +130,13 @@ function Screen() {
     <Button
       size="sm"
       variant="outline"
-      className="shrink-0 justify-start gap-2 px-[5px] text-muted-foreground @6xl/top:w-48 @6xl/top:px-2 @7xl/top:w-80"
+      className="shrink-0 justify-start gap-2 px-[5px] text-muted-foreground @6xl/top:w-48 @6xl/top:ps-2 @6xl/top:pe-[5px] @7xl/top:w-80"
       aria-label="Search files and actions"
       title="Search files and actions (Ctrl K)"
-      onClick={() => setPalette(true)}>
+      onClick={() => openPalette()}>
       <SearchIcon />
       <span className="hidden min-w-0 flex-1 truncate text-start @6xl/top:inline">Search or jump to...</span>
-      <Kbd className="ms-auto hidden @6xl/top:inline-flex">Ctrl K</Kbd>
+      <Kbd className="ms-auto hidden h-[1.125rem] px-1 text-[0.8em] leading-none @6xl/top:inline-flex">Ctrl K</Kbd>
     </Button>
   )
   const screens: Record<View, { top: ReactNode; side: ReactNode | null; label: string; main: ReactNode }> = {
@@ -315,8 +322,10 @@ function Screen() {
         bottom={<BottomPanel />}
         status={<StatusBar live={live} />}
       />
-      <Palette open={palette} onOpenChange={setPalette} />
-      <HelpDialog open={help} onOpenChange={setHelp} />
+      <Palette open={palette} onOpenChange={setPalette} initial={paletteInput} />
+      <KeymapsDialog open={help} onOpenChange={setHelp} />
+      <WhichKey />
+      <CommandLine onKeymaps={() => setHelp(true)} />
     </>
   )
 }

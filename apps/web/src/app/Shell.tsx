@@ -99,7 +99,11 @@ export function Shell({
       <div className="flex min-h-0 flex-1">
         {rail}
         {shown ? (
-          <nav aria-label={sidebarLabel} style={{ width }} className="flex h-full shrink-0 flex-col bg-card">
+          <nav
+            data-region="side"
+            aria-label={sidebarLabel}
+            style={{ width }}
+            className="flex h-full shrink-0 flex-col bg-card">
             <div className="flex h-9 shrink-0 items-center justify-between border-border border-b ps-3 pe-1 text-muted-foreground">
               <span className="truncate">{sidebarLabel}</span>
               <IconTool
@@ -114,7 +118,9 @@ export function Shell({
         ) : null}
         {shown ? <ResizeHandle width={width} onResize={setWidth} /> : null}
         <div className="flex h-full min-w-0 flex-1 flex-col">
-          <main className="min-h-0 w-full flex-1">{viewer}</main>
+          <main data-region="main" tabIndex={-1} className="min-h-0 w-full flex-1 outline-none">
+            {viewer}
+          </main>
           {bottom}
         </div>
         {aside}

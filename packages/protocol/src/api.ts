@@ -100,6 +100,7 @@ export const CheckoutRequestSchema = z.object({ sha: RefNameSchema })
 export const RefRequestSchema = z.object({ ref: RefNameSchema })
 export const DeleteBranchSchema = z.object({ name: RefNameSchema, force: z.boolean() })
 
+export const PullSchema = z.object({ rebase: z.boolean().default(false) })
 export const StashSaveSchema = z.object({ message: z.string().trim().max(1000), untracked: z.boolean() })
 export const StashNameSchema = z.string().regex(/^stash@\{\d+\}$/)
 export const StashApplySchema = z.object({ name: StashNameSchema, pop: z.boolean() })
