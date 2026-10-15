@@ -15,8 +15,8 @@ import type { GraphState } from '../graph/store'
 import { useSettings } from '../hooks/useSettings'
 import { useUrlSync } from '../hooks/useUrlSync'
 import { useView } from '../hooks/useView'
-import { CommandLine } from '../keys/CommandLine'
 import { KeymapsDialog } from '../keys/KeymapsDialog'
+import { KeymapsPicker } from '../keys/KeymapsPicker'
 import { useKeys } from '../keys/useKeys'
 import { WhichKey } from '../keys/WhichKey'
 import type { Api } from '../lib/api'
@@ -109,7 +109,13 @@ function Screen() {
   }
   const [help, setHelp] = useState(false)
   const { view, show } = useView()
-  useKeys({ palette: openPalette, resume: () => openPalette(previousSearch()), keymaps: () => setHelp(true), show })
+  const { keys } = useApp()
+  const runCommand = useKeys({
+    palette: openPalette,
+    resume: () => openPalette(previousSearch()),
+    keymaps: () => keys.set((state) => ({ ...state, picker: true })),
+    show,
+  })
   const live = useLiveRefresh()
   useDesktopNotices()
   useUrlSync()
@@ -324,8 +330,8 @@ function Screen() {
       />
       <Palette open={palette} onOpenChange={setPalette} initial={paletteInput} />
       <KeymapsDialog open={help} onOpenChange={setHelp} />
+      <KeymapsPicker run={runCommand} onEdit={() => setHelp(true)} />
       <WhichKey />
-      <CommandLine onKeymaps={() => setHelp(true)} />
     </>
   )
 }

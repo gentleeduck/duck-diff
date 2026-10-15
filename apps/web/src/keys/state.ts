@@ -7,10 +7,14 @@ export interface KeyState {
   // Keys typed toward a chord, shown in the status bar like vim's showcmd.
   pending: string[]
   commandLine: boolean
+  // The searchable keymaps list.
+  picker: boolean
+  // Lines are selected in the diff, which is vim's visual mode.
+  visual: boolean
 }
 
 export const createKeyState = (): Store<KeyState> =>
-  createStore<KeyState>({ mode: 'normal', pending: [], commandLine: false })
+  createStore<KeyState>({ mode: 'normal', pending: [], commandLine: false, picker: false, visual: false })
 
 const KEY = 'duck-diff:keys'
 

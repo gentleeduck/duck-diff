@@ -3,7 +3,7 @@ import { buildBindings } from '../bindings'
 import { COMMANDS } from '../commands'
 import { continuations, showKeys } from '../which'
 
-const contexts = { anywhere: () => true, diff: () => true, panel: () => false }
+const contexts = { anywhere: () => true, diff: () => true, panel: () => false, list: () => false }
 
 describe('which-key', () => {
   it('lists what can follow the leader, with groups named', () => {

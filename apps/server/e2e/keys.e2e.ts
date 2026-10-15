@@ -28,6 +28,9 @@ test('drives the page from the keyboard the way Neovim does', async ({ page, app
 
   // :! runs in a terminal, <Esc><Esc> leaves it, and the page keys work again.
   await page.keyboard.press(':')
+  await expect(mode).toHaveText('COMMAND')
+  await page.keyboard.type('ta')
+  await expect(page.getByRole('list', { name: 'Matching commands' })).toContainText('Next diff tab')
   await page.getByRole('textbox', { name: 'Command line' }).fill('!echo from-ex > ex.txt')
   await page.keyboard.press('Enter')
   await expect.poll(() => existsSync(join(repo.path, 'ex.txt')), { timeout: 10_000 }).toBe(true)
@@ -37,12 +40,25 @@ test('drives the page from the keyboard the way Neovim does', async ({ page, app
   await page.keyboard.press('Escape')
   await expect(mode).toHaveText('NORMAL')
 
-  // Keymaps come from the same list, and typing in a box is insert mode.
+  // The keymaps picker searches every command and runs the one picked; its box is insert mode.
   await page.keyboard.press('?')
   const keymaps = page.getByRole('dialog', { name: 'Keymaps' })
   await expect(keymaps).toContainText('Pull with rebase')
-  await keymaps.getByRole('textbox', { name: 'Filter keymaps' }).focus()
   await expect(mode).toHaveText('INSERT')
-  await page.keyboard.press('Escape')
+  await page.keyboard.type('commit graph')
+  await page.keyboard.press('Enter')
   await expect(keymaps).toBeHidden()
+  await expect(page.getByRole('heading', { name: 'Commit graph' })).toBeVisible()
+
+  // Lists move with j, k, gg and G.
+  const commits = page.getByRole('listbox', { name: 'Commits' })
+  await expect(commits.getByRole('option').first()).toBeVisible()
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await page.keyboard.press('j')
+  await expect(commits.getByRole('option').first()).toBeFocused()
+  await page.keyboard.press('G')
+  await expect(commits.getByRole('option').last()).toBeFocused()
+  await page.keyboard.press('g')
+  await page.keyboard.press('g')
+  await expect(commits.getByRole('option').first()).toBeFocused()
 })

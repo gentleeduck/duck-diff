@@ -1,6 +1,7 @@
 import { LoaderCircle, ScrollText } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSession } from '../hooks/useSession'
+import { CommandLine } from '../keys/CommandLine'
 import type { KeyState } from '../keys/state'
 import { showKeys } from '../keys/which'
 import { useStore } from '../lib/store'
@@ -17,12 +18,16 @@ const STATUS = {
 }
 
 const selectRunning = (state: JobsState) => state.running
-const selectMode = (state: KeyState) => state.mode
+const selectMode = (state: KeyState) =>
+  state.commandLine ? 'command' : state.visual && state.mode === 'normal' ? 'visual' : state.mode
 const selectPending = (state: KeyState) => state.pending.join(' ')
+// lualine's tokyonight colors for each mode.
 const MODES = {
   normal: { label: 'NORMAL', color: 'var(--tn-blue)' },
   insert: { label: 'INSERT', color: 'var(--tn-green)' },
-  terminal: { label: 'TERMINAL', color: 'var(--tn-magenta)' },
+  visual: { label: 'VISUAL', color: 'var(--tn-magenta)' },
+  command: { label: 'COMMAND', color: 'var(--tn-yellow)' },
+  terminal: { label: 'TERMINAL', color: 'var(--tn-teal)' },
 }
 
 const selectLoad = (state: SessionState) => `${state.status}:${state.loadedAt}:${state.error ?? ''}`
@@ -38,17 +43,30 @@ export function StatusBar({ live }: { live: LiveState }) {
   const indicator = STATUS[live.status]
   const { jobs, panel, keys } = useApp()
   const running = useStore(jobs, selectRunning)
-  const mode = MODES[useStore(keys, selectMode)]
+  const modeName = useStore(keys, selectMode)
+  const mode = MODES[modeName]
   const pending = useStore(keys, selectPending)
 
+  const badge = (
+    <span
+      title="Key mode"
+      className="-ms-4 flex h-full shrink-0 items-center px-3 text-background"
+      style={{ background: mode.color }}>
+      {mode.label}
+    </span>
+  )
+  // As in Neovim, the command line takes the whole line while it is open.
+  if (modeName === 'command') {
+    return (
+      <>
+        {badge}
+        <CommandLine />
+      </>
+    )
+  }
   return (
     <>
-      <span
-        title="Key mode"
-        className="-ms-4 flex h-full items-center px-3 text-background"
-        style={{ background: mode.color }}>
-        {mode.label}
-      </span>
+      {badge}
       <span className="flex items-center gap-1.5">
         <span aria-hidden className="size-1.5 rounded-full" style={{ background: indicator.color }} />
         {indicator.label}

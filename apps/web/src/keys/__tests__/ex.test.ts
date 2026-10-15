@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseEx } from '../ex'
+import { completeEx, EX_COMMANDS, parseEx } from '../ex'
 
 describe('parseEx', () => {
   it('reads the commands the command line knows', () => {
@@ -18,5 +18,21 @@ describe('parseEx', () => {
     expect(parseEx('tabp')).toEqual({ kind: 'tab', step: -1 })
     expect(parseEx('push')).toEqual({ kind: 'unknown', text: 'push' })
     expect(parseEx('')).toEqual({ kind: 'none' })
+  })
+})
+
+describe('completeEx', () => {
+  it('offers the commands that start with what is typed, then their arguments', () => {
+    expect(completeEx('').length).toBe(EX_COMMANDS.length)
+    expect(completeEx('ta').map((entry) => entry.insert)).toEqual(['tabnext', 'tabprevious'])
+    expect(completeEx('G').map((entry) => entry.insert)).toEqual(['Git '])
+    expect(completeEx('set ').map((entry) => entry.insert)).toEqual([
+      'set split',
+      'set unified',
+      'set wrap',
+      'set nowrap',
+    ])
+    expect(completeEx('set w').map((entry) => entry.insert)).toEqual(['set wrap'])
+    expect(completeEx('!ls')).toEqual([])
   })
 })

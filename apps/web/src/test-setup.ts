@@ -21,4 +21,6 @@ window.matchMedia ??= (query: string) =>
     dispatchEvent: () => false,
   }) as MediaQueryList
 
+Element.prototype.scrollIntoView ??= () => {}
+
 afterEach(() => cleanup())

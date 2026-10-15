@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildBindings, conflicts } from '../bindings'
 import { COMMANDS } from '../commands'
 
-const always = { anywhere: () => true, diff: () => true, panel: () => false }
+const always = { anywhere: () => true, diff: () => true, panel: () => false, list: () => false }
 
 describe('bindings', () => {
   it('has no two default commands on the same keys in the same mode and place', () => {

@@ -1,9 +1,10 @@
 import { isInputElement } from '@gentleduck/vim/matcher'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { useGit } from '../git/GitProvider'
 import { useTarget } from '../hooks/useTarget'
+import { glide } from '../lib/glide'
 import { back, forward } from '../lib/history'
 import type { View } from '../lib/view-url'
 import { lineHash, lineText } from '../review/anchor'
@@ -17,6 +18,7 @@ import { useWrites } from '../writes/WritesProvider'
 import { buildBindings } from './bindings'
 import { COMMANDS, PASS_THROUGH } from './commands'
 import { createDispatcher, eventKey, type Mode } from './engine'
+import { deepActive, enterList, listOf, type Motion, move as moveIn, scrollHalf } from './motions'
 import { type Move, type Position, step } from './step'
 
 export interface KeyHandlers {
@@ -58,6 +60,7 @@ export function useKeys(handlers: KeyHandlers) {
   const git = useGit()
   const { navigate } = useTarget()
   const position = useRef<Position>({ item: 0, hunk: 0 })
+  const runner = useRef<(id: string) => void>(() => {})
   const latest = useRef({ handlers, writes, git, navigate })
   latest.current = { handlers, writes, git, navigate }
 
@@ -132,18 +135,21 @@ export function useKeys(handlers: KeyHandlers) {
     const blur = () => (document.activeElement as HTMLElement | null)?.blur?.()
 
     const commands: Record<string, () => void> = {
-      top: () => diffScroller()?.scrollTo({ top: 0 }),
+      top: () => {
+        const scroller = diffScroller()
+        if (scroller) void glide(scroller, 0)
+      },
       bottom: () => {
         const scroller = diffScroller()
-        scroller?.scrollTo({ top: scroller.scrollHeight })
+        if (scroller) void glide(scroller, scroller.scrollHeight - scroller.clientHeight)
       },
       'half-down': () => {
         const scroller = diffScroller()
-        scroller?.scrollBy({ top: scroller.clientHeight / 2 })
+        if (scroller) void glide(scroller, scroller.scrollTop + scroller.clientHeight / 2)
       },
       'half-up': () => {
         const scroller = diffScroller()
-        scroller?.scrollBy({ top: -scroller.clientHeight / 2 })
+        if (scroller) void glide(scroller, Math.max(0, scroller.scrollTop - scroller.clientHeight / 2))
       },
       back: () => void back(),
       forward: () => void forward(),
@@ -227,15 +233,34 @@ export function useKeys(handlers: KeyHandlers) {
       'font-smaller': () => settings.set((prev) => resize(prev, -1)),
       'font-reset': () => settings.set((prev) => ({ ...prev, fontSize: BASE_FONT, uiFontSize: BASE_FONT })),
     }
+    const walk = (motion: Motion) => {
+      if (!listOf(deepActive()) && (motion === 'down' || motion === 'first')) return void enterList(region('main'))
+      moveIn(motion)
+    }
+    commands['item-down'] = () => walk('down')
+    commands['item-up'] = () => walk('up')
+    commands['item-left'] = () => walk('left')
+    commands['item-right'] = () => walk('right')
+    commands['item-first'] = () => walk('first')
+    commands['item-last'] = () => walk('last')
+    commands['list-half-down'] = () => scrollHalf(1)
+    commands['list-half-up'] = () => scrollHalf(-1)
     for (const [id, destination] of Object.entries(VIEWS))
       commands[id] = () => latest.current.handlers.show(destination)
     for (const id of MOVES) commands[id] = () => move(id as Move)
     for (const [id, kind] of Object.entries(WRITES)) commands[id] = () => write(kind, false)
+    runner.current = (id) => commands[id]?.()
 
     const contexts = {
       anywhere: () => true,
       diff: () => view.get() === 'changes',
       panel: () => Boolean(document.activeElement?.closest('[data-region="panel"]')),
+      list: () => {
+        const active = deepActive()
+        if (listOf(active)) return true
+        const idle = !active || active === document.body || active === region('main')
+        return idle && view.get() !== 'changes'
+      },
     }
     let ran: string | null = null
     const build = () =>
@@ -299,4 +324,7 @@ export function useKeys(handlers: KeyHandlers) {
       dispatcher.reset()
     }
   }, [api, session, settings, viewer, reviews, viewed, view, panel, terminalTabs, keys, keyOverrides, tabs])
+
+  // Runs a command by id, for the keymaps list.
+  return useCallback((id: string) => runner.current(id), [])
 }

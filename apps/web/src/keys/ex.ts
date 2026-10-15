@@ -11,17 +11,55 @@ export type Ex =
   | { kind: 'unknown'; text: string }
   | { kind: 'none' }
 
-export const EX_HELP: [string, string][] = [
-  [':w [message]', 'Commit the staged changes, or write the message first'],
-  [':q', 'Close the diff tab, or hide the bottom panel'],
-  [':Git args, :G args', 'Run git in a terminal'],
-  [':!command', 'Run a shell command in a terminal'],
-  [':term', 'Open a terminal'],
-  [':e path', 'Open a file'],
-  [':set split, :set unified', 'Diff layout'],
-  [':tabn, :tabp', 'Next or previous diff tab'],
-  [':map, :help', 'Keymaps'],
+export interface ExCommand {
+  name: string
+  // What Tab puts in the line; commands that take an argument end in a space.
+  insert: string
+  usage: string
+  label: string
+}
+
+export const EX_COMMANDS: ExCommand[] = [
+  {
+    name: 'write',
+    insert: 'w ',
+    usage: ':w [message]',
+    label: 'Commit the staged changes, or write the message first',
+  },
+  { name: 'quit', insert: 'q', usage: ':q', label: 'Hide the bottom panel, or close the diff tab' },
+  { name: 'Git', insert: 'Git ', usage: ':Git args, :G args', label: 'Run git in a terminal' },
+  { name: '!', insert: '!', usage: ':!command', label: 'Run a shell command in a terminal' },
+  { name: 'terminal', insert: 'term', usage: ':term', label: 'Open a terminal' },
+  { name: 'edit', insert: 'e ', usage: ':e path', label: 'Open a file' },
+  { name: 'set', insert: 'set ', usage: ':set option', label: 'split, unified, wrap or nowrap' },
+  { name: 'tabnext', insert: 'tabnext', usage: ':tabn', label: 'Next diff tab' },
+  { name: 'tabprevious', insert: 'tabprevious', usage: ':tabp', label: 'Previous diff tab' },
+  { name: 'map', insert: 'map', usage: ':map, :help', label: 'Search the keymaps' },
 ]
+
+export const EX_HELP: [string, string][] = EX_COMMANDS.map((command) => [command.usage, command.label])
+
+const OPTIONS = [
+  { name: 'split', label: 'Old and new side by side' },
+  { name: 'unified', label: 'Old and new stacked' },
+  { name: 'wrap', label: 'Wrap long lines' },
+  { name: 'nowrap', label: 'Scroll long lines' },
+]
+
+// The wildmenu for the command line: commands by the start of their name, then :set's options.
+export function completeEx(text: string): ExCommand[] {
+  const set = /^set\s+(\S*)$/.exec(text)
+  if (set) {
+    return OPTIONS.filter((option) => option.name.startsWith(set[1] ?? '')).map((option) => ({
+      name: option.name,
+      insert: `set ${option.name}`,
+      usage: `:set ${option.name}`,
+      label: option.label,
+    }))
+  }
+  if (/\s/.test(text) || text.startsWith('!')) return []
+  return EX_COMMANDS.filter((command) => command.name.startsWith(text) || command.insert.startsWith(text))
+}
 
 export function parseEx(input: string): Ex {
   const text = input.trim()

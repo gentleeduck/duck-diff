@@ -31,6 +31,7 @@ export function WhichKey() {
         anywhere: () => true,
         diff: () => view.get() === 'changes',
         panel: () => Boolean(document.activeElement?.closest('[data-region="panel"]')),
+        list: () => false,
       }),
     [overrides, view],
   )

@@ -1,6 +1,7 @@
 import type { Mode } from './engine'
 
-export type Context = 'anywhere' | 'diff' | 'panel'
+// list: focus is in a tree, a list or tabs, or nothing is focused on a page without a diff.
+export type Context = 'anywhere' | 'diff' | 'panel' | 'list'
 
 export interface CommandSpec {
   id: string
@@ -15,6 +16,15 @@ export interface CommandSpec {
 // Every keyed action on the page. Defaults follow the user's Neovim: Space leader, <leader>s search,
 // <leader>g git, <leader>h hunks, <leader>t tabs, ]c and [c for changes, <Esc><Esc> out of a terminal.
 export const COMMANDS: CommandSpec[] = [
+  { id: 'item-down', title: 'Next item', group: 'Lists', keys: ['j'], when: 'list' },
+  { id: 'item-up', title: 'Previous item', group: 'Lists', keys: ['k'], when: 'list' },
+  { id: 'item-left', title: 'Close the folder, or the tab to the left', group: 'Lists', keys: ['h'], when: 'list' },
+  { id: 'item-right', title: 'Open the folder, or the tab to the right', group: 'Lists', keys: ['l'], when: 'list' },
+  { id: 'item-first', title: 'First item', group: 'Lists', keys: ['gg'], when: 'list' },
+  { id: 'item-last', title: 'Last item', group: 'Lists', keys: ['G'], when: 'list' },
+  { id: 'list-half-down', title: 'Half a page down', group: 'Lists', keys: ['<C-d>'], when: 'list' },
+  { id: 'list-half-up', title: 'Half a page up', group: 'Lists', keys: ['<C-u>'], when: 'list' },
+
   { id: 'next-hunk', title: 'Next change', group: 'Move', keys: ['j', ']c'], when: 'diff' },
   { id: 'prev-hunk', title: 'Previous change', group: 'Move', keys: ['k', '[c'], when: 'diff' },
   { id: 'next-file', title: 'Next file', group: 'Move', keys: ['J', ']f'], when: 'diff' },

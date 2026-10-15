@@ -1,6 +1,16 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { forwardRef, type ReactNode, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import {
+  forwardRef,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from 'react'
 import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
+import { glide } from '../lib/glide'
 import type { Note, NoteItem } from '../review/annotations'
 import type { Page, PageRow } from './page'
 import { LineRow, RowContext, type RowContextValue } from './RowViews'
@@ -93,7 +103,13 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
           target.type === 'item'
             ? page.starts.get(target.id)
             : (page.lines.get(`${target.id}:${target.side}:${target.lineNumber}`) ?? page.starts.get(target.id))
-        if (index !== undefined) virtualizer.scrollToIndex(index, { align: target.align ?? 'start' })
+        if (index === undefined) return
+        const align = target.align ?? 'start'
+        const offset = virtualizer.getOffsetForIndex(index, align)?.[0]
+        const element = scroller.current
+        if (offset === undefined || !element) return virtualizer.scrollToIndex(index, { align })
+        // Glides there, then settles on the row once rows measured on the way have moved it.
+        void glide(element, offset).then(() => virtualizer.scrollToIndex(index, { align }))
       },
     }),
     [page, virtualizer],
@@ -120,12 +136,28 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
   const first = items.find((virtual) => virtual.end > scrollTop)
   const firstRow = first ? page.rows[first.index] : undefined
   const pinned = !first || !firstRow || (firstRow.type === 'header' && first.start >= scrollTop) ? null : firstRow.item
-  const pinnedHeight =
-    (pinned ? virtualizer.measurementsCache[page.starts.get(pinned.id) ?? -1]?.size : undefined) ?? ESTIMATE.header
-  const nextHeader = pinned
-    ? items.find((virtual) => virtual.start > scrollTop && page.rows[virtual.index]?.type === 'header')
-    : undefined
-  const pushed = nextHeader ? Math.min(0, nextHeader.start - scrollTop - pinnedHeight) : 0
+  // Header rows in page order, for finding the one after the pinned file.
+  const headers = useMemo(() => [...page.starts.values()].sort((a, b) => a - b), [page])
+  const pinnedBox = useRef<HTMLDivElement>(null)
+  const pinnedId = pinned?.id ?? null
+  // The push is written straight to the element on every scroll event, in the same frame the browser moves
+  // the rows; a React render would land a frame late and the header would jitter against the next one.
+  useLayoutEffect(() => {
+    const element = scroller.current
+    const box = pinnedBox.current
+    if (!element || !box || pinnedId === null) return
+    const own = page.starts.get(pinnedId) ?? -1
+    const next = headers.find((index) => index > own)
+    const place = () => {
+      const height = virtualizer.measurementsCache[own]?.size ?? ESTIMATE.header
+      const start = next === undefined ? undefined : virtualizer.measurementsCache[next]?.start
+      const offset = start === undefined ? 0 : Math.min(0, start - element.scrollTop - height)
+      box.style.transform = offset ? `translateY(${offset}px)` : ''
+    }
+    place()
+    element.addEventListener('scroll', place, { passive: true })
+    return () => element.removeEventListener('scroll', place)
+  })
 
   // Where each file's code ends, so its sideways bar can sit on the file: at the bottom of the screen while
   // the file runs past it, then in the gap under its last line.
@@ -179,9 +211,7 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         {sideways.probe}
         {pinned ? (
           <div className="sticky top-0 z-20 h-0">
-            <div
-              className="bg-card shadow-[0_1px_0_var(--border)]"
-              style={pushed ? { transform: `translateY(${pushed}px)` } : undefined}>
+            <div ref={pinnedBox} className="bg-card shadow-[0_1px_0_var(--border)] will-change-transform">
               {renderHeader(pinned)}
             </div>
           </div>

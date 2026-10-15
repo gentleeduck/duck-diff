@@ -39,12 +39,13 @@ export function buildBindings(
 }
 
 // Two commands on the same keys, in a shared mode and the same place, where only the first could ever run.
-// The diff is part of the page; the panel is a place of its own whose keys deliberately shadow the page's.
+// The diff is part of the page; the panel and lists are places of their own whose keys shadow the page's.
 export function conflicts(commands: CommandSpec[], overrides: Overrides): { keys: string; commands: string[] }[] {
   const seen = new Map<string, Set<string>>()
   for (const { spec, keys, modes } of entries(commands, overrides)) {
     for (const mode of modes) {
-      const slot = `${mode}|${spec.when === 'panel' ? 'panel' : 'page'}|${keys.join(' ')}`
+      const place = spec.when === 'panel' || spec.when === 'list' ? spec.when : 'page'
+      const slot = `${mode}|${place}|${keys.join(' ')}`
       const ids = seen.get(slot) ?? new Set()
       ids.add(spec.id)
       seen.set(slot, ids)

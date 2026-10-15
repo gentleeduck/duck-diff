@@ -136,6 +136,7 @@ export default function Viewer() {
     fileLine,
     fileAt,
     diffTop,
+    keys,
   } = useApp()
   const { show } = useView()
   const plain = useSession(selectItems)
@@ -377,6 +378,10 @@ export default function Viewer() {
     [page, byPath, kinds.length, commentOnSelection, selecting],
   )
   useLineSelection(diffRoot, selecting.set, onPicked)
+  useEffect(
+    () => keys.set((state) => (state.visual === Boolean(bar) ? state : { ...state, visual: Boolean(bar) })),
+    [bar, keys],
+  )
   const closeBar = useCallback(() => {
     setBar(null)
     selecting.set(null)
