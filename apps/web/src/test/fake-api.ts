@@ -36,6 +36,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     git: async () => ({}),
     remotes: async () => [],
     lastMessage: async () => '',
+    symbols: async (name) => ({ name, hits: [], truncated: false }),
     blame: async () => [],
     github: {
       status: async () => ({ repo: null, user: null, source: null }),

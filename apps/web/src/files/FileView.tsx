@@ -2,9 +2,10 @@ import type { BlameLine, FileContents } from '@duck-diff/protocol'
 import { Badge, Button } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Check, Code2, Copy, Eye, FileDiff, History, SquareArrowOutUpRight, UserSearch } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { useSymbolClick } from '../code-nav/useSymbolClick'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
 import { useCodeScrollX } from '../diff/useCodeScrollX'
@@ -21,6 +22,7 @@ import { relativeTime } from '../sidebar/relative-time'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { formatBytes } from '../viewer/file-info'
+import { openFile } from './open-file'
 
 const selectPath = (path: string | null) => path
 const selectFiles = (state: SessionState) => state.files
@@ -58,9 +60,15 @@ function BlameCell({ blame, index }: { blame: BlameLine[] | null; index: number 
   )
 }
 
+const selectAt = (at: string | null) => at
+const selectLine = (line: number | null) => line
+
 export default function FileView() {
-  const { api, fileSelection, fileHistory } = useApp()
+  const app = useApp()
+  const { api, fileSelection, fileHistory, fileLine, fileAt } = app
   const path = useStore(fileSelection, selectPath)
+  const at = useStore(fileAt, selectAt)
+  const line = useStore(fileLine, selectLine)
   const changed = useSession(selectFiles)
   const settings = useSettings(selectSettings)
   const { navigate } = useTarget()
@@ -79,39 +87,42 @@ export default function FileView() {
     let alive = true
     setContents(null)
     setFailed(null)
-    api.file(path).then(
+    api.file(path, at ?? undefined).then(
       (next) => alive && setContents(next),
       (error: Error) => alive && setFailed(error.message),
     )
     return () => {
       alive = false
     }
-  }, [api, path])
+  }, [api, path, at])
 
   // Read once per file while blame is on; untracked files have none and show a plain gutter.
   useEffect(() => {
     setBlame(null)
     if (!path || !blaming) return
     let alive = true
-    api.blame(path).then(
+    api.blame(path, at ?? undefined).then(
       (next) => alive && setBlame(next),
       () => alive && setBlame([]),
     )
     return () => {
       alive = false
     }
-  }, [api, path, blaming])
+  }, [api, path, blaming, at])
 
   const lines = useMemo(() => (contents?.text ?? '').replace(/\n$/, '').split('\n'), [contents])
   const tokens =
     path && contents?.text
-      ? highlighter.text(`file:${path}:${contents.size}:${contents.text.length}`, path, contents.text)
+      ? highlighter.text(`file:${at ?? ''}:${path}:${contents.size}:${contents.text.length}`, path, contents.text)
       : null
   const lineHeight = Math.round(settings.fontSize * 1.5)
+  const fileRoot = useCallback(() => scroller.current, [])
+  // A line jump is its own place; plain opens come back to where the file was left.
+  const scrollKey = `file:${at ?? ''}:${path}:${line ?? ''}`
   const scroller = useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({
     count: contents?.text ? lines.length : 0,
-    initialOffset: () => rememberedTop(path ? `file:${path}` : null),
+    initialOffset: () => rememberedTop(path ? scrollKey : null),
     getScrollElement: () => scroller.current,
     estimateSize: () => lineHeight,
     overscan: 30,
@@ -130,7 +141,13 @@ export default function FileView() {
     [lines, settings.tabSize, path],
   )
   const sideways = useCodeScrollX(scroller, widest, true)
-  useScrollMemory(scroller, path && contents?.text ? `file:${path}` : null)
+  useScrollMemory(scroller, path && contents?.text ? scrollKey : null)
+  useSymbolClick(fileRoot, () => at)
+  // Opening at a line (a definition, a use) centres it once the text is in.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new text for the same line needs the scroll again
+  useEffect(() => {
+    if (line && contents?.text) requestAnimationFrame(() => virtualizer.scrollToIndex(line - 1, { align: 'center' }))
+  }, [line, contents, virtualizer])
 
   if (!path) {
     return <p className="p-4 text-muted-foreground">Pick a file on the left to read it here.</p>
@@ -149,10 +166,22 @@ export default function FileView() {
     <section aria-label={path} className="flex h-full flex-col">
       <header className="flex h-11 shrink-0 items-center gap-2 border-border border-b bg-card px-3">
         <span style={{ color: icon.color }}>{icon.glyph}</span>
-        <span className="min-w-0 truncate" title={path}>
+        <span className="min-w-20 shrink truncate" title={path}>
           {path}
         </span>
-        {contents ? <span className="shrink-0 text-muted-foreground">{formatBytes(contents.size)}</span> : null}
+        {contents ? (
+          <span className="hidden shrink-0 text-muted-foreground xl:inline">{formatBytes(contents.size)}</span>
+        ) : null}
+        {at ? (
+          <>
+            <Badge variant="outline" size="sm" className="shrink-0 text-tn-blue">
+              at {/^[0-9a-f]{40}$/.test(at) ? at.slice(0, 7) : at}
+            </Badge>
+            <Button size="sm" variant="ghost" onClick={() => openFile(app, path)}>
+              Working tree
+            </Button>
+          </>
+        ) : null}
         {status ? (
           <Badge variant="outline" size="sm" className="border-warning/40 bg-warning/15 text-warning">
             Changed
@@ -217,7 +246,7 @@ export default function FileView() {
       {contents?.text && markdown && preview ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <article className="mx-auto max-w-4xl p-6">
-            <Markdown text={contents.text} onLocalLink={(href) => fileSelection.set(resolveLink(path, href))} />
+            <Markdown text={contents.text} onLocalLink={(href) => openFile(app, resolveLink(path, href))} />
           </article>
         </div>
       ) : null}
@@ -231,7 +260,7 @@ export default function FileView() {
             {virtualizer.getVirtualItems().map((virtual) => (
               <div
                 key={virtual.index}
-                className="absolute inset-x-0 flex hover:bg-accent/40"
+                className={`absolute inset-x-0 flex hover:bg-accent/40 ${virtual.index + 1 === line ? 'bg-tn-yellow/15' : ''}`}
                 data-scroll-key={`file:${path}`}
                 style={{
                   ...sideways.rowStyle(`file:${path}`),

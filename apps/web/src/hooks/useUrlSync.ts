@@ -21,7 +21,8 @@ const same = <T>(value: T) => (value === null ? null : String(value))
 
 // Everything a page shows lives in the url, so back and forward step through it like a browser.
 export function useUrlSync() {
-  const { view, pullSelection, issueSelection, fileSelection, graphSelection, pullTab, diffFile } = useApp()
+  const { view, pullSelection, issueSelection, fileSelection, fileLine, fileAt, graphSelection, pullTab, diffFile } =
+    useApp()
   useEffect(() => {
     const params: Param<unknown>[] = [
       { name: 'number', views: ['prs'], store: pullSelection, read: number, write: same },
@@ -35,6 +36,8 @@ export function useUrlSync() {
         write: (tab) => (tab === 'conversation' ? null : String(tab)),
       },
       { name: 'file', views: ['files'], store: fileSelection, read: text, write: same },
+      { name: 'line', views: ['files'], store: fileLine, read: number, write: same },
+      { name: 'at', views: ['files'], store: fileAt, read: text, write: same },
       { name: 'commit', views: ['graph'], store: graphSelection, read: text, write: same },
       { name: 'path', views: ['changes', 'prs'], store: diffFile, read: text, write: same },
     ] as Param<unknown>[]
@@ -82,5 +85,5 @@ export function useUrlSync() {
       for (const stop of stops) stop()
       window.removeEventListener('popstate', apply)
     }
-  }, [view, pullSelection, issueSelection, fileSelection, graphSelection, pullTab, diffFile])
+  }, [view, pullSelection, issueSelection, fileSelection, fileLine, fileAt, graphSelection, pullTab, diffFile])
 }

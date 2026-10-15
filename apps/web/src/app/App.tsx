@@ -1,6 +1,7 @@
 import { Button, Kbd, Toaster, TooltipProvider } from '@duck-diff/ui'
 import { SearchIcon } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useState } from 'react'
+import { SymbolPanel } from '../code-nav/SymbolPanel'
 import { CompareBar } from '../compare/CompareBar'
 import { FilesSidebar } from '../files/FilesSidebar'
 import { BranchMenu } from '../git/BranchMenu'
@@ -216,6 +217,7 @@ function Screen() {
         panelShown={panel}
         onTogglePanel={togglePanel}
         viewer={<Suspense fallback={null}>{screen.main}</Suspense>}
+        aside={<SymbolPanel />}
         status={<StatusBar live={live} />}
       />
       <Palette open={palette} onOpenChange={setPalette} />

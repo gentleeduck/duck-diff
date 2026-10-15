@@ -2,6 +2,7 @@ import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, C
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { presets } from '../compare/model'
+import { openFile } from '../files/open-file'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 import { useSession } from '../hooks/useSession'
@@ -47,7 +48,8 @@ const VIEWS: { view: View; label: string }[] = [
 ]
 
 export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) {
-  const { api, settings, fileSelection, diffFile } = useApp()
+  const app = useApp()
+  const { api, settings, diffFile } = app
   const files = useSession(selectFiles)
   const { view, show } = useView()
   const git = useGit()
@@ -80,7 +82,7 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
         {view === 'files' ? (
           <CommandGroup heading="Open file">
             {(tree ?? []).map((path) => (
-              <CommandItem key={path} value={`open ${path}`} onSelect={() => run(() => fileSelection.set(path))}>
+              <CommandItem key={path} value={`open ${path}`} onSelect={() => run(() => openFile(app, path))}>
                 <span className="truncate font-mono">{path}</span>
               </CommandItem>
             ))}

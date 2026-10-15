@@ -14,10 +14,22 @@ interface ShellProps {
   panelShown: boolean
   onTogglePanel(): void
   viewer: ReactNode
+  // A panel docked on the right of the page, like the symbol panel; null when closed.
+  aside?: ReactNode
   status: ReactNode
 }
 
-export function Shell({ rail, topBar, sidebar, sidebarLabel, panelShown, onTogglePanel, viewer, status }: ShellProps) {
+export function Shell({
+  rail,
+  topBar,
+  sidebar,
+  sidebarLabel,
+  panelShown,
+  onTogglePanel,
+  viewer,
+  aside,
+  status,
+}: ShellProps) {
   const shown = sidebar !== null && panelShown
   return (
     <div className="flex h-full flex-col">
@@ -36,7 +48,10 @@ export function Shell({ rail, topBar, sidebar, sidebarLabel, panelShown, onToggl
       <div className="flex min-h-0 flex-1">
         {rail}
         {!shown ? (
-          <main className="h-full min-w-0 flex-1">{viewer}</main>
+          <>
+            <main className="h-full min-w-0 flex-1">{viewer}</main>
+            {aside}
+          </>
         ) : (
           <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
             {/* Pixels, not percent: the tree and commit box need the same room on every screen width. */}
@@ -56,7 +71,10 @@ export function Shell({ rail, topBar, sidebar, sidebarLabel, panelShown, onToggl
             </ResizablePanel>
             <ResizableHandle withHandle={false} />
             <ResizablePanel>
-              <main className="h-full min-w-0">{viewer}</main>
+              <div className="flex h-full min-w-0">
+                <main className="h-full min-w-0 flex-1">{viewer}</main>
+                {aside}
+              </div>
             </ResizablePanel>
           </ResizablePanelGroup>
         )}

@@ -1,11 +1,14 @@
 import { type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { refForSide } from '../code-nav/symbol-at'
+import { useSymbolClick } from '../code-nav/useSymbolClick'
 import { DiffView } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
 import { buildPage } from '../diff/page'
 import type { RowContextValue } from '../diff/RowViews'
 import type { DiffLine, DiffRow } from '../diff/rows'
+import { openFile } from '../files/open-file'
 import { type PullReviewState, pullOf } from '../github/pull-review'
 import { hasScrollMemory } from '../hooks/useScrollMemory'
 import { useSession } from '../hooks/useSession'
@@ -102,7 +105,19 @@ const emptyContents = () => new Map<string, readonly string[]>() as ReadonlyMap<
 const emptyExpanded = () => new Map<string, ReadonlySet<number>>() as ReadonlyMap<string, ReadonlySet<number>>
 
 export default function Viewer() {
-  const { api, viewer, reviews, viewed, fileHistory, pullReview, changesFolders, diffFile, fileSelection } = useApp()
+  const {
+    api,
+    viewer,
+    reviews,
+    viewed,
+    fileHistory,
+    pullReview,
+    changesFolders,
+    diffFile,
+    fileSelection,
+    fileLine,
+    fileAt,
+  } = useApp()
   const { show } = useView()
   const plain = useSession(selectItems)
   const files = useSession(selectFiles)
@@ -271,6 +286,7 @@ export default function Viewer() {
     },
     [page, reviews],
   )
+  useSymbolClick(diffRoot, (side) => refForSide(target, side ?? 'additions'))
   const selecting = useMemo(() => createStore<CodeSelection | null>(null), [])
   useLineSelection(diffRoot, selecting.set, commentOnSelection)
 
@@ -421,7 +437,7 @@ export default function Viewer() {
           onOpen={
             pull === null && file?.status !== 'deleted'
               ? () => {
-                  fileSelection.set(path)
+                  openFile({ fileSelection, fileLine, fileAt }, path)
                   show('files')
                 }
               : undefined
@@ -463,6 +479,8 @@ export default function Viewer() {
       pull,
       pullReview,
       fileSelection,
+      fileLine,
+      fileAt,
       show,
     ],
   )

@@ -34,8 +34,12 @@ interface AppContextValue {
   graphQuery: Store<string>
   // Folders folded in the changes tree; their files fold in the diff too.
   changesFolders: Store<ReadonlySet<string>>
-  // The file open in the Files view.
+  // The file open in the Files view, the line it was opened at, and the commit it is read at (null: working tree).
   fileSelection: Store<string | null>
+  fileLine: Store<number | null>
+  fileAt: Store<string | null>
+  // The name clicked in code, whose definitions and uses the symbol panel lists.
+  symbol: Store<{ name: string; ref: string | null } | null>
   github: GitHub
   // The pull request and issue open in their views.
   pullSelection: Store<number | null>
@@ -70,6 +74,9 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       graphSelection: createStore<string | null>(null),
       graphQuery: createStore(''),
       fileSelection: createStore<string | null>(null),
+      fileLine: createStore<number | null>(null),
+      fileAt: createStore<string | null>(null),
+      symbol: createStore<{ name: string; ref: string | null } | null>(null),
       changesFolders: createStore<ReadonlySet<string>>(new Set()),
       github: createGitHub(client),
       pullSelection: createStore<number | null>(null),

@@ -239,3 +239,8 @@ body {
 [data-diff-view] [data-code] *::selection {
   background: transparent;
 }
+
+/* Every copy of the name open in the symbol panel. */
+::highlight(duck-symbol) {
+  background-color: color-mix(in oklab, var(--tn-yellow) 28%, transparent);
+}
