@@ -197,8 +197,8 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         if (url.pathname === '/api/remotes') return Response.json(await listRemotes(repo))
         if (url.pathname === '/api/last-message') return Response.json({ message: await lastMessage(repo) })
         if (url.pathname === '/api/blame') {
-          const { path, ref } = BlameQuerySchema.parse(Object.fromEntries(url.searchParams))
-          return Response.json(await blame(repo, path, ref))
+          const { path, ref, mergeBase } = BlameQuerySchema.parse(Object.fromEntries(url.searchParams))
+          return Response.json(await blame(repo, path, ref, mergeBase))
         }
         if (url.pathname === '/api/lsp/warm' && request.method === 'POST') {
           const { paths } = LspWarmSchema.parse(await request.json())

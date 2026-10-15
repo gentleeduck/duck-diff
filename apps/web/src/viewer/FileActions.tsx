@@ -23,7 +23,7 @@ export function FileActions({
   onViewed(): void
   onHistory(): void
   note?: string | null
-  // Who changed each line; absent where the comparison has no version to blame (staged changes).
+  // Who changed each line, on both sides of the diff.
   blame?: { on: boolean; toggle(): void }
 }) {
   const [copied, setCopied] = useState(false)

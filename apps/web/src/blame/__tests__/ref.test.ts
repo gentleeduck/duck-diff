@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { blameRef } from '../ref'
+import { blameSides } from '../ref'
 
-describe('blameRef', () => {
-  it('blames a commit at itself, a range at its end, local changes in the working file, staged ones not at all', () => {
-    expect(blameRef({ kind: 'commit', sha: 'abc' })).toBe('abc')
-    expect(blameRef({ kind: 'range', from: 'main', to: 'feat', mode: 'merge-base' })).toBe('feat')
-    expect(blameRef({ kind: 'local' })).toBeUndefined()
-    expect(blameRef({ kind: 'unstaged' })).toBeUndefined()
-    expect(blameRef({ kind: 'staged' })).toBeNull()
+describe('blameSides', () => {
+  it('blames each side at the version it shows', () => {
+    expect(blameSides({ kind: 'commit', sha: 'abc' })).toEqual({ old: { ref: 'abc^' }, new: { ref: 'abc' } })
+    expect(blameSides({ kind: 'range', from: 'main', to: 'feat', mode: 'merge-base' })).toEqual({
+      old: { ref: 'feat', mergeBase: 'main' },
+      new: { ref: 'feat' },
+    })
+    expect(blameSides({ kind: 'range', from: 'main', to: 'feat', mode: 'two-dot' })).toEqual({
+      old: { ref: 'main' },
+      new: { ref: 'feat' },
+    })
+    expect(blameSides({ kind: 'local' })).toEqual({ old: { ref: 'HEAD' }, new: {} })
+    expect(blameSides({ kind: 'staged' })).toEqual({ old: { ref: 'HEAD' }, new: null })
   })
 })

@@ -145,8 +145,10 @@ export interface BlameLine {
 }
 
 // `--porcelain` repeats a commit's details only the first time it appears; later lines refer back by sha.
-export async function blame(repo: string, path: string, ref?: string): Promise<BlameLine[]> {
-  const out = await runGit(['blame', '--porcelain', ...(ref ? [ref] : []), '--', path], { cwd: repo })
+// With mergeBase, blames at the merge-base of ref and it, the old side of a three-dot comparison.
+export async function blame(repo: string, path: string, ref?: string, mergeBase?: string): Promise<BlameLine[]> {
+  const at = ref && mergeBase ? (await runGit(['merge-base', ref, mergeBase], { cwd: repo })).trim() : ref
+  const out = await runGit(['blame', '--porcelain', ...(at ? [at] : []), '--', path], { cwd: repo })
   const commits = new Map<string, Omit<BlameLine, 'sha'>>()
   const lines: BlameLine[] = []
   let sha = ''

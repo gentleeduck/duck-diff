@@ -2,7 +2,6 @@ import { isInputElement } from '@gentleduck/vim/matcher'
 import { useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
-import { blameRef } from '../blame/ref'
 import { useGit } from '../git/GitProvider'
 import { useTarget } from '../hooks/useTarget'
 import { glide } from '../lib/glide'
@@ -194,7 +193,7 @@ export function useKeys(handlers: KeyHandlers) {
       },
       blame: () => {
         const at = current()
-        if (!at || blameRef(at.target) === null) return
+        if (!at) return
         blameFiles.set((prev) => {
           const next = new Set(prev)
           if (!next.delete(at.path)) next.add(at.path)

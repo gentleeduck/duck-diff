@@ -1,7 +1,7 @@
 import { type BlameLine, type ChangedFile, type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
-import { blameRef } from '../blame/ref'
+import { blameSides } from '../blame/ref'
 import { CodeHover } from '../code-nav/CodeHover'
 import { refForSide, type SymbolUnder } from '../code-nav/symbol-at'
 import { useSymbolClick } from '../code-nav/useSymbolClick'
@@ -204,20 +204,33 @@ export default function Viewer() {
   // Blame, read once per file while it is on.
   const blamed = useStore(blameFiles, selectBlamed)
   const [blames, setBlames] = usePerTarget(shownKey, emptyBlames)
-  const ref = blameRef(target)
   // biome-ignore lint/correctness/useExhaustiveDependencies: the comparison's key is the trigger
   useEffect(() => blameFiles.set(new Set()), [shownKey])
+  // Both sides: the old one at what it was compared with (under its old name), the new one at the commit or
+  // the working file. A side the file does not have, an added file's old one, has nothing to blame.
   useEffect(() => {
-    if (ref === null) return
+    const sides = blameSides(target)
     for (const path of blamed) {
-      if (blames.has(path)) continue
-      setBlames((prev) => new Map(prev).set(path, null))
-      api.blame(path, ref).then(
-        (lines) => setBlames((prev) => new Map(prev).set(path, lines)),
-        () => setBlames((prev) => new Map(prev).set(path, [])),
-      )
+      const file = byPath.get(path)
+      const reads = [
+        {
+          key: `old:${path}`,
+          at: file && (file.status === 'added' || file.status === 'untracked') ? null : sides.old,
+          path: file?.oldPath ?? path,
+        },
+        { key: `new:${path}`, at: file?.status === 'deleted' ? null : sides.new, path },
+      ]
+      for (const { key, at, path: blamedPath } of reads) {
+        if (blames.has(key)) continue
+        setBlames((prev) => new Map(prev).set(key, at ? null : []))
+        if (!at) continue
+        api.blame(blamedPath, at.ref, at.mergeBase).then(
+          (lines) => setBlames((prev) => new Map(prev).set(key, lines)),
+          () => setBlames((prev) => new Map(prev).set(key, [])),
+        )
+      }
     }
-  }, [blamed, blames, setBlames, api, ref])
+  }, [blamed, blames, setBlames, api, target, byPath])
 
   const layout = settings.diffStyle === 'split' ? 'split' : 'unified'
   const page = useMemo(
@@ -426,9 +439,9 @@ export default function Viewer() {
   const context = useMemo<RowContextValue>(
     () => ({
       settings,
-      blame(item) {
+      blame(item, side) {
         const path = item.fileDiff.name
-        return blamed.has(path) ? (blames.get(path) ?? null) : undefined
+        return blamed.has(path) ? (blames.get(`${side}:${path}`) ?? null) : undefined
       },
       tokens(item, side, line) {
         const file = page.files.get(item.id)
@@ -608,19 +621,15 @@ export default function Viewer() {
                 if (nowViewed) reveal()
               }}
               onHistory={() => fileHistory.set(path)}
-              blame={
-                blameRef(target) === null
-                  ? undefined
-                  : {
-                      on: blamed.has(path),
-                      toggle: () =>
-                        blameFiles.set((prev) => {
-                          const next = new Set(prev)
-                          if (!next.delete(path)) next.add(path)
-                          return next
-                        }),
-                    }
-              }
+              blame={{
+                on: blamed.has(path),
+                toggle: () =>
+                  blameFiles.set((prev) => {
+                    const next = new Set(prev)
+                    if (!next.delete(path)) next.add(path)
+                    return next
+                  }),
+              }}
               note={file ? fileNote(file) : null}
               onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
               writes={

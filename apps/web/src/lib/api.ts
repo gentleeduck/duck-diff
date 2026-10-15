@@ -172,7 +172,7 @@ export interface Api {
   sync(): Promise<SyncStatus>
   remotes(): Promise<Remote[]>
   lastMessage(): Promise<string>
-  blame(path: string, ref?: string): Promise<BlameLine[]>
+  blame(path: string, ref?: string, mergeBase?: string): Promise<BlameLine[]>
   // Where a name is defined and used; ref null searches the working tree.
   symbols(name: string, ref: string | null): Promise<SymbolResult>
   // Precise answers from a language server; source null means none handles the file.
@@ -551,9 +551,10 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       hover: (query) => json(`/api/lsp/hover?${lspParams(query)}`, LspHoverSchema),
       warm: (paths) => post('/api/lsp/warm', { paths }),
     },
-    blame(path, ref) {
+    blame(path, ref, mergeBase) {
       const params = new URLSearchParams({ path })
       if (ref) params.set('ref', ref)
+      if (mergeBase) params.set('mergeBase', mergeBase)
       return json(`/api/blame?${params}`, z.array(BlameLineSchema))
     },
     invalidate: (topic) => cache.invalidate(topic),

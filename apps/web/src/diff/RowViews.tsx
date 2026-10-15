@@ -14,8 +14,8 @@ import { changedRanges } from './words'
 
 export interface RowContextValue {
   settings: Settings
-  // The file's blame while it is on: null while it is read, undefined when off.
-  blame(item: NoteItem): readonly BlameLine[] | null | undefined
+  // One side's blame while it is on: null while it is read, undefined when off.
+  blame(item: NoteItem, side: 'old' | 'new'): readonly BlameLine[] | null | undefined
   tokens(item: NoteItem, side: 'old' | 'new', line: number): Token[] | undefined
   // Starts a file's colors before it scrolls into view.
   prefetch(item: NoteItem): void
@@ -123,9 +123,10 @@ function Cell({
   numbers: 'both' | 'one'
 }) {
   const { settings, tokens, dragOver, subscribeMarks, lineMark, blame } = useRow()
-  const blameLines = blame(item)
-  // Blame belongs to the new side: the right of a split, every line but a removed one when stacked.
-  const blaming = blameLines !== undefined && (side === 'additions' || numbers === 'both')
+  // Each line is blamed on its own side: removed lines (and the left of a split) at the old version.
+  const blameSide = line?.kind === 'deletion' || (numbers === 'one' && side === 'deletions') ? 'old' : 'new'
+  const blameLines = blame(item, blameSide)
+  const blameNo = line ? (blameSide === 'old' ? line.oldNo : line.newNo) : null
   const number = line ? (side === 'additions' ? line.newNo : line.oldNo) : null
   const mark = useSyncExternalStore(subscribeMarks, () => lineMark(item, side, number, line?.text.length ?? 0))
   const [markKind, markCols] = mark.split('|')
@@ -168,13 +169,8 @@ function Cell({
             : ''
       }
       }`}>
-      {blaming ? (
-        <BlameCell
-          blame={blameLines}
-          index={line.kind === 'deletion' || line.newNo === null ? -1 : line.newNo - 1}
-          className="w-48"
-          everyLine
-        />
+      {blameLines !== undefined ? (
+        <BlameCell blame={blameLines} index={blameNo === null ? -1 : blameNo - 1} className="w-56" everyLine />
       ) : null}
       {settings.lineNumbers ? (
         <span className="relative flex shrink-0 select-none text-tn-gutter tabular-nums">

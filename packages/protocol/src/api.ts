@@ -218,7 +218,11 @@ export const SymbolQuerySchema = z.object({
   name: z.string().regex(/^[A-Za-z_$][\w$]{0,99}$/),
   ref: RefNameSchema.optional(),
 })
-export const BlameQuerySchema = z.object({ path: RepoPathSchema, ref: RefNameSchema.optional() })
+export const BlameQuerySchema = z.object({
+  path: RepoPathSchema,
+  ref: RefNameSchema.optional(),
+  mergeBase: RefNameSchema.optional(),
+})
 
 // Precise navigation from a language server, either Neovim's own clients or one the server starts.
 // Lines and columns are 1-based; columns count UTF-16 units, as JavaScript strings do.

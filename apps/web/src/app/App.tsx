@@ -38,6 +38,7 @@ import { AppProvider, useApp } from './AppProvider'
 import { AskDialog } from './Ask'
 import { Shell } from './Shell'
 import { StatusBar } from './StatusBar'
+import { TruncationTooltip } from './TruncationTooltip'
 import { useSizes } from './useSizes'
 import { useThemeClass } from './useThemeClass'
 
@@ -330,6 +331,7 @@ function Screen() {
       />
       <Palette open={palette} onOpenChange={setPalette} initial={paletteInput} />
       <KeymapsDialog open={help} onOpenChange={setHelp} />
+      <TruncationTooltip />
       <KeymapsPicker run={runCommand} onEdit={() => setHelp(true)} />
       <WhichKey />
     </>

@@ -69,7 +69,7 @@ test('blames each line of a file and opens the commit behind it', async ({ page,
   await page.goto(`${app.url}&view=files`)
   await page.getByRole('button', { name: 'Blame: who changed each line' }).click()
   await page
-    .getByRole('button', { name: /ago|just now/ })
+    .getByRole('button', { name: /Duck Test/ })
     .first()
     .click()
   await expect(page).toHaveURL(/view=graph/)

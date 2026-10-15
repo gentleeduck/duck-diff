@@ -172,8 +172,9 @@ test('blame shows who changed each line of the new side, from the header or <lea
   await expect(main).toContainText('export const answer = 42')
   await page.locator('[data-diff-view]').getByText('src/app.ts', { exact: true }).first().hover()
   await page.getByRole('button', { name: 'Blame: who changed each line' }).first().click()
-  // The unchanged second line was last changed by the base commit; the edited first is not committed yet.
+  // Both sides: the removed line at HEAD, by the base commit, the edited one not committed yet.
   await expect(page.locator('[data-diff-view]').getByText('Duck Test').first()).toBeVisible()
+  await expect(page.locator('[data-diff-view]').getByText('Uncommitted').first()).toBeVisible()
   await page.keyboard.type(' hb')
   await expect(page.locator('[data-diff-view]').getByText('Duck Test')).toHaveCount(0)
 })
