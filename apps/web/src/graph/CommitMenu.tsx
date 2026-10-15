@@ -10,13 +10,29 @@ import {
   ContextMenuTrigger,
   HoverCard,
   HoverCardContent,
-  HoverCardTrigger,
 } from '@duck-diff/ui'
-import { Cherry, Copy, FileDiff, GitBranchPlus, GitCompareArrows, History, LocateFixed, Tag, Undo2 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import {
+  Cherry,
+  Copy,
+  FileDiff,
+  GitBranchPlus,
+  GitCommitHorizontal,
+  GitCompareArrows,
+  History,
+  LocateFixed,
+  SquareArrowOutUpRight,
+  Tag,
+  Undo2,
+} from 'lucide-react'
+import { type ReactNode, useEffect, useState } from 'react'
+import { useApp } from '../app/AppProvider'
+import type { GitHubState } from '../github/store'
+import { useStore } from '../lib/store'
 import { relativeTime } from '../sidebar/relative-time'
 import { useCommitActions } from './commit-actions'
 import type { GraphEntry } from './records'
+
+const selectStatus = (state: GitHubState) => state
 
 export function CommitMenu({
   entry,
@@ -96,44 +112,115 @@ export function CommitMenu({
   )
 }
 
-// Hovering a commit's dot shows who made it and when, without opening the panel.
+interface HoverDetails {
+  message: string
+  files: number
+  additions: number
+  deletions: number
+}
+
+// Read once per commit per page; hovering back and forth costs nothing after the first time.
+const details = new Map<string, Promise<HoverDetails>>()
+
+function useHoverDetails(sha: string, open: boolean): HoverDetails | null {
+  const { api } = useApp()
+  const [value, setValue] = useState<HoverDetails | null>(null)
+  useEffect(() => {
+    if (!open) return
+    let promise = details.get(sha)
+    if (!promise) {
+      promise = Promise.all([api.commit(sha), api.files({ kind: 'commit', sha })]).then(([commit, files]) => ({
+        message: commit.message,
+        files: files.length,
+        additions: files.reduce((sum, file) => sum + (file.additions ?? 0), 0),
+        deletions: files.reduce((sum, file) => sum + (file.deletions ?? 0), 0),
+      }))
+      promise.catch(() => details.delete(sha))
+      details.set(sha, promise)
+    }
+    let alive = true
+    promise.then(
+      (next) => alive && setValue(next),
+      () => {},
+    )
+    return () => {
+      alive = false
+    }
+  }, [api, sha, open])
+  return value
+}
+
+// Its children hold the HoverCardTrigger, so the same row can also be a right-click trigger.
+// Hovering a commit shows who made it and when, its whole message and its size, like an editor's graph.
 export function CommitHover({
   entry,
   avatar,
-  initials,
   children,
 }: {
   entry: GraphEntry
   avatar: string | null
-  initials: string
   children: ReactNode
 }) {
+  const [open, setOpen] = useState(false)
+  const info = useHoverDetails(entry.sha, open)
+  const { github: githubStore } = useApp()
+  const github = useStore(githubStore, selectStatus)
+  // The GitHub link needs the repo's slug, read on the first hover rather than at page load.
+  useEffect(() => {
+    if (open) void githubStore.load()
+  }, [open, githubStore])
+  const { copy } = useCommitActions()
+  const [subject = entry.subject, ...rest] = (info?.message ?? entry.subject).split('\n')
+  const body = rest.join('\n').trim()
   return (
-    <HoverCard openDelay={250} closeDelay={80}>
-      <HoverCardTrigger asChild>{children}</HoverCardTrigger>
-      <HoverCardContent side="right" align="start" className="flex w-96 flex-col gap-2">
-        <div className="flex items-center gap-3">
+    <HoverCard open={open} onOpenChange={setOpen} openDelay={500} closeDelay={100}>
+      {children}
+      <HoverCardContent side="bottom" align="center" className="flex w-[30rem] flex-col gap-2 p-0">
+        <div className="flex items-center gap-2 px-3 pt-3">
           {avatar ? (
-            <img src={`${avatar}${avatar.includes('?') ? '&' : '?'}s=80`} alt="" className="size-10 rounded-full" />
-          ) : (
-            <span className="flex size-10 items-center justify-center rounded-full bg-accent text-tn-blue">
-              {initials}
-            </span>
-          )}
-          <div className="min-w-0">
-            <p className="truncate text-foreground">{entry.author}</p>
-            <p className="truncate text-muted-foreground">{entry.email}</p>
-          </div>
+            <img src={`${avatar}${avatar.includes('?') ? '&' : '?'}s=48`} alt="" className="size-6 rounded-full" />
+          ) : null}
+          <span className="text-tn-blue">{entry.author},</span>
+          <History className="size-4 text-muted-foreground" />
+          <span className="text-muted-foreground">
+            {relativeTime(entry.time)} ({new Date(entry.time * 1000).toLocaleString()})
+          </span>
         </div>
-        <p className="text-foreground">{entry.subject}</p>
-        <p className="text-muted-foreground">
-          <span className="text-tn-comment">{entry.sha.slice(0, 10)}</span> ·{' '}
-          {new Date(entry.time * 1000).toLocaleString()} ({relativeTime(entry.time)})
-        </p>
-        {entry.parents.length > 1 ? <p className="text-tn-magenta">Merge of {entry.parents.length} parents</p> : null}
-        {entry.refs.length ? (
-          <p className="text-muted-foreground">{entry.refs.map((ref) => ref.name).join(', ')}</p>
-        ) : null}
+        <div className="flex flex-col gap-1 px-3">
+          <p className="text-foreground">{subject}</p>
+          {body ? <p className="max-h-40 overflow-y-auto whitespace-pre-wrap text-muted-foreground">{body}</p> : null}
+        </div>
+        <div className="border-border border-t px-3 pt-2 text-muted-foreground">
+          {info ? (
+            <>
+              {info.files} {info.files === 1 ? 'file' : 'files'} changed,{' '}
+              <span className="text-added">{info.additions.toLocaleString()} insertions(+)</span>,{' '}
+              <span className="text-removed">{info.deletions.toLocaleString()} deletions(-)</span>
+            </>
+          ) : (
+            'Reading the change...'
+          )}
+        </div>
+        <div className="flex items-center gap-3 border-border border-t px-3 py-2">
+          <button
+            type="button"
+            className="flex cursor-pointer items-center gap-1 text-tn-blue"
+            onClick={() => void copy(entry.sha, 'sha')}>
+            <GitCommitHorizontal className="size-4" />
+            {entry.sha.slice(0, 7)}
+            <Copy className="size-3.5 text-muted-foreground" />
+          </button>
+          {github.status?.repo ? (
+            <a
+              href={`https://github.com/${github.status.repo}/commit/${entry.sha}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1 text-tn-blue hover:underline">
+              <SquareArrowOutUpRight className="size-4" />
+              Open on GitHub
+            </a>
+          ) : null}
+        </div>
       </HoverCardContent>
     </HoverCard>
   )

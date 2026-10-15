@@ -36,6 +36,9 @@ test('cherry-picks and reverts a commit from its panel', async ({ page, app, rep
   repo.commit('add extra')
   repo.git('switch', '-q', 'main')
   await page.goto(`${app.url}&view=graph`)
+  // The graph starts on the current branch; the commit to pick lives on another one.
+  await expect(page.getByRole('listbox', { name: 'Commits' }).getByRole('option')).toHaveCount(1)
+  await page.getByRole('switch', { name: 'Every branch' }).click()
   await page
     .getByRole('listbox', { name: 'Commits' })
     .getByRole('option', { name: /add extra/ })

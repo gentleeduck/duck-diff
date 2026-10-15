@@ -1,5 +1,6 @@
 import {
   Badge,
+  HoverCardTrigger,
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
@@ -12,12 +13,12 @@ import { GitBranch, Tag } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
-import { relativeTime } from '../sidebar/relative-time'
-import { avatarFor, initials, useAvatars } from './avatars'
+import { avatarFor, useAvatars } from './avatars'
 import { CommitHover, CommitMenu } from './CommitMenu'
 import { CommitPanel } from './CommitPanel'
 import { matchesCommit } from './FindCommit'
 import { GraphLines, LANE_WIDTH, laneColor } from './GraphLines'
+import type { GraphRow } from './layout'
 import { NewBranchDialog } from './NewBranchDialog'
 import type { RefLabel } from './records'
 import type { GraphState } from './store'
@@ -26,18 +27,27 @@ const ROW_HEIGHT = 28
 // Very wide histories clip at this many lanes so the subject column always stays readable.
 const MAX_LANES = 10
 const selectGraph = (state: GraphState) => state
+
+// Each row is as wide as the lanes it draws, as an editor's graph does, so the subject starts right after them.
+function rowLanes(row: GraphRow): number {
+  let lanes = row.lane + 1
+  for (const segment of row.segments) lanes = Math.max(lanes, segment.from[0] + 1, segment.to[0] + 1)
+  return Math.min(MAX_LANES, lanes)
+}
 const selectQuery = (query: string) => query
 
 const SHOWN_REFS = 2
 
 function RefBadge({ refLabel, color }: { refLabel: RefLabel; color: string }) {
   const Icon = refLabel.kind === 'tag' ? Tag : GitBranch
+  const tint = refLabel.kind === 'tag' ? 'var(--tn-yellow)' : color
+  // The checked-out branch is a solid pill; every other ref is outlined.
   return (
     <Badge
       variant="outline"
       size="sm"
-      className={`max-w-48 shrink-0 ${refLabel.current ? 'border-current bg-current/15' : 'opacity-80'}`}
-      style={{ color: refLabel.kind === 'tag' ? 'var(--tn-yellow)' : color }}>
+      className={`max-w-48 shrink-0 ${refLabel.current ? 'border-transparent' : ''}`}
+      style={refLabel.current ? { background: tint, color: 'var(--background)' } : { color: tint }}>
       <Icon className="size-3.5 shrink-0" />
       <span className="truncate">{refLabel.name}</span>
     </Badge>
@@ -90,14 +100,7 @@ export default function GraphView() {
     estimateSize: () => ROW_HEIGHT,
     overscan: 20,
   })
-
-  // The column fits the lanes on screen, with a margin of rows either side so it does not jump on every scroll.
   const items = virtualizer.getVirtualItems()
-  const from = Math.max(0, (items[0]?.index ?? 0) - 8)
-  const to = (items.at(-1)?.index ?? 0) + 8
-  let lanes = 1
-  for (let i = from; i <= to && i < state.rows.length; i++) lanes = Math.max(lanes, state.rows[i]?.width ?? 1)
-  lanes = Math.min(MAX_LANES, lanes)
 
   // Selecting a commit from elsewhere (a branch in the sidebar) brings its row into view.
   useEffect(() => {
@@ -127,49 +130,46 @@ export default function GraphView() {
                 const row = state.rows[virtual.index]
                 if (!entry || !row) return null
                 const isSelected = entry.sha === selected
-                const avatar = avatarFor(avatars, entry.email)
-                const face = initials(entry.author)
                 return (
-                  <CommitMenu key={entry.sha} entry={entry} onNewBranch={setBranchFrom}>
-                    <div
-                      role="option"
-                      tabIndex={-1}
-                      aria-selected={isSelected}
-                      onClick={() => graphSelection.set(entry.sha)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') graphSelection.set(entry.sha)
-                      }}
-                      className="absolute inset-x-0 flex cursor-pointer items-center gap-3 pe-3 hover:bg-accent/60 aria-selected:bg-accent"
-                      style={{ height: ROW_HEIGHT, transform: `translateY(${virtual.start}px)` }}>
-                      <CommitHover entry={entry} avatar={avatar} initials={face}>
-                        <span className="shrink-0 overflow-hidden ps-2" style={{ width: lanes * LANE_WIDTH + 8 }}>
-                          <GraphLines
-                            row={row}
-                            lanes={lanes}
-                            height={ROW_HEIGHT}
-                            merge={entry.parents.length > 1}
-                            avatar={avatar}
-                            initials={face}
-                          />
-                        </span>
-                      </CommitHover>
-                      <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-                        <RefBadges refs={entry.refs} color={laneColor(row.color) ?? ''} />
-                        <span
-                          className={`min-w-0 truncate ${needle && matchesCommit(entry, needle) ? 'text-tn-yellow' : ''}`}>
-                          {entry.subject}
-                        </span>
-                      </span>
-                      {/* Side columns drop out as the pane narrows, so the subject always keeps room. */}
-                      <span className="hidden w-36 shrink-0 truncate text-muted-foreground @3xl:block">
-                        {entry.author}
-                      </span>
-                      <span className="hidden w-28 shrink-0 truncate text-end text-muted-foreground @xl:block">
-                        {relativeTime(entry.time)}
-                      </span>
-                      <span className="w-20 shrink-0 text-end text-tn-comment">{entry.sha.slice(0, 7)}</span>
-                    </div>
-                  </CommitMenu>
+                  <CommitHover key={entry.sha} entry={entry} avatar={avatarFor(avatars, entry.email)}>
+                    <CommitMenu entry={entry} onNewBranch={setBranchFrom}>
+                      <HoverCardTrigger asChild>
+                        <div
+                          role="option"
+                          tabIndex={-1}
+                          aria-selected={isSelected}
+                          onClick={() => graphSelection.set(entry.sha)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') graphSelection.set(entry.sha)
+                          }}
+                          className="absolute inset-x-0 flex cursor-pointer items-center gap-2 pe-2 hover:bg-accent/60 aria-selected:bg-accent"
+                          style={{ height: ROW_HEIGHT, transform: `translateY(${virtual.start}px)` }}>
+                          <span
+                            className="shrink-0 overflow-hidden ps-2"
+                            style={{ width: rowLanes(row) * LANE_WIDTH + 8 }}>
+                            <GraphLines
+                              row={row}
+                              lanes={rowLanes(row)}
+                              height={ROW_HEIGHT}
+                              merge={entry.parents.length > 1}
+                              head={entry.refs.some((ref) => ref.current)}
+                            />
+                          </span>
+                          {/* Subject then author, as an editor's graph reads; refs sit at the end of the row. */}
+                          <span
+                            className={`min-w-0 truncate ${needle && matchesCommit(entry, needle) ? 'text-tn-yellow' : 'text-foreground'}`}>
+                            {entry.subject}
+                          </span>
+                          <span className="min-w-0 max-w-48 shrink-[2] truncate text-muted-foreground">
+                            {entry.author}
+                          </span>
+                          <span className="ms-auto flex shrink-0 items-center gap-1 ps-2">
+                            <RefBadges refs={entry.refs} color={laneColor(row.color) ?? ''} />
+                          </span>
+                        </div>
+                      </HoverCardTrigger>
+                    </CommitMenu>
+                  </CommitHover>
                 )
               })}
             </div>

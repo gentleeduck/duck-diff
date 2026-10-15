@@ -20,7 +20,7 @@ const LIMIT = 20_000
 
 // Streams the log, lays out lanes as records arrive, and publishes in 50 ms batches so long histories show quickly.
 export function createGraph(api: Api): Graph {
-  const store = createStore<GraphState>({ entries: [], rows: [], status: 'idle', all: true, error: null })
+  const store = createStore<GraphState>({ entries: [], rows: [], status: 'idle', all: false, error: null })
   let current: AbortController | null = null
 
   async function load() {
