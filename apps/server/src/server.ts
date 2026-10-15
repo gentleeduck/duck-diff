@@ -1,4 +1,13 @@
-import { blame, lastMessage, listRemotes, readSyncStatus, resolveRepo } from '@duck-diff/git'
+import { join } from 'node:path'
+import {
+  blame,
+  lastMessage,
+  listRemotes,
+  listSubmodules,
+  listWorktrees,
+  readSyncStatus,
+  resolveRepo,
+} from '@duck-diff/git'
 import {
   BlameQuerySchema,
   type ChangeReason,
@@ -6,6 +15,7 @@ import {
   decodeTarget,
   LspQuerySchema,
   NavigateRequestSchema,
+  OpenRepoSchema,
   OpenRequestSchema,
   UpdateReviewSchema,
   WriteRequestSchema,
@@ -16,9 +26,10 @@ import { createGitHub, type GitHubOptions } from './github'
 import { handleGitHub } from './github-routes'
 import { Hub } from './hub'
 import { createNavigator, type NavigatorOptions } from './lsp/navigator'
-import { type NvimRunner, openKeys, runNvim } from './nvim'
+import { type NvimRunner, openKeys, runNvim, tcdKeys } from './nvim'
 import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
+import { createSiblings, type StartServer, startSibling } from './siblings'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
@@ -42,6 +53,8 @@ export interface ServerOptions {
   github?: GitHubOptions
   // Language servers; tests swap in a fake one.
   lsp?: NavigatorOptions
+  // How a worktree or submodule gets its own server; tests swap in a fake.
+  startSibling?: StartServer
 }
 
 export interface RunningServer {
@@ -67,6 +80,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const reviews = createReviewStore(repo, options.dataDir)
   const github = createGitHub(repo, options.github)
   const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
+  const siblings = createSiblings(options.startSibling ?? startSibling(options.nvim ?? null))
 
   const server = Bun.serve({
     hostname: HOST,
@@ -147,6 +161,21 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
             return new Response(null, { status: 204 })
           }
         }
+        if (url.pathname === '/api/open-repo' && request.method === 'POST') {
+          const { path } = OpenRepoSchema.parse(await request.json())
+          // Only checkouts that belong to this repository: its worktrees and submodules.
+          const [trees, modules] = await Promise.all([listWorktrees(repo), listSubmodules(repo)])
+          const known = [...trees.map((tree) => tree.path), ...modules.map((module) => join(repo, module.path))]
+          if (!known.includes(path))
+            throw new HttpError(404, 'not-found', `${path} is not a worktree or submodule here`)
+          return Response.json({ url: await siblings.open(path) })
+        }
+        if (url.pathname === '/api/nvim/tcd' && request.method === 'POST') {
+          if (!options.nvim) throw new HttpError(409, 'bad-request', 'no Neovim attached to this server')
+          const { path } = OpenRepoSchema.parse(await request.json())
+          await (options.runNvim ?? runNvim)(['--server', options.nvim, '--remote-send', tcdKeys(path)])
+          return new Response(null, { status: 204 })
+        }
         if (url.pathname === '/api/open' && request.method === 'POST') {
           if (!options.nvim) throw new HttpError(409, 'bad-request', 'no Neovim attached to this server')
           const { path, line } = OpenRequestSchema.parse(await request.json())
@@ -194,6 +223,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
       stopWatching()
       hub.dispose()
       await navigator.stop()
+      await siblings.stop()
       await server.stop(true)
     },
   }

@@ -275,3 +275,44 @@ export const BisectStateSchema = z.object({
   log: z.string(),
 })
 export type BisectState = z.infer<typeof BisectStateSchema>
+
+// Worktrees and submodules.
+export const WorktreeSchema = z.object({
+  path: z.string(),
+  head: z.string().nullable(),
+  branch: z.string().nullable(),
+  main: z.boolean(),
+  current: z.boolean(),
+  locked: z.boolean(),
+  prunable: z.boolean(),
+})
+export type Worktree = z.infer<typeof WorktreeSchema>
+const AbsolutePathSchema = z
+  .string()
+  .min(1)
+  .max(4096)
+  .refine((path) => path.startsWith('/') && !path.includes('\0'), 'an absolute path')
+export const WorktreeAddSchema = z.object({
+  path: AbsolutePathSchema,
+  branch: RefNameSchema,
+  create: z.boolean(),
+  start: RefNameSchema.optional(),
+})
+export const WorktreeRemoveSchema = z.object({ path: AbsolutePathSchema, force: z.boolean() })
+export const OpenRepoSchema = z.object({ path: AbsolutePathSchema })
+export const SubmoduleSchema = z.object({
+  path: z.string(),
+  recorded: z.string(),
+  current: z.string().nullable(),
+  initialized: z.boolean(),
+  url: z.string().nullable(),
+})
+export type Submodule = z.infer<typeof SubmoduleSchema>
+export const SubmoduleUpdateSchema = z.object({ path: RepoPathSchema.optional(), init: z.boolean() })
+export const SubmoduleLogQuerySchema = z.object({
+  path: RepoPathSchema,
+  from: RefNameSchema.optional(),
+  to: RefNameSchema,
+})
+export const SubmoduleCommitSchema = PlanCommitSchema
+export type SubmoduleCommit = PlanCommit

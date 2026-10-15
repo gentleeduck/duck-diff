@@ -54,6 +54,8 @@ export const ChangedFileSchema = z.object({
   newSize: z.number().int().nullable().optional(),
   // Marked linguist-generated in .gitattributes.
   generated: z.boolean().optional(),
+  // A submodule whose recorded commit moved; the shas are commits of the submodule.
+  submodule: z.boolean().optional(),
 })
 export type ChangedFile = z.infer<typeof ChangedFileSchema>
 

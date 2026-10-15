@@ -62,6 +62,8 @@ export function isSpecialFile(name: string): boolean {
 }
 
 export const FOLDER = { closed: '', open: '', color: 'var(--tn-blue)' }
+// nvim-tree's mark for a folder that is another repository.
+export const SUBMODULE = { glyph: '\uf414', color: 'var(--tn-magenta)' }
 export const CHEVRON = { closed: '', open: '' }
 
 // Boxed diff glyphs, as in the editor's git column.

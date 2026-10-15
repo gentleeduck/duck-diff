@@ -12,7 +12,7 @@ import {
   useState,
 } from 'react'
 import { useRowHeight } from '../app/useSizes'
-import { CHEVRON, FOLDER, FOLDER_DIRTY, FOLDER_NEW, fileGlyph, isSpecialFile, STATUS_MARK } from './icons'
+import { CHEVRON, FOLDER, FOLDER_DIRTY, FOLDER_NEW, fileGlyph, isSpecialFile, STATUS_MARK, SUBMODULE } from './icons'
 import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
 export type { Row as TreeRow }
@@ -40,7 +40,11 @@ function TreeItem({
   'onClick'
 >) {
   const folder = row.kind === 'directory'
-  const icon = folder ? { glyph: row.expanded ? FOLDER.open : FOLDER.closed, color: FOLDER.color } : fileGlyph(row.name)
+  const icon = folder
+    ? { glyph: row.expanded ? FOLDER.open : FOLDER.closed, color: FOLDER.color }
+    : file?.submodule
+      ? SUBMODULE
+      : fileGlyph(row.name)
   const special = !folder && isSpecialFile(row.name)
   const deleted = file?.status === 'deleted'
   const name = folder

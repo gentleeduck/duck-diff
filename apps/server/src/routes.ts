@@ -3,7 +3,9 @@ import {
   listCommits,
   listFiles,
   listRefs,
+  listSubmodules,
   listTree,
+  listWorktrees,
   readBisect,
   readCommit,
   readConflict,
@@ -15,6 +17,7 @@ import {
   streamDiff,
   streamGraph,
   streamPatch,
+  submoduleLog,
 } from '@duck-diff/git'
 import {
   decodeTarget,
@@ -22,6 +25,7 @@ import {
   RefNameSchema,
   type RepoInfo,
   RepoPathSchema,
+  SubmoduleLogQuerySchema,
   SymbolQuerySchema,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
@@ -112,6 +116,14 @@ export async function handleApi(repo: string, url: URL, nvim = false): Promise<R
     case '/api/rebase-plan': {
       const { base } = z.object({ base: RefNameSchema }).parse(Object.fromEntries(url.searchParams))
       return Response.json(await rebasePlan(repo, base))
+    }
+    case '/api/worktrees':
+      return Response.json(await listWorktrees(repo))
+    case '/api/submodules':
+      return Response.json(await listSubmodules(repo))
+    case '/api/submodule-log': {
+      const { path, from, to } = SubmoduleLogQuerySchema.parse(Object.fromEntries(url.searchParams))
+      return Response.json(await submoduleLog(repo, path, from ?? null, to))
     }
     case '/api/bisect':
       return Response.json(await readBisect(repo))

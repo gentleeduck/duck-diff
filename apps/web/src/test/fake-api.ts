@@ -38,6 +38,11 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     lastMessage: async () => '',
     symbols: async (name) => ({ name, hits: [], truncated: false }),
     rebasePlan: async () => [],
+    worktrees: async () => [],
+    submodules: async () => [],
+    submoduleLog: async () => [],
+    openRepo: async () => 'http://127.0.0.1:1/',
+    tcd: async () => {},
     bisect: async () => ({ active: false, bad: false, good: 0, remaining: null, culprit: null, log: '' }),
     conflict: async (path) => ({
       path,

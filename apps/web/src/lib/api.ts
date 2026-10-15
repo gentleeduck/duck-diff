@@ -73,6 +73,8 @@ import {
   ReviewCommentSchema,
   type ReviewState,
   ReviewStateSchema,
+  type Submodule,
+  SubmoduleSchema,
   type SymbolResult,
   SymbolResultSchema,
   type SyncStatus,
@@ -85,6 +87,8 @@ import {
   UndoResultSchema,
   type WorkflowRun,
   WorkflowRunSchema,
+  type Worktree,
+  WorktreeSchema,
   type WriteRequest,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
@@ -127,6 +131,14 @@ export interface Api {
   file(path: string, ref?: string): Promise<FileContents>
   // The commits a rebase onto base replays, oldest first.
   rebasePlan(base: string): Promise<PlanCommit[]>
+  worktrees(): Promise<Worktree[]>
+  submodules(): Promise<Submodule[]>
+  // The commits a submodule pointer move brings in, newest first.
+  submoduleLog(path: string, from: string | null, to: string): Promise<PlanCommit[]>
+  // Starts a server for a worktree or submodule and gives its page url.
+  openRepo(path: string): Promise<string>
+  // Points Neovim's current tab at another checkout.
+  tcd(path: string): Promise<void>
   bisect(): Promise<BisectState>
   // A conflicted file as blocks, with what each side had.
   conflict(path: string): Promise<ConflictFile>
@@ -257,6 +269,11 @@ export type GitAction =
   | 'bisect-mark'
   | 'bisect-run'
   | 'bisect-reset'
+  | 'worktree-add'
+  | 'worktree-remove'
+  | 'worktree-prune'
+  | 'submodule-update'
+  | 'submodule-sync'
   | 'undo-commit'
   | 'reset'
   | 'branch-rename'
@@ -433,6 +450,19 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     tree: (ref) => json(`/api/tree${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`, z.array(z.string())),
     rebasePlan: (base) => json(`/api/rebase-plan?${new URLSearchParams({ base })}`, z.array(PlanCommitSchema)),
     bisect: () => json('/api/bisect', BisectStateSchema),
+    worktrees: () => json('/api/worktrees', z.array(WorktreeSchema)),
+    submodules: () => json('/api/submodules', z.array(SubmoduleSchema)),
+    submoduleLog(path, from, to) {
+      const params = new URLSearchParams({ path, to })
+      if (from) params.set('from', from)
+      return json(`/api/submodule-log?${params}`, z.array(PlanCommitSchema))
+    },
+    async openRepo(path) {
+      return (await send('POST', '/api/open-repo', { path }, z.object({ url: z.string() }))).url
+    },
+    async tcd(path) {
+      await sendEmpty('POST', '/api/nvim/tcd', { path })
+    },
     conflict: (path) => json(`/api/conflict?${new URLSearchParams({ path })}`, ConflictFileSchema),
     file(path, ref) {
       const params = new URLSearchParams({ path })

@@ -1,6 +1,7 @@
 import {
   abortOperation,
   addRemote,
+  addWorktree,
   bisectMark,
   bisectReset,
   bisectRun,
@@ -24,11 +25,13 @@ import {
   interactiveRebase,
   markResolved,
   mergeRef,
+  pruneWorktrees,
   pull,
   push,
   pushTags,
   rebaseOnto,
   removeRemote,
+  removeWorktree,
   renameBranch,
   resetTo,
   resolveConflict,
@@ -46,6 +49,7 @@ import {
   stashSave,
   stashStaged,
   switchBranch,
+  syncSubmodules,
   trackRemote,
   undoCommit,
   unmergedPaths,
@@ -53,6 +57,7 @@ import {
   unstageFile,
   unstageHunk,
   unstageLines,
+  updateSubmodules,
   writeResolution,
 } from '@duck-diff/git'
 import {
@@ -79,10 +84,13 @@ import {
   StashApplySchema,
   StashDropSchema,
   StashSaveSchema,
+  SubmoduleUpdateSchema,
   SwitchRequestSchema,
   TagCreateSchema,
   TagPushSchema,
   UpstreamSchema,
+  WorktreeAddSchema,
+  WorktreeRemoveSchema,
   type WriteRequest,
 } from '@duck-diff/protocol'
 import { HttpError } from './errors'
@@ -203,6 +211,21 @@ export async function gitAction(
     case 'bisect-reset':
       await bisectReset(repo)
       return { reason: 'refs', body: {} }
+    case 'worktree-add':
+      await addWorktree(repo, WorktreeAddSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'worktree-remove':
+      await removeWorktree(repo, WorktreeRemoveSchema.parse(await request.json()))
+      return { reason: 'refs', body: {} }
+    case 'worktree-prune':
+      await pruneWorktrees(repo)
+      return { reason: 'refs', body: {} }
+    case 'submodule-update':
+      await updateSubmodules(repo, SubmoduleUpdateSchema.parse(await request.json()))
+      return { reason: 'worktree', body: {} }
+    case 'submodule-sync':
+      await syncSubmodules(repo)
+      return { reason: 'worktree', body: {} }
     case 'mark-resolved':
       await markResolved(repo, PathRequestSchema.parse(await request.json()).path)
       return { reason: 'index', body: {} }

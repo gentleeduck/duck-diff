@@ -9,6 +9,11 @@ export function openKeys(file: string, line: number): string {
   return `<C-\\><C-n>:edit +${Math.max(1, line)} ${file.replace(SPECIAL, '\\$1')}<CR>`
 }
 
+// Switches the current tab to another checkout, as :tcd does, so the tab's files resolve there.
+export function tcdKeys(path: string): string {
+  return `<C-\\><C-n>:tcd ${path.replace(SPECIAL, '\\$1')}<CR>`
+}
+
 export const runNvim: NvimRunner = (args) =>
   new Promise((resolve, reject) => {
     const child = spawn('nvim', args, { stdio: 'ignore' })

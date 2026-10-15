@@ -86,6 +86,19 @@ export { type DiffTarget, targetArgs, unmergedPaths } from './target'
 export { type FileContents, listTree, readTreeFile, type TreeRef } from './tree'
 export { repoId, restoreLatest, snapshot } from './undo'
 export {
+  addWorktree,
+  listSubmodules,
+  listWorktrees,
+  pruneWorktrees,
+  removeWorktree,
+  type Submodule,
+  type SubmoduleCommit,
+  submoduleLog,
+  syncSubmodules,
+  updateSubmodules,
+  type Worktree,
+} from './worktrees'
+export {
   discardFile,
   discardHunk,
   splitPatch,
