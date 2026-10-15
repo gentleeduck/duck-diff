@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { instanceFile, liveInstance, pageUrl, removeInstance, writeInstance } from '../instance'
+import { browserCommand, instanceFile, liveInstance, pageUrl, removeInstance, writeInstance } from '../instance'
 import { assetName, checksumFor } from '../update'
 
 let data: string | null = null
@@ -42,5 +42,25 @@ describe('running instance', () => {
   it('builds page links with the token after any query', () => {
     expect(pageUrl({ port: 4, token: 'k' }, '/graph')).toBe('http://127.0.0.1:4/graph?token=k')
     expect(pageUrl({ port: 4, token: 'k' }, '/files?file=a')).toBe('http://127.0.0.1:4/files?file=a&token=k')
+  })
+})
+
+describe('opening the page', () => {
+  const has =
+    (...names: string[]) =>
+    (name: string) =>
+      names.includes(name) ? `/usr/bin/${name}` : null
+  it('opens an app window in a Chromium browser, like the Neovim plugin, and the default browser otherwise', () => {
+    expect(
+      browserCommand('http://x', { which: has('chromium', 'brave'), platform: 'linux', browser: undefined }),
+    ).toEqual(['chromium', '--app=http://x'])
+    expect(browserCommand('http://x', { which: has(), platform: 'linux', browser: undefined })).toEqual([
+      'xdg-open',
+      'http://x',
+    ])
+    expect(browserCommand('http://x', { which: has('chromium'), platform: 'linux', browser: 'firefox' })).toEqual([
+      'firefox',
+      'http://x',
+    ])
   })
 })

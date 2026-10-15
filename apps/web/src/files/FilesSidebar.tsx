@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { TreeSkeleton } from '../app/skeletons'
-import { useCanOpen } from '../hooks/useCanOpen'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
@@ -23,7 +23,7 @@ export function FilesSidebar() {
   const { api, fileSelection, fileHistory, queries } = app
   const { navigate } = useTarget()
   const { show } = useView()
-  const canOpen = useCanOpen()
+  const openInEditor = useOpenFile()
   const changed = useSession(selectFiles)
   const selected = useStore(fileSelection, selectPath)
   const tree = useQuery(queries.git.tree())
@@ -81,7 +81,7 @@ export function FilesSidebar() {
                   fileHistory.set(row.path)
                   show('changes')
                 }}
-                onNeovim={canOpen ? () => void api.open(row.path, 1) : undefined}
+                onEditor={() => void openInEditor(row.path)}
               />
             )
           }

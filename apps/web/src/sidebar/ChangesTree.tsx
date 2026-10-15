@@ -2,7 +2,7 @@ import { Input } from '@duck-diff/ui'
 import { useCallback, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { TreeSkeleton } from '../app/skeletons'
-import { useCanOpen } from '../hooks/useCanOpen'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
@@ -32,7 +32,7 @@ export function ChangesTree() {
   const { target } = useTarget()
   const kinds = useMemo(() => actionsFor(target), [target])
   const writes = useWrites()
-  const canOpen = useCanOpen()
+  const openInEditor = useOpenFile()
   const files = useSession(selectFiles)
   const loading = useSession(selectLoading)
   const [statuses, setStatuses] = useState<ReadonlySet<TreeStatus>>(new Set())
@@ -97,7 +97,7 @@ export function ChangesTree() {
                 openLabel="Go to file"
                 onOpen={() => open(row.path)}
                 onHistory={() => fileHistory.set(row.path)}
-                onNeovim={canOpen ? () => void api.open(row.path, 1) : undefined}
+                onEditor={() => void openInEditor(row.path)}
                 onViewed={file ? () => viewed.toggle(target, file) : undefined}
                 writes={file && file.status !== 'conflicted' ? kinds : []}
                 onWrite={(kind) => file && void writes.perform(kind, file)}

@@ -13,7 +13,7 @@ import { useSymbolClick } from '../code-nav/useSymbolClick'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
 import { useCodeScrollX } from '../diff/useCodeScrollX'
-import { useCanOpen } from '../hooks/useCanOpen'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
@@ -59,7 +59,7 @@ export default function FileView() {
   const { navigate } = useTarget()
   const { show } = useView()
   const [copied, setCopied] = useState(false)
-  const canOpen = useCanOpen()
+  const openInEditor = useOpenFile()
   const [preview, setPreview] = useState(true)
   const [blaming, setBlaming] = useState(false)
   const file = useQuery({ ...queries.git.file(path ?? '', at ?? undefined), enabled: Boolean(path) })
@@ -161,12 +161,10 @@ export default function FileView() {
               Show changes
             </Button>
           ) : null}
-          {canOpen ? (
-            <Button size="sm" variant="outline" aria-label="Open in Neovim" onClick={() => void api.open(path, 1)}>
-              <SquareArrowOutUpRight />
-              Open
-            </Button>
-          ) : null}
+          <Button size="sm" variant="outline" aria-label="Open" onClick={() => void openInEditor(path, line ?? 1)}>
+            <SquareArrowOutUpRight />
+            Open
+          </Button>
           <IconTool
             label={blaming ? 'Hide blame' : 'Blame: who changed each line'}
             onClick={() => {

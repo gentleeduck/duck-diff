@@ -13,7 +13,7 @@ import type { RowContextValue } from '../diff/RowViews'
 import type { DiffLine, DiffRow } from '../diff/rows'
 import { openFile } from '../files/open-file'
 import { type PullReviewState, pullOf } from '../github/pull-review'
-import { useCanOpen } from '../hooks/useCanOpen'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { hasScrollMemory } from '../hooks/useScrollMemory'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
@@ -571,7 +571,7 @@ export default function Viewer() {
     ],
   )
 
-  const canOpen = useCanOpen()
+  const openInEditor = useOpenFile()
 
   // Folding a file read halfway brings its header back to the top, with the next file right after it.
   const revealFile = useCallback((id: string) => requestAnimationFrame(() => viewer.current?.reveal(id)), [viewer])
@@ -631,7 +631,7 @@ export default function Viewer() {
                   }),
               }}
               note={file ? fileNote(file) : null}
-              onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
+              onOpen={() => void openInEditor(path, firstLine)}
               writes={
                 file && file.status !== 'conflicted' && kinds.length > 0 ? (
                   <WriteButtons kinds={kinds} scope="file" onWrite={(kind) => void writes.perform(kind, file)} />
@@ -644,8 +644,7 @@ export default function Viewer() {
       )
     },
     [
-      api,
-      canOpen,
+      openInEditor,
       byPath,
       kinds,
       writes,

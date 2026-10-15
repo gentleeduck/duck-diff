@@ -8,7 +8,7 @@ import { CodeRowsSkeleton } from '../app/skeletons'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
 import { useGit } from '../git/GitProvider'
-import { useCanOpen } from '../hooks/useCanOpen'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
 import { useStage } from '../state/stage'
@@ -213,7 +213,7 @@ function label(choice: Choice): string {
 function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
   const { api } = useApp()
   const { run, busy } = useGit()
-  const canOpen = useCanOpen()
+  const openInEditor = useOpenFile()
   const [choices, setChoices] = useState<Choices>({})
   // Editing the whole result as text replaces the blocks; markers left in it count as unresolved.
   const [whole, setWhole] = useState<string | null>(null)
@@ -271,16 +271,14 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
               Back to blocks
             </Button>
           )}
-          {canOpen ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              title="Open the file in Neovim at the first conflict left"
-              onClick={() => void api.open(file.path, firstConflictLine(file, {}) ?? 1)}>
-              <ExternalLink />
-              Neovim
-            </Button>
-          ) : null}
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Open the file at the first conflict left"
+            onClick={() => void openInEditor(file.path, firstConflictLine(file, {}) ?? 1)}>
+            <ExternalLink />
+            Open
+          </Button>
           <Button size="sm" disabled={left > 0} loading={busy === 'resolve-text'} onClick={() => void save()}>
             <Check />
             Mark resolved

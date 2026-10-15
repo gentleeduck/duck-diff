@@ -36,7 +36,7 @@ export function FileMenu({
   openLabel = 'Open',
   onChanges,
   onHistory,
-  onNeovim,
+  onEditor,
   writes = [],
   onWrite,
   onViewed,
@@ -46,7 +46,8 @@ export function FileMenu({
   openLabel?: string
   onChanges?(): void
   onHistory?(): void
-  onNeovim?(): void
+  // Opens the file in an editor (hooks/useOpenFile).
+  onEditor?(): void
   writes?: WriteKind[]
   onWrite?(kind: WriteKind): void
   onViewed?(): void
@@ -72,10 +73,10 @@ export function FileMenu({
           File history
         </ContextMenuItem>
       ) : null}
-      {onNeovim ? (
-        <ContextMenuItem onSelect={onNeovim}>
+      {onEditor ? (
+        <ContextMenuItem onSelect={onEditor}>
           <SquareArrowOutUpRight />
-          Open in Neovim
+          Open in editor
         </ContextMenuItem>
       ) : null}
       {onViewed ? (

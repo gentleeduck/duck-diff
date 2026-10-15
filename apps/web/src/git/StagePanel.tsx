@@ -15,7 +15,7 @@ import { useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { TreeSkeleton } from '../app/skeletons'
-import { useCanOpen } from '../hooks/useCanOpen'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
 import { openMerge } from '../merge/open-merge'
@@ -55,7 +55,7 @@ function Row({
   const { run } = useGit()
   const { target, navigate } = useTarget()
   const writes = useWrites()
-  const canOpen = useCanOpen()
+  const openInEditor = useOpenFile()
   const name = file.path.split('/').pop() ?? file.path
   const folder = file.path.slice(0, file.path.length - name.length - 1)
   const icon = fileGlyph(name)
@@ -152,7 +152,7 @@ function Row({
           openLabel="Show changes"
           onOpen={open}
           onHistory={() => fileHistory.set(file.path)}
-          onNeovim={canOpen ? () => void api.open(file.path, 1) : undefined}
+          onEditor={() => void openInEditor(file.path)}
           writes={kinds}
           onWrite={(kind) => void writes.perform(kind, file)}
         />

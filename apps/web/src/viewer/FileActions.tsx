@@ -37,7 +37,7 @@ export function FileActions({
       {note ? <span className="mr-2 text-muted-foreground">{note}</span> : null}
       {writes}
       {onOpen && (
-        <IconTool label="Open in Neovim" onClick={onOpen}>
+        <IconTool label="Open" tip="Open in your editor" onClick={onOpen}>
           <SquareArrowOutUpRight />
         </IconTool>
       )}

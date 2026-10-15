@@ -62,3 +62,13 @@ test('a terminal behind another panel tab keeps its size, so the shell does not 
   await page.waitForTimeout(300)
   expect(new Set(sizes)).toEqual(new Set([shown]))
 })
+
+test('with no Neovim attached, Open runs Neovim at the line in a terminal in the page', async ({ page, app }) => {
+  await page.goto(app.url)
+  await expect(page.locator('main')).toContainText('export const answer = 42')
+  const answer = page.waitForResponse((response) => response.url().endsWith('/api/open'))
+  await page.locator('[data-diff-view]').getByRole('button', { name: 'Open', exact: true }).first().click()
+  // This machine has nvim and no Neovim is attached, so the page is asked to run it at the change.
+  expect(await (await answer).json()).toEqual({ how: 'terminal', command: "nvim +1 -- 'src/app.ts'" })
+  await expect(page.getByRole('region', { name: 'Terminal 1' }).locator('.xterm')).toBeVisible()
+})

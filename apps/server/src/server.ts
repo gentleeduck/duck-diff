@@ -27,6 +27,7 @@ import type { ServerWebSocket } from 'bun'
 import { z } from 'zod'
 import { createToken, isAuthorized, tokenCookie } from './auth'
 import { createDiskCache, dataHome } from './disk-cache'
+import { launch, pickOpener, terminalCommand } from './editor'
 import { errorResponse, HttpError } from './errors'
 import { createForge } from './forge'
 import type { GitHubOptions } from './github'
@@ -59,6 +60,8 @@ export interface ServerOptions {
   // Address of the Neovim that started the server, so the page can open files in it.
   nvim?: string | null
   runNvim?: NvimRunner
+  // Tests choose where files open; by default the best on this machine (editor.ts).
+  pickOpener?: typeof pickOpener
   // Where discard snapshots go; tests point it at a temp folder.
   undoCache?: string
   // Where review comments are kept; tests point it at a temp folder.
@@ -312,15 +315,21 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           return new Response(null, { status: 204 })
         }
         if (url.pathname === '/api/open' && request.method === 'POST') {
-          if (!options.nvim) throw new HttpError(409, 'bad-request', 'no Neovim attached to this server')
           const { path, line } = OpenRequestSchema.parse(await request.json())
-          await (options.runNvim ?? runNvim)([
-            '--server',
-            options.nvim,
-            '--remote-send',
-            openKeys(`${repo}/${path}`, line),
-          ])
-          return new Response(null, { status: 204 })
+          const opener = (options.pickOpener ?? pickOpener)({ nvim: options.nvim ?? null })
+          if (opener.how === 'nvim' && options.nvim) {
+            await (options.runNvim ?? runNvim)([
+              '--server',
+              options.nvim,
+              '--remote-send',
+              openKeys(`${repo}/${path}`, line),
+            ])
+            return Response.json({ how: 'nvim' })
+          }
+          // Neovim without one attached runs in a terminal in the page, which the page opens itself.
+          if (opener.how === 'terminal') return Response.json({ how: 'terminal', command: terminalCommand(path, line) })
+          if (opener.how === 'editor' || opener.how === 'system') launch(opener, repo, path, line)
+          return Response.json({ how: opener.how, command: opener.how === 'nvim' ? null : opener.command })
         }
         if (url.pathname === '/api/state') {
           if (request.method === 'PUT') {

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { useGit } from '../git/GitProvider'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { useTarget } from '../hooks/useTarget'
 import { shown } from '../lib/dom'
 import { glide } from '../lib/glide'
@@ -58,6 +59,7 @@ const diffScroller = () => shown('[data-diff-view]')
 // One capture listener drives the page from the keyboard the way the user's Neovim does.
 export function useKeys(handlers: KeyHandlers) {
   const app = useApp()
+  const openInEditor = useOpenFile()
   const {
     api,
     session,
@@ -190,7 +192,7 @@ export function useKeys(handlers: KeyHandlers) {
         if (!at) return
         const change = at.hunk ? firstChange(at.hunk) : null
         const line = change?.side === 'additions' ? change.line : (at.hunk?.additionStart ?? 1)
-        api.open(at.path, line).catch((error: Error) => toast.error(error.message))
+        void openInEditor(at.path, line)
       },
       blame: () => {
         const at = current()
@@ -355,7 +357,21 @@ export function useKeys(handlers: KeyHandlers) {
       rebuild()
       dispatcher.reset()
     }
-  }, [api, session, settings, viewer, reviews, viewed, view, panel, terminalTabs, keys, keyOverrides, tabs, blameFiles])
+  }, [
+    session,
+    settings,
+    viewer,
+    reviews,
+    viewed,
+    view,
+    panel,
+    terminalTabs,
+    keys,
+    keyOverrides,
+    tabs,
+    blameFiles,
+    openInEditor,
+  ])
 
   // Runs a command by id, for the keymaps list.
   return useCallback((id: string) => runner.current(id), [])

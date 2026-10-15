@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { repoId } from '@duck-diff/git'
@@ -64,16 +65,31 @@ export async function liveInstance(file: string): Promise<Instance | null> {
 export const pageUrl = (instance: Pick<Instance, 'port' | 'token'>, path: string) =>
   `http://127.0.0.1:${instance.port}${path}${path.includes('?') ? '&' : '?'}token=${instance.token}`
 
-// The system's way of opening a link: $BROWSER first, as many tools honor it.
+// Chromium-family browsers that open a page as an app window, as the Neovim plugin does (lua/duck-diff/open.lua).
+const APP_BROWSERS = ['google-chrome-stable', 'google-chrome', 'chromium', 'chromium-browser', 'brave-browser', 'brave']
+
+// How a link opens: as an app window (no tabs or bookmarks) when a Chromium browser is around, the default
+// browser otherwise. $BROWSER, as many tools honor it, wins over both.
+export function browserCommand(
+  url: string,
+  {
+    which = (name: string) => Bun.which(name),
+    platform = process.platform,
+    browser = process.env.BROWSER?.split(':')[0],
+  }: { which?: (name: string) => string | null; platform?: NodeJS.Platform; browser?: string } = {},
+): string[] {
+  if (browser) return [browser, url]
+  if (platform === 'darwin')
+    return existsSync('/Applications/Google Chrome.app')
+      ? ['open', '-na', 'Google Chrome', '--args', `--app=${url}`]
+      : ['open', url]
+  if (platform === 'win32') return ['cmd', '/c', 'start', '""', url]
+  const app = APP_BROWSERS.find((name) => which(name))
+  return app ? [app, `--app=${url}`] : ['xdg-open', url]
+}
+
 export function openBrowser(url: string): boolean {
-  const browser = process.env.BROWSER?.split(':')[0]
-  const [command, ...args] = browser
-    ? [browser, url]
-    : process.platform === 'darwin'
-      ? ['open', url]
-      : process.platform === 'win32'
-        ? ['cmd', '/c', 'start', '""', url]
-        : ['xdg-open', url]
+  const [command, ...args] = browserCommand(url)
   try {
     const child = spawn(command as string, args, { detached: true, stdio: 'ignore' })
     child.on('error', () => {})

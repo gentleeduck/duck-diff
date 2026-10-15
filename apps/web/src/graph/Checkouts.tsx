@@ -6,7 +6,7 @@ import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { IconTool } from '../app/IconTool'
 import { useGit } from '../git/GitProvider'
-import { useCanOpen } from '../hooks/useCanOpen'
+import { useNeovim } from '../hooks/useNeovim'
 import { useRefs } from '../hooks/useRefs'
 
 const short = (sha: string | null) => (sha ? sha.slice(0, 7) : 'none')
@@ -35,7 +35,7 @@ export function Worktrees() {
   const { api, queries } = useApp()
   const { run } = useGit()
   const { refs } = useRefs()
-  const canOpen = useCanOpen()
+  const neovim = useNeovim()
   const open = useOpenRepo()
   const trees = useQuery(queries.git.worktrees()).data ?? NO_TREES
 
@@ -99,7 +99,7 @@ export function Worktrees() {
               <IconTool label={`Open ${tree.path} in a new tab`} onClick={() => void open(tree.path)}>
                 <ExternalLink />
               </IconTool>
-              {canOpen ? (
+              {neovim ? (
                 <IconTool
                   label={`Switch Neovim's tab to ${tree.path}`}
                   tip="Neovim :tcd here"

@@ -135,7 +135,8 @@ export interface Api {
   commits(query: { head: string; base?: string; limit?: number; path?: string }): Promise<Commit[]>
   diff(target: DiffTarget, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   content(target: DiffTarget, side: 'old' | 'new', file: Pick<ChangedFile, 'path' | 'oldPath'>): Promise<string | null>
-  open(path: string, line: number): Promise<void>
+  // Opens a file at a line in the best editor around; Neovim with none attached is left to the page to run.
+  open(path: string, line: number): Promise<OpenResult>
   write(request: WriteRequest): Promise<void>
   undo(): Promise<UndoResult>
   reviews(target: DiffTarget): Promise<ReviewComment[]>
@@ -338,6 +339,13 @@ export type GitAction =
   | 'skip'
   | 'clean'
   | 'stash-staged'
+
+// How the server opened a file (server editor.ts); a terminal answer carries the command for the page to run.
+const OpenResultSchema = z.object({
+  how: z.enum(['nvim', 'terminal', 'editor', 'system']),
+  command: z.string().nullable().optional(),
+})
+export type OpenResult = z.infer<typeof OpenResultSchema>
 
 const ContentSchema = z.object({ contents: z.string().nullable() })
 
@@ -571,12 +579,6 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     async deleteReview(id) {
       await request(`/api/reviews/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' })
     },
-    async open(path, line) {
-      await request('/api/open', undefined, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path, line }),
-      })
-    },
+    open: (path, line) => send('POST', '/api/open', { path, line }, OpenResultSchema),
   }
 }
