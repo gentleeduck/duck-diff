@@ -11,6 +11,7 @@ const SHORTCUTS: [string, string][] = [
   ['/', 'Filter files'],
   ['1 to 5', 'Changes, graph, files, pull requests, issues'],
   ['Ctrl B', 'Hide or show the left panel'],
+  ['Ctrl + / Ctrl - / Ctrl 0', 'Bigger, smaller or default text everywhere'],
   ['Ctrl K', 'Command palette'],
   ['?', 'This list'],
 ]

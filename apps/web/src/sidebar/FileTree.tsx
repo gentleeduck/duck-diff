@@ -11,12 +11,13 @@ import {
   useRef,
   useState,
 } from 'react'
+import { useRowHeight } from '../app/useSizes'
 import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_GLYPH } from './icons'
 import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
 export type { Row as TreeRow }
 
-const ROW_HEIGHT = 28
+const ROW = 28
 
 // Extra props come from a context-menu trigger wrapping the row.
 function TreeItem({
@@ -134,12 +135,16 @@ export function FileTree({
     setToggled((prev) => (folders.every((folder) => prev.has(folder)) ? prev : new Set([...prev, ...folders])))
   }, [collapsed, selected, setToggled])
   const scroller = useRef<HTMLDivElement>(null)
+  const ROW_HEIGHT = useRowHeight(ROW)
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroller.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 20,
   })
+  // A new interface size changes every row's height at once.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the height is the trigger
+  useEffect(() => virtualizer.measure(), [virtualizer, ROW_HEIGHT])
 
   const open = (row: Row) => {
     if (row.kind === 'file') return onOpenFile(row.path)

@@ -98,14 +98,14 @@
   color: oklch(from var(--tok) calc(1 - l * 0.62) calc(c * 1.15) h);
 }
 
-/* One size across the page, the same as the code, including duck-ui's own small and large text. */
+/* One size across the page, duck-ui's small and large text included; in rem, so the interface size scales it. */
 @theme {
-  --text-xs: 15px;
-  --text-sm: 15px;
-  --text-base: 15px;
-  --text-lg: 15px;
-  --text-xl: 15px;
-  --text-2xl: 15px;
+  --text-xs: 0.9375rem;
+  --text-sm: 0.9375rem;
+  --text-base: 0.9375rem;
+  --text-lg: 0.9375rem;
+  --text-xl: 0.9375rem;
+  --text-2xl: 0.9375rem;
 }
 
 @theme inline {
@@ -139,7 +139,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 /* GitHub's rendered comments, in the same terminal look as our own Markdown. */

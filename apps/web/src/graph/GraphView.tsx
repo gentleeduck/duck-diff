@@ -12,6 +12,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { GitBranch, Tag } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { useRowHeight } from '../app/useSizes'
 import { useStore } from '../lib/store'
 import { avatarFor, useAvatars } from './avatars'
 import { CommitHover, CommitMenu } from './CommitMenu'
@@ -23,7 +24,7 @@ import { NewBranchDialog } from './NewBranchDialog'
 import type { RefLabel } from './records'
 import type { GraphState } from './store'
 
-const ROW_HEIGHT = 28
+const ROW = 28
 // Very wide histories clip at this many lanes so the subject column always stays readable.
 const MAX_LANES = 10
 const selectGraph = (state: GraphState) => state
@@ -94,12 +95,16 @@ export default function GraphView() {
 
   const index = useMemo(() => new Map(state.entries.map((entry, i) => [entry.sha, i])), [state.entries])
 
+  const ROW_HEIGHT = useRowHeight(ROW)
   const virtualizer = useVirtualizer({
     count: state.entries.length,
     getScrollElement: () => scroller.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 20,
   })
+  // A new interface size changes every row's height at once.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the height is the trigger
+  useEffect(() => virtualizer.measure(), [virtualizer, ROW_HEIGHT])
   const items = virtualizer.getVirtualItems()
 
   // Selecting a commit from elsewhere (a branch in the sidebar) brings its row into view.

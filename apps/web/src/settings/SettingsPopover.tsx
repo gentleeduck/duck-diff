@@ -98,7 +98,7 @@ export function SettingsPopover() {
     )
   }
 
-  const stepper = (key: 'fontSize' | 'tabSize', label: string, min: number, max: number) => (
+  const stepper = (key: 'fontSize' | 'uiFontSize' | 'tabSize', label: string, min: number, max: number) => (
     <Row label={label}>
       <div className="flex items-center gap-1">
         <Button
@@ -167,7 +167,8 @@ export function SettingsPopover() {
         {toggle('lineNumbers', 'Line numbers')}
         {toggle('backgrounds', 'Line backgrounds')}
         {toggle('expandUnchanged', 'Show unchanged lines')}
-        {stepper('fontSize', 'Font size', 10, 24)}
+        {stepper('fontSize', 'Code size', 10, 24)}
+        {stepper('uiFontSize', 'Interface size', 10, 24)}
         {stepper('tabSize', 'Tab width', 1, 8)}
         <div className="mt-2 flex justify-end border-border border-t pt-2">
           <Button variant="outline" size="sm" onClick={() => store.set(DEFAULT_SETTINGS)}>

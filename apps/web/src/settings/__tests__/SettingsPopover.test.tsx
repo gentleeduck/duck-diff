@@ -44,7 +44,7 @@ describe('SettingsPopover', () => {
 
   it('steps font size and tab width within bounds, and resets', () => {
     open()
-    fireEvent.click(screen.getByLabelText('Increase font size'))
+    fireEvent.click(screen.getByLabelText('Increase code size'))
     fireEvent.click(screen.getByLabelText('Decrease tab width'))
     expect(read()).toMatchObject({ fontSize: DEFAULT_SETTINGS.fontSize + 1, tabSize: DEFAULT_SETTINGS.tabSize - 1 })
     fireEvent.click(screen.getByText('Reset to defaults'))

@@ -3,6 +3,8 @@ import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import type { View } from '../lib/view-url'
 import { lineHash, lineText } from '../review/anchor'
+import { resize } from '../settings/FontSizeMenu'
+import { BASE_FONT } from '../state/settings'
 import { actionsFor, firstChange, type WriteKind } from '../viewer/actions'
 import { visibleItems } from '../viewer/visible-items'
 import { useWrites } from '../writes/WritesProvider'
@@ -17,7 +19,15 @@ const VIEWS: Partial<Record<Action, View>> = {
   'view-issues': 'issues',
 }
 // Everything else acts on the diff, so it only runs where the diff is on screen.
-const ANYWHERE = new Set<Action>(['palette', 'help', 'toggle-sidebar', ...(Object.keys(VIEWS) as Action[])])
+const ANYWHERE = new Set<Action>([
+  'palette',
+  'help',
+  'toggle-sidebar',
+  'font-bigger',
+  'font-smaller',
+  'font-reset',
+  ...(Object.keys(VIEWS) as Action[]),
+])
 const WRITES: Partial<Record<Action, WriteKind>> = { stage: 'stage', unstage: 'unstage', discard: 'discard' }
 
 export function useKeyboard(open: { palette(): void; help(): void; show(view: View): void }) {
@@ -47,6 +57,10 @@ export function useKeyboard(open: { palette(): void; help(): void; show(view: Vi
       if (action === 'palette') return handlers.current.palette()
       if (action === 'help') return handlers.current.help()
       if (action === 'toggle-sidebar') return settings.set((prev) => ({ ...prev, sidebar: !prev.sidebar }))
+      if (action === 'font-bigger') return settings.set((prev) => resize(prev, 'both', 1))
+      if (action === 'font-smaller') return settings.set((prev) => resize(prev, 'both', -1))
+      if (action === 'font-reset')
+        return settings.set((prev) => ({ ...prev, fontSize: BASE_FONT, uiFontSize: BASE_FONT }))
       const destination = VIEWS[action]
       if (destination) return handlers.current.show(destination)
       if (action === 'focus-filter') return document.getElementById('file-filter')?.focus()
