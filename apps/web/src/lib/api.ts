@@ -34,6 +34,7 @@ import {
   type ListQuery,
   type Options,
   OptionsSchema,
+  type PendingComment,
   type PullCommit,
   PullCommitSchema,
   type PullDetails,
@@ -51,6 +52,8 @@ import {
   RepoInfoSchema,
   type ReviewComment,
   ReviewCommentSchema,
+  type ReviewState,
+  ReviewStateSchema,
   type SyncStatus,
   SyncStatusSchema,
   type Thread,
@@ -142,7 +145,10 @@ export interface GitHubApi {
     input: { body: string; path: string; line: number; side: 'LEFT' | 'RIGHT' },
   ): Promise<GitHubReviewComment>
   reply(number: number, inReplyTo: number, body: string): Promise<GitHubReviewComment>
-  review(number: number, event: ReviewEvent, body: string): Promise<void>
+  review(number: number, event: ReviewEvent, body: string, comments?: PendingComment[]): Promise<void>
+  reviewState(number: number): Promise<ReviewState>
+  resolveThread(number: number, thread: string, resolved: boolean): Promise<void>
+  setViewed(number: number, path: string, viewed: boolean): Promise<void>
   merge(number: number, method: MergeMethod): Promise<void>
   issues(state: ItemState): Promise<IssueSummary[]>
   issue(number: number): Promise<IssueDetails>
@@ -267,7 +273,11 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       send('POST', `/api/github/pulls/${number}/review-comments`, input, GitHubReviewCommentSchema),
     reply: (number, inReplyTo, body) =>
       send('POST', `/api/github/pulls/${number}/replies`, { inReplyTo, body }, GitHubReviewCommentSchema),
-    review: (number, event, body) => post(`/api/github/pulls/${number}/reviews`, { event, body }),
+    review: (number, event, body, comments = []) =>
+      post(`/api/github/pulls/${number}/reviews`, { event, body, comments }),
+    reviewState: (number) => json(`/api/github/pulls/${number}/review-state`, ReviewStateSchema),
+    resolveThread: (number, thread, resolved) => post(`/api/github/pulls/${number}/resolve`, { thread, resolved }),
+    setViewed: (number, path, viewed) => post(`/api/github/pulls/${number}/viewed`, { path, viewed }),
     merge: (number, method) => post(`/api/github/pulls/${number}/merge`, { method }),
     issues: (state) => json(`/api/github/issues?state=${state}`, z.array(IssueSummarySchema)),
     issue: (number) => json(`/api/github/issues/${number}`, IssueDetailsSchema),

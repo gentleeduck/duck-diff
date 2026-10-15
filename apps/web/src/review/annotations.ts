@@ -1,4 +1,4 @@
-import type { ChangedFile, GitHubReviewComment, ReviewComment } from '@duck-diff/protocol'
+import type { ChangedFile, GitHubReviewComment, PendingComment, ReviewComment } from '@duck-diff/protocol'
 import type { CodeViewDiffItem, DiffLineAnnotation } from '@pierre/diffs'
 import { isImage } from '../viewer/file-info'
 import { anchorComments, type Side } from './anchor'
@@ -8,6 +8,8 @@ export interface Draft {
   side: Side
   line: number
   lineHash: string
+  // The line as it reads now, for a suggested change to start from.
+  text?: string
 }
 
 export type Note =
@@ -15,6 +17,7 @@ export type Note =
   | { kind: 'draft'; draft: Draft }
   | { kind: 'image'; file: ChangedFile }
   | { kind: 'github'; thread: GitHubReviewComment[] }
+  | { kind: 'pending'; comment: PendingComment; index: number }
 
 export type NoteItem = CodeViewDiffItem<Note>
 
@@ -38,6 +41,7 @@ export function createAnnotator() {
     files: readonly ChangedFile[] = [],
     opened: ReadonlySet<string> = new Set(),
     remote: readonly GitHubReviewComment[] = [],
+    pending: readonly PendingComment[] = [],
   ): NoteItem[] => {
     const threads = githubThreads(remote)
     const images = new Map(files.filter((file) => file.binary && isImage(file.path)).map((file) => [file.path, file]))
@@ -65,6 +69,14 @@ export function createAnnotator() {
             metadata: { kind: 'github', thread },
           })
         }
+      }
+      for (const [index, comment] of pending.entries()) {
+        if (comment.path !== path) continue
+        annotations.push({
+          side: comment.side === 'LEFT' ? 'deletions' : 'additions',
+          lineNumber: comment.line,
+          metadata: { kind: 'pending', comment, index },
+        })
       }
       const image = images.get(path)
       // Binary images have no lines, so their preview sits above the (empty) diff as a file-level note.

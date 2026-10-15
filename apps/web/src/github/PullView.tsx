@@ -35,6 +35,7 @@ import type { MergeMethod, ReviewEvent } from '../lib/api'
 import { ChecksList } from './Checks'
 import { Avatar, Comment, Composer } from './Conversation'
 import { ItemSidebar } from './ItemSidebar'
+import { ReviewChanges } from './ReviewChanges'
 import { sidebarActions } from './SidebarEditors'
 import { StatePill } from './StatePill'
 import { ThreadMenu } from './ThreadMenu'
@@ -397,7 +398,12 @@ export default function PullView({ number, onChanged }: { number: number; onChan
             label="Files changed"
             count={pull.changedFiles}
           />
-          <span className="ms-auto pb-2 tabular-nums">
+          {tab === 'files' ? (
+            <span className="ms-auto pb-1.5">
+              <ReviewChanges />
+            </span>
+          ) : null}
+          <span className={`${tab === 'files' ? 'ms-3' : 'ms-auto'} pb-2 tabular-nums`}>
             <span className="text-added">+{pull.additions.toLocaleString()}</span>{' '}
             <span className="text-removed">-{pull.deletions.toLocaleString()}</span>
           </span>

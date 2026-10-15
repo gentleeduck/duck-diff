@@ -2,6 +2,7 @@ import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { GitPullRequest, X } from 'lucide-react'
 import { useApp } from '../app/AppProvider'
 import { pullOf } from '../github/pull-review'
+import { ReviewChanges } from '../github/ReviewChanges'
 import { useRefs } from '../hooks/useRefs'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
@@ -83,6 +84,7 @@ export function CompareBar() {
           Conversation
         </Button>
       ) : null}
+      {pull !== null ? <ReviewChanges /> : null}
       <p className="hidden shrink-0 text-muted-foreground tabular-nums @md:block">
         {files} {files === '1' ? 'file' : 'files'}
         <span className="ml-3 text-added">+{additions}</span>

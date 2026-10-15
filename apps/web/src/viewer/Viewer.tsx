@@ -45,6 +45,8 @@ const EMPTY: Record<DiffTarget['kind'], string> = {
 const selectSettings = (state: Settings) => state
 const selectReviews = (state: ReviewsState) => state
 const selectRemote = (state: PullReviewState) => state.comments
+const selectPending = (state: PullReviewState) => state.pending
+const selectGitHubViewed = (state: PullReviewState) => state.viewed
 const selectViewed = (state: ViewedState) => state
 
 // State that belongs to one comparison and starts over when the comparison changes.
@@ -71,10 +73,19 @@ export default function Viewer() {
   const shownKey = targetKey(target)
   const { comments, draft } = useStore(reviews, selectReviews)
   const remote = useStore(pullReview, selectRemote)
+  const pending = useStore(pullReview, selectPending)
   const pull = pullOf(target)
   useEffect(() => {
     pullReview.load(pull).catch(() => {})
   }, [pullReview, pull])
+
+  // Files already viewed on GitHub start viewed here.
+  const githubViewed = useStore(pullReview, selectGitHubViewed)
+  useEffect(() => {
+    if (pull === null || githubViewed.size === 0) return
+    const local = viewedPaths(viewed.get(), target, files)
+    for (const file of files) if (githubViewed.has(file.path) && !local.has(file.path)) viewed.toggle(target, file)
+  }, [pull, githubViewed, files, target, viewed])
   const viewedState = useStore(viewed, selectViewed)
   const settings = useSettings(selectSettings)
   const writes = useWrites()
@@ -97,8 +108,8 @@ export default function Viewer() {
   const opened = useMemo(() => new Set([...toggled].filter(([, fold]) => !fold).map(([path]) => path)), [toggled])
   const annotate = useMemo(createAnnotator, [])
   const items = useMemo(
-    () => annotate(shown, comments, draft, folded, files, opened, remote),
-    [annotate, shown, comments, draft, folded, files, opened, remote],
+    () => annotate(shown, comments, draft, folded, files, opened, remote, pending),
+    [annotate, shown, comments, draft, folded, files, opened, remote, pending],
   )
 
   // Unchanged lines are read from the full file the first time someone opens a gap.
@@ -182,7 +193,13 @@ export default function Viewer() {
       comment(item: NoteItem, line: DiffLine, side) {
         const number = side === 'additions' ? line.newNo : line.oldNo
         if (number === null) return
-        reviews.startDraft({ path: item.fileDiff.name, side, line: number, lineHash: lineHash(line.text) })
+        reviews.startDraft({
+          path: item.fileDiff.name,
+          side,
+          line: number,
+          lineHash: lineHash(line.text),
+          text: line.text,
+        })
       },
       write(kind: WriteKind, item, index) {
         const file = byPath.get(item.fileDiff.name)
@@ -238,7 +255,13 @@ export default function Viewer() {
           <FileActions
             path={path}
             viewed={folded.has(path)}
-            onViewed={() => file && viewed.toggle(target, file)}
+            onViewed={() => {
+              if (!file) return
+              const nowViewed = !viewedPaths(viewed.get(), target, files).has(file.path)
+              viewed.toggle(target, file)
+              // On a pull request the mark is GitHub's too, so it shows on github.com and comes back next time.
+              if (pull !== null) pullReview.setViewed(file.path, nowViewed).catch(() => {})
+            }}
             onHistory={() => fileHistory.set(path)}
             note={file ? fileNote(file) : null}
             onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
@@ -251,7 +274,7 @@ export default function Viewer() {
         </FileHeader>
       )
     },
-    [api, canOpen, byPath, kinds, writes, folded, viewed, target, fileHistory, setToggled],
+    [api, canOpen, byPath, kinds, writes, folded, viewed, target, fileHistory, setToggled, files, pull, pullReview],
   )
 
   const renderNote = useCallback((note: Note) => <ReviewNote note={note} />, [])

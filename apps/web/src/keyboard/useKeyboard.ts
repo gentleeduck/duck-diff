@@ -100,7 +100,8 @@ export function useKeyboard(open: { palette(): void; help(): void; show(view: Vi
         if (file) viewed.toggle(target, file)
       } else if (hunk && action === 'comment') {
         const { side, line } = firstChange(hunk)
-        reviews.startDraft({ path, side, line, lineHash: lineHash(lineText(item.fileDiff, side, line) ?? '') })
+        const text = lineText(item.fileDiff, side, line) ?? ''
+        reviews.startDraft({ path, side, line, lineHash: lineHash(text), text })
       } else if (action === 'open') {
         const at = hunk ? firstChange(hunk) : null
         const line = at?.side === 'additions' ? at.line : (hunk?.additionStart ?? 1)
