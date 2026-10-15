@@ -19,77 +19,101 @@ import type { Settings } from '../state/settings'
 
 const selectPatterns = (state: Settings) => state.hidePatterns
 
-// One pattern the user added: shown as its text, edited in place, Enter to keep and Escape to drop the edit.
-function PatternText({ entry, onSave }: { entry: HidePattern; onSave(pattern: string): void }) {
-  const [draft, setDraft] = useState<string | null>(null)
-  if (draft === null) {
-    return (
-      <>
-        <code className="min-w-0 flex-1 truncate pe-0.5" title={entry.pattern}>
-          {entry.pattern}
-        </code>
-        <Button size="icon" variant="ghost" aria-label={`Edit ${entry.label}`} onClick={() => setDraft(entry.pattern)}>
-          <Pencil />
-        </Button>
-      </>
-    )
-  }
-  const ok = validPattern(draft)
-  const keep = () => {
-    if (!ok) return
-    onSave(draft)
-    setDraft(null)
+let counter = 0
+const newId = () => `hide-${Date.now().toString(36)}-${(counter++).toString(36)}`
+
+interface Draft {
+  label: string
+  pattern: string
+}
+
+// A name and a regex, for adding a pattern and for editing one; the name falls back to the regex.
+function PatternForm({
+  initial,
+  submit,
+  onSubmit,
+  onCancel,
+  names,
+}: {
+  initial: Draft
+  submit: 'add' | 'keep'
+  onSubmit(draft: Draft): void
+  onCancel?(): void
+  names: { label: string; pattern: string }
+}) {
+  const [draft, setDraft] = useState(initial)
+  const ok = validPattern(draft.pattern)
+  const cancelOnEscape = (event: React.KeyboardEvent) => {
+    if (event.key !== 'Escape' || !onCancel) return
+    // Escape leaves the edit, not the whole popover.
+    event.preventDefault()
+    event.stopPropagation()
+    onCancel()
   }
   return (
     <form
-      className="flex min-w-0 flex-1 items-center gap-1"
+      className="flex min-w-0 flex-1 flex-col gap-1"
       onSubmit={(event) => {
         event.preventDefault()
-        keep()
+        if (!ok) return
+        onSubmit({ label: draft.label.trim() || draft.pattern, pattern: draft.pattern })
+        if (submit === 'add') setDraft({ label: '', pattern: '' })
       }}>
-      <Input
-        autoFocus
-        aria-label={`Pattern for ${entry.label}`}
-        aria-invalid={!ok}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key !== 'Escape') return
-          // Escape leaves the edit, not the whole popover.
-          event.preventDefault()
-          event.stopPropagation()
-          setDraft(null)
-        }}
-        className="h-7 min-w-0 flex-1"
-      />
-      <Button type="submit" size="icon" variant="ghost" aria-label="Keep the pattern" disabled={!ok}>
-        <Check />
-      </Button>
+      <div className="flex items-center gap-1">
+        <Input
+          autoFocus={submit === 'keep'}
+          aria-label={names.label}
+          placeholder="Name, like Translations"
+          value={draft.label}
+          onChange={(event) => setDraft({ ...draft, label: event.target.value })}
+          onKeyDown={cancelOnEscape}
+          className="h-7 min-w-0 flex-1"
+        />
+        {submit === 'keep' ? (
+          <>
+            <Button type="submit" size="icon" variant="ghost" aria-label="Keep the pattern" disabled={!ok}>
+              <Check />
+            </Button>
+            <Button type="button" size="icon" variant="ghost" aria-label="Drop the edit" onClick={onCancel}>
+              <X />
+            </Button>
+          </>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-1">
+        <Input
+          aria-label={names.pattern}
+          aria-invalid={draft.pattern.length > 0 && !ok}
+          placeholder="A regex, like \.snap$ or ^docs/"
+          value={draft.pattern}
+          onChange={(event) => setDraft({ ...draft, pattern: event.target.value })}
+          onKeyDown={cancelOnEscape}
+          className="h-7 min-w-0 flex-1 font-mono"
+        />
+        {submit === 'add' ? (
+          <Button type="submit" size="sm" disabled={!ok}>
+            <Plus />
+            Add
+          </Button>
+        ) : null}
+      </div>
+      {draft.pattern && !ok ? <p className="text-tn-red">That is not a valid regular expression.</p> : null}
     </form>
   )
 }
-
-let counter = 0
-const newId = () => `hide-${Date.now().toString(36)}-${(counter++).toString(36)}`
 
 // Paths left out of the tree and the diff, by regular expression; tests are the first, built-in entry.
 export function HideFilter({ hiddenCount }: { hiddenCount: number }) {
   const { settings } = useApp()
   const patterns = useSettings(selectPatterns)
-  const [draft, setDraft] = useState('')
+  const [editing, setEditing] = useState<string | null>(null)
   const on = patterns.filter((entry) => entry.enabled).length
   const save = (next: HidePattern[]) => settings.set((prev) => ({ ...prev, hidePatterns: next }))
   const update = (id: string, change: Partial<HidePattern>) =>
     save(patterns.map((entry) => (entry.id === id ? { ...entry, ...change } : entry)))
-  const ok = validPattern(draft)
-  const add = () => {
-    if (!ok) return
-    save([...patterns, { id: newId(), label: draft, pattern: draft, enabled: true }])
-    setDraft('')
-  }
 
   return (
-    <Popover>
+    <Popover onOpenChange={() => setEditing(null)}>
       <Tooltip>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
@@ -109,7 +133,7 @@ export function HideFilter({ hiddenCount }: { hiddenCount: number }) {
         </TooltipTrigger>
         <TooltipContent>{on ? `Hiding ${hiddenCount} files` : 'Hide files by pattern'}</TooltipContent>
       </Tooltip>
-      <PopoverContent align="end" className="flex w-[26rem] flex-col gap-3">
+      <PopoverContent align="end" className="flex w-[28rem] flex-col gap-3">
         <div className="flex items-center justify-between">
           <span>Hide files</span>
           {hiddenCount ? (
@@ -118,56 +142,66 @@ export function HideFilter({ hiddenCount }: { hiddenCount: number }) {
             </Badge>
           ) : null}
         </div>
-        <ul aria-label="Hide patterns" className="flex flex-col gap-1">
+        <ul aria-label="Hide patterns" className="flex flex-col gap-2">
           {patterns.map((entry) => (
-            <li key={entry.id} className="flex items-center gap-2">
+            <li key={entry.id} className="flex items-start gap-2">
               <Switch
-                className="border-muted-foreground"
+                className="mt-1 border-muted-foreground"
                 aria-label={`Hide ${entry.label}`}
                 checked={entry.enabled}
                 onCheckedChange={(enabled: boolean) => update(entry.id, { enabled })}
               />
-              {entry.id === 'tests' ? (
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate pe-0.5">{entry.label}</span>
-                  <code className="block truncate text-muted-foreground" title={entry.pattern}>
-                    {entry.pattern}
-                  </code>
-                </span>
+              {editing === entry.id ? (
+                <PatternForm
+                  initial={{ label: entry.label === entry.pattern ? '' : entry.label, pattern: entry.pattern }}
+                  submit="keep"
+                  names={{ label: `Name for ${entry.label}`, pattern: `Pattern for ${entry.label}` }}
+                  onSubmit={(draft) => {
+                    update(entry.id, draft)
+                    setEditing(null)
+                  }}
+                  onCancel={() => setEditing(null)}
+                />
               ) : (
-                <PatternText entry={entry} onSave={(pattern) => update(entry.id, { pattern, label: pattern })} />
-              )}
-              {entry.id === 'tests' ? null : (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={`Remove ${entry.label}`}
-                  onClick={() => save(patterns.filter((other) => other.id !== entry.id))}>
-                  <X />
-                </Button>
+                <>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate pe-0.5">{entry.label}</span>
+                    <code className="block truncate text-muted-foreground" title={entry.pattern}>
+                      {entry.pattern}
+                    </code>
+                  </span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Edit ${entry.label}`}
+                    onClick={() => setEditing(entry.id)}>
+                    <Pencil />
+                  </Button>
+                  {/* The tests entry can be changed and switched off, but stays. */}
+                  {entry.id === 'tests' ? (
+                    <span className="size-7 shrink-0" />
+                  ) : (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label={`Remove ${entry.label}`}
+                      onClick={() => save(patterns.filter((other) => other.id !== entry.id))}>
+                      <X />
+                    </Button>
+                  )}
+                </>
               )}
             </li>
           ))}
         </ul>
-        <form
-          className="flex items-center gap-2"
-          onSubmit={(event) => {
-            event.preventDefault()
-            add()
-          }}>
-          <Input
-            aria-label="New hide pattern"
-            aria-invalid={draft.length > 0 && !ok}
-            placeholder="A regex, like \.snap$ or ^docs/"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+        <div className="border-border border-t pt-3">
+          <PatternForm
+            initial={{ label: '', pattern: '' }}
+            submit="add"
+            names={{ label: 'New pattern name', pattern: 'New hide pattern' }}
+            onSubmit={(draft) => save([...patterns, { id: newId(), ...draft, enabled: true }])}
           />
-          <Button type="submit" size="sm" disabled={!ok}>
-            <Plus />
-            Add
-          </Button>
-        </form>
-        {draft && !ok ? <p className="text-tn-red">That is not a valid regular expression.</p> : null}
+        </div>
       </PopoverContent>
     </Popover>
   )
