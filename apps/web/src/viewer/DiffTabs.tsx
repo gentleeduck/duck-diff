@@ -48,7 +48,7 @@ function TabIcon({ target }: { target: DiffTarget }) {
 // One tab per open comparison, like an editor's: the working tree first and fixed, the rest closable
 // and dragged into any order.
 export function DiffTabs() {
-  const { api, tabs, graph } = useApp()
+  const { api, tabs, graph, session } = useApp()
   const { navigate } = useTarget()
   const { tabs: list, active } = useStore(tabs, selectTabs)
   const entries = useStore(graph, selectEntries)
@@ -103,6 +103,7 @@ export function DiffTabs() {
               tabs.move(dragging, tab.id)
             }}
             onDragEnd={() => setDragging(null)}
+            onPointerEnter={() => !selected && session.prefetch(tab.target)}
             onClick={() => !selected && navigate(tab.target)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') navigate(tab.target)
