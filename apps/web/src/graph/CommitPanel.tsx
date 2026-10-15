@@ -1,40 +1,25 @@
-import type { ChangedFile, CommitDetails } from '@duck-diff/protocol'
 import { Button, Separator } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { Check, Copy, FileDiff, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { LinesSkeleton } from '../app/skeletons'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
 import { fileGlyph, STATUS_MARK } from '../sidebar/icons'
 import { relativeTime } from '../sidebar/relative-time'
 import { CommitActions } from './CommitActions'
 
-interface Loaded {
-  details: CommitDetails
-  files: ChangedFile[]
-}
-
 export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) {
-  const { api, graphSelection, diffFile } = useApp()
+  const { graphSelection, diffFile, queries } = useApp()
   const { navigate } = useTarget()
   const { show } = useView()
-  const [loaded, setLoaded] = useState<Loaded | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
+  const details = useQuery(queries.git.commit(sha))
+  const files = useQuery(queries.git.commitFiles(sha))
+  const loaded = details.data && files.data ? { details: details.data, files: files.data } : null
+  const failed = (details.error ?? files.error)?.message ?? null
   const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    let alive = true
-    setLoaded(null)
-    setFailed(null)
-    Promise.all([api.commit(sha), api.files({ kind: 'commit', sha })]).then(
-      ([details, files]) => alive && setLoaded({ details, files }),
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, sha])
 
   // The whole commit opens, scrolled to the file clicked, so it reads with the rest of what the commit did.
   const openChanges = (path?: string) => {
@@ -65,6 +50,7 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
         </Button>
       </header>
       {failed ? <p className="p-3 text-removed">Could not read this commit: {failed}</p> : null}
+      {!loaded && !failed ? <LinesSkeleton count={8} /> : null}
       {loaded ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           <h2 className="text-foreground">{subject}</h2>

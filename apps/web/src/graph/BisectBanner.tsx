@@ -1,10 +1,11 @@
 import type { BisectState } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { Bug } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { useGit } from '../git/GitProvider'
+import { useFirstDiff } from '../hooks/useFirstDiff'
 
 function progress(state: BisectState): string {
   if (!state.bad) return 'Bisecting. Mark a commit that has the problem as bad.'
@@ -15,21 +16,10 @@ function progress(state: BisectState): string {
 
 // While git bisects, say how far it has narrowed things down and mark the commit it checked out.
 export function BisectBanner() {
-  const { api, graphSelection } = useApp()
-  const { status, busy, run } = useGit()
-  const [state, setState] = useState<BisectState | null>(null)
-  // The sync status refreshes after every change, which is when bisect state can move too.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: status is the trigger
-  useEffect(() => {
-    let alive = true
-    api.bisect().then(
-      (next) => alive && setState(next),
-      () => alive && setState(null),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, status])
+  const { graphSelection, queries } = useApp()
+  const { busy, run } = useGit()
+  // Bisecting is rare; asking waits for the diff, so it never slows the first paint.
+  const state = useQuery({ ...queries.git.bisect(), enabled: useFirstDiff() }).data ?? null
   if (!state?.active) return null
   const runCommand = async () => {
     const values = await ask.prompt({

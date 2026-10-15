@@ -1,0 +1,4 @@
+# LF everywhere, so frozen-lockfile installs and the install script behave the same on Linux CI and macOS.
+* text=auto eol=lf
+*.png binary
+*.svg text eol=lf

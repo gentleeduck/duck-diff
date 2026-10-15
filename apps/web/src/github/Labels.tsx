@@ -4,7 +4,7 @@ type Label = { name: string; color: string }
 
 // GitHub label colors are picked for white pages, so they tint the text and border rather than fill;
 // round pills shown in full, as GitHub draws them.
-function LabelBadge({ label }: { label: Label }) {
+export function LabelBadge({ label }: { label: Label }) {
   return (
     <Badge
       variant="outline"

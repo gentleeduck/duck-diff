@@ -59,7 +59,8 @@ export function readSelection(root: HTMLElement): { selection: CodeSelection; re
 }
 
 // Dragging over code selects lines, not text: the lines light up as one block while the mouse is down,
-// and letting go opens a comment on them. Part of one line keeps its exact words.
+// and letting go opens a comment on them. Part of one line keeps its exact words. Only a drag counts: a
+// double-click selecting a word (which opens the symbol panel) never opens the bar.
 export function useLineSelection(
   root: () => HTMLElement | null,
   onSelecting: (selection: CodeSelection | null) => void,
@@ -69,10 +70,12 @@ export function useLineSelection(
   latest.current = { onSelecting, onDone }
   useEffect(() => {
     let down = false
+    let start = { x: 0, y: 0 }
     let current: { selection: CodeSelection; rect: DOMRect } | null = null
     const onDown = (event: PointerEvent) => {
       const element = root()
-      down = event.button === 0 && Boolean(element?.contains(event.target as Node))
+      down = event.button === 0 && event.detail < 2 && Boolean(element?.contains(event.target as Node))
+      start = { x: event.clientX, y: event.clientY }
       current = null
     }
     const onChange = () => {
@@ -81,13 +84,14 @@ export function useLineSelection(
       current = readSelection(element)
       latest.current.onSelecting(current?.selection ?? null)
     }
-    const onUp = () => {
+    const onUp = (event: PointerEvent) => {
       if (!down) return
       down = false
       const picked = current
       current = null
       latest.current.onSelecting(null)
-      if (!picked) return
+      const dragged = Math.hypot(event.clientX - start.x, event.clientY - start.y) >= 4
+      if (!picked || !dragged) return
       window.getSelection()?.removeAllRanges()
       latest.current.onDone(picked.selection, picked.rect)
     }

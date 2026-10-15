@@ -3,15 +3,18 @@ import { useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { useGit } from '../git/GitProvider'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { useTarget } from '../hooks/useTarget'
+import { shown } from '../lib/dom'
 import { glide } from '../lib/glide'
 import { compileHidden } from '../lib/hide'
 import { back, forward } from '../lib/history'
-import type { View } from '../lib/view-url'
 import { lineHash, lineText } from '../review/anchor'
+import type { View } from '../router/place'
 import { resize } from '../settings/resize'
 import { BASE_FONT } from '../state/settings'
 import { ROOT } from '../state/tabs'
+import { viewedPaths } from '../state/viewed'
 import { focusedTerminal, focusTerminal, sendToTerminal } from '../terminal/input'
 import { actionsFor, firstChange, type WriteKind } from '../viewer/actions'
 import { visibleItems } from '../viewer/visible-items'
@@ -51,12 +54,26 @@ export function modeOf(target: EventTarget | null): Mode {
 }
 
 const region = (name: string) => document.querySelector<HTMLElement>(`[data-region="${name}"]`)
-const diffScroller = () => document.querySelector<HTMLElement>('[data-diff-view]')
+const diffScroller = () => shown('[data-diff-view]')
 
 // One capture listener drives the page from the keyboard the way the user's Neovim does.
 export function useKeys(handlers: KeyHandlers) {
   const app = useApp()
-  const { api, session, settings, viewer, reviews, viewed, view, panel, terminalTabs, keys, keyOverrides, tabs } = app
+  const openInEditor = useOpenFile()
+  const {
+    session,
+    settings,
+    viewer,
+    reviews,
+    viewed,
+    view,
+    panel,
+    terminalTabs,
+    keys,
+    keyOverrides,
+    tabs,
+    blameFiles,
+  } = app
   const writes = useWrites()
   const git = useGit()
   const { navigate } = useTarget()
@@ -164,14 +181,26 @@ export function useKeys(handlers: KeyHandlers) {
       },
       viewed: () => {
         const at = current()
-        if (at?.file) viewed.toggle(at.target, at.file)
+        if (!at?.file) return
+        const marking = !viewedPaths(viewed.get(), at.target, [at.file]).has(at.file.path)
+        viewed.toggle(at.target, at.file)
+        if (marking) requestAnimationFrame(() => viewer.current?.reveal(at.item.id))
       },
       open: () => {
         const at = current()
         if (!at) return
         const change = at.hunk ? firstChange(at.hunk) : null
         const line = change?.side === 'additions' ? change.line : (at.hunk?.additionStart ?? 1)
-        api.open(at.path, line).catch((error: Error) => toast.error(error.message))
+        void openInEditor(at.path, line)
+      },
+      blame: () => {
+        const at = current()
+        if (!at) return
+        blameFiles.set((prev) => {
+          const next = new Set(prev)
+          if (!next.delete(at.path)) next.add(at.path)
+          return next
+        })
       },
       'yank-path': () => {
         const at = current()
@@ -211,7 +240,10 @@ export function useKeys(handlers: KeyHandlers) {
       'terminal-toggle': () => openTerminal(false),
       'toggle-panel': () => {
         panel.toggle()
-        if (!panel.get().open) blur()
+        const { open, tab } = panel.get()
+        // Opening onto a terminal hands it the keyboard, as a terminal pane in an editor does.
+        if (open && tab !== 'output') focusTerminal(tab)
+        if (!open) blur()
       },
       'leave-terminal': () => {
         blur()
@@ -324,7 +356,21 @@ export function useKeys(handlers: KeyHandlers) {
       rebuild()
       dispatcher.reset()
     }
-  }, [api, session, settings, viewer, reviews, viewed, view, panel, terminalTabs, keys, keyOverrides, tabs])
+  }, [
+    session,
+    settings,
+    viewer,
+    reviews,
+    viewed,
+    view,
+    panel,
+    terminalTabs,
+    keys,
+    keyOverrides,
+    tabs,
+    blameFiles,
+    openInEditor,
+  ])
 
   // Runs a command by id, for the keymaps list.
   return useCallback((id: string) => runner.current(id), [])

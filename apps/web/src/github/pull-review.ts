@@ -1,4 +1,4 @@
-import type { DiffTarget, GitHubReviewComment, PendingComment } from '@duck-diff/protocol'
+import type { DiffTarget, GitHubReviewComment, PendingComment, PullDetails, ReviewState } from '@duck-diff/protocol'
 import type { Api, ReviewEvent } from '../lib/api'
 import { createStore, type Store } from '../lib/store'
 
@@ -51,13 +51,28 @@ const EMPTY: Omit<PullReviewState, 'number'> = {
   batch: [],
 }
 
-export function createPullReview(api: Api): PullReview {
+// Where the store reads from: the page passes the query cache, so the pull request page and its diff share one
+// read, and changed() makes both read again after a write.
+export interface PullReads {
+  pull(number: number): Promise<PullDetails>
+  reviewState(number: number): Promise<ReviewState>
+  changed(number: number): Promise<void>
+}
+
+export function createPullReview(
+  api: Api,
+  reads: PullReads = {
+    pull: (number) => api.github.pull(number),
+    reviewState: (number) => api.github.reviewState(number),
+    changed: async () => {},
+  },
+): PullReview {
   const store = createStore<PullReviewState>({ number: null, ...EMPTY })
 
   const read = async (number: number) => {
     const [{ reviewComments }, state] = await Promise.all([
-      api.github.pull(number),
-      api.github.reviewState(number).catch(() => ({ threads: [], viewed: [] })),
+      reads.pull(number),
+      reads.reviewState(number).catch(() => ({ threads: [], viewed: [] })),
     ])
     if (store.get().number !== number) return
     store.set((prev) => ({
@@ -82,6 +97,7 @@ export function createPullReview(api: Api): PullReview {
       if (number === null) return
       await api.github.review(number, event, body, pending)
       store.set((prev) => ({ ...prev, pending: [] }))
+      await reads.changed(number)
       await read(number)
     },
     async resolve(root, resolved) {
@@ -112,6 +128,7 @@ export function createPullReview(api: Api): PullReview {
       if (number === null) return
       await api.github.applySuggestions(number, ids, message)
       store.set((prev) => ({ ...prev, batch: prev.batch.filter((id) => !ids.includes(id)) }))
+      await reads.changed(number)
       await read(number)
     },
     async post(input) {
@@ -119,12 +136,14 @@ export function createPullReview(api: Api): PullReview {
       if (number === null) return
       const comment = await api.github.reviewComment(number, input)
       store.set((prev) => ({ ...prev, comments: [...prev.comments, comment] }))
+      void reads.changed(number)
     },
     async reply(inReplyTo, body) {
       const { number } = store.get()
       if (number === null) return
       const comment = await api.github.reply(number, inReplyTo, body)
       store.set((prev) => ({ ...prev, comments: [...prev.comments, comment] }))
+      void reads.changed(number)
     },
   }
 }

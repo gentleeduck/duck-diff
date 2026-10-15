@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useApp } from '../app/AppProvider'
-import type { Api } from '../lib/api'
 
-const loaded = new WeakMap<Api, Promise<Record<string, string>>>()
+const NO_AVATARS: Record<string, string> = {}
 const NOREPLY = /^(\d+)\+[^@]+@users\.noreply\.github\.com$/
 
 // GitHub's no-reply addresses carry the account id, so those avatars need no lookup at all.
@@ -21,19 +20,6 @@ export function initials(name: string): string {
 
 // Read once per page; until it arrives, and for authors GitHub does not know, dots show initials.
 export function useAvatars(): Record<string, string> {
-  const { api } = useApp()
-  const [map, setMap] = useState<Record<string, string>>({})
-  useEffect(() => {
-    let promise = loaded.get(api)
-    if (!promise) {
-      promise = api.github.avatars().catch(() => ({}))
-      loaded.set(api, promise)
-    }
-    let alive = true
-    void promise.then((next) => alive && setMap(next))
-    return () => {
-      alive = false
-    }
-  }, [api])
-  return map
+  const { queries } = useApp()
+  return useQuery(queries.gh.avatars()).data ?? NO_AVATARS
 }

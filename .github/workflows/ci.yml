@@ -13,20 +13,21 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.0
       - run: bun install --frozen-lockfile
       - run: bun run ci
+      # Before e2e: opening a file runs nvim in a page terminal when nvim is on PATH.
+      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1
+        with:
+          neovim: true
+          version: stable
       - run: bunx playwright install --with-deps chromium
         working-directory: apps/server
       - run: bun run test:e2e
       # Budgets are checked on Linux only; the macOS runners are too uneven to time.
       - run: bun run bench
         if: runner.os == 'Linux'
-      - uses: rhysd/action-setup-vim@v1
-        with:
-          neovim: true
-          version: stable
       - run: bun run test:nvim

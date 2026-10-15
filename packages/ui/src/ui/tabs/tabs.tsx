@@ -159,7 +159,10 @@ const TabsContent = React.forwardRef<
     value: string
     /** Keep the panel mounted from the start, even before its tab is opened. */
     forceMount?: boolean
-    /** Mount the panel the first time its tab opens, then keep it mounted so its state survives tab switches. */
+    /**
+     * Mount the panel the first time its tab opens, then keep it mounted so its state survives tab switches.
+     * A kept panel that is not showing is paused (React Activity): no effects, no re-renders until it shows.
+     */
     renderOnce?: boolean
   }
 >(({ children, forceMount = false, renderOnce = false, className, value, ...props }, ref) => {
@@ -193,7 +196,7 @@ const TabsContent = React.forwardRef<
       tabIndex={-1}
       {...props}
       data-slot="tabs-content">
-      {shouldRender && children}
+      {shouldRender ? <React.Activity mode={isActive ? 'visible' : 'hidden'}>{children}</React.Activity> : null}
     </div>
   )
 })

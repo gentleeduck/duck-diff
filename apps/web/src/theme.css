@@ -69,40 +69,27 @@
   --diff-del-bg: #37222c;
   --diff-add-word: #2c5a66;
   --diff-del-word: #713137;
+
+  /* Code colors by role. Code is highlighted once with tokyo-night (diff/Code.tsx maps its shades to these),
+     and other themes (app/themes.ts) set them from their own palette. */
+  --syn-keyword: #bb9af7;
+  --syn-text: #c0caf5;
+  --syn-tag: #f7768e;
+  --syn-function: #7aa2f7;
+  --syn-type: #0db9d7;
+  --syn-class: #e0af68;
+  --syn-property: #7dcfff;
+  --syn-key: #73daca;
+  --syn-operator: #89ddff;
+  --syn-string: #9ece6a;
+  --syn-param: #9abdf5;
+  --syn-number: #ff9e64;
+  --syn-special: #9d7cd8;
+  --syn-comment: #565f89;
 }
 
-/* tokyonight-day, for the light setting. */
-:root:not(.dark) {
-  --tn-bg: #e1e2e7;
-  --tn-bg-dark: #d0d5e3;
-  --tn-bg-highlight: #c4c8da;
-  --tn-gutter: #a8aecb;
-  --tn-fg: #3760bf;
-  --tn-fg-dark: #6172b0;
-  --tn-comment: #848cb5;
-  --tn-dark5: #68709a;
-  --tn-blue: #2e7de9;
-  --tn-cyan: #007197;
-  --tn-magenta: #9854f1;
-  --tn-pink: #d20065;
-  --tn-orange: #b15c00;
-  --tn-yellow: #8c6c3e;
-  --tn-green: #587539;
-  --tn-teal: #118c74;
-  --tn-red: #f52a65;
-
-  --diff-add-bg: #cfe1c9;
-  --diff-del-bg: #f0cfd6;
-  --diff-add-word: #a9cf9d;
-  --diff-del-word: #eaa5b3;
-}
-
-/* Shiki only ships tokyo-night, so in light mode each token keeps its hue and flips its lightness. */
 .tok {
   color: var(--tok);
-}
-:root:not(.dark) .tok {
-  color: oklch(from var(--tok) calc(1 - l * 0.62) calc(c * 1.15) h);
 }
 
 /* One size across the page, duck-ui's small and large text included; in rem, so the interface size scales it. */

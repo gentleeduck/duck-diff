@@ -11,7 +11,7 @@ test('file: searches every file, previews the highlighted one, and opens it', as
   await page.keyboard.press('ArrowDown')
   await expect(dialog).toContainText('# demo')
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/view=files/)
+  await expect(page).toHaveURL(/\/files/)
   await expect(page.getByRole('region', { name: 'README.md' })).toBeVisible()
 })
 

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -27,11 +27,15 @@ const ENV = {
 }
 
 export function createRepo(): TestRepo {
-  const path = mkdtempSync(join(tmpdir(), 'duck-diff-'))
+  // Real path, as git reports it: on macOS /tmp is a link to /private/tmp.
+  const path = realpathSync(mkdtempSync(join(tmpdir(), 'duck-diff-')))
   const git = (...args: string[]) =>
     execFileSync('git', args, { cwd: path, env: ENV, encoding: 'utf8' }).replace(/\n$/, '')
 
   git('init', '-q', '-b', 'main')
+  // The code under test runs git without ENV, so commits it makes need the identity in the repo itself.
+  git('config', 'user.name', 'Duck Test')
+  git('config', 'user.email', 'test@duck.local')
 
   return {
     path,
@@ -50,7 +54,7 @@ export function createRepo(): TestRepo {
       return git('rev-parse', 'HEAD')
     },
     cleanup() {
-      rmSync(path, { recursive: true, force: true })
+      rmSync(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     },
   }
 }

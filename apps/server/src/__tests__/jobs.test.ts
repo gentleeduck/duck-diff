@@ -58,6 +58,24 @@ describe('jobs', () => {
     expect(plain(jobs.output(job?.id ?? ''))).toContain('lint failed in a.txt')
   })
 
+  it('clears the finished jobs and keeps one still running', async () => {
+    repo = createRepo()
+    const jobs = createJobs(() => {})
+    await jobs.run('Done', () => runGit(['status'], { cwd: repo.path }))
+    let finish = () => {}
+    const running = jobs.run(
+      'Slow',
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        }),
+    )
+    jobs.clear()
+    expect(jobs.list().map((job) => job.title)).toEqual(['Slow'])
+    finish()
+    await running
+  })
+
   it('keeps the latest jobs and the tail of long output', async () => {
     repo = createRepo()
     const jobs = createJobs(() => {}, { keep: 2, maxOutput: 100 })

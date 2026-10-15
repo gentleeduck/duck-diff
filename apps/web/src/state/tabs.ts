@@ -1,4 +1,5 @@
 import { type DiffTarget, DiffTargetSchema, targetKey } from '@duck-diff/protocol'
+import { saved } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
 
 export interface DiffTab {
@@ -31,6 +32,14 @@ export interface Tabs extends Store<TabsState> {
   rememberPath(path: string | null): void
   // Brings back the tabs saved for a repository, keeping the one open now.
   restore(repo: string, storage?: Pick<Storage, 'getItem' | 'setItem'> | null): void
+}
+
+const PULL = /^refs\/duck-diff\/pr\/\d+$/
+
+function sameComparison(a: DiffTarget, b: DiffTarget): boolean {
+  if (a.kind !== 'range' || b.kind !== 'range') return false
+  if (a.from === b.from && a.to === b.to) return true
+  return a.to === b.to && PULL.test(a.to)
 }
 
 let counter = 0
@@ -66,6 +75,13 @@ export function createTabs(initial: DiffTarget): Tabs {
       if (existing) {
         set({ tabs, active: existing.id })
         return existing
+      }
+      // Switching between .. and ... or picking another base for the same pull request edits the comparison
+      // the tab shows, rather than opening a second tab of the same name.
+      const current = tabs.find((tab) => tab.id === store.get().active)
+      if (current && current.id !== ROOT && sameComparison(current.target, target)) {
+        set({ tabs: tabs.map((tab) => (tab.id === current.id ? { ...tab, target } : tab)), active: current.id })
+        return find(current.id) as DiffTab
       }
       const tab: DiffTab = { id: newId(), target, path: null }
       set({ tabs: [...tabs, tab], active: tab.id })
@@ -108,7 +124,7 @@ export function createTabs(initial: DiffTarget): Tabs {
         tabs: state.tabs.map((tab) => (tab.id === state.active && tab.path !== path ? { ...tab, path } : tab)),
       }))
     },
-    restore(repo, storage = typeof localStorage === 'undefined' ? null : localStorage) {
+    restore(repo, storage = saved) {
       const key = KEY + repo
       try {
         const saved = JSON.parse(storage?.getItem(key) ?? '[]') as unknown[]
@@ -118,6 +134,8 @@ export function createTabs(initial: DiffTarget): Tabs {
         for (const entry of Array.isArray(saved) ? saved : []) {
           const parsed = DiffTargetSchema.safeParse((entry as { target?: unknown })?.target)
           if (!parsed.success || isWorkingTree(parsed.data) || have.has(targetKey(parsed.data))) continue
+          // Tabs saved before .. and ... shared a tab come back as one.
+          if ([...tabs, ...back].some((tab) => sameComparison(tab.target, parsed.data))) continue
           have.add(targetKey(parsed.data))
           const path = (entry as { path?: unknown }).path
           back.push({ id: newId(), target: parsed.data, path: typeof path === 'string' ? path : null })

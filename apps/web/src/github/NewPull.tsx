@@ -1,4 +1,3 @@
-import type { Commit } from '@duck-diff/protocol'
 import {
   Button,
   Checkbox,
@@ -14,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { GitPullRequestCreateArrow } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
@@ -27,7 +27,8 @@ import { Picker } from './Picker'
 import { options } from './SidebarEditors'
 
 export function NewPull({ onCreated }: { onCreated(): void }) {
-  const { api, pullSelection } = useApp()
+  const app = useApp()
+  const { api, pullSelection, queries, queryClient } = app
   const { status, run } = useGit()
   const { refs } = useRefs()
   const [open, setOpen] = useState(false)
@@ -39,7 +40,6 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
   const [reviewers, setReviewers] = useState<string[]>([])
   const [labels, setLabels] = useState<string[]>([])
   const [assignees, setAssignees] = useState<string[]>([])
-  const [preview, setPreview] = useState<{ commits: Commit[]; files: number } | null>(null)
   const draftId = useId()
   const head = status?.branch ?? null
   const branches = refs.filter((ref) => ref.kind === 'branch' && ref.name !== head).map((ref) => ref.name)
@@ -47,37 +47,25 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
   // The title starts as the branch's latest commit, and the base as the repo's default branch.
   useEffect(() => {
     if (!open) return
-    api.commits({ head: 'HEAD', limit: 1 }).then(
+    queryClient.fetchQuery(queries.git.commits({ head: 'HEAD', limit: 1 })).then(
       ([latest]) => setTitle((prev) => prev || latest?.subject || ''),
       () => {},
     )
-    api.github.defaultBranch().then(
+    queryClient.fetchQuery(queries.gh.defaultBranch()).then(
       (branch) => setBase((prev) => prev || branch),
       () => {},
     )
     // The repo's pull request template, when it has one, starts the description.
-    api.github.templates().then(
+    queryClient.fetchQuery(queries.gh.templates()).then(
       (templates) => templates.pull && setBody((prev) => prev || (templates.pull ?? '')),
       () => {},
     )
-  }, [open, api])
+  }, [open, queries, queryClient])
 
   // What GitHub's compare page shows before opening: the commits and files the pull request will carry.
-  useEffect(() => {
-    if (!open || !base || !head) return
-    let alive = true
-    const from = refs.some((ref) => ref.name === `origin/${base}`) ? `origin/${base}` : base
-    Promise.all([
-      api.commits({ head, base: from, limit: 100 }),
-      api.files({ kind: 'range', from, to: head, mode: 'merge-base' }),
-    ]).then(
-      ([commits, files]) => alive && setPreview({ commits, files: files.length }),
-      () => alive && setPreview(null),
-    )
-    return () => {
-      alive = false
-    }
-  }, [open, base, head, api, refs])
+  const from = refs.some((ref) => ref.name === `origin/${base}`) ? `origin/${base}` : base
+  const preview =
+    useQuery({ ...queries.git.compare(from, head ?? ''), enabled: open && Boolean(base && head) }).data ?? null
 
   const create = async () => {
     if (!head) return
@@ -166,7 +154,7 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
                         selected={chosen}
                         onApply={set}
                         load={async () => {
-                          const found = await options(api)
+                          const found = await options(app)
                           return kind === 'people'
                             ? found.people.map((user) => ({
                                 value: user.login,

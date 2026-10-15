@@ -107,7 +107,6 @@ import {
   type WriteRequest,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
-import { createQueryCache } from './query-cache'
 
 function lspParams(query: LspQuery): URLSearchParams {
   const params = new URLSearchParams({ path: query.path, line: String(query.line), column: String(query.column) })
@@ -136,7 +135,8 @@ export interface Api {
   commits(query: { head: string; base?: string; limit?: number; path?: string }): Promise<Commit[]>
   diff(target: DiffTarget, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   content(target: DiffTarget, side: 'old' | 'new', file: Pick<ChangedFile, 'path' | 'oldPath'>): Promise<string | null>
-  open(path: string, line: number): Promise<void>
+  // Opens a file at a line in the best editor around; Neovim with none attached is left to the page to run.
+  open(path: string, line: number): Promise<OpenResult>
   write(request: WriteRequest): Promise<void>
   undo(): Promise<UndoResult>
   reviews(target: DiffTarget): Promise<ReviewComment[]>
@@ -172,7 +172,7 @@ export interface Api {
   sync(): Promise<SyncStatus>
   remotes(): Promise<Remote[]>
   lastMessage(): Promise<string>
-  blame(path: string, ref?: string): Promise<BlameLine[]>
+  blame(path: string, ref?: string, mergeBase?: string): Promise<BlameLine[]>
   // Where a name is defined and used; ref null searches the working tree.
   symbols(name: string, ref: string | null): Promise<SymbolResult>
   // Precise answers from a language server; source null means none handles the file.
@@ -183,12 +183,11 @@ export interface Api {
     // Starts the language servers these files need, ahead of the first lookup.
     warm(paths: string[]): Promise<void>
   }
-  // A GitHub topic changed on the server; reads that follow it are read again next time.
-  invalidate(topic: string): void
   git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean; stopped?: boolean }>
   // The actions run lately, newest first, and what one printed.
   jobs(): Promise<Job[]>
   jobOutput(id: string): Promise<string>
+  clearJobs(): Promise<void>
   // Shells running on the server, which a reloaded page reattaches to.
   terminals(): Promise<{ id: string; title: string; cwd: string }[]>
   closeTerminal(id: string): Promise<void>
@@ -341,14 +340,18 @@ export type GitAction =
   | 'clean'
   | 'stash-staged'
 
+// How the server opened a file (server editor.ts); a terminal answer carries the command for the page to run.
+const OpenResultSchema = z.object({
+  how: z.enum(['nvim', 'terminal', 'editor', 'system']),
+  command: z.string().nullable().optional(),
+})
+export type OpenResult = z.infer<typeof OpenResultSchema>
+
 const ContentSchema = z.object({ contents: z.string().nullable() })
 
 export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
-  const cache = createQueryCache()
   async function request(path: string, signal?: AbortSignal, init: RequestInit = {}): Promise<Response> {
     const response = await fetcher(`${base}${path}`, { ...init, signal })
-    // A write to GitHub can change any read, so every kept answer goes.
-    if (response.ok && init.method && init.method !== 'GET' && path.startsWith('/api/github/')) cache.clear()
     if (response.ok) return response
     const parsed = ErrorBodySchema.safeParse(await response.json().catch(() => null))
     if (parsed.success) throw new ApiError(response.status, parsed.data.error.code, parsed.data.error.message)
@@ -356,8 +359,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
   }
 
   async function json<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
-    const read = async () => schema.parse(await (await request(path, signal)).json())
-    return path.startsWith('/api/github/') ? cache.get(path, read) : read()
+    return schema.parse(await (await request(path, signal)).json())
   }
 
   async function send<T>(method: string, path: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
@@ -550,12 +552,12 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       hover: (query) => json(`/api/lsp/hover?${lspParams(query)}`, LspHoverSchema),
       warm: (paths) => post('/api/lsp/warm', { paths }),
     },
-    blame(path, ref) {
+    blame(path, ref, mergeBase) {
       const params = new URLSearchParams({ path })
       if (ref) params.set('ref', ref)
+      if (mergeBase) params.set('mergeBase', mergeBase)
       return json(`/api/blame?${params}`, z.array(BlameLineSchema))
     },
-    invalidate: (topic) => cache.invalidate(topic),
     git: (action, body) =>
       send(
         'POST',
@@ -564,6 +566,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
         z.object({ sha: z.string().optional(), conflicts: z.boolean().optional(), stopped: z.boolean().optional() }),
       ),
     jobs: () => json('/api/jobs', z.array(JobSchema)),
+    clearJobs: () => sendEmpty('DELETE', '/api/jobs'),
     terminals: () => json('/api/terminals', z.array(z.object({ id: z.string(), title: z.string(), cwd: z.string() }))),
     clearCache: () => sendEmpty('POST', '/api/cache/clear'),
     closeTerminal: (id) => sendEmpty('DELETE', `/api/terminals/${encodeURIComponent(id)}`),
@@ -576,12 +579,6 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     async deleteReview(id) {
       await request(`/api/reviews/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' })
     },
-    async open(path, line) {
-      await request('/api/open', undefined, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ path, line }),
-      })
-    },
+    open: (path, line) => send('POST', '/api/open', { path, line }, OpenResultSchema),
   }
 }

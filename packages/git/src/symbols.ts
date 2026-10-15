@@ -22,7 +22,7 @@ export const SYMBOL_NAME = /^[A-Za-z_$][\w$]{0,99}$/
 const MAX_HITS = 600
 const MAX_TEXT = 300
 
-const escapeName = (name: string) => name.replace(/\$/g, '\\$')
+const escapeName = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // Lines that introduce the name rather than use it, across the languages a repo usually holds. A plain
 // text match like this is what GitHub's search-based navigation does too; it needs no build or server.

@@ -1,8 +1,7 @@
-// GitHub things the open page shows, told to the server so its one poller watches them and pushes changes.
-type Listener = () => void
-
-const listeners = new Map<string, Set<Listener>>()
+// The GitHub topics the queries on screen follow (query/client.ts), told to the server so its one poller
+// watches them and pushes changes.
 let send: ((data: string) => void) | null = null
+let topics: string[] = []
 let pending: ReturnType<typeof setTimeout> | null = null
 
 function announce() {
@@ -10,35 +9,17 @@ function announce() {
   if (pending) return
   pending = setTimeout(() => {
     pending = null
-    send?.(JSON.stringify({ type: 'watch', topics: [...listeners.keys()] }))
+    send?.(JSON.stringify({ type: 'watch', topics }))
   }, 0)
+}
+
+export function setQueryTopics(next: string[]) {
+  if (next.join(' ') === topics.join(' ')) return
+  topics = next
+  announce()
 }
 
 export function setTopicSender(next: ((data: string) => void) | null) {
   send = next
   if (next) announce()
 }
-
-export function watchTopic(topic: string, listener: Listener): () => void {
-  let set = listeners.get(topic)
-  if (!set) {
-    set = new Set()
-    listeners.set(topic, set)
-    announce()
-  }
-  set.add(listener)
-  return () => {
-    const current = listeners.get(topic)
-    current?.delete(listener)
-    if (current && !current.size) {
-      listeners.delete(topic)
-      announce()
-    }
-  }
-}
-
-export function topicChanged(topic: string) {
-  for (const listener of listeners.get(topic) ?? []) listener()
-}
-
-export const watchedTopics = () => [...listeners.keys()]

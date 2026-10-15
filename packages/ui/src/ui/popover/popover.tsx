@@ -18,24 +18,31 @@ PopoverAnchor.displayName = 'PopoverAnchor'
 const PopoverContent = React.forwardRef<
   React.ComponentRef<typeof PopoverPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & { arrow?: boolean }
->(({ className, align = 'center', sideOffset = 8, style, arrow = true, children, ...props }, ref) => (
-  <PopoverPrimitive.Portal>
-    <PopoverPrimitive.Content
-      ref={ref}
-      align={align}
-      sideOffset={sideOffset}
-      className={cn(
-        'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 w-72 origin-(--gentleduck-popover-content-transform-origin) rounded-md border border-(--popover-border-color) bg-popover p-4 text-start text-popover-foreground shadow-md outline-hidden data-[state=closed]:animate-out data-[state=open]:animate-in',
-        'animation-duration-200 data-[state=closed]:animation-duration-150 ease-(--gentleduck-motion-ease)',
-        className,
-      )}
-      style={{ '--popover-border-color': 'var(--border)', ...style } as React.CSSProperties}
-      {...props}>
-      {children}
-      {arrow ? <PopoverArrow /> : null}
-    </PopoverPrimitive.Content>
-  </PopoverPrimitive.Portal>
-))
+  // Kept clear of the window edges, so a wide popover near one never touches it.
+>(
+  (
+    { className, align = 'center', sideOffset = 8, collisionPadding = 12, style, arrow = true, children, ...props },
+    ref,
+  ) => (
+    <PopoverPrimitive.Portal>
+      <PopoverPrimitive.Content
+        ref={ref}
+        align={align}
+        sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
+        className={cn(
+          'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 w-72 origin-(--gentleduck-popover-content-transform-origin) rounded-md border border-(--popover-border-color) bg-popover p-4 text-start text-popover-foreground shadow-md outline-hidden data-[state=closed]:animate-out data-[state=open]:animate-in',
+          'animation-duration-200 data-[state=closed]:animation-duration-150 ease-(--gentleduck-motion-ease)',
+          className,
+        )}
+        style={{ '--popover-border-color': 'var(--border)', ...style } as React.CSSProperties}
+        {...props}>
+        {children}
+        {arrow ? <PopoverArrow /> : null}
+      </PopoverPrimitive.Content>
+    </PopoverPrimitive.Portal>
+  ),
+)
 PopoverContent.displayName = PopoverPrimitive.Content.displayName
 
 const PopoverArrow = React.forwardRef<SVGSVGElement, IPopover.IArrowProps>(({ className, style, ...props }, ref) => (

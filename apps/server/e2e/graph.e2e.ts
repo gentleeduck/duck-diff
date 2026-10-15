@@ -32,7 +32,7 @@ test('compares a commit with HEAD', async ({ page, app, repo }) => {
 test('switches views from the rail and keeps the view in the url', async ({ page, app }) => {
   await page.goto(app.url)
   await page.getByRole('button', { name: 'Commit graph' }).click()
-  await expect(page).toHaveURL(/view=graph/)
+  await expect(page).toHaveURL(/\/graph/)
   await expect(page.getByRole('banner')).toContainText('Commit graph')
   await page.goBack()
   await expect(page.getByRole('banner')).toContainText('working tree')
@@ -58,11 +58,11 @@ test('number keys switch views, and diff keys stay inert outside the changes vie
   await page.goto(app.url)
   await expect(page.getByRole('banner')).toContainText('2 files')
   await page.keyboard.press('2')
-  await expect(page).toHaveURL(/view=graph/)
+  await expect(page).toHaveURL(/\/graph/)
   await page.keyboard.press('j')
   await page.keyboard.press('x')
   await page.keyboard.press('3')
-  await expect(page).toHaveURL(/view=files/)
+  await expect(page).toHaveURL(/\/files/)
   expect(repo.git('status', '--porcelain')).not.toBe('')
   await page.keyboard.press('1')
   await expect(page.getByRole('banner')).toContainText('2 files')
@@ -103,4 +103,46 @@ test("a file in a commit's list opens the whole commit, scrolled to that file", 
     'title',
     /many\/c\.ts/,
   )
+})
+
+test('a side list keeps its place when the page is left and opened again', async ({ page, app, repo }) => {
+  for (let i = 0; i < 80; i++) repo.git('branch', `topic/${String(i).padStart(2, '0')}`)
+  await page.goto(`${app.url}&view=graph`)
+  const list = page.locator('[aria-label="Branches and tags"]').locator('.overflow-y-auto, .overflow-auto').first()
+  await expect(list).toBeVisible()
+  await expect
+    .poll(() =>
+      list.evaluate((element) => {
+        element.scrollTop = 600
+        element.dispatchEvent(new Event('scroll'))
+        return element.scrollTop
+      }),
+    )
+    .toBeGreaterThan(300)
+  const kept = await list.evaluate((element) => element.scrollTop)
+  await page.getByRole('button', { name: 'Releases', exact: true }).click()
+  await page.getByRole('button', { name: 'Commit graph', exact: true }).click()
+  await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBe(kept)
+})
+
+test('coming back to the graph shows it as it was, without reading it again', async ({ page, app, repo }) => {
+  for (let i = 0; i < 3; i++) repo.commit(`step ${i}`)
+  const reads: string[] = []
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/graph') reads.push(request.url())
+  })
+  await page.goto(`${app.url}&view=graph`)
+  const commits = page.getByRole('listbox', { name: 'Commits' })
+  await expect(commits.getByRole('option').first()).toContainText('step 2')
+  await commits.getByRole('option', { name: /step 1/ }).click()
+  const before = reads.length
+  // Marks this very element: a remount would draw a new one without the mark.
+  await commits.evaluate((element) => element.setAttribute('data-kept', ''))
+  const views = page.getByRole('navigation', { name: 'Views' })
+  await views.getByRole('button', { name: 'Changes' }).click()
+  await expect(page.locator('[data-diff-view]').or(page.getByText(/No changes/))).toBeVisible()
+  await views.getByRole('button', { name: 'Commit graph' }).click()
+  await expect(commits.getByRole('option', { name: /step 1/ })).toHaveAttribute('aria-selected', 'true')
+  expect(reads.length).toBe(before)
+  await expect(commits).toHaveAttribute('data-kept', '')
 })

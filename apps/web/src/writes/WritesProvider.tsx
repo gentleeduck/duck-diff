@@ -5,6 +5,7 @@ import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ApiError } from '../lib/api'
+import { useRefresh } from '../query/useRefresh'
 import { type WriteKind, writeRequest } from '../viewer/actions'
 import type { PickedLine } from '../viewer/picked-lines'
 
@@ -23,6 +24,12 @@ const DONE: Record<WriteKind, string> = { stage: 'Staged', unstage: 'Unstaged', 
 
 export function WritesProvider({ children }: { children: ReactNode }) {
   const { api, session } = useApp()
+  const topics = useRefresh()
+  // The diff and everything reading the index (stage panel, status) show the write at once.
+  const reload = useCallback(() => {
+    void session.reload()
+    void topics('index', 'worktree')
+  }, [session, topics])
   const [question, setQuestion] = useState<string | null>(null)
   const answer = useRef<(yes: boolean) => void>(() => {})
 
@@ -42,8 +49,8 @@ export function WritesProvider({ children }: { children: ReactNode }) {
   const undo = useCallback(async () => {
     const { restored } = await api.undo()
     toast(restored ? `Restored ${restored.join(', ')}` : 'Nothing left to undo')
-    void session.reload()
-  }, [api, session])
+    reload()
+  }, [api, reload])
 
   const perform = useCallback<Writes['perform']>(
     async (kind, file, hunk) => {
@@ -63,9 +70,9 @@ export function WritesProvider({ children }: { children: ReactNode }) {
             : `Could not ${kind} ${file.path}: ${(error as Error).message}`,
         )
       }
-      void session.reload()
+      reload()
     },
-    [api, session, confirm, undo],
+    [api, confirm, undo, reload],
   )
 
   const performAll = useCallback<Writes['performAll']>(
@@ -93,13 +100,13 @@ export function WritesProvider({ children }: { children: ReactNode }) {
               ? `Restored ${restored.length} ${restored.length === 1 ? 'file' : 'files'}`
               : 'Nothing left to undo',
           )
-          void session.reload()
+          reload()
         }
         toast(label, { duration: 10_000, action: { label: 'Undo', onClick: () => void restoreAll() } })
       } else toast(label)
-      void session.reload()
+      reload()
     },
-    [api, session, confirm],
+    [api, confirm, reload],
   )
 
   const performLines = useCallback<Writes['performLines']>(
@@ -124,9 +131,9 @@ export function WritesProvider({ children }: { children: ReactNode }) {
             : `Could not ${kind} lines in ${file.path}: ${(error as Error).message}`,
         )
       }
-      void session.reload()
+      reload()
     },
-    [api, session, confirm, undo],
+    [api, confirm, undo, reload],
   )
 
   const value = useMemo(() => ({ perform, performAll, undo, performLines }), [perform, performAll, undo, performLines])

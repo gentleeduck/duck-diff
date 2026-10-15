@@ -40,9 +40,7 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
           variant="outline"
           aria-label={side === 'from' ? `Compare from ${label}` : `Compare to ${label}`}
           title={label}
-          // Short names like HEAD never give up room; long branch names truncate first.
-          style={{ flexShrink: label.length > 8 ? 1 : 0 }}
-          className="max-w-44 justify-start gap-1.5 px-2.5 @6xl/top:max-w-56">
+          className="min-w-9 max-w-44 shrink justify-start gap-1.5 px-2.5 @6xl/top:max-w-56">
           <GitBranch className="size-4 shrink-0" />
           {/* Italic glyphs lean past the box; the end padding keeps the last one from being clipped. */}
           <span className="min-w-0 truncate pe-0.5">{label}</span>

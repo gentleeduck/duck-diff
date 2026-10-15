@@ -1,18 +1,17 @@
 import type { Notification } from '@duck-diff/protocol'
-import { Badge, Button, Skeleton } from '@duck-diff/ui'
+import { Badge, Button } from '@duck-diff/ui'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCheck, CircleDot, GitPullRequest, MailCheck, RefreshCw, Rocket, Workflow } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { ListRowsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useView } from '../hooks/useView'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
-import { useLive } from './useLive'
-
-const SKELETONS = ['a', 'b', 'c', 'd']
 
 const ICONS: Record<string, ReactNode> = {
   PullRequest: <GitPullRequest className="size-4 text-added" />,
@@ -37,57 +36,29 @@ const REASONS: Record<string, string> = {
 
 // The unread count for the rail badge, asked for less often than the inbox page polls.
 export function useUnread(): number {
-  const { api } = useApp()
+  const { queries } = useApp()
   const ready = isReady(useGitHub())
-  const [count, setCount] = useState(0)
-  const read = useCallback(
-    () =>
-      ready
-        ? api.github.notifications(false).then(
-            (found) => setCount(found.filter((entry) => entry.unread).length),
-            () => {},
-          )
-        : setCount(0),
-    [api, ready],
-  )
-  useEffect(() => void read(), [read])
-  useLive('notifications', read)
-  return count
+  const { data } = useQuery({ ...queries.gh.notifications(false), enabled: ready })
+  return ready ? (data?.filter((entry) => entry.unread).length ?? 0) : 0
 }
 
 export function Inbox() {
-  const { api, pullSelection, issueSelection } = useApp()
+  const { api, pullSelection, issueSelection, queries } = useApp()
   const { show } = useView()
   const ready = isReady(useGitHub())
   const page = useRef<HTMLDivElement>(null)
   useScrollMemory(page, ready ? 'inbox' : null)
   const [all, setAll] = useState(false)
-  const [items, setItems] = useState<Notification[] | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
-
-  const load = useCallback(
-    () =>
-      api.github.notifications(all).then(
-        (found) => {
-          setItems(found)
-          setFailed(null)
-        },
-        (error: Error) => setFailed(error.message),
-      ),
-    [api, all],
-  )
-  useEffect(() => {
-    if (!ready) return
-    setItems(null)
-    void load()
-  }, [ready, load])
-  useLive('notifications', load)
+  const client = useQueryClient()
+  const { data: items = null, error, refetch } = useQuery({ ...queries.gh.notifications(all), enabled: ready })
+  const failed = error ? error.message : null
 
   const markRead = async (id: string | null) => {
     try {
       await api.github.markRead(id)
-      setItems(
-        (prev) => prev?.map((entry) => (id === null || entry.id === id ? { ...entry, unread: false } : entry)) ?? null,
+      // Both lists (unread and all) show the change at once; the next event reads them again.
+      client.setQueriesData<Notification[]>({ queryKey: ['github', 'notifications'] }, (prev) =>
+        prev?.map((entry) => (id === null || entry.id === id ? { ...entry, unread: false } : entry)),
       )
       if (id === null) toast('Marked everything as read')
     } catch (error) {
@@ -132,7 +103,7 @@ export function Inbox() {
             <CheckCheck />
             Mark all as read
           </Button>
-          <IconTool label="Reload notifications" onClick={() => void load()}>
+          <IconTool label="Reload notifications" onClick={() => void refetch()}>
             <RefreshCw />
           </IconTool>
         </div>
@@ -143,10 +114,10 @@ export function Inbox() {
           </div>
           <ul aria-label="Notifications">
             {failed ? <p className="p-4 text-removed">{failed}</p> : null}
-            {!items && !failed ? SKELETONS.map((key) => <Skeleton key={key} className="m-3 h-10" />) : null}
+            {!items && !failed ? <ListRowsSkeleton twoLines /> : null}
             {items?.length === 0 ? (
               <p className="p-8 text-center text-muted-foreground">
-                {all ? 'No notifications for this repository.' : 'All caught up.'}
+                {all ? 'No notifications for this repository.' : 'All caught up. Inbox zero, duck hero.'}
               </p>
             ) : null}
             {items?.map((entry) => (

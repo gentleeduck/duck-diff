@@ -1,7 +1,8 @@
 import { Input } from '@duck-diff/ui'
 import { useCallback, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
-import { useCanOpen } from '../hooks/useCanOpen'
+import { TreeSkeleton } from '../app/skeletons'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
@@ -13,23 +14,27 @@ import { actionsFor } from '../viewer/actions'
 import { useWrites } from '../writes/WritesProvider'
 import { FileTree } from './FileTree'
 import { filterFiles, type TreeStatus } from './filters'
+import { HiddenNotice } from './HiddenNotice'
 import { HideFilter } from './HideFilter'
 import { StatusFilter } from './StatusFilter'
 import { FileMenu, FolderMenu } from './tree-menus'
+import { ViewedProgress } from './ViewedProgress'
 
 const selectFiles = (state: SessionState) => state.files
+const selectLoading = (state: SessionState) => state.status === 'loading' && state.files.length === 0
 const selectPatterns = (state: Settings) => state.hidePatterns
 const selectFolders = (folders: ReadonlySet<string>) => folders
 const selectTop = (path: string | null) => path
 
 export function ChangesTree() {
-  const { api, fileHistory, viewed, changesFolders, diffFile, diffTop } = useApp()
+  const { fileHistory, viewed, changesFolders, diffFile, diffTop } = useApp()
   const folders = useStore(changesFolders, selectFolders)
   const { target } = useTarget()
   const kinds = useMemo(() => actionsFor(target), [target])
   const writes = useWrites()
-  const canOpen = useCanOpen()
+  const openInEditor = useOpenFile()
   const files = useSession(selectFiles)
+  const loading = useSession(selectLoading)
   const [statuses, setStatuses] = useState<ReadonlySet<TreeStatus>>(new Set())
   const [query, setQuery] = useState('')
   // The tree follows the diff: whatever file is at the top of it is the one marked here.
@@ -60,7 +65,9 @@ export function ChangesTree() {
           <HideFilter hiddenCount={files.length - shown.length} />
         </div>
         <StatusFilter files={shown} value={statuses} onChange={setStatuses} />
+        <ViewedProgress files={shown} target={target} />
       </div>
+      {loading ? <TreeSkeleton /> : null}
       {visible.length > 0 ? (
         <FileTree
           label="Changed files"
@@ -90,7 +97,7 @@ export function ChangesTree() {
                 openLabel="Go to file"
                 onOpen={() => open(row.path)}
                 onHistory={() => fileHistory.set(row.path)}
-                onNeovim={canOpen ? () => void api.open(row.path, 1) : undefined}
+                onEditor={() => void openInEditor(row.path)}
                 onViewed={file ? () => viewed.toggle(target, file) : undefined}
                 writes={file && file.status !== 'conflicted' ? kinds : []}
                 onWrite={(kind) => file && void writes.perform(kind, file)}
@@ -98,9 +105,13 @@ export function ChangesTree() {
             )
           }}
         />
-      ) : (
+      ) : files.length > 0 && shown.length === 0 ? (
+        <HiddenNotice count={files.length} />
+      ) : loading ? null : (
         <p className="p-3 text-tn-comment">
-          {files.length === 0 ? 'No changes in this comparison.' : 'No files match the filter.'}
+          {files.length === 0
+            ? 'No changes in this comparison. Nothing to see, waddle along.'
+            : 'No files match the filter.'}
         </p>
       )}
     </div>

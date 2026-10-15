@@ -1,6 +1,8 @@
-import type { DiffIndicators, HunkSeparators, LineDiffTypes, ThemeTypes } from '@pierre/diffs'
+import type { DiffIndicators, HunkSeparators, LineDiffTypes } from '@pierre/diffs'
 import { z } from 'zod'
+import { DEFAULT_THEME, THEME_NAMES, type ThemeName } from '../app/themes'
 import { DEFAULT_HIDE, type HidePattern } from '../lib/hide'
+import { saved } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
 
 export interface Settings {
@@ -12,8 +14,8 @@ export interface Settings {
   lineNumbers: boolean
   backgrounds: boolean
   expandUnchanged: boolean
-  themeType: ThemeTypes
-  themes: { light: string; dark: string }
+  // Dark, always; which dark is yours.
+  theme: ThemeName
   // Code in the diff and file views.
   fontSize: number
   // Everything else: text, buttons, rows and spacing scale together from this.
@@ -41,9 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lineNumbers: true,
   backgrounds: true,
   expandUnchanged: false,
-  // Tokyo Night only comes dark, so the page starts dark to keep code readable.
-  themeType: 'dark',
-  themes: { light: 'tokyo-night', dark: 'tokyo-night' },
+  theme: DEFAULT_THEME,
   fontSize: 15,
   uiFontSize: 15,
   fontWeight: 700,
@@ -67,8 +67,7 @@ const FIELDS = {
   lineNumbers: z.boolean(),
   backgrounds: z.boolean(),
   expandUnchanged: z.boolean(),
-  themeType: z.enum(['system', 'light', 'dark']),
-  themes: z.object({ light: z.string(), dark: z.string() }),
+  theme: z.enum(THEME_NAMES as [ThemeName, ...ThemeName[]]),
   fontSize: z.number().int().min(10).max(24),
   uiFontSize: z.number().int().min(10).max(24),
   fontWeight: z.union([z.literal(400), z.literal(500), z.literal(600), z.literal(700)]),
@@ -104,9 +103,7 @@ function load(storage: Pick<Storage, 'getItem'> | null): Settings {
   return result as unknown as Settings
 }
 
-export function createSettingsStore(
-  storage: Pick<Storage, 'getItem' | 'setItem'> | null = globalThis.localStorage ?? null,
-): Store<Settings> {
+export function createSettingsStore(storage: Pick<Storage, 'getItem' | 'setItem'> | null = saved): Store<Settings> {
   const store = createStore(load(storage))
   store.subscribe(() => {
     try {

@@ -1,8 +1,10 @@
 import type { ConversationComment, GitHubUser } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
 import { MessageSquare } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useState } from 'react'
+import { type ReactNode, Suspense, useState } from 'react'
 import { createStore, type Store, useStore } from '../lib/store'
+import { GitHubHtml } from '../markdown/GitHubHtml'
+import { Markdown } from '../markdown/Markdown'
 import { MarkdownEditor } from './MarkdownEditor'
 import { useGitHub } from './SignIn'
 import { ago } from './time'
@@ -22,11 +24,6 @@ export function Avatar({ user, large = false }: { user: GitHubUser; large?: bool
     <span className={`${size} shrink-0 rounded-full bg-muted`} />
   )
 }
-
-// The Markdown renderer is large, so it loads with the first comment instead of with the diff viewer.
-const Markdown = lazy(() => import('../markdown/Markdown').then((module) => ({ default: module.Markdown })))
-
-const GitHubHtml = lazy(() => import('../markdown/GitHubHtml').then((module) => ({ default: module.GitHubHtml })))
 
 // GitHub's own rendering when it sent one, so bot HTML and mentions look as on github.com; Markdown otherwise.
 export function Body({ text, html }: { text: string; html?: string | null }) {

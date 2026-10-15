@@ -1,7 +1,7 @@
-import type { Insights as InsightsData } from '@duck-diff/protocol'
 import { Skeleton, ToggleGroup, ToggleGroupItem } from '@duck-diff/ui'
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@duck-diff/ui/chart'
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from 'recharts'
 import { useApp } from '../app/AppProvider'
 
@@ -21,22 +21,10 @@ const day = (seconds: number) =>
 
 // Who works on this branch and how often, from local history: no forge, no sign-in.
 export default function Insights() {
-  const { api } = useApp()
+  const { queries } = useApp()
   const [days, setDays] = useState(90)
-  const [data, setData] = useState<InsightsData | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
-
-  useEffect(() => {
-    let alive = true
-    setData(null)
-    api.insights(days).then(
-      (next) => alive && setData(next),
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, days])
+  const { data = null, error } = useQuery(queries.git.insights(days))
+  const failed = error ? error.message : null
 
   // The busiest people; the rest are a long tail the chart cannot label.
   const people = data?.contributors.slice(0, 15) ?? []

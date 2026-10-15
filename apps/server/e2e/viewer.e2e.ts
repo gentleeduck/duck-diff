@@ -120,3 +120,77 @@ test('Show unchanged lines opens every gap in the diff', async ({ page, app, rep
   await expect(main).toContainText('line10 = 10')
   await expect(page.getByRole('button', { name: /Show \d+ unchanged lines/ })).toHaveCount(0)
 })
+
+test('counts the files viewed and goes to the next one not viewed', async ({ page, app }) => {
+  await page.goto(app.url)
+  const progress = page.getByRole('button', { name: /viewed/ }).filter({ hasText: '/ 2 viewed' })
+  await expect(progress).toContainText('0 / 2 viewed')
+  await page.locator('[data-diff-view]').getByText('notes.txt', { exact: true }).first().hover()
+  await page.getByRole('checkbox', { name: 'Viewed' }).first().click()
+  await expect(progress).toContainText('1 / 2 viewed')
+  await progress.click()
+  await expect(
+    page.getByRole('tree', { name: 'Changed files' }).getByRole('treeitem', { name: /app\.ts/ }),
+  ).toHaveAttribute('aria-selected', 'true')
+})
+
+test('folding or viewing a long file read halfway brings the next file up after it', async ({ page, app, repo }) => {
+  const long = Array.from({ length: 300 }, (_, i) => `export const a${i} = ${i}`)
+  repo.write('a/long.ts', `${long.join('\n')}\n`)
+  repo.commit('long')
+  repo.write('a/long.ts', `${long.map((line) => `${line} // changed`).join('\n')}\n`)
+  repo.write('z/next.ts', 'export const next = 1\n')
+  // A long file after it, so the page stays taller than where the reader was once the first one folds.
+  repo.write('zz/after.ts', `${Array.from({ length: 400 }, (_, i) => `export const z${i} = ${i}`).join('\n')}\n`)
+  await page.goto(app.url)
+  const scroller = page.locator('[data-diff-view]')
+  const nextHeader = page.locator('[data-diff-view]').getByRole('button', { name: 'Hide z/next.ts' })
+  const readHalfway = async () => {
+    await scroller.evaluate((element) => {
+      element.scrollTop = 2500
+    })
+    await expect(nextHeader).toHaveCount(0)
+    // The pinned header takes over once the page has drawn the new place.
+    await expect(page.getByRole('button', { name: 'Hide a/long.ts' })).toHaveCount(1)
+  }
+
+  await readHalfway()
+  await page.getByRole('button', { name: 'Hide a/long.ts' }).first().click()
+  await expect(nextHeader).toBeVisible()
+  expect(await scroller.evaluate((element) => element.scrollTop)).toBeLessThan(200)
+
+  await page.getByRole('button', { name: 'Show a/long.ts' }).first().click()
+  await readHalfway()
+  await page.getByRole('checkbox', { name: 'Viewed' }).first().click()
+  await expect(nextHeader).toBeVisible()
+  expect(await scroller.evaluate((element) => element.scrollTop)).toBeLessThan(200)
+})
+
+test('blame shows who changed each line of the new side, from the header or <leader>hb', async ({ page, app }) => {
+  await page.goto(app.url)
+  const main = page.locator('main')
+  await expect(main).toContainText('export const answer = 42')
+  await page.locator('[data-diff-view]').getByText('src/app.ts', { exact: true }).first().hover()
+  await page.getByRole('button', { name: 'Blame: who changed each line' }).first().click()
+  // Both sides: the removed line at HEAD, by the base commit, the edited one not committed yet.
+  await expect(page.locator('[data-diff-view]').getByText('Duck Test').first()).toBeVisible()
+  await expect(page.locator('[data-diff-view]').getByText('Uncommitted').first()).toBeVisible()
+  await page.keyboard.type(' hb')
+  await expect(page.locator('[data-diff-view]').getByText('Duck Test')).toHaveCount(0)
+})
+
+test('settings live on the server, so a browser with nothing saved still has them', async ({ page, app, browser }) => {
+  await page.goto(app.url)
+  await expect(page.locator('[data-layout="split"]')).toBeAttached()
+  await page.keyboard.press('t')
+  await expect(page.locator('[data-layout="unified"]')).toBeAttached()
+  // Saves go out in batches; leaving the page sends what is left.
+  await page.close({ runBeforeUnload: true })
+  const fresh = await (await browser.newContext()).newPage()
+  await fresh.goto(app.url)
+  await expect(fresh.locator('main')).toContainText('export const answer = 42')
+  await expect(fresh.locator('[data-layout="unified"]')).toBeAttached()
+  expect(await fresh.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('duck-diff:')))).toEqual(
+    [],
+  )
+})

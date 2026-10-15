@@ -1,4 +1,4 @@
-import type { SecurityAlert, SecurityAlerts } from '@duck-diff/protocol'
+import type { SecurityAlert } from '@duck-diff/protocol'
 import {
   Badge,
   Button,
@@ -10,12 +10,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Skeleton,
 } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { ShieldAlert, SquareArrowOutUpRight } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { CardsSkeleton } from '../app/skeletons'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
@@ -93,24 +94,18 @@ function Dismiss({ alert, onDone }: { alert: SecurityAlert; onDone(): void }) {
 
 // Dependabot and code scanning alerts, open ones only, each readable and dismissable here.
 export function Security() {
-  const { api } = useApp()
+  const { queries } = useApp()
   const ready = isReady(useGitHub())
-  const [found, setFound] = useState<SecurityAlerts | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
-  const load = useCallback(
-    () => api.github.security().then(setFound, (error: Error) => setFailed(error.message)),
-    [api],
-  )
-  useEffect(() => {
-    if (ready) void load()
-  }, [ready, load])
+  const { data: found = null, error, refetch } = useQuery({ ...queries.gh.security(), enabled: ready })
+  const failed = error ? error.message : null
+  const load = () => void refetch()
 
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see security alerts.</p>
   return (
     <div className="h-full overflow-y-auto">
       <div className="flex w-full flex-col gap-3 p-6">
         {failed ? <p className="text-removed">{failed}</p> : null}
-        {!found && !failed ? ['a', 'b', 'c'].map((key) => <Skeleton key={key} className="h-14" />) : null}
+        {!found && !failed ? <CardsSkeleton /> : null}
         {found?.unavailable.map((entry) => (
           <p key={entry.kind} className="rounded-md border border-border border-dashed px-4 py-2 text-muted-foreground">
             {entry.kind === 'dependabot' ? 'Dependabot' : 'Code scanning'} alerts could not be read: {entry.reason}

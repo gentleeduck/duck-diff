@@ -10,6 +10,8 @@ export interface Jobs {
   // Newest first.
   list(): Job[]
   output(id: string): string | null
+  // Forgets the finished jobs; one still running stays, it has more to print.
+  clear(): void
 }
 
 interface Entry {
@@ -123,6 +125,11 @@ export function createJobs(
       }
     },
     list: () => entries.map((entry) => ({ ...entry.job })),
+    clear() {
+      const running = entries.filter((entry) => entry.job.status === 'running')
+      entries.splice(0, entries.length, ...running)
+      save()
+    },
     output: (id) => entries.find((entry) => entry.job.id === id)?.output ?? null,
   }
 }

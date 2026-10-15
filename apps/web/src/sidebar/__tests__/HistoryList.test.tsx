@@ -46,7 +46,7 @@ describe('HistoryList', () => {
     expect(commits).toHaveBeenCalledWith({ head: 'HEAD', base: 'main', limit: 200 })
     expect(screen.getByText('5 min ago')).toBeTruthy()
     fireEvent.click(screen.getByText('feat: first'))
-    expect(window.location.search).toContain('b'.repeat(40))
+    await waitFor(() => expect(window.location.search).toContain('b'.repeat(40)))
     await waitFor(() =>
       expect(screen.getByText('feat: first').closest('button')?.getAttribute('aria-current')).toBe('true'),
     )
@@ -82,7 +82,7 @@ describe('HistoryList', () => {
       </AppProvider>,
     )
     fireEvent.click(await screen.findByText('On main: try'))
-    expect(window.location.search).toContain(stash)
+    await waitFor(() => expect(window.location.search).toContain(stash))
   })
 })
 
@@ -110,15 +110,20 @@ describe('HistoryList for one file', () => {
     const commits = renderFor('src/a.ts')
     fireEvent.click(await screen.findByText('edit a'))
     expect(commits).toHaveBeenCalledWith({ head: 'HEAD', path: 'src/a.ts', limit: 200 })
-    expect(decodeURIComponent(window.location.search)).toContain(`"sha":"${NEW}","path":"src/a.ts"`)
+    await waitFor(() =>
+      expect(decodeURIComponent(window.location.search)).toContain(`"sha":"${NEW}","path":"src/a.ts"`),
+    )
   })
 
   it('compares two versions with Shift-click and goes back to the branch', async () => {
     renderFor('src/a.ts')
     fireEvent.click(await screen.findByText('edit a'))
     fireEvent.click(screen.getByText('add a'), { shiftKey: true })
-    const search = decodeURIComponent(window.location.search)
-    expect(search).toContain(`"from":"${OLD}","to":"${NEW}","mode":"two-dot","path":"src/a.ts"`)
+    await waitFor(() =>
+      expect(decodeURIComponent(window.location.search)).toContain(
+        `"from":"${OLD}","to":"${NEW}","mode":"two-dot","path":"src/a.ts"`,
+      ),
+    )
     await waitFor(() => expect(screen.getByText('add a').closest('button')?.getAttribute('aria-current')).toBe('true'))
     fireEvent.click(screen.getByRole('button', { name: 'Back to branch history' }))
     await waitFor(() => expect(screen.queryByText('src/a.ts')).toBeNull())

@@ -32,10 +32,12 @@ import {
   RepoPathSchema,
   SubmoduleLogQuerySchema,
   SymbolQuerySchema,
+  targetKey,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
 import type { DiskCache } from './disk-cache'
 import { HttpError } from './errors'
+import type { RepoMemo } from './memo'
 import { iterableToStream } from './stream'
 
 export async function repoInfo(repo: string, nvim = false, build?: string): Promise<RepoInfo> {
@@ -137,14 +139,29 @@ export async function handleApi(
   nvim = false,
   build?: string,
   cache?: DiskCache,
+  memo?: RepoMemo,
 ): Promise<Response> {
   switch (url.pathname) {
     case '/api/repo':
       return Response.json(await repoInfo(repo, nvim, build))
-    case '/api/refs':
-      return Response.json(await listRefs(repo))
-    case '/api/files':
-      return Response.json(await listFiles(repo, requireTarget(url)))
+    case '/api/refs': {
+      const kept = memo?.get('refs')
+      if (kept !== undefined) return new Response(kept, { headers: { 'content-type': 'application/json' } })
+      const stamp = memo?.stamp() ?? 0
+      const text = JSON.stringify(await listRefs(repo))
+      memo?.set('refs', text, stamp)
+      return new Response(text, { headers: { 'content-type': 'application/json' } })
+    }
+    case '/api/files': {
+      const target = requireTarget(url)
+      const key = `files:${targetKey(target)}`
+      const kept = memo?.get(key)
+      if (kept !== undefined) return new Response(kept, { headers: { 'content-type': 'application/json' } })
+      const stamp = memo?.stamp() ?? 0
+      const text = JSON.stringify(await listFiles(repo, target))
+      memo?.set(key, text, stamp)
+      return new Response(text, { headers: { 'content-type': 'application/json' } })
+    }
     case '/api/commits': {
       const query = CommitsQuery.parse(Object.fromEntries(url.searchParams))
       return Response.json(await listCommits(repo, query))
@@ -215,12 +232,25 @@ export async function handleApi(
       const headers = { 'content-type': 'text/plain; charset=utf-8' }
       // The same refs give the same graph, so a page opened again draws it from disk without walking history.
       const key = `${all}:${query.limit}`
+      // Held in memory until the repo changes; on disk, by the tips it was drawn from.
+      const held = memo?.get(`graph:${key}`)
+      if (held !== undefined) return new Response(held, { headers })
+      const stamp = memo?.stamp() ?? 0
+      const hold = (text: string) => memo?.set(`graph:${key}`, text, stamp)
       const tips = cache ? Bun.hash(await graphTips(repo, all)).toString(36) : ''
       const kept = cache ? await cache.get<{ tips: string; text: string }>('graph', key) : null
-      if (kept?.tips === tips) return new Response(kept.text, { headers })
+      if (kept?.tips === tips) {
+        hold(kept.text)
+        return new Response(kept.text, { headers })
+      }
       const stream = streamGraph(repo, { all, limit: query.limit })
       return new Response(
-        iterableToStream(cache ? remembering(stream, (text) => cache.set('graph', key, { tips, text })) : stream),
+        iterableToStream(
+          remembering(stream, (text) => {
+            hold(text)
+            if (cache) cache.set('graph', key, { tips, text })
+          }),
+        ),
         { headers },
       )
     }
@@ -242,8 +272,14 @@ export async function handleApi(
     }
     case '/api/diff': {
       const target = requireTarget(url)
-      return new Response(iterableToStream(streamDiff(repo, target)), {
-        headers: { 'content-type': 'text/plain; charset=utf-8' },
+      const headers = { 'content-type': 'text/plain; charset=utf-8' }
+      const key = `diff:${targetKey(target)}`
+      const kept = memo?.get(key)
+      if (kept !== undefined) return new Response(kept, { headers })
+      const stamp = memo?.stamp() ?? 0
+      const stream = streamDiff(repo, target)
+      return new Response(iterableToStream(memo ? remembering(stream, (text) => memo.set(key, text, stamp)) : stream), {
+        headers,
       })
     }
     case '/api/content': {

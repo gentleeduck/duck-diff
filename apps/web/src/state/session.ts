@@ -1,8 +1,9 @@
 import { type ChangedFile, type DiffTarget, targetKey } from '@duck-diff/protocol'
 import type { CodeViewDiffItem } from '@pierre/diffs'
+import type { SavedTokens } from '../diff/highlight'
 import type { Api } from '../lib/api'
 import { cacheKeyFor, toDiffItem } from '../lib/items'
-import { readPatchStream } from '../lib/patch-stream'
+import { createPatchSplitter, readPatchStream } from '../lib/patch-stream'
 import { createStore, type Store } from '../lib/store'
 import { isImage } from '../viewer/file-info'
 
@@ -42,7 +43,44 @@ interface Kept {
 // A commit's diff never changes; anything naming a branch or the working tree can.
 const fixed = (target: DiffTarget) => target.kind === 'commit' && /^[0-9a-f]{7,40}$/.test(target.sha)
 
-export function createSession(api: Api, initial: DiffTarget): Session {
+// One file's patch as a diff item, marked with its file's cache key and folded if it is huge; an unchanged
+// item from before is reused as the same object, so the view can skip it.
+function itemFor(
+  text: string,
+  byPath: ReadonlyMap<string, ChangedFile>,
+  previous: ReadonlyMap<string, CodeViewDiffItem<undefined>>,
+): CodeViewDiffItem<undefined> | null {
+  const item = toDiffItem(text)
+  if (!item) return null
+  const file = byPath.get(item.fileDiff.name)
+  if (file) {
+    item.fileDiff.cacheKey = cacheKeyFor(file)
+    item.collapsed = shouldCollapse(file)
+  }
+  const before = previous.get(item.id)
+  return file && before && before.fileDiff.cacheKey === item.fileDiff.cacheKey ? before : item
+}
+
+// The diff the server put into the page for the comparison it opens on (server state.ts pageDiff).
+export interface Seed {
+  key: string
+  files: ChangedFile[]
+  patch: string
+  // Its code colors, as the last page saved them.
+  tokens?: SavedTokens
+}
+
+export function readSeed(): Seed | null {
+  const script = typeof document === 'undefined' ? null : document.getElementById('duck-diff-diff')
+  if (!script?.textContent) return null
+  try {
+    return JSON.parse(script.textContent) as Seed
+  } catch {
+    return null
+  }
+}
+
+export function createSession(api: Api, initial: DiffTarget, seed: Seed | null = null): Session {
   const store = createStore<SessionState>({
     target: initial,
     status: 'idle',
@@ -87,15 +125,9 @@ export function createSession(api: Api, initial: DiffTarget): Session {
     await readPatchStream(
       await diffBody,
       (text) => {
-        const item = toDiffItem(text)
+        const item = itemFor(text, byPath, previous)
         if (!item) return
-        const file = byPath.get(item.fileDiff.name)
-        if (file) {
-          item.fileDiff.cacheKey = cacheKeyFor(file)
-          item.collapsed = shouldCollapse(file)
-        }
-        const before = previous.get(item.id)
-        items.push(file && before && before.fileDiff.cacheKey === item.fileDiff.cacheKey ? before : item)
+        items.push(item)
         if (!onPartial) return
         if (items.length === 1) flush()
         else flushTimer ??= setTimeout(flush, 50)
@@ -107,6 +139,21 @@ export function createSession(api: Api, initial: DiffTarget): Session {
     const value = { files, items, loadedAt: Date.now() }
     keep(target, value)
     return value
+  }
+
+  // The opening diff, when the page came with it: drawn in the first frame, no request in between.
+  if (seed && seed.key === targetKey(initial)) {
+    const byPath = new Map(seed.files.map((file) => [file.path, file]))
+    const items: CodeViewDiffItem<undefined>[] = []
+    const splitter = createPatchSplitter((text) => {
+      const item = itemFor(text, byPath, new Map())
+      if (item) items.push(item)
+    })
+    splitter.push(seed.patch)
+    splitter.finish()
+    const value = { files: seed.files, items, loadedAt: Date.now() }
+    keep(initial, value)
+    store.set((prev) => ({ ...prev, ...value, status: 'ready' }))
   }
 
   async function load(target: DiffTarget) {

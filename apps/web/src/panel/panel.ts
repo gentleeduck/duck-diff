@@ -1,3 +1,4 @@
+import { saved } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
 
 export interface PanelState {
@@ -27,7 +28,7 @@ function readHeight(storage: Pick<Storage, 'getItem'> | null): number {
   }
 }
 
-export function createPanel(storage = typeof localStorage === 'undefined' ? null : localStorage): Panel {
+export function createPanel(storage: Pick<Storage, 'getItem' | 'setItem'> | null = saved): Panel {
   const store = createStore<PanelState>({ open: false, tab: 'output', job: null, height: readHeight(storage) })
   return {
     ...store,

@@ -22,6 +22,9 @@ export type ScrollTarget =
 
 export interface DiffViewHandle {
   scrollTo(target: ScrollTarget): void
+  // After a file folds: if its header is above the screen, it comes to the top so the next file follows it,
+  // rather than the reader landing wherever the rows that were there now end up.
+  reveal(id: string): void
 }
 
 interface DiffViewProps {
@@ -111,6 +114,13 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         // Glides there, then settles on the row once rows measured on the way have moved it.
         void glide(element, offset).then(() => virtualizer.scrollToIndex(index, { align }))
       },
+      reveal(id) {
+        const index = page.starts.get(id)
+        const element = scroller.current
+        const start = index === undefined ? undefined : virtualizer.measurementsCache[index]?.start
+        if (!element || start === undefined || start >= element.scrollTop) return
+        element.scrollTop = start
+      },
     }),
     [page, virtualizer],
   )
@@ -139,7 +149,9 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
   // When the page is rebuilt under the reader (a file's full text arrives and its gaps open, the files
   // reload), the row at the top of the screen stays where it was, instead of everything above it pushing
   // the reading place down. Only within one comparison; another one returns to its own remembered place.
-  const anchor = useRef<{ rows: { id: string; delta: number }[]; scrollKey: string | undefined } | null>(null)
+  const anchor = useRef<{ rows: { id: string; delta: number }[]; scrollKey: string | undefined; top: number } | null>(
+    null,
+  )
   const shownPage = useRef(page)
   useLayoutEffect(() => {
     if (shownPage.current === page) return
@@ -147,6 +159,8 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
     const held = anchor.current
     const element = scroller.current
     if (!held || !element || held.scrollKey !== scrollKey) return
+    // The page moved since those rows were taken (a jump, a scroll not drawn yet): that place is gone.
+    if (Math.abs(element.scrollTop - held.top) > 1) return
     // The first of the rows that were on screen that still exists; a gap bar that just opened does not.
     const where = new Map(page.rows.map((row, index) => [anchorId(row), index]))
     for (const { id, delta } of held.rows) {
@@ -172,7 +186,7 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
           : []
       })
       .slice(0, 8)
-    if (rows.length) anchor.current = { rows, scrollKey }
+    if (rows.length) anchor.current = { rows, scrollKey, top }
   })
 
   // Header rows in page order, for finding the one after the pinned file.
@@ -221,11 +235,18 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         return [sideways.bar(id, { position: 'absolute', insetInline: 0, transform: `translateY(${y}px)` })]
       })
 
-  // Scrolled to the end, the last file is the one being read even though it never reaches the top.
+  // Scrolled down to the end, the last file is the one being read even though it never reaches the top.
+  // Only the reader's own scroll counts: a page that shrinks (a folder folded) and so ends on screen does not.
   const viewHeight = scroller.current?.clientHeight ?? 0
   // The element's own height, which rows measured since the last estimate have already changed.
   const totalHeight = scroller.current?.scrollHeight ?? virtualizer.getTotalSize()
-  const atEnd = page.rows.length > 0 && totalHeight > viewHeight + 2 && scrollTop + viewHeight >= totalHeight - 2
+  const endVisible = page.rows.length > 0 && totalHeight > viewHeight + 2 && scrollTop + viewHeight >= totalHeight - 2
+  const lastTop = useRef(scrollTop)
+  const reachedEnd = useRef(false)
+  if (!endVisible || scrollTop < lastTop.current) reachedEnd.current = false
+  else if (scrollTop > lastTop.current) reachedEnd.current = true
+  lastTop.current = scrollTop
+  const atEnd = reachedEnd.current
   const topItem = atEnd
     ? (page.rows.at(-1)?.item ?? null)
     : firstRow?.type === 'end'

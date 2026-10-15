@@ -20,6 +20,7 @@ import { ArrowLeft, FileText, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { LinesSkeleton } from '../app/skeletons'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { MarkdownEditor } from './MarkdownEditor'
 
@@ -107,7 +108,7 @@ function Field({ field, value, onChange }: { field: FormField; value: string; on
 
 // GitHub's "New issue": choose a template (or a blank issue), then fill it in.
 export function NewIssue({ onCreated }: { onCreated(): void }) {
-  const { api, issueSelection } = useApp()
+  const { api, issueSelection, queries, queryClient } = useApp()
   const [open, setOpen] = useState(false)
   const [templates, setTemplates] = useState<IssueTemplate[] | null>(null)
   const [chosen, setChosen] = useState<IssueTemplate | 'blank' | null>(null)
@@ -119,7 +120,7 @@ export function NewIssue({ onCreated }: { onCreated(): void }) {
   const start = () => {
     setOpen(true)
     setChosen(null)
-    api.github.templates().then(
+    queryClient.fetchQuery(queries.gh.templates()).then(
       (found) => {
         setTemplates(found.issue)
         if (!found.issue.length) pick('blank')
@@ -174,7 +175,7 @@ export function NewIssue({ onCreated }: { onCreated(): void }) {
           <DialogTitle>{template ? template.name : 'New issue'}</DialogTitle>
           {chosen === null ? (
             <ul className="flex flex-col gap-2">
-              {templates === null ? <p className="text-muted-foreground">Reading the templates...</p> : null}
+              {templates === null ? <LinesSkeleton count={3} className="" /> : null}
               {templates?.map((entry) => (
                 <li key={entry.file} className="flex items-center gap-3 rounded-md border border-border p-3">
                   <FileText className="size-4 shrink-0 text-muted-foreground" />

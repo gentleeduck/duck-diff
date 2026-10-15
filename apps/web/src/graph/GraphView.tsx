@@ -13,6 +13,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { Cherry, GitBranch, Tag } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { GraphSkeleton } from '../app/skeletons'
 import { useRowHeight } from '../app/useSizes'
 import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
 import { useStore } from '../lib/store'
@@ -21,7 +22,6 @@ import { BisectBanner } from './BisectBanner'
 import { CommitHover, CommitMenu } from './CommitMenu'
 import { CommitPanel } from './CommitPanel'
 import { useCommitActions } from './commit-actions'
-import { prefetchCommit } from './commit-details'
 import { matchesCommit } from './FindCommit'
 import { GraphLines, LANE_WIDTH, laneColor } from './GraphLines'
 import type { GraphRow } from './layout'
@@ -87,7 +87,7 @@ function RefBadges({ refs, color }: { refs: RefLabel[]; color: string }) {
 }
 
 export default function GraphView() {
-  const { api, graph, graphSelection, graphQuery } = useApp()
+  const { graph, graphSelection, graphQuery, queries, queryClient } = useApp()
   const state = useStore(graph, selectGraph)
   const needle = useStore(graphQuery, selectQuery).trim().toLowerCase()
   const avatars = useAvatars()
@@ -161,8 +161,9 @@ export default function GraphView() {
 
   if (state.status === 'error') return <p className="p-4 text-removed">Could not read the history: {state.error}</p>
   if (state.status !== 'idle' && state.entries.length === 0 && state.status === 'ready') {
-    return <p className="p-4 text-muted-foreground">This repository has no commits yet.</p>
+    return <p className="p-4 text-muted-foreground">No commits yet. git commit -m "quack" and we are in business.</p>
   }
+  if (state.entries.length === 0) return <GraphSkeleton />
 
   return (
     <>
@@ -212,7 +213,10 @@ export default function GraphView() {
                           tabIndex={-1}
                           aria-selected={isSelected}
                           // The hover card's details start loading as the pointer arrives, ahead of its delay.
-                          onPointerEnter={() => void prefetchCommit(api, entry.sha).catch(() => {})}
+                          onPointerEnter={() => {
+                            void queryClient.prefetchQuery(queries.git.commit(entry.sha))
+                            void queryClient.prefetchQuery(queries.git.commitStat(entry.sha))
+                          }}
                           onClick={(event) => {
                             const from = selected ? index.get(selected) : undefined
                             if (event.shiftKey && from !== undefined) {

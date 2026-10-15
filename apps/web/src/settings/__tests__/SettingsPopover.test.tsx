@@ -1,3 +1,4 @@
+import { TooltipProvider } from '@duck-diff/ui'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { AppProvider, useApp } from '../../app/AppProvider'
@@ -17,20 +18,25 @@ function open() {
   localStorage.clear()
   render(
     <AppProvider api={fakeApi()}>
-      <Probe />
-      <SettingsPopover />
+      <TooltipProvider>
+        <Probe />
+        <SettingsPopover />
+      </TooltipProvider>
     </AppProvider>,
   )
   fireEvent.click(screen.getByRole('button', { name: 'Diff settings' }))
 }
 
 describe('SettingsPopover', () => {
-  it('switches layout and theme', () => {
+  it('switches layout and theme, and the light button only talks', async () => {
     open()
     fireEvent.click(screen.getByText('Stacked'))
     expect(read().diffStyle).toBe('unified')
-    fireEvent.click(screen.getByText('Light'))
-    expect(read().themeType).toBe('light')
+    fireEvent.click(screen.getByRole('button', { name: 'Light theme' }))
+    expect(read().theme).toBe('tokyo-night')
+    fireEvent.click(screen.getByRole('combobox', { name: 'Theme' }))
+    fireEvent.click(await screen.findByRole('option', { name: /Mallard/ }))
+    expect(read().theme).toBe('mallard')
   })
 
   it('toggles the switches', () => {

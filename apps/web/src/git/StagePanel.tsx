@@ -11,17 +11,17 @@ import {
   Plus,
   Undo2,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
-import { useCanOpen } from '../hooks/useCanOpen'
+import { TreeSkeleton } from '../app/skeletons'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
-import { useStore } from '../lib/store'
 import { openMerge } from '../merge/open-merge'
 import { fileGlyph } from '../sidebar/icons'
 import { FileMenu } from '../sidebar/tree-menus'
-import type { StageState } from '../state/stage'
+import { useStage } from '../state/stage'
 import type { WriteKind } from '../viewer/actions'
 import { useWrites } from '../writes/WritesProvider'
 import { useGit } from './GitProvider'
@@ -38,8 +38,6 @@ const LETTER: Record<FileStatus, { letter: string; className: string }> = {
   conflicted: { letter: '!', className: 'text-removed' },
 }
 
-const selectStage = (state: StageState) => state
-
 function Row({
   file,
   side,
@@ -52,12 +50,12 @@ function Row({
   onSelect(): void
 }) {
   const app = useApp()
-  const { api, fileHistory, diffFile } = app
+  const { fileHistory, diffFile } = app
   const { show } = useView()
   const { run } = useGit()
   const { target, navigate } = useTarget()
   const writes = useWrites()
-  const canOpen = useCanOpen()
+  const openInEditor = useOpenFile()
   const name = file.path.split('/').pop() ?? file.path
   const folder = file.path.slice(0, file.path.length - name.length - 1)
   const icon = fileGlyph(name)
@@ -154,7 +152,7 @@ function Row({
           openLabel="Show changes"
           onOpen={open}
           onHistory={() => fileHistory.set(file.path)}
-          onNeovim={canOpen ? () => void api.open(file.path, 1) : undefined}
+          onEditor={() => void openInEditor(file.path)}
           writes={kinds}
           onWrite={(kind) => void writes.perform(kind, file)}
         />
@@ -214,16 +212,14 @@ function Section({
 
 // The index at a glance, like an editor's source control view: what will be committed, and what will not.
 export function StagePanel() {
-  const { stage } = useApp()
   const { run } = useGit()
-  const state = useStore(stage, selectStage)
+  const state = useStage()
   const writes = useWrites()
   const [selected, setSelected] = useState<string | null>(null)
-  useEffect(() => stage.load(), [stage])
 
-  if (!state.loaded) return <p className="p-3 text-muted-foreground">Reading the index...</p>
+  if (!state.loaded) return <TreeSkeleton count={6} />
   if (!state.staged.length && !state.unstaged.length) {
-    return <p className="p-3 text-muted-foreground">Nothing to commit. The working tree is clean.</p>
+    return <p className="p-3 text-muted-foreground">Nothing to commit. Clean tree, clear conscience.</p>
   }
   const conflicts = state.unstaged.filter((file) => file.status === 'conflicted')
   const changes = state.unstaged.filter((file) => file.status !== 'conflicted')

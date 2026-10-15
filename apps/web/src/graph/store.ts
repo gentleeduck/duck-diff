@@ -1,3 +1,4 @@
+import type { Ref } from '@duck-diff/protocol'
 import type { Api } from '../lib/api'
 import { createStore, type Store } from '../lib/store'
 import { createLayout, type GraphRow } from './layout'
@@ -18,9 +19,49 @@ export interface Graph extends Store<GraphState> {
 
 const LIMIT = 20_000
 
+// The graph the server put into the page when it opens on the graph (server state.ts pageGraph).
+interface Seed {
+  key: string
+  text: string
+  refs: Ref[]
+}
+
+function readSeed(): Seed | null {
+  const script = typeof document === 'undefined' ? null : document.getElementById('duck-diff-graph')
+  if (!script?.textContent) return null
+  try {
+    return JSON.parse(script.textContent) as Seed
+  } catch {
+    return null
+  }
+}
+
+// Lays out a whole log at once.
+function layoutAll(text: string, refs: readonly Ref[]): { entries: GraphEntry[]; rows: GraphRow[] } {
+  const remotes = new Set(refs.filter((ref) => ref.kind === 'remote').map((ref) => ref.name))
+  const layout = createLayout()
+  const entries: GraphEntry[] = []
+  const rows: GraphRow[] = []
+  const reader = createRecordReader((entry) => {
+    entries.push(entry)
+    rows.push(...layout.push([entry]))
+  }, remotes)
+  reader.push(text)
+  reader.finish()
+  return { entries, rows }
+}
+
 // Streams the log, lays out lanes as records arrive, and publishes in 50 ms batches so long histories show quickly.
-export function createGraph(api: Api): Graph {
-  const store = createStore<GraphState>({ entries: [], rows: [], status: 'idle', all: false, error: null })
+export function createGraph(api: Api, seed: Seed | null = typeof window === 'undefined' ? null : readSeed()): Graph {
+  // A graph that came with the page is drawn in its first frame; reading it again waits for the page to idle.
+  const first = seed?.key === `false:${LIMIT}` ? layoutAll(seed.text, seed.refs) : null
+  const store = createStore<GraphState>({
+    entries: first?.entries ?? [],
+    rows: first?.rows ?? [],
+    status: first ? 'ready' : 'idle',
+    all: false,
+    error: null,
+  })
   let current: AbortController | null = null
 
   async function load() {

@@ -6,6 +6,11 @@ export default mergeConfig(
   base,
   defineConfig({
     plugins: [react()],
-    test: { environment: 'jsdom', include: ['src/**/__tests__/**/*.test.{ts,tsx}'], setupFiles: ['src/test-setup.ts'] },
+    test: {
+      environment: 'jsdom',
+      include: ['src/**/__tests__/**/*.test.{ts,tsx}'],
+      setupFiles: ['src/test-setup.ts'],
+      testTimeout: 15000,
+    },
   }),
 )

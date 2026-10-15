@@ -1,23 +1,38 @@
 import { Button, Input, Kbd } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { RefreshCw } from 'lucide-react'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { ViewSkeleton } from '../app/skeletons'
+import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
+import type { Place } from '../router/place'
 import { type GitHubState, isReady } from './store'
 
-const selectState = (state: GitHubState) => state
+const selectNumber = (place: Place) => place.number
 
 export function useGitHub(): GitHubState {
-  const { github } = useApp()
-  const state = useStore(github, selectState)
-  useEffect(() => {
-    void github.load()
-  }, [github])
-  return state
+  const { queries } = useApp()
+  const { data, isFetching, error } = useQuery(queries.gh.status())
+  return { status: data ?? null, loading: isFetching, error: error ? error.message : null }
+}
+
+// Signing in answers with the new status; checking again reads it fresh.
+function useSignIn() {
+  const { api, queries, queryClient } = useApp()
+  const key = queries.gh.status().queryKey
+  return {
+    signIn: (token: string) =>
+      api.github.signIn(token).then(
+        (status) => queryClient.setQueryData(key, status),
+        () => queryClient.invalidateQueries({ queryKey: key }),
+      ),
+    check: () => queryClient.invalidateQueries({ queryKey: key }),
+  }
 }
 
 function SignInPanel({ state }: { state: GitHubState }) {
-  const { github } = useApp()
+  const github = useSignIn()
   const [token, setToken] = useState('')
   const noRemote = state.status !== null && state.status.repo === null
 
@@ -54,7 +69,7 @@ function SignInPanel({ state }: { state: GitHubState }) {
         variant="outline"
         className="self-start"
         loading={state.loading}
-        onClick={() => void github.load(true)}>
+        onClick={() => void github.check()}>
         <RefreshCw />
         Check again
       </Button>
@@ -80,8 +95,11 @@ function SignInPanel({ state }: { state: GitHubState }) {
 // Shows the children once signed in to the repo's GitHub, and the way to get there otherwise.
 export function GitHubGate({ children }: { children: ReactNode }) {
   const state = useGitHub()
+  const { view } = useView()
+  const item = useStore(useApp().place, selectNumber) !== null
   if (isReady(state)) return children
-  if (!state.status && state.loading) return null
+  // No answer yet (still reading, or restoring the saved one): the page's own shape, not the sign-in form.
+  if (!state.status && !state.error) return <ViewSkeleton view={view} item={item} />
   return (
     <div className="p-6">
       <SignInPanel state={state} />

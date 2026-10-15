@@ -12,10 +12,10 @@ test('steps back and forward through views, files and the diff like a browser', 
 
   // README was picked by the page, not by a click, so one step back leaves Files.
   await page.getByRole('button', { name: 'Back' }).click()
-  await expect(page).toHaveURL(/view=files/)
+  await expect(page).toHaveURL(/\/files/)
   await expect(page.getByRole('region', { name: 'README.md' })).toBeVisible()
   await page.getByRole('button', { name: 'Back' }).click()
-  await expect(page).not.toHaveURL(/view=files/)
+  await expect(page).not.toHaveURL(/\/files/)
   await expect(page.getByRole('banner')).toContainText('2 files')
 
   await page.keyboard.press('Alt+ArrowRight')

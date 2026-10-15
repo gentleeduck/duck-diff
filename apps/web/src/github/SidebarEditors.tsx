@@ -1,29 +1,21 @@
 import type { GitHubUser, Options, Reviewer } from '@duck-diff/protocol'
 import { Users } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Api } from '../lib/api'
+import type { AppContextValue } from '../app/AppProvider'
 import { Avatar } from './Conversation'
 import { Picker } from './Picker'
 
-const cache = new WeakMap<Api, Promise<Options>>()
+export type Reads = Pick<AppContextValue, 'api' | 'queries' | 'queryClient'>
 
-// Read once per page and shared by every picker.
-export function options(api: Api): Promise<Options> {
-  let promise = cache.get(api)
-  if (!promise) {
-    promise = api.github.options()
-    promise.catch(() => cache.delete(api))
-    cache.set(api, promise)
-  }
-  return promise
-}
+// Read once and shared by every picker, through the query cache.
+export const options = (app: Reads): Promise<Options> => app.queryClient.fetchQuery(app.queries.gh.options())
 
-const people = (api: Api) => async () =>
-  (await options(api)).people.map((user) => ({ value: user.login, label: user.login, icon: <Avatar user={user} /> }))
+const people = (app: Reads) => async () =>
+  (await options(app)).people.map((user) => ({ value: user.login, label: user.login, icon: <Avatar user={user} /> }))
 
 // The pickers for a conversation's sidebar; each sends one change and then rereads the page.
 export function sidebarActions({
-  api,
+  app,
   number,
   assignees,
   labels,
@@ -31,7 +23,7 @@ export function sidebarActions({
   reviewers,
   reload,
 }: {
-  api: Api
+  app: Reads
   number: number
   assignees: GitHubUser[]
   labels: { name: string }[]
@@ -39,6 +31,7 @@ export function sidebarActions({
   reviewers?: Reviewer[]
   reload(): void
 }) {
+  const { api } = app
   const apply = (task: Promise<unknown>, done: string) =>
     task.then(
       () => {
@@ -52,10 +45,10 @@ export function sidebarActions({
       <Picker
         title="Reviewers"
         load={async () => {
-          const found = await options(api)
-          const [owner] = (await api.github.status()).repo?.split('/') ?? ['']
+          const found = await options(app)
+          const [owner] = (await app.queryClient.fetchQuery(app.queries.gh.status())).repo?.split('/') ?? ['']
           return [
-            ...(await people(api)()),
+            ...(await people(app)()),
             ...found.teams.map((team) => ({
               value: `${owner}/${team.slug}`,
               label: `${owner}/${team.slug}`,
@@ -78,7 +71,7 @@ export function sidebarActions({
     assignees: (
       <Picker
         title="Assignees"
-        load={people(api)}
+        load={people(app)}
         selected={assignees.map((user) => user.login)}
         onApply={(next) => void apply(api.github.editThread(number, { assignees: next }), 'Updated the assignees')}
       />
@@ -87,7 +80,7 @@ export function sidebarActions({
       <Picker
         title="Labels"
         load={async () =>
-          (await options(api)).labels.map((label) => ({
+          (await options(app)).labels.map((label) => ({
             value: label.name,
             label: label.name,
             detail: label.description || undefined,
@@ -102,10 +95,10 @@ export function sidebarActions({
       <Picker
         title="Milestone"
         single
-        load={async () => (await options(api)).milestones.map((entry) => ({ value: entry.title, label: entry.title }))}
+        load={async () => (await options(app)).milestones.map((entry) => ({ value: entry.title, label: entry.title }))}
         selected={milestone ? [milestone] : []}
         onApply={async (next) => {
-          const chosen = (await options(api)).milestones.find((entry) => entry.title === next[0])
+          const chosen = (await options(app)).milestones.find((entry) => entry.title === next[0])
           void apply(
             api.github.editThread(number, { milestone: chosen?.number ?? null }),
             chosen ? 'Set the milestone' : 'Cleared the milestone',

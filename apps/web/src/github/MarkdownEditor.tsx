@@ -17,11 +17,12 @@ import {
   Paperclip,
   TextQuote,
 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { fitRows } from '../lib/fit-rows'
+import { Markdown } from '../markdown/Markdown'
 import { Avatar } from './Conversation'
 import { applyFormat, type Format } from './markdown-format'
 
@@ -41,8 +42,6 @@ const TOOLS: ({ label: string; tip: string; icon: typeof Heading; format: Format
   { label: 'Add a task list', tip: 'Task list', icon: ListTodo, format: 'task' },
 ]
 const SHORTCUTS: Record<string, Format> = { b: 'bold', i: 'italic', e: 'code', k: 'link' }
-
-const Markdown = lazy(() => import('../markdown/Markdown').then((module) => ({ default: module.Markdown })))
 
 interface Suggestion {
   key: string
@@ -78,7 +77,7 @@ export function MarkdownEditor({
   autoFocus?: boolean
   placeholder?: string
 }) {
-  const { api } = useApp()
+  const { queries, queryClient } = useApp()
   const area = useRef<HTMLTextAreaElement>(null)
   const picker = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState('write')
@@ -96,7 +95,7 @@ export function MarkdownEditor({
     let alive = true
     const word = typed.toLowerCase()
     if (sign === '@') {
-      api.github.mentions().then(
+      queryClient.fetchQuery(queries.gh.mentions()).then(
         (users) =>
           alive &&
           setSuggestions(
@@ -116,7 +115,7 @@ export function MarkdownEditor({
     } else {
       // Searching waits for a pause, as GitHub limits search calls.
       const timer = setTimeout(() => {
-        api.github.references(/^\d+$/.test(word) ? word : `${word} in:title`).then(
+        queryClient.fetchQuery(queries.gh.references(/^\d+$/.test(word) ? word : `${word} in:title`)).then(
           (found) =>
             alive &&
             setSuggestions(
@@ -143,7 +142,7 @@ export function MarkdownEditor({
     return () => {
       alive = false
     }
-  }, [api, sign, typed, dismissed])
+  }, [queries, queryClient, sign, typed, dismissed])
 
   // GitHub's API has no upload for attachments (github.com uses the browser session), so text files
   // go in as code blocks and anything else is refused with that reason.

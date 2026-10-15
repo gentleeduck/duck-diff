@@ -1,28 +1,30 @@
-import { lazy } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
+import { useRefresh } from '../query/useRefresh'
 import { Actions } from './Actions'
 import { Discussions } from './Discussions'
 import { Inbox } from './Inbox'
 import { IssuesList } from './IssuesList'
+import IssueView from './IssueView'
 import { PullsList } from './PullsList'
+import PullView from './PullView'
 import { Releases } from './Releases'
 import { Security } from './Security'
 import { GitHubGate } from './SignIn'
 
-const PullView = lazy(() => import('./PullView'))
-const IssueView = lazy(() => import('./IssueView'))
-
 const selectNumber = (value: number | null) => value
 
 // Like GitHub: the list is a page, and an item opens as its own page with nothing beside it.
-export function PullsPage({ version, onChanged }: { version: number; onChanged(): void }) {
+export function PullsPage() {
   const { pullSelection } = useApp()
+  const refresh = useRefresh()
+  // A change made here is a change the lists and the palette's index should see too.
+  const onChanged = () => void refresh('pulls')
   const number = useStore(pullSelection, selectNumber)
   return (
     <GitHubGate>
       {number === null ? (
-        <PullsList version={version} onChanged={onChanged} />
+        <PullsList onChanged={onChanged} />
       ) : (
         <PullView key={number} number={number} onChanged={onChanged} />
       )}
@@ -30,13 +32,15 @@ export function PullsPage({ version, onChanged }: { version: number; onChanged()
   )
 }
 
-export function IssuesPage({ version, onChanged }: { version: number; onChanged(): void }) {
+export function IssuesPage() {
   const { issueSelection } = useApp()
+  const refresh = useRefresh()
+  const onChanged = () => void refresh('issues')
   const number = useStore(issueSelection, selectNumber)
   return (
     <GitHubGate>
       {number === null ? (
-        <IssuesList version={version} onChanged={onChanged} />
+        <IssuesList onChanged={onChanged} />
       ) : (
         <IssueView key={number} number={number} onChanged={onChanged} />
       )}

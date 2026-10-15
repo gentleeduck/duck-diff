@@ -1,3 +1,4 @@
+import { saved } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
 import type { Overrides } from './bindings'
 import type { Mode } from './engine'
@@ -23,9 +24,7 @@ export interface KeyOverrides extends Store<Overrides> {
   bind(id: string, keys: string[] | null): void
 }
 
-export function createKeyOverrides(
-  storage: Pick<Storage, 'getItem' | 'setItem'> | null = globalThis.localStorage ?? null,
-): KeyOverrides {
+export function createKeyOverrides(storage: Pick<Storage, 'getItem' | 'setItem'> | null = saved): KeyOverrides {
   let initial: Overrides = {}
   try {
     const parsed = JSON.parse(storage?.getItem(KEY) ?? '{}') as unknown

@@ -1,35 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { describeTarget, historyTarget, presets, toggleOperator, withoutPath, withSide } from '../model'
+import { describeTarget, historyTarget, presets, withoutPath, withSide } from '../model'
 
 const SHA = '3f2a91c4b5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0'
 
 describe('describeTarget', () => {
-  it('names both sides and the operator', () => {
-    expect(describeTarget({ kind: 'local' })).toEqual({ from: 'HEAD', to: 'working tree', operator: null, path: null })
-    expect(describeTarget({ kind: 'staged' })).toEqual({ from: 'HEAD', to: 'staged', operator: null, path: null })
-    expect(describeTarget({ kind: 'unstaged' })).toEqual({
-      from: 'staged',
-      to: 'working tree',
-      operator: null,
-      path: null,
-    })
+  it('names both sides', () => {
+    expect(describeTarget({ kind: 'local' })).toEqual({ from: 'HEAD', to: 'working tree', path: null })
+    expect(describeTarget({ kind: 'staged' })).toEqual({ from: 'HEAD', to: 'staged', path: null })
+    expect(describeTarget({ kind: 'unstaged' })).toEqual({ from: 'staged', to: 'working tree', path: null })
     expect(describeTarget({ kind: 'range', from: 'main', to: 'feat', mode: 'two-dot' })).toEqual({
       from: 'main',
       to: 'feat',
-      operator: '..',
       path: null,
     })
-    expect(describeTarget({ kind: 'range', from: 'main', to: 'feat', mode: 'merge-base' }).operator).toBe('...')
     expect(describeTarget({ kind: 'range', from: SHA, to: 'feat', mode: 'two-dot' }).from).toBe('3f2a91c')
     expect(
       describeTarget({ kind: 'range', from: 'origin/main', to: 'refs/duck-diff/pr/12', mode: 'merge-base' }).to,
     ).toBe('PR #12')
-    expect(describeTarget({ kind: 'commit', sha: SHA })).toEqual({
-      from: '3f2a91c^',
-      to: '3f2a91c',
-      operator: null,
-      path: null,
-    })
+    expect(describeTarget({ kind: 'commit', sha: SHA })).toEqual({ from: '3f2a91c^', to: '3f2a91c', path: null })
   })
 })
 
@@ -54,14 +42,6 @@ describe('withSide', () => {
     expect(withSide(range, 'to', { kind: 'index' })).toEqual({ kind: 'staged' })
     expect(withSide({ kind: 'local' }, 'from', { kind: 'index' })).toEqual({ kind: 'unstaged' })
     expect(withSide({ kind: 'unstaged' }, 'from', { kind: 'ref', name: 'HEAD' })).toEqual({ kind: 'local' })
-  })
-})
-
-describe('toggleOperator', () => {
-  it('flips range modes and leaves other targets alone', () => {
-    expect(toggleOperator({ kind: 'range', from: 'a', to: 'b', mode: 'two-dot' })).toMatchObject({ mode: 'merge-base' })
-    expect(toggleOperator({ kind: 'range', from: 'a', to: 'b', mode: 'merge-base' })).toMatchObject({ mode: 'two-dot' })
-    expect(toggleOperator({ kind: 'local' })).toEqual({ kind: 'local' })
   })
 })
 
@@ -92,7 +72,6 @@ describe('one file', () => {
     expect(describeTarget(target).path).toBe('src/a.ts')
     expect(describeTarget({ kind: 'local' }).path).toBeNull()
     expect(withSide(target, 'from', { kind: 'ref', name: 'v1' })).toEqual({ ...target, from: 'v1' })
-    expect(toggleOperator(target)).toEqual({ ...target, mode: 'merge-base' })
     expect(withoutPath(target)).toEqual({ kind: 'range', from: 'main', to: 'feat', mode: 'two-dot' })
   })
 

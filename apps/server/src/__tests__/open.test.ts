@@ -19,10 +19,29 @@ function post(body: unknown) {
 }
 
 describe('/api/open', () => {
-  it('answers 409 when the server was started without a Neovim address', async () => {
+  it('without a Neovim attached, asks the page to open Neovim in a terminal at the line', async () => {
     repo = createRepo()
-    server = await createServer({ repo: repo.path, port: testPort(), watch: false })
-    expect((await post({ path: 'a.ts', line: 3 })).status).toBe(409)
+    server = await createServer({
+      repo: repo.path,
+      port: testPort(),
+      watch: false,
+      pickOpener: () => ({ how: 'terminal' }),
+    })
+    expect(await (await post({ path: "it's.ts", line: 3 })).json()).toEqual({
+      how: 'terminal',
+      command: "nvim +3 -- 'it'\\''s.ts'",
+    })
+  })
+
+  it('starts a code editor when there is no Neovim', async () => {
+    repo = createRepo()
+    server = await createServer({
+      repo: repo.path,
+      port: testPort(),
+      watch: false,
+      pickOpener: () => ({ how: 'editor', command: 'true', args: (file, line) => [`${file}:${line}`] }),
+    })
+    expect(await (await post({ path: 'a.ts', line: 3 })).json()).toEqual({ how: 'editor', command: 'true' })
   })
 
   it('sends the open keys to Neovim for paths inside the repo', async () => {
@@ -37,7 +56,7 @@ describe('/api/open', () => {
         calls.push(args)
       },
     })
-    expect((await post({ path: 'src/a.ts', line: 3 })).status).toBe(204)
+    expect(await (await post({ path: 'src/a.ts', line: 3 })).json()).toEqual({ how: 'nvim' })
     expect(calls[0]).toEqual([
       '--server',
       '/tmp/nvim.sock',

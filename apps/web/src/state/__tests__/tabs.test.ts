@@ -72,3 +72,33 @@ describe('diff tabs', () => {
     expect(kinds(other)).toEqual(['local'])
   })
 })
+
+describe('editing a comparison in its tab', () => {
+  it('changes the open tab when only the mode or a pull request base changes, instead of opening another', () => {
+    const tabs = createTabs({ kind: 'local' })
+    const pr = { kind: 'range' as const, from: 'origin/main', to: 'refs/duck-diff/pr/269', mode: 'merge-base' as const }
+    const opened = tabs.open(pr)
+    tabs.open({ ...pr, mode: 'two-dot' })
+    tabs.open({ ...pr, from: 'origin/feat/basket-page' })
+    expect(tabs.get().tabs).toHaveLength(2)
+    expect(tabs.get().active).toBe(opened.id)
+    expect(tabs.get().tabs[1]?.target).toEqual({ ...pr, from: 'origin/feat/basket-page' })
+    // Another pull request, or another range altogether, still gets its own tab.
+    tabs.open({ ...pr, to: 'refs/duck-diff/pr/270' })
+    expect(tabs.get().tabs).toHaveLength(3)
+  })
+})
+
+describe('restoring tabs of one comparison', () => {
+  it('brings back one tab for a pull request saved twice, once per mode', () => {
+    const pr = { kind: 'range' as const, from: 'origin/main', to: 'refs/duck-diff/pr/269', mode: 'merge-base' as const }
+    const saved = JSON.stringify([
+      { target: pr, path: null },
+      { target: { ...pr, mode: 'two-dot' }, path: null },
+    ])
+    const storage = { getItem: () => saved, setItem: () => {} }
+    const tabs = createTabs({ kind: 'local' })
+    tabs.restore('/repo', storage)
+    expect(tabs.get().tabs.map((tab) => tab.target.kind)).toEqual(['local', 'range'])
+  })
+})

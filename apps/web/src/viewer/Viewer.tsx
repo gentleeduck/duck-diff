@@ -1,6 +1,8 @@
-import { type ChangedFile, type DiffTarget, targetKey } from '@duck-diff/protocol'
+import { type BlameLine, type ChangedFile, type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { DiffSkeleton } from '../app/skeletons'
+import { blameSides } from '../blame/ref'
 import { CodeHover } from '../code-nav/CodeHover'
 import { refForSide, type SymbolUnder } from '../code-nav/symbol-at'
 import { useSymbolClick } from '../code-nav/useSymbolClick'
@@ -11,6 +13,7 @@ import type { RowContextValue } from '../diff/RowViews'
 import type { DiffLine, DiffRow } from '../diff/rows'
 import { openFile } from '../files/open-file'
 import { type PullReviewState, pullOf } from '../github/pull-review'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { hasScrollMemory } from '../hooks/useScrollMemory'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
@@ -25,6 +28,7 @@ import { lineHash } from '../review/anchor'
 import { createAnnotator, type Note, type NoteItem } from '../review/annotations'
 import { ReviewNote } from '../review/ReviewNote'
 import type { ReviewsState } from '../review/reviews'
+import { HiddenNotice } from '../sidebar/HiddenNotice'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { type ViewedState, viewedPaths } from '../state/viewed'
@@ -95,11 +99,11 @@ function crossKeys(selection: CodeSelection, rows: readonly DiffRow[]): Set<stri
 const sourceKey = (item: NoteItem) => item.fileDiff.cacheKey ?? item.id
 
 const EMPTY: Record<DiffTarget['kind'], string> = {
-  local: 'Nothing to commit. The working tree matches the last commit.',
-  staged: 'Nothing is staged. Stage files or hunks from the working tree to see them here.',
-  unstaged: 'No unstaged changes. Everything left is already staged.',
-  range: 'These two points have the same content.',
-  commit: 'This commit changes no files.',
+  local: 'Nothing to commit. The pond is still: the working tree matches the last commit.',
+  staged: 'Nothing staged yet. Stage files or hunks from the working tree and they land here.',
+  unstaged: 'No unstaged changes. Everything left is staged; go commit, you magnificent duck.',
+  range: 'Same content on both sides. Two refs, one tree: git has déjà vu.',
+  commit: 'This commit changes no files. An empty commit; bold move.',
 }
 const selectSettings = (state: Settings) => state
 const selectReviews = (state: ReviewsState) => state
@@ -120,6 +124,10 @@ function usePerTarget<T>(key: string, initial: () => T): [T, (update: (prev: T) 
 }
 
 const emptyToggles = () => new Map<string, boolean>() as ReadonlyMap<string, boolean>
+const emptyBlames = () =>
+  new Map<string, readonly BlameLine[] | null>() as ReadonlyMap<string, readonly BlameLine[] | null>
+const selectBlamed = (paths: ReadonlySet<string>) => paths
+
 const emptyContents = () => new Map<string, readonly string[]>() as ReadonlyMap<string, readonly string[]>
 const emptyExpanded = () => new Map<string, ReadonlySet<number>>() as ReadonlyMap<string, ReadonlySet<number>>
 
@@ -138,6 +146,9 @@ export default function Viewer() {
     fileAt,
     diffTop,
     keys,
+    blameFiles,
+    queries,
+    queryClient,
   } = useApp()
   const { show } = useView()
   const plain = useSession(selectItems)
@@ -194,6 +205,37 @@ export default function Viewer() {
   // Unchanged lines are read from the full file the first time someone opens a gap.
   const [expanded, setExpanded] = usePerTarget(shownKey, emptyExpanded)
   const [contents, setContents] = usePerTarget(shownKey, emptyContents)
+
+  // Blame, read once per file while it is on.
+  const blamed = useStore(blameFiles, selectBlamed)
+  const [blames, setBlames] = usePerTarget(shownKey, emptyBlames)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the comparison's key is the trigger
+  useEffect(() => blameFiles.set(new Set()), [shownKey])
+  // Both sides: the old one at what it was compared with (under its old name), the new one at the commit or
+  // the working file. A side the file does not have, an added file's old one, has nothing to blame.
+  useEffect(() => {
+    const sides = blameSides(target)
+    for (const path of blamed) {
+      const file = byPath.get(path)
+      const reads = [
+        {
+          key: `old:${path}`,
+          at: file && (file.status === 'added' || file.status === 'untracked') ? null : sides.old,
+          path: file?.oldPath ?? path,
+        },
+        { key: `new:${path}`, at: file?.status === 'deleted' ? null : sides.new, path },
+      ]
+      for (const { key, at, path: blamedPath } of reads) {
+        if (blames.has(key)) continue
+        setBlames((prev) => new Map(prev).set(key, at ? null : []))
+        if (!at) continue
+        queryClient.fetchQuery(queries.git.blame(blamedPath, at.ref, at.mergeBase)).then(
+          (lines) => setBlames((prev) => new Map(prev).set(key, lines)),
+          () => setBlames((prev) => new Map(prev).set(key, [])),
+        )
+      }
+    }
+  }, [blamed, blames, setBlames, queries, queryClient, target, byPath])
 
   const layout = settings.diffStyle === 'split' ? 'split' : 'unified'
   const page = useMemo(
@@ -315,7 +357,9 @@ export default function Viewer() {
     },
     [diffTop],
   )
-  const diffRoot = useCallback(() => document.querySelector<HTMLElement>('[data-diff-view]'), [])
+  // This viewer's own diff; a pull request's Files tab can hold a second one.
+  const box = useRef<HTMLDivElement>(null)
+  const diffRoot = useCallback(() => box.current?.querySelector<HTMLElement>('[data-diff-view]') ?? null, [])
   // A comment on selected words covers their lines and keeps the exact columns, so the words stay highlighted.
   const commentOnSelection = useCallback(
     (raw: CodeSelection) => {
@@ -402,6 +446,10 @@ export default function Viewer() {
   const context = useMemo<RowContextValue>(
     () => ({
       settings,
+      blame(item, side) {
+        const path = item.fileDiff.name
+        return blamed.has(path) ? (blames.get(`${side}:${path}`) ?? null) : undefined
+      },
       tokens(item, side, line) {
         const file = page.files.get(item.id)
         if (!file) return undefined
@@ -518,17 +566,15 @@ export default function Viewer() {
       sourcePath,
       pullReview,
       selecting,
+      blamed,
+      blames,
     ],
   )
 
-  // Only a server started from Neovim can open files there, so the button follows repo info.
-  const [canOpen, setCanOpen] = useState(false)
-  useEffect(() => {
-    api.repo().then(
-      (info) => setCanOpen(info.nvim),
-      () => {},
-    )
-  }, [api])
+  const openInEditor = useOpenFile()
+
+  // Folding a file read halfway brings its header back to the top, with the next file right after it.
+  const revealFile = useCallback((id: string) => requestAnimationFrame(() => viewer.current?.reveal(id)), [viewer])
 
   const renderHeader = useCallback(
     (item: NoteItem) => {
@@ -536,7 +582,11 @@ export default function Viewer() {
       const file = byPath.get(path)
       const firstLine = item.fileDiff.hunks[0]?.additionStart ?? 1
       const collapsed = Boolean(item.collapsed)
-      const toggle = () => setToggled((prev) => new Map(prev).set(path, !collapsed))
+      const reveal = () => revealFile(item.id)
+      const toggle = () => {
+        setToggled((prev) => new Map(prev).set(path, !collapsed))
+        if (!collapsed) reveal()
+      }
       return (
         <>
           <FileHeader
@@ -568,10 +618,20 @@ export default function Viewer() {
                 })
                 // On a pull request the mark is GitHub's too, so it shows on github.com and comes back next time.
                 if (pull !== null) pullReview.setViewed(file.path, nowViewed).catch(() => {})
+                if (nowViewed) reveal()
               }}
               onHistory={() => fileHistory.set(path)}
+              blame={{
+                on: blamed.has(path),
+                toggle: () =>
+                  blameFiles.set((prev) => {
+                    const next = new Set(prev)
+                    if (!next.delete(path)) next.add(path)
+                    return next
+                  }),
+              }}
               note={file ? fileNote(file) : null}
-              onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
+              onOpen={() => void openInEditor(path, firstLine)}
               writes={
                 file && file.status !== 'conflicted' && kinds.length > 0 ? (
                   <WriteButtons kinds={kinds} scope="file" onWrite={(kind) => void writes.perform(kind, file)} />
@@ -584,8 +644,7 @@ export default function Viewer() {
       )
     },
     [
-      api,
-      canOpen,
+      openInEditor,
       byPath,
       kinds,
       writes,
@@ -601,6 +660,9 @@ export default function Viewer() {
       fileLine,
       fileAt,
       show,
+      revealFile,
+      blamed,
+      blameFiles,
     ],
   )
 
@@ -609,8 +671,10 @@ export default function Viewer() {
   if (status === 'ready' && files.length === 0) {
     return <p className="p-6 text-muted-foreground">{EMPTY[target.kind]}</p>
   }
+  if (status === 'ready' && plain.length > 0 && shown.length === 0) return <HiddenNotice count={plain.length} />
+  if (status === 'loading' && items.length === 0) return <DiffSkeleton />
   return (
-    <div className="relative h-full">
+    <div ref={box} className="relative h-full">
       <DiffView
         ref={viewer}
         page={page}

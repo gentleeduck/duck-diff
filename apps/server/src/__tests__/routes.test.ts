@@ -34,6 +34,27 @@ describe('auth', () => {
     expect(response.headers.get('set-cookie')).toContain('HttpOnly')
   })
 
+  it('keeps the page state on the server and hands it to the page with the html', async () => {
+    await edited()
+    const base = `http://127.0.0.1:${fixture.server.port}`
+    const headers = { 'x-duck-diff-token': fixture.server.token }
+    const put = await fetch(`${base}/api/state`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ changes: { 'duck-diff:settings': '{"fontSize":16}' } }),
+    })
+    expect(put.status).toBe(204)
+    expect(await (await fetch(`${base}/api/state`, { headers })).json()).toEqual({
+      'duck-diff:settings': '{"fontSize":16}',
+    })
+    const html = await (await fetch(`${base}/?token=${fixture.server.token}`)).text()
+    expect(html).toContain('<script id="duck-diff-state" type="application/json">{"duck-diff:settings"')
+    await fetch(`${base}/api/state/queries`, { method: 'PUT', headers, body: '{"q":1}' })
+    // The saved answers come back inside the page, not through a request of their own.
+    const again = await (await fetch(`${base}/?token=${fixture.server.token}`)).text()
+    expect(again).toContain('<script id="duck-diff-queries" type="application/json">{"q":1}</script>')
+  })
+
   it('binds to localhost only', async () => {
     await edited()
     expect(fixture.server.url.startsWith('http://127.0.0.1:')).toBe(true)

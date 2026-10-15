@@ -1,16 +1,19 @@
-import type { BlameLine, FileContents } from '@duck-diff/protocol'
+import type { BlameLine } from '@duck-diff/protocol'
 import { Badge, Button } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Check, Code2, Copy, Eye, FileDiff, History, SquareArrowOutUpRight, UserSearch } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { CodeRowsSkeleton } from '../app/skeletons'
+import { BlameCell } from '../blame/BlameCell'
 import { CodeHover } from '../code-nav/CodeHover'
 import { useSymbolClick } from '../code-nav/useSymbolClick'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
 import { useCodeScrollX } from '../diff/useCodeScrollX'
-import { useCanOpen } from '../hooks/useCanOpen'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
@@ -19,7 +22,6 @@ import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
 import { Markdown } from '../markdown/Markdown'
 import { fileGlyph } from '../sidebar/icons'
-import { relativeTime } from '../sidebar/relative-time'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { formatBytes } from '../viewer/file-info'
@@ -29,6 +31,7 @@ const selectPath = (path: string | null) => path
 const selectFiles = (state: SessionState) => state.files
 const selectSettings = (state: Settings) => state
 const MARKDOWN = /\.(md|markdown)$/i
+const NO_BLAME: BlameLine[] = []
 
 // A repository image as the page loads it, at the revision the file is shown at.
 function rawUrl(path: string, at: string | null): string {
@@ -42,38 +45,12 @@ function resolveLink(from: string, href: string): string {
   return decodeURIComponent(new URL(href, `http://repo/${from}`).pathname.slice(1))
 }
 
-// The first line of each run from one commit names it; the rest of the run stays quiet.
-function BlameCell({ blame, index }: { blame: BlameLine[] | null; index: number }) {
-  const { graphSelection } = useApp()
-  const { show } = useView()
-  const line = blame?.[index]
-  const first = line && blame?.[index - 1]?.sha !== line.sha
-  if (!line) return <span className="w-60 shrink-0 border-border border-e" />
-  return (
-    <button
-      type="button"
-      title={`${line.summary}\n${line.author}, ${new Date(line.time * 1000).toLocaleString()}`}
-      onClick={() => {
-        graphSelection.set(line.sha)
-        show('graph')
-      }}
-      className="flex w-60 shrink-0 cursor-pointer gap-2 border-border border-e px-2 text-start text-muted-foreground hover:bg-accent/60">
-      {first ? (
-        <>
-          <span className="min-w-0 flex-1 truncate">{line.author}</span>
-          <span className="shrink-0 text-tn-comment">{relativeTime(line.time)}</span>
-        </>
-      ) : null}
-    </button>
-  )
-}
-
 const selectAt = (at: string | null) => at
 const selectLine = (line: number | null) => line
 
 export default function FileView() {
   const app = useApp()
-  const { api, fileSelection, fileHistory, fileLine, fileAt } = app
+  const { fileSelection, fileHistory, fileLine, fileAt, queries } = app
   const path = useStore(fileSelection, selectPath)
   const at = useStore(fileAt, selectAt)
   const line = useStore(fileLine, selectLine)
@@ -81,42 +58,17 @@ export default function FileView() {
   const settings = useSettings(selectSettings)
   const { navigate } = useTarget()
   const { show } = useView()
-  const [contents, setContents] = useState<FileContents | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const canOpen = useCanOpen()
+  const openInEditor = useOpenFile()
   const [preview, setPreview] = useState(true)
   const [blaming, setBlaming] = useState(false)
-  const [blame, setBlame] = useState<BlameLine[] | null>(null)
-  useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
-
-  useEffect(() => {
-    if (!path) return
-    let alive = true
-    setContents(null)
-    setFailed(null)
-    api.file(path, at ?? undefined).then(
-      (next) => alive && setContents(next),
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, path, at])
-
+  const file = useQuery({ ...queries.git.file(path ?? '', at ?? undefined), enabled: Boolean(path) })
+  const contents = file.data ?? null
+  const failed = file.error ? file.error.message : null
   // Read once per file while blame is on; untracked files have none and show a plain gutter.
-  useEffect(() => {
-    setBlame(null)
-    if (!path || !blaming) return
-    let alive = true
-    api.blame(path, at ?? undefined).then(
-      (next) => alive && setBlame(next),
-      () => alive && setBlame([]),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, path, blaming, at])
+  const blamed = useQuery({ ...queries.git.blame(path ?? '', at ?? undefined), enabled: Boolean(path) && blaming })
+  const blame = blaming ? (blamed.data ?? (blamed.isError ? NO_BLAME : null)) : null
+  useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
 
   const lines = useMemo(() => (contents?.text ?? '').replace(/\n$/, '').split('\n'), [contents])
   const tokens =
@@ -158,7 +110,7 @@ export default function FileView() {
   }, [line, contents, virtualizer])
 
   if (!path) {
-    return <p className="p-4 text-muted-foreground">Pick a file on the left to read it here.</p>
+    return <p className="p-4 text-muted-foreground">Pick a file on the left to read it here. No file, no quack.</p>
   }
 
   const status = changed.find((file) => file.path === path)
@@ -209,12 +161,10 @@ export default function FileView() {
               Show changes
             </Button>
           ) : null}
-          {canOpen ? (
-            <Button size="sm" variant="outline" aria-label="Open in Neovim" onClick={() => void api.open(path, 1)}>
-              <SquareArrowOutUpRight />
-              Open
-            </Button>
-          ) : null}
+          <Button size="sm" variant="outline" aria-label="Open" onClick={() => void openInEditor(path, line ?? 1)}>
+            <SquareArrowOutUpRight />
+            Open
+          </Button>
           <IconTool
             label={blaming ? 'Hide blame' : 'Blame: who changed each line'}
             onClick={() => {
@@ -247,6 +197,7 @@ export default function FileView() {
           Could not read {path}: {failed}
         </p>
       ) : null}
+      {!contents && !failed ? <CodeRowsSkeleton count={30} /> : null}
       {contents?.text === '' ? <p className="p-4 text-muted-foreground">This file is empty.</p> : null}
       {contents && contents.text === null ? (
         <p className="p-4 text-muted-foreground">

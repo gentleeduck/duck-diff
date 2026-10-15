@@ -82,7 +82,7 @@ export function ItemSidebar({
       </Section>
       <Section title="Labels" action={actions.labels}>
         {labels.length ? (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-x-1.5 gap-y-2">
             <Labels labels={labels} />
           </div>
         ) : (

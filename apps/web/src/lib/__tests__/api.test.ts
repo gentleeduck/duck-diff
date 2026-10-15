@@ -54,9 +54,11 @@ describe('createApi', () => {
     expect(url).toContain('path=b.ts')
     expect(url).toContain('oldPath=a.ts')
   })
-  it('posts open requests', async () => {
-    const fetcher = vi.fn(async () => new Response(null, { status: 204 })) as unknown as typeof fetch
-    await createApi(fetcher).open('src/a.ts', 7)
+  it('posts open requests and reads how the file was opened', async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({ how: 'terminal', command: 'nvim +7 -- src/a.ts' }),
+    ) as unknown as typeof fetch
+    expect(await createApi(fetcher).open('src/a.ts', 7)).toEqual({ how: 'terminal', command: 'nvim +7 -- src/a.ts' })
     const [url, init] = vi.mocked(fetcher).mock.calls[0] ?? []
     expect(url).toBe('/api/open')
     expect(init).toMatchObject({ method: 'POST', body: JSON.stringify({ path: 'src/a.ts', line: 7 }) })

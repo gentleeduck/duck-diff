@@ -1,5 +1,6 @@
-import type { PullCommit, PullDetails } from '@duck-diff/protocol'
+import { type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft,
   Copy,
@@ -16,21 +17,25 @@ import {
   MessageSquare,
   SquareArrowOutUpRight,
 } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
-import { ask } from '../app/Ask'
 import { IconTool } from '../app/IconTool'
+import { KeepAlive } from '../app/KeepAlive'
+import { DiffSkeleton, ListRowsSkeleton, ThreadSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useTarget } from '../hooks/useTarget'
+import { useView } from '../hooks/useView'
 import type { ReviewEvent } from '../lib/api'
 import { useStore } from '../lib/store'
-import type { PullTab } from '../lib/view-url'
+import type { PullTab } from '../router/place'
+import Viewer from '../viewer/Viewer'
 import { ChecksList } from './Checks'
 import { CodeMenu } from './CodeMenu'
 import { Avatar, Comment, Composer } from './Conversation'
 import { ItemSidebar } from './ItemSidebar'
 import { MergeBox } from './MergeBox'
+import { Picker } from './Picker'
 import { ReviewChanges } from './ReviewChanges'
 import { sidebarActions } from './SidebarEditors'
 import { useGitHub } from './SignIn'
@@ -38,10 +43,7 @@ import { StatePill } from './StatePill'
 import { ThreadMenu } from './ThreadMenu'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
-import { useLive } from './useLive'
 import { EditTitleButton, ThreadTitle, useThread } from './useThread'
-
-const Viewer = lazy(() => import('../viewer/Viewer'))
 
 type Tab = PullTab
 
@@ -94,19 +96,15 @@ function TabButton({
 }
 
 function Commits({ number }: { number: number }) {
-  const { api, graphSelection } = useApp()
-  const [commits, setCommits] = useState<PullCommit[] | null>(null)
-  useEffect(() => {
-    let alive = true
-    api.github.pullCommits(number).then(
-      (next) => alive && setCommits(next),
-      () => alive && setCommits([]),
+  const { queries, graphSelection } = useApp()
+  const { data: commits, isError } = useQuery(queries.gh.pullCommits(number))
+  if (isError) return <p className="p-4 text-removed">Could not read the commits.</p>
+  if (!commits)
+    return (
+      <div className="rounded-md border border-border">
+        <ListRowsSkeleton twoLines avatar />
+      </div>
     )
-    return () => {
-      alive = false
-    }
-  }, [api, number])
-  if (!commits) return <p className="p-4 text-muted-foreground">Reading commits...</p>
   return (
     <ul className="rounded-md border border-border">
       {commits.map((commit) => (
@@ -131,34 +129,43 @@ function Commits({ number }: { number: number }) {
   )
 }
 
-// The diff viewer itself, on the fetched head, so a review happens without leaving the pull request.
-function Files({ number }: { number: number }) {
-  const { api } = useApp()
+// The diff viewer itself, on the fetched head, so a review happens without leaving the pull request. It shows
+// here only: the changes view and its tabs keep their own comparison until "Open in diff".
+function Files({ number, head }: { number: number; head: string }) {
+  const { session, queries } = useApp()
   const { navigate } = useTarget()
-  const [ready, setReady] = useState(false)
-  const [failed, setFailed] = useState<string | null>(null)
+  const { show } = useView()
+  const refs = useQuery(queries.gh.pullRefs(number, head))
+  const target: DiffTarget | null = refs.data
+    ? { kind: 'range', from: refs.data.base, to: refs.data.head, mode: 'merge-base' }
+    : null
+  const key = target ? targetKey(target) : null
+  // The session keeps recent diffs, so coming back to this tab shows the one it had at once.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the key stands for the target
   useEffect(() => {
-    let alive = true
-    api.github.fetchPull(number).then(
-      (refs) => {
-        if (!alive) return
-        // Replaces rather than pushes: the tab already has its history entry.
-        navigate({ kind: 'range', from: refs.base, to: refs.head, mode: 'merge-base' }, true)
-        setReady(true)
-      },
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, number, navigate])
-  if (failed) return <p className="p-4 text-removed">Could not fetch the pull request: {failed}</p>
-  if (!ready) return <p className="p-4 text-muted-foreground">Fetching the head of #{number}...</p>
+    if (target && targetKey(session.get().target) !== key) void session.load(target)
+  }, [key, session])
+  if (refs.error) return <p className="p-4 text-removed">Could not fetch the pull request: {refs.error.message}</p>
+  if (!target) return <DiffSkeleton />
   return (
-    <div className="h-[calc(100vh-15rem)] overflow-hidden rounded-md border border-border">
-      <Suspense fallback={null}>
-        <Viewer />
-      </Suspense>
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            navigate(target)
+            show('changes')
+          }}>
+          <SquareArrowOutUpRight />
+          Open in diff
+        </Button>
+      </div>
+      <div className="h-[calc(100vh-17rem)] overflow-hidden rounded-md border border-border">
+        <Suspense fallback={<DiffSkeleton />}>
+          <Viewer />
+        </Suspense>
+      </div>
     </div>
   )
 }
@@ -166,10 +173,10 @@ function Files({ number }: { number: number }) {
 const selectTab = (tab: PullTab) => tab
 
 export default function PullView({ number, onChanged }: { number: number; onChanged(): void }) {
-  const { api, pullSelection } = useApp()
+  const { api, pullSelection, queries, queryClient } = useApp()
   const github = useGitHub()
-  const [pull, setPull] = useState<PullDetails | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
+  const { data: pull, error } = useQuery(queries.gh.pull(number))
+  const failed = error ? error.message : null
   const [busy, setBusy] = useState<string | null>(null)
   const { pullTab, diffFile } = useApp()
   const tab = useStore(pullTab, selectTab)
@@ -182,33 +189,25 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   }, [pullReview, number])
   const page = useRef<HTMLElement>(null)
 
-  const load = useCallback(
-    (alive: () => boolean = () => true) =>
-      api.github.pull(number).then(
-        (next) => alive() && setPull(next),
-        (error: Error) => alive() && setFailed(error.message),
-      ),
-    [api, number],
-  )
-
-  useEffect(() => {
-    let alive = true
-    void load(() => alive)
-    return () => {
-      alive = false
-    }
-  }, [load])
-
-  useLive(`item:${number}`, () => Promise.all([api.github.pull(number).then(setPull, () => {}), reloadThread(true)]))
   // The conversation is ready once its thread has read; the other tabs carry their own heights.
   useScrollMemory(page, pull && (tab !== 'conversation' || thread) ? `pull:${number}:${tab}` : null)
 
+  // GitHub merges only into branches it has, so the choices are the remote's, newest first.
+  const baseBranches = async (head: string) => {
+    const refs = await queryClient.fetchQuery(queries.git.refs())
+    return refs
+      .filter((ref) => ref.kind === 'remote' && ref.name.startsWith('origin/') && ref.name !== 'origin/HEAD')
+      .sort((a, b) => b.committedAt - a.committedAt)
+      .map((ref) => ref.name.slice('origin/'.length))
+      .filter((name) => name !== head)
+      .map((name) => ({ value: name, label: name }))
+  }
   const act = async (name: string, task: () => Promise<unknown>, done: string) => {
     setBusy(name)
     try {
       await task()
       toast(done)
-      await Promise.all([load(), reloadThread()])
+      await reloadThread()
       onChanged()
       return true
     } catch (error) {
@@ -243,19 +242,14 @@ export default function PullView({ number, onChanged }: { number: number; onChan
     return (
       <div className="flex w-full flex-col gap-3 p-6">
         {back}
-        <p className="text-muted-foreground">Loading #{number}...</p>
+        <ThreadSkeleton tabs />
       </div>
     )
   }
 
   const _review = (event: ReviewEvent, body: string, clear: () => void, done: string) =>
     act(event, () => api.github.review(number, event, body).then(clear), done)
-  const refreshAll = async () => {
-    await Promise.all([load(), reloadThread()])
-    onChanged()
-  }
   const reload = () => {
-    void load()
     void reloadThread()
     onChanged()
   }
@@ -333,22 +327,25 @@ export default function PullView({ number, onChanged }: { number: number; onChan
             {pull.merged ? 'merged' : 'wants to merge'} {pull.commits} {pull.commits === 1 ? 'commit' : 'commits'} into
           </span>
           {pull.state === 'open' ? (
-            <button
-              type="button"
-              title="Change the base branch"
-              className="cursor-pointer rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue hover:bg-tn-blue/25"
-              onClick={async () => {
-                const values = await ask.prompt({
-                  title: 'Change the base branch',
-                  fields: [{ name: 'base', label: 'Base branch', initial: pull.baseRef }],
-                  action: 'Change base',
-                })
-                const base = values?.base
+            <Picker
+              title="Base branch"
+              single
+              live
+              selected={[pull.baseRef]}
+              load={() => baseBranches(pull.headRef)}
+              onApply={([base]) => {
                 if (base && base !== pull.baseRef)
                   void act('base', () => api.github.setBase(number, base), `Now merging into ${base}`)
-              }}>
-              {pull.baseRef}
-            </button>
+              }}
+              trigger={
+                <button
+                  type="button"
+                  title="Change the base branch"
+                  className="cursor-pointer rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue hover:bg-tn-blue/25">
+                  {pull.baseRef}
+                </button>
+              }
+            />
           ) : (
             <code className="rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue">{pull.baseRef}</code>
           )}
@@ -404,10 +401,17 @@ export default function PullView({ number, onChanged }: { number: number; onChan
             {pull.state === 'open' ? <ReviewChanges /> : null}
           </span>
         </div>
-        {tab === 'commits' ? <Commits number={number} /> : null}
-        {tab === 'checks' ? <ChecksList number={number} /> : null}
-        {tab === 'files' ? <Files number={number} /> : null}
-        {tab === 'conversation' ? (
+        {/* Each tab draws the first time it opens and is kept, paused, while another one shows. */}
+        <KeepAlive active={tab === 'commits'}>
+          <Commits number={number} />
+        </KeepAlive>
+        <KeepAlive active={tab === 'checks'}>
+          <ChecksList number={number} />
+        </KeepAlive>
+        <KeepAlive active={tab === 'files'}>
+          <Files number={number} head={pull.headSha} />
+        </KeepAlive>
+        <KeepAlive active={tab === 'conversation'}>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
             <div className="flex min-w-0 flex-col gap-4">
               {thread ? (
@@ -425,7 +429,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
                 <Comment author={pull.author} createdAt={pull.createdAt} body={pull.body} />
               )}
               {pull.state === 'open' ? (
-                <MergeBox pull={pull} repo={github.status?.repo ?? ''} onChanged={() => refreshAll()} />
+                <MergeBox pull={pull} repo={github.status?.repo ?? ''} onChanged={reload} />
               ) : null}
               {pull.merged && pull.sameRepo ? (
                 <section
@@ -488,17 +492,17 @@ export default function PullView({ number, onChanged }: { number: number; onChan
               milestone={pull.milestone}
               number={number}
               actions={sidebarActions({
-                api,
+                app: { api, queries, queryClient },
                 number,
                 assignees: pull.assignees,
                 labels: pull.labels,
                 milestone: pull.milestone,
                 reviewers: pull.reviewers,
-                reload: () => void load(),
+                reload,
               })}
             />
           </div>
-        ) : null}
+        </KeepAlive>
       </div>
     </article>
   )

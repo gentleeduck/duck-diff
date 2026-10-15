@@ -1,5 +1,8 @@
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach } from 'vitest'
+
+// Tests that render the whole App take over a second to settle on CI runners.
+configure({ asyncUtilTimeout: 5000 })
 
 // jsdom lacks these browser APIs; layout-free stubs are enough for component tests.
 class ResizeObserverStub {

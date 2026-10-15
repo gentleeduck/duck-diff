@@ -19,6 +19,7 @@ import {
   NavigateRequestSchema,
   OpenRepoSchema,
   OpenRequestSchema,
+  targetKey,
   UpdateReviewSchema,
   WriteRequestSchema,
 } from '@duck-diff/protocol'
@@ -26,6 +27,7 @@ import type { ServerWebSocket } from 'bun'
 import { z } from 'zod'
 import { createToken, isAuthorized, tokenCookie } from './auth'
 import { createDiskCache, dataHome } from './disk-cache'
+import { launch, pickOpener, terminalCommand } from './editor'
 import { errorResponse, HttpError } from './errors'
 import { createForge } from './forge'
 import type { GitHubOptions } from './github'
@@ -35,12 +37,14 @@ import type { GitLabOptions } from './gitlab'
 import { Hub } from './hub'
 import { createJobs, jobTitle } from './jobs'
 import { createNavigator, type NavigatorOptions } from './lsp/navigator'
+import { createRepoMemo } from './memo'
 import { type NvimRunner, openKeys, runNvim, tcdKeys } from './nvim'
 import { createTerminals, type TerminalPeer } from './pty'
 import { createRepoList } from './repos'
 import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
 import { createSiblings, type StartServer, startSibling } from './siblings'
+import { createMemoryState, createStateStore, openingTarget, opensGraph, pageDiff, pageGraph, pageState } from './state'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
@@ -56,6 +60,8 @@ export interface ServerOptions {
   // Address of the Neovim that started the server, so the page can open files in it.
   nvim?: string | null
   runNvim?: NvimRunner
+  // Tests choose where files open; by default the best on this machine (editor.ts).
+  pickOpener?: typeof pickOpener
   // Where discard snapshots go; tests point it at a temp folder.
   undoCache?: string
   // Where review comments are kept; tests point it at a temp folder.
@@ -109,13 +115,22 @@ const PtyMessageSchema = z.discriminatedUnion('type', [
   }),
 ])
 const DEFAULT_IDLE_MS = 600_000
+const MAX_QUERIES_BYTES = 20 * 1024 * 1024
+const MAX_TOKENS_BYTES = 2 * 1024 * 1024
+const SavedTokensSchema = z.object({ key: z.string().max(4000), tokens: z.record(z.string(), z.unknown()) })
+const StateChangesSchema = z.object({ changes: z.record(z.string().max(200), z.string().max(1_000_000).nullable()) })
 const serveWeb = createWebHandler(WEB_ASSETS)
 
 export async function createServer(options: ServerOptions): Promise<RunningServer> {
   const repo = await resolveRepo(options.repo)
   const token = options.token ?? createToken()
   const hub = new Hub<SocketData>(options.idleTimeoutMs ?? DEFAULT_IDLE_MS, options.onIdle ?? (() => {}))
-  const notify = (reason: ChangeReason) => hub.broadcast({ type: 'changed', reason })
+  // Without the watcher nothing would say when a kept diff went stale, so nothing is kept.
+  const memo = options.watch === false ? undefined : createRepoMemo()
+  const notify = (reason: ChangeReason) => {
+    if (reason !== 'reviews') memo?.changed()
+    hub.broadcast({ type: 'changed', reason })
+  }
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
   const enqueue = createWriteQueue()
   const cache = options.persist
@@ -127,6 +142,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
       ? null
       : createTerminals({ cwd: repo, ...(typeof options.terminal === 'object' ? options.terminal : {}) })
   const reviews = createReviewStore(repo, options.dataDir)
+  const state = options.persist ? createStateStore(options.dataDir ?? dataHome(), repo) : createMemoryState()
   const github = createForge(repo, { github: { ...options.github, cache }, gitlab: options.gitlab })
   const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
   const repoList = createRepoList(options.dataDir)
@@ -183,6 +199,10 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           await cache?.clear()
           return new Response(null, { status: 204 })
         }
+        if (url.pathname === '/api/jobs' && request.method === 'DELETE') {
+          jobs.clear()
+          return new Response(null, { status: 204 })
+        }
         if (url.pathname === '/api/jobs') return Response.json(jobs.list())
         if (url.pathname.startsWith('/api/jobs/') && url.pathname.endsWith('/output')) {
           const output = jobs.output(decodeURIComponent(url.pathname.slice(10, -7)))
@@ -193,8 +213,8 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         if (url.pathname === '/api/remotes') return Response.json(await listRemotes(repo))
         if (url.pathname === '/api/last-message') return Response.json({ message: await lastMessage(repo) })
         if (url.pathname === '/api/blame') {
-          const { path, ref } = BlameQuerySchema.parse(Object.fromEntries(url.searchParams))
-          return Response.json(await blame(repo, path, ref))
+          const { path, ref, mergeBase } = BlameQuerySchema.parse(Object.fromEntries(url.searchParams))
+          return Response.json(await blame(repo, path, ref, mergeBase))
         }
         if (url.pathname === '/api/lsp/warm' && request.method === 'POST') {
           const { paths } = LspWarmSchema.parse(await request.json())
@@ -295,22 +315,67 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           return new Response(null, { status: 204 })
         }
         if (url.pathname === '/api/open' && request.method === 'POST') {
-          if (!options.nvim) throw new HttpError(409, 'bad-request', 'no Neovim attached to this server')
           const { path, line } = OpenRequestSchema.parse(await request.json())
-          await (options.runNvim ?? runNvim)([
-            '--server',
-            options.nvim,
-            '--remote-send',
-            openKeys(`${repo}/${path}`, line),
-          ])
+          const opener = (options.pickOpener ?? pickOpener)({ nvim: options.nvim ?? null })
+          if (opener.how === 'nvim' && options.nvim) {
+            await (options.runNvim ?? runNvim)([
+              '--server',
+              options.nvim,
+              '--remote-send',
+              openKeys(`${repo}/${path}`, line),
+            ])
+            return Response.json({ how: 'nvim' })
+          }
+          // Neovim without one attached runs in a terminal in the page, which the page opens itself.
+          if (opener.how === 'terminal') return Response.json({ how: 'terminal', command: terminalCommand(path, line) })
+          if (opener.how === 'editor' || opener.how === 'system') launch(opener, repo, path, line)
+          return Response.json({ how: opener.how, command: opener.how === 'nvim' ? null : opener.command })
+        }
+        if (url.pathname === '/api/state') {
+          if (request.method === 'PUT') {
+            const { changes } = StateChangesSchema.parse(await request.json())
+            await state.update(changes)
+            return new Response(null, { status: 204 })
+          }
+          return Response.json(await state.values())
+        }
+        // The colors a page worked out for the diff it shows, kept only while that diff is the one held.
+        if (url.pathname === '/api/state/tokens' && request.method === 'PUT') {
+          const text = await request.text()
+          if (text.length > MAX_TOKENS_BYTES) throw new HttpError(413, 'bad-request', 'too many colors')
+          const { key, tokens } = SavedTokensSchema.parse(JSON.parse(text))
+          const stamp = memo?.stamp() ?? 0
+          if (memo?.get(`diff:${key}`) !== undefined) memo.set(`tokens:${key}`, JSON.stringify(tokens), stamp)
           return new Response(null, { status: 204 })
         }
+        if (url.pathname === '/api/state/queries') {
+          if (request.method === 'PUT') {
+            const text = await request.text()
+            if (text.length > MAX_QUERIES_BYTES) throw new HttpError(413, 'bad-request', 'the query cache is too big')
+            await state.setQueries(text)
+            return new Response(null, { status: 204 })
+          }
+          throw new HttpError(405, 'bad-request', 'the saved queries come with the page')
+        }
         if (url.pathname.startsWith('/api/'))
-          return await handleApi(repo, url, Boolean(options.nvim), options.build, cache)
+          return await handleApi(repo, url, Boolean(options.nvim), options.build, cache, memo)
         const response = serveWeb(url.pathname)
         // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
         if (response.headers.get('content-type')?.startsWith('text/html')) {
-          response.headers.set('set-cookie', `${tokenCookie(port)}=${token}; HttpOnly; SameSite=Strict; Path=/`)
+          let html = pageState(await response.text(), await state.values(), await state.queries())
+          const opening = memo ? openingTarget(url) : null
+          if (memo && opening) {
+            const key = targetKey(opening)
+            html = pageDiff(html, key, memo.get(`files:${key}`), memo.get(`diff:${key}`), memo.get(`tokens:${key}`))
+          }
+          // The graph view's default: the current branch, up to 20,000 commits (web graph/store.ts).
+          if (memo && opensGraph(url))
+            html = pageGraph(html, 'false:20000', memo.get('graph:false:20000'), memo.get('refs'))
+          const page = new Response(html, {
+            headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' },
+          })
+          page.headers.set('set-cookie', `${tokenCookie(port)}=${token}; HttpOnly; SameSite=Strict; Path=/`)
+          return page
         }
         return response
       } catch (error) {

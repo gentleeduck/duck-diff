@@ -203,5 +203,15 @@ describe('rebase, clean, stash and blame', () => {
     const lines = await blame(repo.path, 'a.txt')
     expect(lines.map((line) => line.summary)).toEqual(['base', 'second line'])
     expect(lines[0]?.author).toBe('Duck Test')
+
+    // At the merge-base of two refs, the old side of a three-dot comparison.
+    repo.git('switch', '-q', '-c', 'side')
+    repo.write('a.txt', '1\n2\n3\n')
+    repo.commit('third line')
+    repo.git('switch', '-q', 'main')
+    repo.write('a.txt', '1\n2\nmain\n')
+    repo.commit('main line')
+    const base = await blame(repo.path, 'a.txt', 'main', 'side')
+    expect(base.map((line) => line.summary)).toEqual(['base', 'second line'])
   })
 })

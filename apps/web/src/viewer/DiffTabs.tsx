@@ -1,8 +1,8 @@
 import type { DiffTarget } from '@duck-diff/protocol'
+import { useQueries } from '@tanstack/react-query'
 import { FileDiff, GitCommitHorizontal, GitCompareArrows, GitPullRequest, X } from 'lucide-react'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
-import { prefetchCommit } from '../graph/commit-details'
 import type { GraphState } from '../graph/store'
 import { useTarget } from '../hooks/useTarget'
 import { useStore } from '../lib/store'
@@ -124,7 +124,7 @@ const Tab = memo(function Tab({
 // One tab per open comparison, like an editor's: the working tree first and fixed, the rest closable
 // and dragged into any order.
 export function DiffTabs() {
-  const { api, tabs, graph, session } = useApp()
+  const { tabs, graph, session, queries } = useApp()
   const { navigate } = useTarget()
   const list = useStore(tabs, selectTabs)
   const active = useStore(tabs, selectActive)
@@ -143,22 +143,12 @@ export function DiffTabs() {
     [shaKey],
   )
   const fromGraph = useStore(graph, selectSubjects).split('\n')
-  const [read, setRead] = useState<Record<string, string>>({})
+  // Commits the graph has not loaded are read once each.
+  const read = useQueries({ queries: shas.map((sha, at) => ({ ...queries.git.commit(sha), enabled: !fromGraph[at] })) })
   const subjects: Record<string, string> = {}
   shas.forEach((sha, at) => {
-    subjects[sha] = fromGraph[at] || read[sha] || ''
+    subjects[sha] = fromGraph[at] || read[at]?.data?.message.split('\n')[0] || ''
   })
-
-  // Commits the graph has not loaded are read once each.
-  useEffect(() => {
-    for (const sha of shaKey.split(' ')) {
-      if (!sha || read[sha] !== undefined) continue
-      prefetchCommit(api, sha).then(
-        (details) => setRead((now) => ({ ...now, [sha]: details.message.split('\n')[0] ?? '' })),
-        () => {},
-      )
-    }
-  }, [api, shaKey, read])
 
   const state = useRef({ navigate, dragging })
   state.current = { navigate, dragging }

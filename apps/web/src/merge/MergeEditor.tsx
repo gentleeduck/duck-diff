@@ -1,14 +1,17 @@
 import type { ConflictBlock, ConflictFile } from '@duck-diff/protocol'
-import { Badge, Button, Skeleton, Textarea } from '@duck-diff/ui'
+import { Badge, Button, Textarea } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftToLine, ArrowRightToLine, Check, ChevronsUpDown, ExternalLink, Pencil, RotateCcw } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useMemo, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
+import { CodeRowsSkeleton } from '../app/skeletons'
 import { Code } from '../diff/Code'
 import { highlighter } from '../diff/highlighter'
 import { useGit } from '../git/GitProvider'
-import { useCanOpen } from '../hooks/useCanOpen'
+import { useOpenFile } from '../hooks/useOpenFile'
 import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
+import { useStage } from '../state/stage'
 import {
   blockLines,
   type Choice,
@@ -208,9 +211,8 @@ function label(choice: Choice): string {
 }
 
 function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
-  const { api } = useApp()
   const { run, busy } = useGit()
-  const canOpen = useCanOpen()
+  const openInEditor = useOpenFile()
   const [choices, setChoices] = useState<Choices>({})
   // Editing the whole result as text replaces the blocks; markers left in it count as unresolved.
   const [whole, setWhole] = useState<string | null>(null)
@@ -268,16 +270,14 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
               Back to blocks
             </Button>
           )}
-          {canOpen ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              title="Open the file in Neovim at the first conflict left"
-              onClick={() => void api.open(file.path, firstConflictLine(file, {}) ?? 1)}>
-              <ExternalLink />
-              Neovim
-            </Button>
-          ) : null}
+          <Button
+            size="sm"
+            variant="ghost"
+            title="Open the file at the first conflict left"
+            onClick={() => void openInEditor(file.path, firstConflictLine(file, {}) ?? 1)}>
+            <ExternalLink />
+            Open
+          </Button>
           <Button size="sm" disabled={left > 0} loading={busy === 'resolve-text'} onClick={() => void save()}>
             <Check />
             Mark resolved
@@ -335,28 +335,14 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
 // both, the base, or a hand edit, and Mark resolved writes the result and stages it.
 export default function MergeEditor() {
   const app = useApp()
-  const { api, mergeFile, stage } = app
+  const { mergeFile, queries } = app
   const { show } = useView()
   const path = useStore(mergeFile, selectPath)
-  const conflictKey = useStore(stage, selectConflicts)
-  const [file, setFile] = useState<ConflictFile | null | undefined>(undefined)
-  const [failed, setFailed] = useState<string | null>(null)
-  useEffect(() => stage.load(), [stage])
+  const conflictKey = selectConflicts(useStage())
   const shown = path ?? conflictKey.split('\n')[0] ?? null
-
-  useEffect(() => {
-    setFile(undefined)
-    setFailed(null)
-    if (!shown) return
-    let alive = true
-    api.conflict(shown).then(
-      (next) => alive && setFile(next),
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, shown])
+  const conflict = useQuery({ ...queries.git.conflict(shown ?? ''), enabled: Boolean(shown) })
+  const file = conflict.data
+  const failed = conflict.error ? conflict.error.message : null
 
   const after = useMemo(
     () => () => {
@@ -380,6 +366,6 @@ export default function MergeEditor() {
       </div>
     )
   if (failed) return <p className="p-4 text-removed">{failed}</p>
-  if (!file) return <Skeleton className="m-4 h-40" />
+  if (!file) return <CodeRowsSkeleton count={20} />
   return <Editor key={file.path} file={file} onDone={after} />
 }

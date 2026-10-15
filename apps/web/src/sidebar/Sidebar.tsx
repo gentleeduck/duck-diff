@@ -29,17 +29,17 @@ export function Sidebar() {
           <TabsTrigger value="stage">Stage</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
-        <TabsContent value="changes" className="mt-0 min-h-0 flex-1">
+        <TabsContent value="changes" renderOnce className="mt-0 min-h-0 flex-1">
           <div className="flex h-full flex-col">
             <ChangesTree />
           </div>
         </TabsContent>
-        <TabsContent value="stage" className="mt-0 min-h-0 flex-1">
+        <TabsContent value="stage" renderOnce className="mt-0 min-h-0 flex-1">
           <div className="flex h-full flex-col">
             <StagePanel />
           </div>
         </TabsContent>
-        <TabsContent value="history" className="mt-0 min-h-0 flex-1">
+        <TabsContent value="history" renderOnce className="mt-0 min-h-0 flex-1">
           <div className="flex h-full flex-col">
             <HistoryList />
           </div>

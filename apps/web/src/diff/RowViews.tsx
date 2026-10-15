@@ -1,6 +1,8 @@
+import type { BlameLine } from '@duck-diff/protocol'
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { ChevronsUpDown, MessageSquarePlus, Minus, Plus, Undo2 } from 'lucide-react'
 import { createContext, memo, useContext, useMemo, useSyncExternalStore } from 'react'
+import { BlameCell } from '../blame/BlameCell'
 import type { NoteItem } from '../review/annotations'
 import type { Settings } from '../state/settings'
 import type { WriteKind } from '../viewer/actions'
@@ -12,6 +14,8 @@ import { changedRanges } from './words'
 
 export interface RowContextValue {
   settings: Settings
+  // One side's blame while it is on: null while it is read, undefined when off.
+  blame(item: NoteItem, side: 'old' | 'new'): readonly BlameLine[] | null | undefined
   tokens(item: NoteItem, side: 'old' | 'new', line: number): Token[] | undefined
   // Starts a file's colors before it scrolls into view.
   prefetch(item: NoteItem): void
@@ -118,7 +122,11 @@ function Cell({
   side: 'additions' | 'deletions'
   numbers: 'both' | 'one'
 }) {
-  const { settings, tokens, dragOver, subscribeMarks, lineMark } = useRow()
+  const { settings, tokens, dragOver, subscribeMarks, lineMark, blame } = useRow()
+  // Each line is blamed on its own side: removed lines (and the left of a split) at the old version.
+  const blameSide = line?.kind === 'deletion' || (numbers === 'one' && side === 'deletions') ? 'old' : 'new'
+  const blameLines = blame(item, blameSide)
+  const blameNo = line ? (blameSide === 'old' ? line.oldNo : line.newNo) : null
   const number = line ? (side === 'additions' ? line.newNo : line.oldNo) : null
   const mark = useSyncExternalStore(subscribeMarks, () => lineMark(item, side, number, line?.text.length ?? 0))
   const [markKind, markCols] = mark.split('|')
@@ -161,6 +169,9 @@ function Cell({
             : ''
       }
       }`}>
+      {blameLines !== undefined ? (
+        <BlameCell blame={blameLines} index={blameNo === null ? -1 : blameNo - 1} className="w-56" everyLine />
+      ) : null}
       {settings.lineNumbers ? (
         <span className="relative flex shrink-0 select-none text-tn-gutter tabular-nums">
           {numbers === 'both' || side === 'deletions' ? (

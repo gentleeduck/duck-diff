@@ -1,18 +1,17 @@
-import { useEffect } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
 import { fileGlyph } from '../sidebar/icons'
+import { useStage } from '../state/stage'
 import { selectConflicts } from './merge-model'
 
 const selectPath = (path: string | null) => path
 
 export function MergeSidebar() {
-  const { stage, mergeFile } = useApp()
-  const conflicts = useStore(stage, selectConflicts)
+  const { mergeFile } = useApp()
+  const conflicts = selectConflicts(useStage())
   const current = useStore(mergeFile, selectPath)
-  useEffect(() => stage.load(), [stage])
   const paths = conflicts ? conflicts.split('\n') : []
-  if (!paths.length) return <p className="p-3 text-muted-foreground">No conflicted files.</p>
+  if (!paths.length) return <p className="p-3 text-muted-foreground">No conflicted files. Peace in the pond.</p>
   const active = current ?? paths[0]
   return (
     <ul aria-label="Conflicted files" className="flex flex-col p-2">

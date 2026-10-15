@@ -1,28 +1,23 @@
-import type { ItemExtras as Extras } from '@duck-diff/protocol'
 import { Badge, Button } from '@duck-diff/ui'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowRightLeft, Bell, BellOff, Pin, PinOff } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { useView } from '../hooks/useView'
+import { useRefresh } from '../query/useRefresh'
 import { IssueIcon } from './IssuesList'
 import { Section } from './ItemSidebar'
 import { PullIcon } from './PullsList'
-import { useLive } from './useLive'
 
 // The lower half of GitHub's sidebar: linked work, projects, notifications, and the issue-only actions.
 export function ItemExtras({ number }: { number: number }) {
-  const { api, pullSelection, issueSelection } = useApp()
+  const { api, pullSelection, issueSelection, queries } = useApp()
   const { show } = useView()
-  const [extras, setExtras] = useState<Extras | null>(null)
+  const extras = useQuery(queries.gh.extras(number)).data ?? null
+  const refresh = useRefresh()
   const [busy, setBusy] = useState(false)
-
-  const load = useCallback(() => api.github.extras(number).then(setExtras, () => {}), [api, number])
-  useEffect(() => {
-    void load()
-  }, [load])
-  useLive(`item:${number}`, load)
 
   if (!extras) return null
 
@@ -31,7 +26,7 @@ export function ItemExtras({ number }: { number: number }) {
     try {
       await task
       toast(done)
-      await load()
+      await refresh(`item:${number}`)
     } catch (error) {
       toast.error((error as Error).message)
     } finally {

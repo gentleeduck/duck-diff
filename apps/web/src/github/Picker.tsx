@@ -2,6 +2,7 @@ import { Input, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
 import { Check, Settings } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { IconTool } from '../app/IconTool'
+import { LinesSkeleton } from '../app/skeletons'
 
 export interface Choice {
   value: string
@@ -82,7 +83,7 @@ export function Picker({
           onChange={(event) => setFilter(event.target.value)}
         />
         <div role="listbox" aria-label={title} aria-multiselectable={!single} className="max-h-72 overflow-y-auto">
-          {choices === null ? <p className="p-2 text-muted-foreground">Reading...</p> : null}
+          {choices === null ? <LinesSkeleton count={5} className="p-2" /> : null}
           {choices?.length === 0 ? <p className="p-2 text-muted-foreground">Nothing to pick.</p> : null}
           {shown.map((choice) => (
             <div

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { saved } from '../lib/saved'
 
 interface Sizing {
   key: string
@@ -16,7 +17,7 @@ const clamp = (sizing: Sizing, width: number) =>
 export function useStoredWidth(sizing: Sizing): [number, (width: number) => void] {
   const [width, setWidth] = useState(() => {
     try {
-      const stored = Number(window.localStorage.getItem(sizing.key))
+      const stored = Number(saved.getItem(sizing.key))
       return stored ? clamp(sizing, stored) : sizing.initial
     } catch {
       return sizing.initial
@@ -26,7 +27,7 @@ export function useStoredWidth(sizing: Sizing): [number, (width: number) => void
     const fitted = clamp(sizing, next)
     setWidth(fitted)
     try {
-      window.localStorage.setItem(sizing.key, String(fitted))
+      saved.setItem(sizing.key, String(fitted))
     } catch {}
   }
   return [width, save]
