@@ -25,7 +25,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref,
   ) => {
-    const buttonClass = cn(buttonVariants({ border, className, size: isCollapsed ? 'icon' : size, variant }))
+    // While loading, the spinner takes the place of the button's own icon instead of sitting beside it.
+    const buttonClass = cn(
+      buttonVariants({ border, className, size: isCollapsed ? 'icon' : size, variant }),
+      'data-loading:[&>svg+svg]:hidden',
+    )
 
     if (asChild) {
       return (
@@ -40,6 +44,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         data-slot="button"
         {...props}
         aria-busy={loading ? true : undefined}
+        data-loading={loading ? '' : undefined}
         className={buttonClass}
         disabled={Boolean(loading) || disabled}
         ref={ref}

@@ -10,7 +10,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@duck-diff/ui'
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { presets } from '../compare/model'
 import { openFile } from '../files/open-file'
@@ -28,8 +28,9 @@ import { fileGlyph } from '../sidebar/icons'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { useWrites } from '../writes/WritesProvider'
+import { type RankedPath, rankPaths } from './fuzzy'
 import { Preview, type PreviewTarget } from './Preview'
-import { parseSearch, rank, rankPaths } from './rank'
+import { parseSearch, rank } from './rank'
 
 const selectFiles = (state: SessionState) => state.files
 const selectItems = (state: ItemIndexState) => state.items
@@ -90,6 +91,26 @@ const fileIcon = (path: string) => {
   return <span style={{ color: glyph.color }}>{glyph.glyph}</span>
 }
 
+// A path as Telescope shows it: the folder quiet, the file name bright, and the typed letters marked.
+function MatchedPath({ path, positions }: { path: string; positions: number[] }) {
+  const marked = new Set(positions)
+  const name = path.lastIndexOf('/') + 1
+  return (
+    <span className="min-w-0 truncate">
+      {[...path].map((char, index) => (
+        <span
+          // biome-ignore lint/suspicious/noArrayIndexKey: characters of one fixed path
+          key={index}
+          className={
+            marked.has(index) ? 'font-bold text-tn-yellow' : index < name ? 'text-muted-foreground' : 'text-foreground'
+          }>
+          {char}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 // GitHub's command palette: one box for files, pull requests, issues and commands, narrowed with file:,
 // pr:, issue:, #123 or >, and a preview of the highlighted result beside the list.
 export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) {
@@ -105,7 +126,8 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
   const [input, setInput] = useState('')
   const [active, setActive] = useState('')
   const [tree, setTree] = useState<string[] | null>(null)
-  const { scope, term } = parseSearch(input)
+  // Ranking runs on a deferred copy, so typing never waits for a large repo's file list.
+  const { scope, term } = parseSearch(useDeferredValue(input))
 
   useEffect(() => {
     if (!open) return
@@ -189,9 +211,9 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
       `#${item.number} ${item.title} ${item.author} ${item.labels.map((label) => label.name).join(' ')}`
     const pulls = indexed.filter((item) => item.kind === 'pr')
     const issues = indexed.filter((item) => item.kind === 'issue')
-    const fileEntry = (path: string): Entry => ({
+    const fileEntry = ({ path, positions }: RankedPath): Entry => ({
       id: `file ${path}`,
-      label: <span className="min-w-0 truncate">{path}</span>,
+      label: <MatchedPath path={path} positions={positions} />,
       icon: fileIcon(path),
       preview: { kind: 'file', path },
       run: close(() => {
@@ -199,9 +221,9 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
         show('files')
       }),
     })
-    const changedEntry = (path: string): Entry => ({
+    const changedEntry = ({ path, positions }: RankedPath): Entry => ({
       id: `changed ${path}`,
-      label: <span className="min-w-0 truncate">{path}</span>,
+      label: <MatchedPath path={path} positions={positions} />,
       detail: 'changed',
       icon: fileIcon(path),
       preview: { kind: 'file', path },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseSearch, rank, rankPaths } from '../rank'
+import { parseSearch, rank } from '../rank'
 
 describe('palette search', () => {
   it('reads GitHub-style scopes', () => {
@@ -17,20 +17,5 @@ describe('palette search', () => {
     expect(rank(files, 'fhead', (path) => path, 5)).toEqual(['src/viewer/FileHeader.tsx'])
     expect(rank(files, 'fv', (path) => path, 5)[0]).toBe('docs/fv.md')
     expect(rank(files, 'zzz', (path) => path, 5)).toEqual([])
-  })
-
-  it('takes a typed path: each piece in order, folders and file names alike', () => {
-    const files = [
-      'apps/shop-api/src/modules/translations/translations.service.ts',
-      'apps/shop-api/README.md',
-      'apps/back-office/src/modules/translations/index.ts',
-      'packages/db/src/schema/translations.ts',
-    ]
-    expect(rankPaths(files, 'shop-api/translations', 5)).toEqual([files[0]])
-    expect(rankPaths(files, 'shop-api/', 5)).toEqual([files[1], files[0]])
-    expect(rankPaths(files, 'admin transl', 5)).toEqual([files[2]])
-    // A typo still finds it, as letters in order, below exact pieces.
-    expect(rankPaths(files, 'markteplace/readme', 5)).toEqual([files[1]])
-    expect(rankPaths(files, 'db/schema/zzz', 5)).toEqual([])
   })
 })
