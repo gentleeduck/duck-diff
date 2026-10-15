@@ -37,8 +37,9 @@ export function buildTree(paths: readonly string[]): Dir {
   return root
 }
 
-// Folders first, then files, each in natural order; collapsed folders hide what is under them.
-export function visibleRows(root: Dir, collapsed: ReadonlySet<string>): TreeRow[] {
+// Folders first, then files, each in natural order. Folders start open or closed by `open`; the paths in
+// `toggled` are the ones flipped since.
+export function visibleRows(root: Dir, toggled: ReadonlySet<string>, open = true): TreeRow[] {
   const rows: TreeRow[] = []
   const walk = (dir: Dir, ancestors: string[]) => {
     for (const name of [...dir.dirs.keys()].sort(compare)) {
@@ -49,7 +50,7 @@ export function visibleRows(root: Dir, collapsed: ReadonlySet<string>): TreeRow[
         label = `${label}/${next}`
         child = only
       }
-      const expanded = !collapsed.has(child.path)
+      const expanded = open !== toggled.has(child.path)
       rows.push({ path: child.path, name: label, kind: 'directory', depth: ancestors.length, ancestors, expanded })
       if (expanded) walk(child, [...ancestors, child.path])
     }

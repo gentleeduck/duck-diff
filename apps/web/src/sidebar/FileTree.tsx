@@ -1,7 +1,7 @@
 import type { ChangedFile } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_GLYPH } from './icons'
 import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
@@ -70,13 +70,22 @@ interface FileTreeProps {
   fileFor(path: string): ChangedFile | undefined
   selected: string | null
   onOpenFile(path: string): void
+  // Folders start closed, as in a whole-repo tree; a changes tree opens everything.
+  collapsed?: boolean
 }
 
-// Every folder starts open, like the editor's tree; the set holds the ones folded since.
-export function FileTree({ label, paths, fileFor, selected, onOpenFile }: FileTreeProps) {
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
+export function FileTree({ label, paths, fileFor, selected, onOpenFile, collapsed = false }: FileTreeProps) {
+  const [toggled, setToggled] = useState<ReadonlySet<string>>(new Set())
   const tree = useMemo(() => buildTree(paths), [paths])
-  const rows = useMemo(() => visibleRows(tree, collapsed), [tree, collapsed])
+  const rows = useMemo(() => visibleRows(tree, toggled, !collapsed), [tree, toggled, collapsed])
+
+  // A file picked elsewhere (the palette, the README on load) gets its folders opened so it shows.
+  useEffect(() => {
+    if (!collapsed || !selected) return
+    const parts = selected.split('/').slice(0, -1)
+    const folders = parts.map((_, i) => parts.slice(0, i + 1).join('/'))
+    setToggled((prev) => (folders.every((folder) => prev.has(folder)) ? prev : new Set([...prev, ...folders])))
+  }, [collapsed, selected])
   const scroller = useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -87,7 +96,7 @@ export function FileTree({ label, paths, fileFor, selected, onOpenFile }: FileTr
 
   const open = (row: Row) => {
     if (row.kind === 'file') return onOpenFile(row.path)
-    setCollapsed((prev) => {
+    setToggled((prev) => {
       const next = new Set(prev)
       if (!next.delete(row.path)) next.add(row.path)
       return next

@@ -57,6 +57,8 @@ export function FilesSidebar() {
           fileFor={fileFor}
           selected={selected}
           onOpenFile={(path) => fileSelection.set(path)}
+          // A filter shows its matches with their folders open.
+          collapsed={!query.trim()}
         />
       ) : (
         <p className="p-3 text-tn-comment">

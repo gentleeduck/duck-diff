@@ -4,6 +4,9 @@ test('browses every file and reads one, marking the changed ones', async ({ page
   await page.goto(`${app.url}&view=files`)
   const tree = page.getByRole('tree', { name: 'All files' })
   await expect(tree.getByRole('treeitem', { name: /README\.md/ })).toBeVisible()
+  // Folders start closed.
+  await expect(tree.getByRole('treeitem', { name: /app\.ts/ })).toHaveCount(0)
+  await tree.getByRole('treeitem', { name: 'src' }).click()
   await tree.getByRole('treeitem', { name: /app\.ts/ }).click()
   const file = page.getByRole('region', { name: 'src/app.ts' })
   await expect(file).toContainText('export const answer = 42')

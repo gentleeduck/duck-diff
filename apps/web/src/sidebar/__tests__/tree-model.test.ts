@@ -29,3 +29,11 @@ describe('tree model', () => {
     expect(rows.find((row) => row.path === 'src/lib')?.expanded).toBe(false)
   })
 })
+
+describe('tree model, closed by default', () => {
+  it('shows only top-level rows until a folder is toggled open', () => {
+    const tree = buildTree(['src/lib/b.ts', 'src/a.ts', 'README.md'])
+    expect(names(visibleRows(tree, new Set(), false))).toEqual(['src', 'README.md'])
+    expect(names(visibleRows(tree, new Set(['src']), false))).toEqual(['src', '  lib', '  a.ts', 'README.md'])
+  })
+})
