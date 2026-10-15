@@ -18,3 +18,5 @@ jobs:
           fail-on-severity: high
           comment-summary-in-pr: on-failure
           deny-licenses: AGPL-3.0, LGPL-2.0
+          # CI-only scanners, never shipped: trufflehog is AGPL-3.0 and trivy-action has no SPDX license.
+          allow-dependencies-licenses: pkg:githubactions/trufflesecurity/trufflehog, pkg:githubactions/aquasecurity/trivy-action
