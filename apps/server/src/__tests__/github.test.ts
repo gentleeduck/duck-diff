@@ -50,6 +50,24 @@ function fakeGitHub(calls: Call[]) {
     })
     const path = url.pathname
     if (path === '/user') return Response.json(user)
+    if (path === '/repos/o/r/issues/1' && method === 'GET') {
+      if (headers.get('if-none-match') === '"v1"') return new Response(null, { status: 304 })
+      return Response.json(
+        {
+          number: 1,
+          title: 'Bug',
+          state: 'open',
+          user,
+          created_at: 'x',
+          updated_at: 'y',
+          comments: 0,
+          html_url: 'u',
+          body: 'b',
+        },
+        { headers: { etag: '"v1"' } },
+      )
+    }
+    if (path === '/repos/o/r/issues/1/comments') return Response.json([])
     if (path === '/repos/o/r/pulls' && method === 'GET') return Response.json([pull])
     if (path === '/repos/o/r/pulls' && method === 'POST') return Response.json({ ...pull, number: 8 }, { status: 201 })
     if (path === '/repos/o/r') return Response.json({ default_branch: 'trunk', permissions: { push: false } })
@@ -327,6 +345,14 @@ describe('/api/github', () => {
     expect(await (await call('GET', '/api/github/mentions')).json()).toEqual([
       { login: 'octo', avatarUrl: 'https://a/octo.png' },
     ])
+  })
+
+  it('asks again with the ETag and serves the remembered answer on 304', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    expect(await (await call('GET', '/api/github/issues/1')).json()).toMatchObject({ title: 'Bug' })
+    expect(await (await call('GET', '/api/github/issues/1')).json()).toMatchObject({ title: 'Bug' })
+    expect(calls.filter((entry) => entry.path === '/repos/o/r/issues/1')).toHaveLength(2)
   })
 
   it('lists issues without the pull requests GitHub mixes in', async () => {

@@ -12,11 +12,12 @@ export function useThread(number: number) {
   const { api } = useApp()
   const [thread, setThread] = useState<Thread | null>(null)
   const draft = useMemo(() => createStore(''), [])
+  // A quiet reload (from a poll) keeps the last good thread when GitHub cannot be reached for a moment.
   const reload = useCallback(
-    () =>
-      api.github
-        .thread(number)
-        .then(setThread, (error: Error) => toast.error(`Could not read the conversation: ${error.message}`)),
+    (quiet = false) =>
+      api.github.thread(number).then(setThread, (error: Error) => {
+        if (!quiet) toast.error(`Could not read the conversation: ${error.message}`)
+      }),
     [api, number],
   )
   useEffect(() => {

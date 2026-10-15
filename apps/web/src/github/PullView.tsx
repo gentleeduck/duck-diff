@@ -32,6 +32,7 @@ import { ItemSidebar } from './ItemSidebar'
 import { StatePill } from './StatePill'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
+import { usePoll } from './usePoll'
 import { EditableTitle, useThread } from './useThread'
 
 const Viewer = lazy(() => import('../viewer/Viewer'))
@@ -226,6 +227,8 @@ export default function PullView({ number, onChanged }: { number: number; onChan
       alive = false
     }
   }, [load])
+
+  usePoll(() => Promise.all([api.github.pull(number).then(setPull, () => {}), reloadThread(true)]), 20_000)
 
   const act = async (name: string, task: () => Promise<unknown>, done: string) => {
     setBusy(name)

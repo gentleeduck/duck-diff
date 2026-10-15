@@ -84,6 +84,13 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   let pasted: string | null = null
   let avatarMap: Promise<Record<string, string>> | null = null
   let mentionList: Promise<GitHubUser[]> | null = null
+  const etags = new Map<string, { etag: string; body: unknown }>()
+  // Bounded, oldest out first: a long session reads many pages.
+  const remember = (key: string, etag: string, body: unknown) => {
+    etags.delete(key)
+    etags.set(key, { etag, body })
+    if (etags.size > 300) etags.delete(etags.keys().next().value as string)
+  }
 
   async function pagesOf<T>(path: string, pages: number, init: RequestInit = {}): Promise<T[]> {
     const all: T[] = []
@@ -113,6 +120,10 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   // The status matters for reactions: GitHub answers 200 when the reaction already exists.
   async function send<T>(path: string, init: RequestInit = {}): Promise<{ status: number; body: T }> {
     const auth = await token()
+    // Reads remember GitHub's ETag; asking again with it costs no rate limit when nothing changed.
+    const read = !init.method || init.method === 'GET'
+    const key = `${path} ${JSON.stringify(init.headers ?? {})}`
+    const cached = read ? etags.get(key) : undefined
     if (!auth) throw new HttpError(401, 'unauthorized', 'not signed in to GitHub')
     const response = await fetcher(`${apiBase}${path}`, {
       ...init,
@@ -122,8 +133,10 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         'x-github-api-version': '2022-11-28',
         ...(init.body ? { 'content-type': 'application/json' } : {}),
         ...(init.headers as Record<string, string> | undefined),
+        ...(cached ? { 'if-none-match': cached.etag } : {}),
       },
     })
+    if (response.status === 304 && cached) return { status: 200, body: cached.body as T }
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as { message?: string } | null
       throw new HttpError(
@@ -133,7 +146,12 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
       )
     }
     const text = await response.text()
-    return { status: response.status, body: (text ? JSON.parse(text) : {}) as T }
+    const body = (text ? JSON.parse(text) : {}) as T
+    const etag = response.headers.get('etag')
+    if (read && etag) remember(key, etag, body)
+    // A write changes what later reads see, so cached answers are dropped.
+    if (!read) etags.clear()
+    return { status: response.status, body }
   }
 
   async function graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {

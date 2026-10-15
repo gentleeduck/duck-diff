@@ -9,6 +9,7 @@ import { ItemSidebar } from './ItemSidebar'
 import { StatePill } from './StatePill'
 import { ThreadView } from './Timeline'
 import { ago } from './time'
+import { usePoll } from './usePoll'
 import { EditableTitle, useThread } from './useThread'
 
 export default function IssueView({ number, onChanged }: { number: number; onChanged(): void }) {
@@ -34,6 +35,8 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
       alive = false
     }
   }, [load])
+
+  usePoll(() => Promise.all([api.github.issue(number).then(setIssue, () => {}), reloadThread(true)]), 20_000)
 
   const back = (
     <button
