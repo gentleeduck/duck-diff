@@ -13,7 +13,7 @@ import {
   ShieldAlert,
 } from 'lucide-react'
 import { useView } from '../hooks/useView'
-import type { View } from '../lib/view-url'
+import type { View } from '../router/place'
 import { RepoSwitcher } from './RepoSwitcher'
 
 const ITEMS: { view: View; label: string; icon: typeof FileDiff }[] = [

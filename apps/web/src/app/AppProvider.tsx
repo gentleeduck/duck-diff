@@ -1,4 +1,6 @@
+import { targetKey } from '@duck-diff/protocol'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
+import type { RouterHistory } from '@tanstack/react-router'
 import { createContext, type ReactNode, type RefObject, useContext, useEffect, useMemo, useRef } from 'react'
 import type { SymbolTarget } from '../code-nav/symbol-at'
 import type { DiffViewHandle } from '../diff/DiffView'
@@ -7,9 +9,8 @@ import { createPullReview, type PullReview } from '../github/pull-review'
 import { createGraph, type Graph } from '../graph/store'
 import { createKeyOverrides, createKeyState, type KeyOverrides, type KeyState } from '../keys/state'
 import { type Api, createApi } from '../lib/api'
+import { createPageHistory } from '../lib/history'
 import { createStore, type Store } from '../lib/store'
-import { readTarget } from '../lib/target-url'
-import { type PullTab, readView, type View } from '../lib/view-url'
 import { createJobs, type Jobs } from '../panel/jobs'
 import { createPanel, type Panel } from '../panel/panel'
 import { invalidateTopic } from '../query/client'
@@ -17,6 +18,7 @@ import { type GitQueries, gitQueries } from '../query/git'
 import { type GitHubQueries, githubQueries } from '../query/github'
 import { QueryProvider } from '../query/QueryProvider'
 import { createReviews, type Reviews } from '../review/reviews'
+import { createPlaceStores, type PlaceStores } from '../router/stores'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
@@ -25,7 +27,9 @@ import { createTabs, type Tabs } from '../state/tabs'
 import { createViewedStore, type Viewed } from '../state/viewed'
 import { createTerminalTabs, type TerminalTabs } from '../terminal/tabs'
 
-export interface AppContextValue {
+// Where the page is (view, open item, comparison) comes from the url through these stores (router/stores.ts).
+export interface AppContextValue extends PlaceStores {
+  history: RouterHistory
   api: Api
   session: Session
   // Branches, tags and recent commits, shared by every picker.
@@ -37,29 +41,13 @@ export interface AppContextValue {
   viewed: Viewed
   // The file whose history the sidebar shows, or null for the branch history.
   fileHistory: Store<string | null>
-  view: Store<View>
   graph: Graph
-  // The commit open in the graph's side panel.
-  graphSelection: Store<string | null>
   // What the graph's find box holds, so matching rows can stand out.
   graphQuery: Store<string>
   // Folders folded in the changes tree; their files fold in the diff too.
   changesFolders: Store<ReadonlySet<string>>
-  // The file open in the Files view, the line it was opened at, and the commit it is read at (null: working tree).
-  fileSelection: Store<string | null>
-  fileLine: Store<number | null>
-  fileAt: Store<string | null>
   // The name clicked in code, whose definitions and uses the symbol panel lists.
   symbol: Store<SymbolTarget | null>
-  // The pull request and issue open in their views.
-  pullSelection: Store<number | null>
-  issueSelection: Store<number | null>
-  // The open pull request's tab.
-  pullTab: Store<PullTab>
-  // The file last jumped to in the diff, so back and forward can return to it.
-  diffFile: Store<string | null>
-  // The conflicted file open in the merge editor.
-  mergeFile: Store<string | null>
   // Files whose blame the diff shows, by path; emptied when the diff shows another comparison.
   blameFiles: Store<ReadonlySet<string>>
   // The file at the top of the diff as it scrolls, which the changes tree highlights.
@@ -99,7 +87,10 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
   const queryClient = useQueryClient()
   const value = useMemo(() => {
     const client = api ?? createApi()
-    const session = createSession(client, readTarget(window.location.search))
+    const history = createPageHistory()
+    const location = createPlaceStores(history)
+    const target = location.place.get().target
+    const session = createSession(client, target)
     const queries = { gh: githubQueries(client), git: gitQueries(client) }
     return {
       api: client,
@@ -113,23 +104,15 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
       reviews: createReviews(client),
       viewed: createViewedStore(),
       fileHistory: createStore<string | null>(null),
-      view: createStore<View>(readView(window.location.search)),
+      history,
+      ...location,
       graph: createGraph(client),
-      graphSelection: createStore<string | null>(null),
       graphQuery: createStore(''),
-      fileSelection: createStore<string | null>(null),
-      fileLine: createStore<number | null>(null),
-      fileAt: createStore<string | null>(null),
       symbol: createStore<SymbolTarget | null>(null),
       changesFolders: createStore<ReadonlySet<string>>(new Set()),
-      pullSelection: createStore<number | null>(null),
-      issueSelection: createStore<number | null>(null),
-      pullTab: createStore<PullTab>('conversation'),
-      diffFile: createStore<string | null>(null),
-      mergeFile: createStore<string | null>(null),
       diffTop: createStore<string | null>(null),
       blameFiles: createStore<ReadonlySet<string>>(new Set()),
-      tabs: createTabs(readTarget(window.location.search)),
+      tabs: createTabs(target),
       pullReview: createPullReview(client, {
         pull: (number) => queryClient.fetchQuery(queries.gh.pull(number)),
         reviewState: (number) => queryClient.fetchQuery(queries.gh.reviewState(number)),
@@ -149,6 +132,18 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
   useEffect(() => {
     value.jobs.load().catch(() => {})
     value.terminalTabs.load().catch(() => {})
+  }, [value])
+
+  // The diff shows the url's comparison, whether a click, back and forward or Neovim changed it. Only a
+  // different comparison reloads; stepping between views of the same one keeps the page as it was.
+  useEffect(() => {
+    const { place, session, tabs } = value
+    return place.subscribe(() => {
+      const { target } = place.get()
+      if (targetKey(target) === targetKey(session.get().target)) return
+      tabs.open(target)
+      void session.load(target)
+    })
   }, [value])
 
   // Tabs are saved per repository, so they come back once the page knows which one it shows.

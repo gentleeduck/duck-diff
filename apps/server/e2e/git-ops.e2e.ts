@@ -72,6 +72,6 @@ test('blames each line of a file and opens the commit behind it', async ({ page,
     .getByRole('button', { name: /Duck Test/ })
     .first()
     .click()
-  await expect(page).toHaveURL(/view=graph/)
+  await expect(page).toHaveURL(/\/graph/)
   await expect(page.getByRole('complementary', { name: 'Commit' })).toContainText('base')
 })

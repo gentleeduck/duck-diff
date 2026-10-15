@@ -52,7 +52,9 @@ test('a worktree is added from the sidebar, opens in its own tab, and is removed
       page.context().waitForEvent('page'),
       trees.getByRole('button', { name: `Open ${folder} in a new tab` }).click(),
     ])
-    await expect(tab).toHaveURL(/token=/)
+    // The new server took the token into its cookie and dropped it from the url.
+    await expect(tab).toHaveURL(/\/changes/)
+    await expect(tab).not.toHaveURL(/token=/)
     await expect(tab.getByRole('banner')).toContainText('next')
     await tab.close()
 

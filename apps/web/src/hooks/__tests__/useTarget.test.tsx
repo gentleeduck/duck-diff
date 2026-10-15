@@ -24,7 +24,7 @@ describe('useTarget', () => {
     const { result } = renderHook(() => useTarget(), { wrapper: wrapper(api) })
     act(() => result.current.navigate({ kind: 'unstaged' }))
     expect(result.current.target).toEqual({ kind: 'unstaged' })
-    expect(window.location.search).toContain('unstaged')
+    await waitFor(() => expect(window.location.search).toContain('unstaged'))
     expect(files).toHaveBeenLastCalledWith({ kind: 'unstaged' }, expect.anything())
     window.history.back()
     await waitFor(() => expect(result.current.target).toEqual({ kind: 'local' }))

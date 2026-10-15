@@ -324,11 +324,26 @@ describe('GitHub views', () => {
     expect(((await screen.findByRole('button', { name: /bypass/ })) as HTMLButtonElement).disabled).toBe(false)
   })
 
+  it("shows a pull request's files in place, and opens them in the diff only when asked", async () => {
+    const fetchPull = vi.fn(async () => ({ base: 'main', head: 'refs/duck-diff/pr/7' }))
+    render(<App api={fakeApi({ github: githubApi({ fetchPull }) })} />)
+    fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
+    fireEvent.click(await screen.findByRole('tab', { name: /Files changed/ }))
+    const open = await screen.findByRole('button', { name: 'Open in diff' })
+    expect(fetchPull).toHaveBeenCalledWith(7)
+    await waitFor(() => expect(window.location.pathname).toBe('/prs/7'))
+    expect(window.location.search).not.toContain('target=')
+    fireEvent.click(open)
+    await waitFor(() => expect(window.location.pathname).toBe('/changes'))
+    expect(decodeURIComponent(window.location.search)).toContain('refs/duck-diff/pr/7')
+    expect(await screen.findByRole('tab', { name: '#7' })).toBeTruthy()
+  })
+
   it('steps back to the list and forward to the pull request with the page buttons', async () => {
     render(<App api={fakeApi({ github: githubApi() })} />)
     fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
     expect(await screen.findByText('Why this exists')).toBeTruthy()
-    expect(window.location.search).toContain('number=7')
+    await waitFor(() => expect(window.location.pathname).toBe('/prs/7'))
     fireEvent.click(screen.getByRole('tab', { name: /Commits/ }))
     await waitFor(() => expect(window.location.search).toContain('tab=commits'))
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
@@ -336,7 +351,7 @@ describe('GitHub views', () => {
     expect(await screen.findByText('Why this exists')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Back' }))
     expect(await screen.findByRole('option', { name: /Add things/ })).toBeTruthy()
-    expect(window.location.search).not.toContain('number=')
+    await waitFor(() => expect(window.location.pathname).toBe('/prs'))
     fireEvent.click(screen.getByRole('button', { name: 'Forward' }))
     expect(await screen.findByText('Why this exists')).toBeTruthy()
   })
@@ -412,7 +427,7 @@ describe('GitHub views', () => {
     await waitFor(() => expect(markRead).toHaveBeenCalledWith(null))
     fireEvent.click(screen.getByRole('button', { name: /Add things/ }))
     expect(await screen.findByText('Why this exists')).toBeTruthy()
-    expect(window.location.search).toContain('view=prs')
+    await waitFor(() => expect(window.location.pathname).toBe('/prs/7'))
   })
 
   it('lists releases and publishes a new one with generated notes', async () => {

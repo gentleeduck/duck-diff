@@ -31,7 +31,7 @@ test('a merge stops on three conflicts, each resolved its own way, and continues
   await expect(editor).toContainText('All resolved')
   await editor.getByRole('button', { name: 'Mark resolved' }).click()
 
-  await expect(page).not.toHaveURL(/view=merge/)
+  await expect(page).not.toHaveURL(/\/merge/)
   await expect.poll(() => repo.git('ls-files', '-u')).toBe('')
   const keep = '\nkeep\nkeep\nkeep\nkeep'
   expect(repo.git('show', ':list.txt')).toBe(`1 main${keep}\n2 feature${keep}\n3 by hand${keep}`)

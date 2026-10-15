@@ -1,3 +1,4 @@
+import type { DiffTarget } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -23,9 +24,10 @@ import { ask } from '../app/Ask'
 import { IconTool } from '../app/IconTool'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useTarget } from '../hooks/useTarget'
+import { useView } from '../hooks/useView'
 import type { ReviewEvent } from '../lib/api'
 import { useStore } from '../lib/store'
-import type { PullTab } from '../lib/view-url'
+import type { PullTab } from '../router/place'
 import { ChecksList } from './Checks'
 import { CodeMenu } from './CodeMenu'
 import { Avatar, Comment, Composer } from './Conversation'
@@ -121,34 +123,50 @@ function Commits({ number }: { number: number }) {
   )
 }
 
-// The diff viewer itself, on the fetched head, so a review happens without leaving the pull request.
+// The diff viewer itself, on the fetched head, so a review happens without leaving the pull request. It shows
+// here only: the changes view and its tabs keep their own comparison until "Open in diff".
 function Files({ number }: { number: number }) {
-  const { api } = useApp()
+  const { api, session } = useApp()
   const { navigate } = useTarget()
-  const [ready, setReady] = useState(false)
+  const { show } = useView()
+  const [target, setTarget] = useState<DiffTarget | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
     api.github.fetchPull(number).then(
       (refs) => {
         if (!alive) return
-        // Replaces rather than pushes: the tab already has its history entry.
-        navigate({ kind: 'range', from: refs.base, to: refs.head, mode: 'merge-base' }, true)
-        setReady(true)
+        const next: DiffTarget = { kind: 'range', from: refs.base, to: refs.head, mode: 'merge-base' }
+        void session.load(next)
+        setTarget(next)
       },
       (error: Error) => alive && setFailed(error.message),
     )
     return () => {
       alive = false
     }
-  }, [api, number, navigate])
+  }, [api, number, session])
   if (failed) return <p className="p-4 text-removed">Could not fetch the pull request: {failed}</p>
-  if (!ready) return <p className="p-4 text-muted-foreground">Fetching the head of #{number}...</p>
+  if (!target) return <p className="p-4 text-muted-foreground">Fetching the head of #{number}...</p>
   return (
-    <div className="h-[calc(100vh-15rem)] overflow-hidden rounded-md border border-border">
-      <Suspense fallback={null}>
-        <Viewer />
-      </Suspense>
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            navigate(target)
+            show('changes')
+          }}>
+          <SquareArrowOutUpRight />
+          Open in diff
+        </Button>
+      </div>
+      <div className="h-[calc(100vh-17rem)] overflow-hidden rounded-md border border-border">
+        <Suspense fallback={null}>
+          <Viewer />
+        </Suspense>
+      </div>
     </div>
   )
 }

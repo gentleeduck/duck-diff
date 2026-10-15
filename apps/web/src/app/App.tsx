@@ -1,6 +1,7 @@
 import { Button, Kbd, Toaster, TooltipProvider } from '@duck-diff/ui'
+import { Outlet, RouterProvider } from '@tanstack/react-router'
 import { SearchIcon } from 'lucide-react'
-import { lazy, memo, type ReactNode, Suspense, useState } from 'react'
+import { type ReactNode, Suspense, useState } from 'react'
 import { SymbolPanel } from '../code-nav/SymbolPanel'
 import { CompareBar } from '../compare/CompareBar'
 import { FilesSidebar } from '../files/FilesSidebar'
@@ -13,7 +14,6 @@ import { FindCommit } from '../graph/FindCommit'
 import { GraphSidebar } from '../graph/GraphSidebar'
 import type { GraphState } from '../graph/store'
 import { useSettings } from '../hooks/useSettings'
-import { useUrlSync } from '../hooks/useUrlSync'
 import { useView } from '../hooks/useView'
 import { KeymapsDialog } from '../keys/KeymapsDialog'
 import { KeymapsPicker } from '../keys/KeymapsPicker'
@@ -21,18 +21,17 @@ import { useKeys } from '../keys/useKeys'
 import { WhichKey } from '../keys/WhichKey'
 import type { Api } from '../lib/api'
 import { useStore } from '../lib/store'
-import type { View } from '../lib/view-url'
 import { useDesktopNotices } from '../live/useDesktopNotices'
 import { useLiveRefresh } from '../live/useLiveRefresh'
 import { MergeSidebar } from '../merge/MergeSidebar'
 import { Palette, previousSearch } from '../palette/Palette'
 import { BottomPanel } from '../panel/BottomPanel'
-import { useRefresh } from '../query/useRefresh'
 import { CommentsSheet } from '../review/CommentsSheet'
+import type { View } from '../router/place'
+import { createAppRouter } from '../router/router'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
 import type { Settings } from '../state/settings'
-import { DiffTabs } from '../viewer/DiffTabs'
 import { WritesProvider } from '../writes/WritesProvider'
 import { ActivityRail } from './ActivityRail'
 import { AppProvider, useApp } from './AppProvider'
@@ -43,22 +42,6 @@ import { StatusBar } from './StatusBar'
 import { TruncationTooltip } from './TruncationTooltip'
 import { useSizes } from './useSizes'
 import { useThemeClass } from './useThemeClass'
-
-// Memoized: the page around them re-renders for panels and badges, which these big views do not need.
-const Viewer = lazy(() => import('../viewer/Viewer').then((module) => ({ default: memo(module.default) })))
-const GraphView = lazy(() => import('../graph/GraphView').then((module) => ({ default: memo(module.default) })))
-const MergeEditor = lazy(() => import('../merge/MergeEditor'))
-const FileView = lazy(() => import('../files/FileView').then((module) => ({ default: memo(module.default) })))
-// GitHub pages load when first opened, keeping them out of the bundle every view waits for.
-const pages = () => import('../github/Pages')
-const PullsPage = lazy(() => pages().then((module) => ({ default: module.PullsPage })))
-const IssuesPage = lazy(() => pages().then((module) => ({ default: module.IssuesPage })))
-const InboxPage = lazy(() => pages().then((module) => ({ default: module.InboxPage })))
-const ReleasesPage = lazy(() => pages().then((module) => ({ default: module.ReleasesPage })))
-const DiscussionsPage = lazy(() => pages().then((module) => ({ default: module.DiscussionsPage })))
-const SecurityPage = lazy(() => pages().then((module) => ({ default: module.SecurityPage })))
-const Insights = lazy(() => import('../insights/Insights'))
-const ActionsPage = lazy(() => pages().then((module) => ({ default: module.ActionsPage })))
 
 const SHIPPED: View[] = [
   'changes',
@@ -121,11 +104,6 @@ function Screen() {
   })
   const live = useLiveRefresh()
   useDesktopNotices()
-  useUrlSync()
-  const refresh = useRefresh()
-  // A change made here is a change the lists and the palette's index should see too.
-  const pullsChanged = () => void refresh('pulls')
-  const issuesChanged = () => void refresh('issues')
   const search = (
     <Button
       size="sm"
@@ -139,7 +117,7 @@ function Screen() {
       <Kbd className="ms-auto hidden h-[1.125rem] px-1 text-[0.8em] leading-none @6xl/top:inline-flex">Ctrl K</Kbd>
     </Button>
   )
-  const screens: Record<View, { top: ReactNode; side: ReactNode | null; label: string; main: ReactNode }> = {
+  const screens: Record<View, { top: ReactNode; side: ReactNode | null; label: string }> = {
     changes: {
       top: (
         <>
@@ -153,14 +131,6 @@ function Screen() {
       ),
       side: <Sidebar />,
       label: 'Changed files',
-      main: (
-        <div className="flex h-full flex-col">
-          <DiffTabs />
-          <div className="min-h-0 flex-1">
-            <Viewer />
-          </div>
-        </div>
-      ),
     },
     graph: {
       top: (
@@ -174,7 +144,6 @@ function Screen() {
       ),
       side: <GraphSidebar />,
       label: 'Branches and tags',
-      main: <GraphView />,
     },
     files: {
       top: (
@@ -188,7 +157,6 @@ function Screen() {
       ),
       side: <FilesSidebar />,
       label: 'All files',
-      main: <FileView />,
     },
     prs: {
       top: (
@@ -201,7 +169,6 @@ function Screen() {
       ),
       side: null,
       label: 'Pull requests',
-      main: <PullsPage onChanged={pullsChanged} />,
     },
     issues: {
       top: (
@@ -214,7 +181,6 @@ function Screen() {
       ),
       side: null,
       label: 'Issues',
-      main: <IssuesPage onChanged={issuesChanged} />,
     },
     inbox: {
       top: (
@@ -226,7 +192,6 @@ function Screen() {
       ),
       side: null,
       label: 'Notifications',
-      main: <InboxPage />,
     },
     releases: {
       top: (
@@ -238,7 +203,6 @@ function Screen() {
       ),
       side: null,
       label: 'Releases',
-      main: <ReleasesPage />,
     },
     actions: {
       top: (
@@ -250,7 +214,6 @@ function Screen() {
       ),
       side: null,
       label: 'Actions',
-      main: <ActionsPage />,
     },
     discussions: {
       top: (
@@ -262,7 +225,6 @@ function Screen() {
       ),
       side: null,
       label: 'Discussions',
-      main: <DiscussionsPage />,
     },
     security: {
       top: (
@@ -274,7 +236,6 @@ function Screen() {
       ),
       side: null,
       label: 'Security',
-      main: <SecurityPage />,
     },
     insights: {
       top: (
@@ -287,7 +248,6 @@ function Screen() {
       ),
       side: null,
       label: 'Insights',
-      main: <Insights />,
     },
     merge: {
       top: (
@@ -300,7 +260,6 @@ function Screen() {
       ),
       side: <MergeSidebar />,
       label: 'Conflicted files',
-      main: <MergeEditor />,
     },
   }
   const screen = screens[view]
@@ -317,7 +276,11 @@ function Screen() {
         sidebarLabel={screen.label}
         panelShown={panel}
         onTogglePanel={togglePanel}
-        viewer={<Suspense fallback={null}>{screen.main}</Suspense>}
+        viewer={
+          <Suspense fallback={null}>
+            <Outlet />
+          </Suspense>
+        }
         // The symbol panel belongs to the code views; other pages never show it.
         aside={view === 'changes' || view === 'files' ? <SymbolPanel /> : null}
         bottom={<BottomPanel />}
@@ -333,13 +296,20 @@ function Screen() {
   )
 }
 
+// The router renders the page; its history is the one the place stores read (AppProvider).
+function Routed() {
+  const { history } = useApp()
+  const [router] = useState(() => createAppRouter(history, Screen))
+  return <RouterProvider router={router} />
+}
+
 export function App({ api, persist = false }: { api?: Api; persist?: boolean }) {
   return (
     <AppProvider api={api} persist={persist}>
       <TooltipProvider>
         <WritesProvider>
           <GitProvider>
-            <Screen />
+            <Routed />
             <AskDialog />
             <Toaster position="bottom-right" style={{ '--width': '28rem' } as React.CSSProperties} />
           </GitProvider>

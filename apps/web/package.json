@@ -20,6 +20,7 @@
     "@tanstack/query-sync-storage-persister": "^5.104.3",
     "@tanstack/react-query": "^5.104.3",
     "@tanstack/react-query-persist-client": "^5.104.3",
+    "@tanstack/react-router": "^1.170.44",
     "@tanstack/react-virtual": "catalog:",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-unicode11": "^0.9.0",

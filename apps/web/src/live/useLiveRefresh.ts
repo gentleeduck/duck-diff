@@ -3,8 +3,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { connectEvents, type EventsStatus } from '../lib/events'
-import { pushUrl } from '../lib/history'
-import { writeTarget } from '../lib/target-url'
 import { invalidateTopic, topicsOf, watchedTopics } from '../query/client'
 import { createRefresher } from './refresher'
 import { setQueryTopics, setTopicSender } from './topics'
@@ -21,7 +19,7 @@ function eventsUrl(): string {
 
 // Keeps the page in step with the repo: every change the server reports becomes one coalesced reload.
 export function useLiveRefresh(): LiveState {
-  const { api, session, reviews, refs, jobs } = useApp()
+  const { api, session, reviews, refs, jobs, place } = useApp()
   const [state, setState] = useState<LiveState>({ status: 'connecting', repo: null })
   const client = useQueryClient()
 
@@ -61,8 +59,7 @@ export function useLiveRefresh(): LiveState {
         if (event.type === 'github') return void invalidateTopic(client, event.topic)
         if (event.type === 'job' || event.type === 'job-output') return jobs.apply(event)
         if (event.type === 'navigate') {
-          pushUrl(writeTarget(event.target, window.location.search))
-          void session.load(event.target)
+          place.set((now) => ({ ...now, target: event.target }))
           window.focus()
           return
         }
@@ -83,7 +80,7 @@ export function useLiveRefresh(): LiveState {
       refresher.dispose()
       dispose()
     }
-  }, [api, session, reviews, refs, jobs, client])
+  }, [api, session, reviews, refs, jobs, client, place])
 
   return state
 }

@@ -1,6 +1,7 @@
 import { lazy } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
+import { useRefresh } from '../query/useRefresh'
 import { Actions } from './Actions'
 import { Discussions } from './Discussions'
 import { Inbox } from './Inbox'
@@ -16,8 +17,11 @@ const IssueView = lazy(() => import('./IssueView'))
 const selectNumber = (value: number | null) => value
 
 // Like GitHub: the list is a page, and an item opens as its own page with nothing beside it.
-export function PullsPage({ onChanged }: { onChanged(): void }) {
+export function PullsPage() {
   const { pullSelection } = useApp()
+  const refresh = useRefresh()
+  // A change made here is a change the lists and the palette's index should see too.
+  const onChanged = () => void refresh('pulls')
   const number = useStore(pullSelection, selectNumber)
   return (
     <GitHubGate>
@@ -30,8 +34,10 @@ export function PullsPage({ onChanged }: { onChanged(): void }) {
   )
 }
 
-export function IssuesPage({ onChanged }: { onChanged(): void }) {
+export function IssuesPage() {
   const { issueSelection } = useApp()
+  const refresh = useRefresh()
+  const onChanged = () => void refresh('issues')
   const number = useStore(issueSelection, selectNumber)
   return (
     <GitHubGate>

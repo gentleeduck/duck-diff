@@ -29,13 +29,13 @@ test('double-clicking a name in the diff lists where it is defined and used, and
   await expect(panel.getByRole('region', { name: 'References' })).toContainText('twice')
 
   await definitions.getByRole('button').first().click()
-  await expect(page).toHaveURL(/view=files/)
+  await expect(page).toHaveURL(/\/files/)
   await expect(page).toHaveURL(/line=1/)
   await expect(page.getByRole('region', { name: 'src/app.ts' })).toContainText('export const answer = 42')
   await page.keyboard.press('Escape')
   await expect(panel).toHaveCount(0)
   await page.getByRole('button', { name: 'Back' }).click()
-  await expect(page).not.toHaveURL(/view=files/)
+  await expect(page).not.toHaveURL(/\/files/)
 })
 
 test('a language server tells two functions of the same name apart', async ({ page, app, repo }) => {
@@ -65,6 +65,6 @@ test('a language server tells two functions of the same name apart', async ({ pa
   await page.keyboard.press('Escape')
 
   await code.getByText('load', { exact: true }).click({ modifiers: ['ControlOrMeta'] })
-  await expect(page).toHaveURL(/view=files/)
+  await expect(page).toHaveURL(/\/files/)
   await expect(page.getByRole('region', { name: 'src/b.ts' })).toContainText('return 2')
 })

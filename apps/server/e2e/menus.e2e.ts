@@ -20,6 +20,6 @@ test('switches branch and opens a commit from right-click menus in the graph', a
 
   await page.getByRole('listbox', { name: 'Commits' }).getByRole('option').first().click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Show changes' }).click()
-  await expect(page).toHaveURL(/view=changes|target=/)
+  await expect(page).toHaveURL(/\/changes/)
   await expect(page.getByRole('banner')).toContainText('file')
 })
