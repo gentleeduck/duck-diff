@@ -8,6 +8,7 @@ local M = {}
 ---@field origin string
 ---@field token string
 ---@field process vim.SystemObj
+---@field stamp string? the binary it was started from, as stamp() sees it
 
 ---@type table<string, DuckDiffServer>
 local servers = {}
@@ -16,60 +17,86 @@ function M.get(root)
   return servers[root]
 end
 
----Starts the server for `root` once and hands the same one back afterwards.
+-- Identifies the file a server runs from; installing a new build (copy, then rename) changes it.
+local function stamp(bin)
+  local stat = vim.uv.fs_stat(bin)
+  if not stat then
+    return nil
+  end
+  return ('%d:%d:%d:%d'):format(stat.mtime.sec, stat.mtime.nsec, stat.size, stat.ino)
+end
+
+local start
+
+---Starts the server for `root` once and hands the same one back afterwards, unless a newer build has
+---been installed since it started: then the old one stops and the new build serves instead.
 ---@param callback fun(err: string?, server: DuckDiffServer?)
 function M.ensure(root, callback)
-  if servers[root] then
-    return callback(nil, servers[root])
-  end
   binary.ensure(function(err, bin)
     if err then
       return callback(err)
     end
-    local cmd = { bin, 'serve', '--repo', root, '--idle-timeout-ms', tostring(config.get().server.idle_timeout_ms) }
-    if vim.v.servername ~= '' then
-      vim.list_extend(cmd, { '--nvim', vim.v.servername })
+    local running = servers[root]
+    if running then
+      if running.stamp == stamp(bin) then
+        return callback(nil, running)
+      end
+      vim.notify('duck-diff: a new build is installed, restarting the server', vim.log.levels.INFO)
+      M.stop(root)
     end
-    local buffered, answered = '', false
-    local answer = vim.schedule_wrap(function(start_err, server)
-      if answered then
+    start(root, bin, callback)
+  end)
+end
+
+function start(root, bin, callback)
+  local cmd = { bin, 'serve', '--repo', root, '--idle-timeout-ms', tostring(config.get().server.idle_timeout_ms) }
+  if vim.v.servername ~= '' then
+    vim.list_extend(cmd, { '--nvim', vim.v.servername })
+  end
+  local buffered, answered = '', false
+  local answer = vim.schedule_wrap(function(start_err, server)
+    if answered then
+      return
+    end
+    answered = true
+    callback(start_err, server)
+  end)
+  local process
+  local built = stamp(bin)
+  -- stdin stays open for the server's lifetime; when Neovim exits the pipe closes and the server stops.
+  process = vim.system(cmd, {
+    stdin = true,
+    stdout = function(_, data)
+      if answered or not data then
         return
       end
-      answered = true
-      callback(start_err, server)
-    end)
-    local process
-    -- stdin stays open for the server's lifetime; when Neovim exits the pipe closes and the server stops.
-    process = vim.system(cmd, {
-      stdin = true,
-      stdout = function(_, data)
-        if answered or not data then
-          return
-        end
-        buffered = buffered .. data
-        local line = buffered:match('^(.-)\n')
-        if not line then
-          return
-        end
-        local ok, handshake = pcall(vim.json.decode, line)
-        if not ok then
-          return answer('duck-diff: bad handshake: ' .. line)
-        end
-        local server = {
-          url = handshake.url,
-          token = handshake.token,
-          origin = ('http://127.0.0.1:%d'):format(handshake.port),
-          process = process,
-        }
-        servers[root] = server
-        answer(nil, server)
-      end,
-    }, function(out)
-      vim.schedule(function()
+      buffered = buffered .. data
+      local line = buffered:match('^(.-)\n')
+      if not line then
+        return
+      end
+      local ok, handshake = pcall(vim.json.decode, line)
+      if not ok then
+        return answer('duck-diff: bad handshake: ' .. line)
+      end
+      local server = {
+        url = handshake.url,
+        token = handshake.token,
+        origin = ('http://127.0.0.1:%d'):format(handshake.port),
+        process = process,
+        stamp = built,
+      }
+      servers[root] = server
+      answer(nil, server)
+    end,
+  }, function(out)
+    vim.schedule(function()
+      -- A restart has already put the new server here; only this one's own entry is cleared.
+      if servers[root] and servers[root].process == process then
         servers[root] = nil
-      end)
-      answer(('duck-diff exited (%d): %s'):format(out.code, vim.trim(out.stderr or '')))
+      end
     end)
+    answer(('duck-diff exited (%d): %s'):format(out.code, vim.trim(out.stderr or '')))
   end)
 end
 
