@@ -61,7 +61,6 @@ export function useKeys(handlers: KeyHandlers) {
   const app = useApp()
   const openInEditor = useOpenFile()
   const {
-    api,
     session,
     settings,
     viewer,

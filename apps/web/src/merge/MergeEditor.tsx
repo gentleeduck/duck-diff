@@ -211,7 +211,6 @@ function label(choice: Choice): string {
 }
 
 function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
-  const { api } = useApp()
   const { run, busy } = useGit()
   const openInEditor = useOpenFile()
   const [choices, setChoices] = useState<Choices>({})

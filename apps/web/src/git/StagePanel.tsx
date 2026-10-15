@@ -50,7 +50,7 @@ function Row({
   onSelect(): void
 }) {
   const app = useApp()
-  const { api, fileHistory, diffFile } = app
+  const { fileHistory, diffFile } = app
   const { show } = useView()
   const { run } = useGit()
   const { target, navigate } = useTarget()

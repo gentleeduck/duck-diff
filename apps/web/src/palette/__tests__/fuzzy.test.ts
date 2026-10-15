@@ -19,7 +19,7 @@ describe('fuzzy file search', () => {
 
   it('takes a typed path and space-separated words that must all match', () => {
     expect(paths('shop-api/translations')[0]).toBe(FILES[1])
-    expect(paths('admin transl')[0]).toBe(FILES[3])
+    expect(paths('office transl')[0]).toBe(FILES[3])
   })
 
   it('still finds a folder name with a typo', () => {
@@ -28,6 +28,6 @@ describe('fuzzy file search', () => {
 
   it('reports where the typed letters landed, for highlighting', () => {
     const hit = fuzzyMatch('readme', 'apps/shop-api/README.md')
-    expect(hit?.positions).toEqual([21, 22, 23, 24, 25, 26])
+    expect(hit?.positions).toEqual([14, 15, 16, 17, 18, 19])
   })
 })

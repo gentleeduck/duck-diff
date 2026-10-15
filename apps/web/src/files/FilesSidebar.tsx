@@ -20,7 +20,7 @@ const NO_PATHS: string[] = []
 
 export function FilesSidebar() {
   const app = useApp()
-  const { api, fileSelection, fileHistory, queries } = app
+  const { fileSelection, fileHistory, queries } = app
   const { navigate } = useTarget()
   const { show } = useView()
   const openInEditor = useOpenFile()

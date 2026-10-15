@@ -50,7 +50,7 @@ const selectLine = (line: number | null) => line
 
 export default function FileView() {
   const app = useApp()
-  const { api, fileSelection, fileHistory, fileLine, fileAt, queries } = app
+  const { fileSelection, fileHistory, fileLine, fileAt, queries } = app
   const path = useStore(fileSelection, selectPath)
   const at = useStore(fileAt, selectAt)
   const line = useStore(fileLine, selectLine)

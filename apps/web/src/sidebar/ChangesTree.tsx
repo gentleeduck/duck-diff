@@ -27,7 +27,7 @@ const selectFolders = (folders: ReadonlySet<string>) => folders
 const selectTop = (path: string | null) => path
 
 export function ChangesTree() {
-  const { api, fileHistory, viewed, changesFolders, diffFile, diffTop } = useApp()
+  const { fileHistory, viewed, changesFolders, diffFile, diffTop } = useApp()
   const folders = useStore(changesFolders, selectFolders)
   const { target } = useTarget()
   const kinds = useMemo(() => actionsFor(target), [target])
