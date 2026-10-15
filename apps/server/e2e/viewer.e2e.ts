@@ -178,3 +178,19 @@ test('blame shows who changed each line of the new side, from the header or <lea
   await page.keyboard.type(' hb')
   await expect(page.locator('[data-diff-view]').getByText('Duck Test')).toHaveCount(0)
 })
+
+test('settings live on the server, so a browser with nothing saved still has them', async ({ page, app, browser }) => {
+  await page.goto(app.url)
+  await expect(page.locator('[data-layout="split"]')).toBeAttached()
+  await page.keyboard.press('t')
+  await expect(page.locator('[data-layout="unified"]')).toBeAttached()
+  // Saves go out in batches; leaving the page sends what is left.
+  await page.close({ runBeforeUnload: true })
+  const fresh = await (await browser.newContext()).newPage()
+  await fresh.goto(app.url)
+  await expect(fresh.locator('main')).toContainText('export const answer = 42')
+  await expect(fresh.locator('[data-layout="unified"]')).toBeAttached()
+  expect(await fresh.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith('duck-diff:')))).toEqual(
+    [],
+  )
+})

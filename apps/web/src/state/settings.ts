@@ -1,6 +1,7 @@
 import type { DiffIndicators, HunkSeparators, LineDiffTypes, ThemeTypes } from '@pierre/diffs'
 import { z } from 'zod'
 import { DEFAULT_HIDE, type HidePattern } from '../lib/hide'
+import { saved } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
 
 export interface Settings {
@@ -104,9 +105,7 @@ function load(storage: Pick<Storage, 'getItem'> | null): Settings {
   return result as unknown as Settings
 }
 
-export function createSettingsStore(
-  storage: Pick<Storage, 'getItem' | 'setItem'> | null = globalThis.localStorage ?? null,
-): Store<Settings> {
+export function createSettingsStore(storage: Pick<Storage, 'getItem' | 'setItem'> | null = saved): Store<Settings> {
   const store = createStore(load(storage))
   store.subscribe(() => {
     try {

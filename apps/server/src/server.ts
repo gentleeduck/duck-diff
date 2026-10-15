@@ -41,6 +41,7 @@ import { createRepoList } from './repos'
 import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
 import { createSiblings, type StartServer, startSibling } from './siblings'
+import { createMemoryState, createStateStore, pageState } from './state'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
@@ -109,6 +110,8 @@ const PtyMessageSchema = z.discriminatedUnion('type', [
   }),
 ])
 const DEFAULT_IDLE_MS = 600_000
+const MAX_QUERIES_BYTES = 20 * 1024 * 1024
+const StateChangesSchema = z.object({ changes: z.record(z.string().max(200), z.string().max(1_000_000).nullable()) })
 const serveWeb = createWebHandler(WEB_ASSETS)
 
 export async function createServer(options: ServerOptions): Promise<RunningServer> {
@@ -127,6 +130,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
       ? null
       : createTerminals({ cwd: repo, ...(typeof options.terminal === 'object' ? options.terminal : {}) })
   const reviews = createReviewStore(repo, options.dataDir)
+  const state = options.persist ? createStateStore(options.dataDir ?? dataHome(), repo) : createMemoryState()
   const github = createForge(repo, { github: { ...options.github, cache }, gitlab: options.gitlab })
   const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
   const repoList = createRepoList(options.dataDir)
@@ -309,14 +313,35 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           ])
           return new Response(null, { status: 204 })
         }
+        if (url.pathname === '/api/state') {
+          if (request.method === 'PUT') {
+            const { changes } = StateChangesSchema.parse(await request.json())
+            await state.update(changes)
+            return new Response(null, { status: 204 })
+          }
+          return Response.json(await state.values())
+        }
+        if (url.pathname === '/api/state/queries') {
+          if (request.method === 'PUT') {
+            const text = await request.text()
+            if (text.length > MAX_QUERIES_BYTES) throw new HttpError(413, 'bad-request', 'the query cache is too big')
+            await state.setQueries(text)
+            return new Response(null, { status: 204 })
+          }
+          const saved = await state.queries()
+          return saved === null ? new Response(null, { status: 204 }) : new Response(saved)
+        }
         if (url.pathname.startsWith('/api/'))
           return await handleApi(repo, url, Boolean(options.nvim), options.build, cache)
         const response = serveWeb(url.pathname)
         // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
         if (response.headers.get('content-type')?.startsWith('text/html')) {
-          response.headers.set('set-cookie', `${tokenCookie(port)}=${token}; HttpOnly; SameSite=Strict; Path=/`)
-          // Readable by the page: its saved answers are kept per repo, since another repo may serve this port later.
-          response.headers.append('set-cookie', `duck_diff_repo_${port}=${repoId(repo)}; SameSite=Strict; Path=/`)
+          const html = pageState(await response.text(), await state.values())
+          const page = new Response(html, {
+            headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' },
+          })
+          page.headers.set('set-cookie', `${tokenCookie(port)}=${token}; HttpOnly; SameSite=Strict; Path=/`)
+          return page
         }
         return response
       } catch (error) {

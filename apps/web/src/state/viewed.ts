@@ -1,5 +1,6 @@
 import { type ChangedFile, type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { z } from 'zod'
+import { saved } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
 
 const KEY = 'duck-diff:viewed'
@@ -29,9 +30,7 @@ function load(storage: Pick<Storage, 'getItem'> | null): ViewedState {
   }
 }
 
-export function createViewedStore(
-  storage: Pick<Storage, 'getItem' | 'setItem'> | null = globalThis.localStorage ?? null,
-): Viewed {
+export function createViewedStore(storage: Pick<Storage, 'getItem' | 'setItem'> | null = saved): Viewed {
   const store = createStore(load(storage))
   store.subscribe(() => {
     try {

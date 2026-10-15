@@ -41,3 +41,24 @@ test('runs a real shell in the repo that survives a reload', async ({ page, app,
   const left = await page.evaluate(async () => (await fetch('/api/terminals')).json())
   expect(left).toEqual([])
 })
+
+test('a terminal behind another panel tab keeps its size, so the shell does not redraw', async ({ page, app }) => {
+  const sizes: string[] = []
+  page.on('websocket', (socket) =>
+    socket.on('framesent', (frame) => {
+      if (typeof frame.payload === 'string' && frame.payload.includes('"resize"')) sizes.push(frame.payload)
+    }),
+  )
+  await page.goto(app.url)
+  await expect(page.getByRole('button', { name: 'Output' })).toBeVisible()
+  await page.keyboard.press('Control+`')
+  await page.getByRole('button', { name: 'New terminal' }).click()
+  await expect(page.getByRole('region', { name: 'Terminal 1' }).locator('.xterm')).toBeVisible()
+  await expect.poll(() => sizes.length).toBeGreaterThan(0)
+  const shown = sizes.at(-1)
+  await page.getByRole('tab', { name: /Output/ }).click()
+  await page.waitForTimeout(300)
+  await page.getByRole('tab', { name: 'Terminal 1' }).click()
+  await page.waitForTimeout(300)
+  expect(new Set(sizes)).toEqual(new Set([shown]))
+})

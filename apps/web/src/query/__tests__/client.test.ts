@@ -1,6 +1,6 @@
 import { QueryObserver } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
-import { createQueryClient, invalidateTopic, persistKey, watchedTopics } from '../client'
+import { createQueryClient, invalidateTopic, watchedTopics } from '../client'
 
 describe('query client', () => {
   it('reads again only the queries following a topic, and lists the GitHub topics on screen', async () => {
@@ -35,12 +35,5 @@ describe('query client', () => {
 
     for (const stop of stops) stop()
     expect(watchedTopics(client)).toEqual([])
-  })
-
-  it('keeps saved answers per repo, and none without one', () => {
-    const cookie = 'duck_diff_repo_4000=abc123; duck_diff_repo_5000=def456'
-    expect(persistKey(cookie, '4000')).toBe('duck-diff:queries:abc123')
-    expect(persistKey(cookie, '5000')).toBe('duck-diff:queries:def456')
-    expect(persistKey(cookie, '6000')).toBeNull()
   })
 })

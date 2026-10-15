@@ -1,4 +1,5 @@
 import { type DiffTarget, DiffTargetSchema, targetKey } from '@duck-diff/protocol'
+import { saved } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
 
 export interface DiffTab {
@@ -123,7 +124,7 @@ export function createTabs(initial: DiffTarget): Tabs {
         tabs: state.tabs.map((tab) => (tab.id === state.active && tab.path !== path ? { ...tab, path } : tab)),
       }))
     },
-    restore(repo, storage = typeof localStorage === 'undefined' ? null : localStorage) {
+    restore(repo, storage = saved) {
       const key = KEY + repo
       try {
         const saved = JSON.parse(storage?.getItem(key) ?? '[]') as unknown[]

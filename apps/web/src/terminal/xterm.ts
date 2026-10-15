@@ -80,6 +80,9 @@ export function mountTerminal(
     terminal.loadAddon(webgl)
   } catch {}
   const doFit = () => {
+    // A hidden pane (another panel tab is showing) has no size; fitting it would shrink the shell to a few
+    // columns and make it redraw its prompt twice, once there and once back.
+    if (!element.clientWidth || !element.clientHeight) return
     try {
       fit.fit()
     } catch {}

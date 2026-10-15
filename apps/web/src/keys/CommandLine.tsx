@@ -5,6 +5,7 @@ import { openFile } from '../files/open-file'
 import { useGit } from '../git/GitProvider'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
+import { saved as storage } from '../lib/saved'
 import { ROOT } from '../state/tabs'
 import { focusTerminal } from '../terminal/input'
 import { completeEx, parseEx } from './ex'
@@ -13,7 +14,7 @@ const HISTORY_KEY = 'duck-diff:ex-history'
 
 function readHistory(): string[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]') as unknown
+    const saved = JSON.parse(storage.getItem(HISTORY_KEY) ?? '[]') as unknown
     return Array.isArray(saved) ? saved.filter((entry): entry is string => typeof entry === 'string') : []
   } catch {
     return []
@@ -55,7 +56,7 @@ export function CommandLine() {
     if (text.trim()) {
       const saved = [...readHistory().filter((entry) => entry !== text.trim()), text.trim()].slice(-50)
       try {
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(saved))
+        storage.setItem(HISTORY_KEY, JSON.stringify(saved))
       } catch {}
     }
     close()

@@ -34,13 +34,24 @@ describe('auth', () => {
     expect(response.headers.get('set-cookie')).toContain('HttpOnly')
   })
 
-  it('tells the page which repo it shows, for its per-repo cache', async () => {
+  it('keeps the page state on the server and hands it to the page with the html', async () => {
     await edited()
-    const response = await fetch(`http://127.0.0.1:${fixture.server.port}/?token=${fixture.server.token}`)
-    const cookies = response.headers.getSetCookie()
-    const repo = cookies.find((cookie) => cookie.startsWith(`duck_diff_repo_${fixture.server.port}=`))
-    expect(repo).toMatch(/=[\w-]{6,};/)
-    expect(repo).not.toContain('HttpOnly')
+    const base = `http://127.0.0.1:${fixture.server.port}`
+    const headers = { 'x-duck-diff-token': fixture.server.token }
+    const put = await fetch(`${base}/api/state`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ changes: { 'duck-diff:settings': '{"fontSize":16}' } }),
+    })
+    expect(put.status).toBe(204)
+    expect(await (await fetch(`${base}/api/state`, { headers })).json()).toEqual({
+      'duck-diff:settings': '{"fontSize":16}',
+    })
+    const html = await (await fetch(`${base}/?token=${fixture.server.token}`)).text()
+    expect(html).toContain('<script id="duck-diff-state" type="application/json">{"duck-diff:settings"')
+    expect((await fetch(`${base}/api/state/queries`, { headers })).status).toBe(204)
+    await fetch(`${base}/api/state/queries`, { method: 'PUT', headers, body: '{"q":1}' })
+    expect(await (await fetch(`${base}/api/state/queries`, { headers })).text()).toBe('{"q":1}')
   })
 
   it('binds to localhost only', async () => {
