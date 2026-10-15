@@ -1,4 +1,4 @@
-import { streamGit } from './run'
+import { runGit, streamGit } from './run'
 
 // Unit and record separators cannot appear in subjects or names, unlike | or tabs.
 export const GRAPH_FORMAT = `${['%H', '%P', '%D', '%an', '%ae', '%at', '%s'].join('%x1f')}%x1e`
@@ -22,4 +22,12 @@ export async function* streamGraph(repo: string, options: GraphOptions): AsyncIt
     ],
     { cwd: repo },
   )
+}
+
+// What the graph depends on: every ref and HEAD, or HEAD alone. The same tips mean the same rows.
+export async function graphTips(repo: string, all: boolean): Promise<string> {
+  const head = (await runGit(['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: repo, okExitCodes: [1] })).trim()
+  if (!all) return head
+  const refs = await runGit(['for-each-ref', '--format=%(refname) %(objectname)'], { cwd: repo })
+  return `${head}\n${refs}`
 }

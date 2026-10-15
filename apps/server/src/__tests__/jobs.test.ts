@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { chmodSync } from 'node:fs'
+import { chmodSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runGit } from '@duck-diff/git'
 import type { Job, ServerEvent } from '@duck-diff/protocol'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
+import { createDiskCache } from '../disk-cache'
 import { createJobs } from '../jobs'
 import { type Fixture, startFixture } from './helpers'
 
@@ -91,5 +93,33 @@ describe('jobs routes', () => {
     expect(list[0]).toMatchObject({ title: 'Switch', status: 'ok', command: 'git switch -c next' })
     const output = plain(await (await fixture.get(`/api/jobs/${list[0]?.id}/output`)).text())
     expect(output).toContain('$ git switch -c next')
+  })
+})
+
+describe('jobs kept across a restart', () => {
+  let repo: TestRepo
+  let dir: string
+  afterEach(() => {
+    repo.cleanup()
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('brings back the list and the tail of each output', async () => {
+    repo = createRepo()
+    dir = mkdtempSync(join(tmpdir(), 'duck-jobs-'))
+    const cache = createDiskCache(dir)
+    const jobs = createJobs(() => {}, { cache, keepOutput: 50 })
+    await jobs.run('Var', () =>
+      runGit(['var', 'GIT_EDITOR'], { cwd: repo.path, env: { GIT_EDITOR: `${'x'.repeat(100)}END` } }),
+    )
+    await cache.flush()
+
+    const again = createJobs(() => {}, { cache: createDiskCache(dir), keepOutput: 50 })
+    await again.ready
+    const [job] = again.list()
+    expect(job).toMatchObject({ title: 'Var', status: 'ok' })
+    const output = plain(again.output(job?.id ?? ''))
+    expect(output.length).toBeLessThanOrEqual(50)
+    expect(output).toContain('done')
   })
 })

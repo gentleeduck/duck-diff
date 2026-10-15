@@ -1,6 +1,6 @@
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, describe, expect, it } from 'vitest'
-import { streamGraph } from '../index'
+import { graphTips, streamGraph } from '../index'
 
 let repo: TestRepo
 afterEach(() => repo.cleanup())
@@ -45,5 +45,22 @@ describe('streamGraph', () => {
       'one',
     ])
     expect(await records(streamGraph(repo.path, { all: true, limit: 1 }))).toHaveLength(1)
+  })
+})
+
+describe('graphTips', () => {
+  it('changes when any ref or HEAD moves, and only then', async () => {
+    repo = createRepo()
+    repo.write('a.txt', '1\n')
+    repo.commit('base')
+    const first = await graphTips(repo.path, true)
+    expect(await graphTips(repo.path, true)).toBe(first)
+    repo.git('branch', 'side')
+    const branched = await graphTips(repo.path, true)
+    expect(branched).not.toBe(first)
+    expect(await graphTips(repo.path, false)).toBe(await graphTips(repo.path, false))
+    repo.write('a.txt', '2\n')
+    repo.commit('next')
+    expect(await graphTips(repo.path, true)).not.toBe(branched)
   })
 })

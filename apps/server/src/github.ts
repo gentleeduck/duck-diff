@@ -33,6 +33,7 @@ import type {
   TimelineEvent,
   WorkflowRun,
 } from '@duck-diff/protocol'
+import type { DiskCache } from './disk-cache'
 import { HttpError } from './errors'
 import { apiBases, parseRemote, type RemoteHost } from './forge-host'
 import { applyEdits, type SuggestionEdit, suggestionLines } from './suggestions'
@@ -47,6 +48,8 @@ export interface GitHubOptions {
   // Where the token comes from when the page has not supplied one, by host; tests replace it.
   findToken?: (host: string) => Promise<{ token: string; source: 'env' | 'gh' } | null>
   apiBase?: string
+  // Read answers kept across restarts; only paths, ETags and bodies are saved, never the token.
+  cache?: Pick<DiskCache, 'get' | 'set' | 'clear'>
 }
 
 // owner/name from git@github.com:owner/name.git, https://github.com/owner/name and ssh://git@github.com/owner/name.
@@ -196,12 +199,15 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
   let avatarMap: Promise<Record<string, string>> | null = null
   let mentionList: Promise<GitHubUser[]> | null = null
   const etags = new Map<string, { etag: string; body: unknown }>()
-  // Bounded, oldest out first: a long session reads many pages.
+  // Bounded, oldest out first: a long session reads many pages. The disk keeps them past a restart.
   const remember = (key: string, etag: string, body: unknown) => {
     etags.delete(key)
     etags.set(key, { etag, body })
     if (etags.size > 300) etags.delete(etags.keys().next().value as string)
+    options.cache?.set('github', key, { etag, body })
   }
+  const recall = async (key: string) =>
+    etags.get(key) ?? (await options.cache?.get<{ etag: string; body: unknown }>('github', key)) ?? undefined
 
   async function pagesOf<T>(path: string, pages: number, init: RequestInit = {}): Promise<T[]> {
     const all: T[] = []
@@ -243,9 +249,9 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     // Reads remember GitHub's ETag; asking again with it costs no rate limit when nothing changed.
     const read = !init.method || init.method === 'GET'
     const key = `${path} ${JSON.stringify(init.headers ?? {})}`
-    const cached = read ? etags.get(key) : undefined
+    const cached = read ? await recall(key) : undefined
     if (!auth) throw new HttpError(401, 'unauthorized', 'not signed in to GitHub')
-    const response = await fetcher(await urlFor(path), {
+    const asking = fetcher(await urlFor(path), {
       ...init,
       headers: {
         accept: 'application/vnd.github+json',
@@ -256,6 +262,13 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         ...(cached ? { 'if-none-match': cached.etag } : {}),
       },
     })
+    // Offline, the last answer GitHub gave is better than an error page.
+    const response = await asking.catch((error: unknown) => {
+      if (cached) return null
+      throw error
+    })
+    if (!response && cached) return { status: 200, body: cached.body as T }
+    if (!response) throw new HttpError(502, 'failed', 'GitHub could not be reached')
     if (response.status === 304 && cached) return { status: 200, body: cached.body as T }
     if (response.status === 401) found = null
     if (!response.ok) {
@@ -271,7 +284,10 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     const etag = response.headers.get('etag')
     if (read && etag) remember(key, etag, body)
     // A write changes what later reads see, so cached answers are dropped.
-    if (!read) etags.clear()
+    if (!read) {
+      etags.clear()
+      void options.cache?.clear('github')
+    }
     return { status: response.status, body }
   }
 

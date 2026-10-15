@@ -187,6 +187,8 @@ export interface Api {
   // Shells running on the server, which a reloaded page reattaches to.
   terminals(): Promise<{ id: string; title: string; cwd: string }[]>
   closeTerminal(id: string): Promise<void>
+  // Empties what the server keeps on disk: GitHub answers, commits, the graph and the output history.
+  clearCache(): Promise<void>
   github: GitHubApi
 }
 
@@ -552,6 +554,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       ),
     jobs: () => json('/api/jobs', z.array(JobSchema)),
     terminals: () => json('/api/terminals', z.array(z.object({ id: z.string(), title: z.string(), cwd: z.string() }))),
+    clearCache: () => sendEmpty('POST', '/api/cache/clear'),
     closeTerminal: (id) => sendEmpty('DELETE', `/api/terminals/${encodeURIComponent(id)}`),
     jobOutput: async (id) => (await request(`/api/jobs/${encodeURIComponent(id)}/output`)).text(),
     commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),

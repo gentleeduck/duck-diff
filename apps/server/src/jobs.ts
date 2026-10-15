@@ -1,7 +1,10 @@
 import { withOutput } from '@duck-diff/git'
 import type { Job, ServerEvent } from '@duck-diff/protocol'
+import type { DiskCache } from './disk-cache'
 
 export interface Jobs {
+  // Settles once jobs saved by an earlier run are back.
+  ready: Promise<void>
   // Runs a user action, recording every git command it starts and everything they print.
   run<T>(title: string, task: () => Promise<T>): Promise<T>
   // Newest first.
@@ -31,10 +34,31 @@ const RESET = '\x1b[0m'
 
 export function createJobs(
   publish: (event: ServerEvent) => void,
-  { keep = 50, maxOutput = 1_000_000, flushMs = 16 } = {},
+  {
+    keep = 50,
+    maxOutput = 1_000_000,
+    flushMs = 16,
+    cache,
+    keepOutput = 64 * 1024,
+  }: { keep?: number; maxOutput?: number; flushMs?: number; cache?: DiskCache; keepOutput?: number } = {},
 ): Jobs {
   const entries: Entry[] = []
   let counter = 0
+  // The finished jobs and the tail of what they printed outlive a restart or a new build taking over.
+  const save = () =>
+    cache?.set(
+      'jobs',
+      'list',
+      entries
+        .filter((entry) => entry.job.status !== 'running')
+        .map((entry) => ({ job: entry.job, output: entry.output.slice(-keepOutput) })),
+    )
+  const ready = (async () => {
+    const saved = (await cache?.get<{ job: Job; output: string }[]>('jobs', 'list').catch(() => null)) ?? []
+    for (const { job, output } of saved) {
+      if (entries.length < keep) entries.push({ job, output, pending: '', timer: null })
+    }
+  })()
 
   // Output is batched per frame so a chatty hook sends a few messages, not thousands.
   const flush = (entry: Entry) => {
@@ -52,6 +76,7 @@ export function createJobs(
   }
 
   return {
+    ready,
     async run(title, task) {
       const job: Job = {
         id: `job-${Date.now().toString(36)}-${(counter++).toString(36)}`,
@@ -86,6 +111,7 @@ export function createJobs(
         )
         flush(entry)
         publish({ type: 'job', job: { ...job } })
+        save()
       }
       try {
         const result = await withOutput(sink, task)

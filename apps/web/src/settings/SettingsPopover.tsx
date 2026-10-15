@@ -65,7 +65,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export function SettingsPopover() {
-  const { settings: store } = useApp()
+  const { settings: store, api } = useApp()
   const settings = useSettings(selectAll)
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => store.set((prev) => ({ ...prev, [key]: value }))
 
@@ -221,7 +221,18 @@ export function SettingsPopover() {
             onCheckedChange={(next: boolean) => void setNotices(next)}
           />
         </Row>
-        <div className="mt-2 flex justify-end border-border border-t pt-2">
+        <div className="mt-2 flex justify-end gap-2 border-border border-t pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              api.clearCache().then(
+                () => toast('Cleared the saved GitHub answers, commits and graph'),
+                (error: Error) => toast.error(error.message),
+              )
+            }>
+            Clear cache
+          </Button>
           <Button variant="outline" size="sm" onClick={() => store.set(DEFAULT_SETTINGS)}>
             Reset to defaults
           </Button>

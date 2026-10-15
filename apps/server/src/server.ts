@@ -6,6 +6,7 @@ import {
   listSubmodules,
   listWorktrees,
   readSyncStatus,
+  repoId,
   resolveRepo,
 } from '@duck-diff/git'
 import {
@@ -24,6 +25,7 @@ import {
 import type { ServerWebSocket } from 'bun'
 import { z } from 'zod'
 import { createToken, isAuthorized, tokenCookie } from './auth'
+import { createDiskCache, dataHome } from './disk-cache'
 import { errorResponse, HttpError } from './errors'
 import { createForge } from './forge'
 import type { GitHubOptions } from './github'
@@ -74,6 +76,9 @@ export interface ServerOptions {
   githubEvery?: Partial<Record<string, number>>
   // Shells in the page; false turns them off. Tests pick the shell.
   terminal?: boolean | { shell: string; args: string[] }
+  // Keep GitHub answers, commits, the graph and the output history on disk between runs. The command line
+  // turns it on; servers made in tests leave the data folder alone.
+  persist?: boolean
 }
 
 export interface RunningServer {
@@ -112,13 +117,16 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const notify = (reason: ChangeReason) => hub.broadcast({ type: 'changed', reason })
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
   const enqueue = createWriteQueue()
-  const jobs = createJobs((event) => hub.broadcast(event))
+  const cache = options.persist
+    ? createDiskCache(join(options.dataDir ?? dataHome(), 'duck-diff', repoId(repo)))
+    : undefined
+  const jobs = createJobs((event) => hub.broadcast(event), { cache })
   const terminals =
     options.terminal === false
       ? null
       : createTerminals({ cwd: repo, ...(typeof options.terminal === 'object' ? options.terminal : {}) })
   const reviews = createReviewStore(repo, options.dataDir)
-  const github = createForge(repo, { github: options.github, gitlab: options.gitlab })
+  const github = createForge(repo, { github: { ...options.github, cache }, gitlab: options.gitlab })
   const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
   const repoList = createRepoList(options.dataDir)
   // Started from the command line (which always passes repos), this repo goes to the top of the switcher
@@ -168,6 +176,10 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         if (url.pathname === '/api/terminals') return Response.json(terminals?.list() ?? [])
         if (url.pathname.startsWith('/api/terminals/') && request.method === 'DELETE') {
           terminals?.get(decodeURIComponent(url.pathname.slice(15)))?.close()
+          return new Response(null, { status: 204 })
+        }
+        if (url.pathname === '/api/cache/clear' && request.method === 'POST') {
+          await cache?.clear()
           return new Response(null, { status: 204 })
         }
         if (url.pathname === '/api/jobs') return Response.json(jobs.list())
@@ -286,7 +298,8 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           ])
           return new Response(null, { status: 204 })
         }
-        if (url.pathname.startsWith('/api/')) return await handleApi(repo, url, Boolean(options.nvim), options.build)
+        if (url.pathname.startsWith('/api/'))
+          return await handleApi(repo, url, Boolean(options.nvim), options.build, cache)
         const response = serveWeb(url.pathname)
         // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
         if (response.headers.get('content-type')?.startsWith('text/html')) {
@@ -360,6 +373,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
       clearInterval(watching)
       hub.dispose()
       terminals?.dispose()
+      await cache?.flush()
       await navigator.stop()
       await siblings.stop()
       await server.stop(true)

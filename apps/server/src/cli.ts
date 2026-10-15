@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import type { Handshake } from '@duck-diff/protocol'
 import { type Command, parseArgs, USAGE, VERSION } from './args'
+import { clearCaches, dataHome } from './disk-cache'
 import { buildStamp, watchBinary } from './self-update'
 import { createServer } from './server'
 
@@ -19,6 +20,11 @@ async function main(): Promise<number> {
   }
   if (command.name === 'version') {
     console.info(VERSION)
+    return 0
+  }
+  if (command.name === 'cache-clear') {
+    const cleared = await clearCaches(dataHome(), command.repo)
+    console.info(`Cleared ${cleared} cache${cleared === 1 ? '' : 's'}`)
     return 0
   }
 
@@ -43,6 +49,7 @@ async function main(): Promise<number> {
     idleTimeoutMs: command.idleTimeoutMs,
     nvim: command.nvim,
     terminal: command.terminal,
+    persist: true,
     repos: command.more,
     onIdle: () => finish(0),
   }).catch((error: Error) => {

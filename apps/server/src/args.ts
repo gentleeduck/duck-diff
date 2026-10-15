@@ -14,10 +14,12 @@ export type Command =
       terminal: boolean
     }
   | { name: 'version' }
+  | { name: 'cache-clear'; repo: string | null }
   | { name: 'help' }
 
 export const USAGE = `usage:
   duck-diff serve [--repo <path>]... [--port <n>] [--idle-timeout-ms <n>] [--nvim <address>] [--no-terminal]
+  duck-diff cache clear [--repo <path>]
   duck-diff --version`
 
 function wholeNumber(flag: string, value: string | undefined): number {
@@ -30,6 +32,13 @@ export function parseArgs(argv: string[], cwd: string): Command {
   const [command, ...rest] = argv
   if (command === undefined || command === 'help' || command === '--help') return { name: 'help' }
   if (command === '--version' || command === 'version') return { name: 'version' }
+  if (command === 'cache') {
+    const [action, flag, value] = rest
+    if (action !== 'clear') throw new Error(USAGE)
+    if (flag === undefined) return { name: 'cache-clear', repo: null }
+    if (flag === '--repo' && value) return { name: 'cache-clear', repo: resolve(cwd, value) }
+    throw new Error(USAGE)
+  }
   if (command !== 'serve') throw new Error(USAGE)
 
   const result = {

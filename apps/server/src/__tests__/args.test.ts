@@ -31,6 +31,12 @@ describe('parseArgs', () => {
     })
   })
 
+  it('reads cache clear, for one repo or every one', () => {
+    expect(parseArgs(['cache', 'clear'], '/w')).toEqual({ name: 'cache-clear', repo: null })
+    expect(parseArgs(['cache', 'clear', '--repo', 'r'], '/w')).toEqual({ name: 'cache-clear', repo: '/w/r' })
+    expect(() => parseArgs(['cache', 'drop'], '/w')).toThrow(/usage/)
+  })
+
   it('turns the page terminals off', () => {
     expect(parseArgs(['serve', '--no-terminal', '--port', '1'], '/w')).toMatchObject({ port: 1, terminal: false })
   })

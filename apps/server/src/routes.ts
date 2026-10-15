@@ -1,5 +1,6 @@
 import {
   findSymbol,
+  graphTips,
   listCommits,
   listFiles,
   listRefs,
@@ -33,6 +34,7 @@ import {
   SymbolQuerySchema,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
+import type { DiskCache } from './disk-cache'
 import { HttpError } from './errors'
 import { iterableToStream } from './stream'
 
@@ -105,7 +107,37 @@ async function sideQuery(repo: string, url: URL) {
   return { target, side: query.side, path: query.side === 'old' ? (query.oldPath ?? query.path) : query.path }
 }
 
-export async function handleApi(repo: string, url: URL, nvim = false, build?: string): Promise<Response> {
+const FULL_SHA = /^[0-9a-f]{40}$/
+// Graph text above this is read again each time rather than kept.
+const GRAPH_KEEP_BYTES = 8 * 1024 * 1024
+
+// A commit never changes, so what was read for its full sha is kept for good.
+async function once<T>(cache: DiskCache | undefined, bucket: string, sha: string, read: () => Promise<T>): Promise<T> {
+  if (!cache || !FULL_SHA.test(sha)) return read()
+  const kept = await cache.get<T>(bucket, sha)
+  if (kept !== null) return kept
+  const value = await read()
+  cache.set(bucket, sha, value)
+  return value
+}
+
+async function* remembering(source: AsyncIterable<string>, done: (text: string) => void): AsyncIterable<string> {
+  let text = ''
+  for await (const chunk of source) {
+    if (text.length < GRAPH_KEEP_BYTES) text += chunk
+    yield chunk
+  }
+  // Only a graph read to its end is kept; a page that left early leaves nothing half written.
+  if (text.length < GRAPH_KEEP_BYTES) done(text)
+}
+
+export async function handleApi(
+  repo: string,
+  url: URL,
+  nvim = false,
+  build?: string,
+  cache?: DiskCache,
+): Promise<Response> {
   switch (url.pathname) {
     case '/api/repo':
       return Response.json(await repoInfo(repo, nvim, build))
@@ -171,17 +203,26 @@ export async function handleApi(repo: string, url: URL, nvim = false, build?: st
     }
     case '/api/commit-stat': {
       const { sha } = z.object({ sha: RefNameSchema }).parse(Object.fromEntries(url.searchParams))
-      return Response.json(await readCommitStat(repo, sha))
+      return Response.json(await once(cache, 'commit-stats', sha, () => readCommitStat(repo, sha)))
     }
     case '/api/commit': {
       const { sha } = z.object({ sha: RefNameSchema }).parse(Object.fromEntries(url.searchParams))
-      return Response.json(await readCommit(repo, sha))
+      return Response.json(await once(cache, 'commits', sha, () => readCommit(repo, sha)))
     }
     case '/api/graph': {
       const query = GraphQuery.parse(Object.fromEntries(url.searchParams))
-      return new Response(iterableToStream(streamGraph(repo, { all: query.all !== 'false', limit: query.limit })), {
-        headers: { 'content-type': 'text/plain; charset=utf-8' },
-      })
+      const all = query.all !== 'false'
+      const headers = { 'content-type': 'text/plain; charset=utf-8' }
+      // The same refs give the same graph, so a page opened again draws it from disk without walking history.
+      const key = `${all}:${query.limit}`
+      const tips = cache ? Bun.hash(await graphTips(repo, all)).toString(36) : ''
+      const kept = cache ? await cache.get<{ tips: string; text: string }>('graph', key) : null
+      if (kept?.tips === tips) return new Response(kept.text, { headers })
+      const stream = streamGraph(repo, { all, limit: query.limit })
+      return new Response(
+        iterableToStream(cache ? remembering(stream, (text) => cache.set('graph', key, { tips, text })) : stream),
+        { headers },
+      )
     }
     case '/api/patch': {
       const target = requireTarget(url)
