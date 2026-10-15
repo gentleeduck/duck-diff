@@ -34,6 +34,7 @@ import type { GitHub } from './github'
 import { readTemplates } from './templates'
 
 const State = z.object({ state: z.enum(['open', 'closed']).default('open') })
+const IssueStateSchema = State.extend({ reason: z.enum(['completed', 'not_planned']).optional() })
 const NETWORK_TIMEOUT_MS = 120_000
 
 // A pull request's head lands in a private ref so the diff viewer can compare it like any other range.
@@ -243,7 +244,8 @@ export async function handleGitHub(
     if (action === 'comments' && post)
       return Response.json(await github.commentOn(number, PostCommentSchema.parse(await body()).body))
     if (action === 'state' && post) {
-      await github.setIssueState(number, State.parse(await body()).state)
+      const { state, reason } = IssueStateSchema.parse(await body())
+      await github.setIssueState(number, state, reason)
       return new Response(null, { status: 204 })
     }
   }

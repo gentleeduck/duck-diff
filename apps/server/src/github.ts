@@ -843,8 +843,12 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         await call<RawIssue>(`${await repoPath()}/issues`, { method: 'POST', body: JSON.stringify(input) }),
       )
     },
-    async setIssueState(number: number, state: 'open' | 'closed'): Promise<void> {
-      await call(`${await repoPath()}/issues/${number}`, { method: 'PATCH', body: JSON.stringify({ state }) })
+    // GitHub records why an issue closed: done, or not going to be done.
+    async setIssueState(number: number, state: 'open' | 'closed', reason?: 'completed' | 'not_planned'): Promise<void> {
+      await call(`${await repoPath()}/issues/${number}`, {
+        method: 'PATCH',
+        body: JSON.stringify(state === 'closed' && reason ? { state, state_reason: reason } : { state }),
+      })
     },
   }
 }

@@ -10,15 +10,16 @@ import { ago } from './time'
 const NO_DRAFT = createStore('')
 const selectDraft = (value: string) => value
 
-export function Avatar({ user }: { user: GitHubUser }) {
+export function Avatar({ user, large = false }: { user: GitHubUser; large?: boolean }) {
+  const size = large ? 'size-10' : 'size-5'
   return user.avatarUrl ? (
     <img
-      src={`${user.avatarUrl}${user.avatarUrl.includes('?') ? '&' : '?'}s=40`}
+      src={`${user.avatarUrl}${user.avatarUrl.includes('?') ? '&' : '?'}s=${large ? 80 : 40}`}
       alt=""
-      className="size-5 rounded-full"
+      className={`${size} shrink-0 rounded-full`}
     />
   ) : (
-    <span className="size-5 rounded-full bg-muted" />
+    <span className={`${size} shrink-0 rounded-full bg-muted`} />
   )
 }
 

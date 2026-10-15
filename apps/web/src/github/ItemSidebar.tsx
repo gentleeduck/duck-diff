@@ -17,7 +17,8 @@ const REVIEW_ICON: Record<NonNullable<Reviewer['state']> | 'requested', ReactNod
 export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
     <section aria-label={title} className="flex flex-col gap-2 border-border border-b pb-3 last:border-b-0">
-      <h3 className="flex items-center justify-between text-muted-foreground">
+      {/* Every header is one control tall, gear or not, so the sections line up down the column. */}
+      <h3 className="flex h-7 items-center justify-between text-muted-foreground">
         {title}
         {action}
       </h3>

@@ -756,6 +756,20 @@ describe('/api/github', () => {
     expect(Buffer.from(file?.contents ?? '', 'base64').toString()).toBe('1\nB\n4\n')
   })
 
+  it('closes an issue with the reason GitHub records', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    expect((await call('POST', '/api/github/issues/9/state', { state: 'closed', reason: 'not_planned' })).status).toBe(
+      204,
+    )
+    expect(calls.findLast((entry) => entry.path === '/repos/o/r/issues/9')?.body).toEqual({
+      state: 'closed',
+      state_reason: 'not_planned',
+    })
+    expect((await call('POST', '/api/github/issues/9/state', { state: 'open' })).status).toBe(204)
+    expect(calls.findLast((entry) => entry.path === '/repos/o/r/issues/9')?.body).toEqual({ state: 'open' })
+  })
+
   it('lists issues without the pull requests GitHub mixes in', async () => {
     await start({ token: 't', remote: 'git@github.com:o/r.git' })
     const issues = await (await call('GET', '/api/github/issues')).json()

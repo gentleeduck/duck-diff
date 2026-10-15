@@ -99,87 +99,91 @@ function CommentCard({
     }
   }
   return (
-    <article className="rounded-md border border-border bg-card">
-      <header className="flex items-center gap-2 border-border border-b px-3 py-1 text-muted-foreground">
-        <Avatar user={author} />
-        <span className="text-foreground">{author.login}</span>
-        <span>{ago(createdAt)}</span>
-        {edited ? <span className="text-tn-comment">edited</span> : null}
-        {label ? (
-          <Badge variant="outline" size="sm">
-            {label}
-          </Badge>
-        ) : null}
-        <Popover open={menu} onOpenChange={setMenu}>
-          <PopoverTrigger asChild>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="ms-auto"
-              aria-label={`Actions for ${author.login}'s comment`}>
-              <Ellipsis />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="flex w-52 flex-col p-1">
-            <MenuItem onSelect={() => pick(onQuote)}>
-              <MessageSquareQuote />
-              Quote reply
-            </MenuItem>
-            {link ? (
-              <MenuItem
-                onSelect={() =>
-                  pick(() => void navigator.clipboard.writeText(link).then(() => toast('Copied the link')))
-                }>
-                <Copy />
-                Copy link
-              </MenuItem>
-            ) : null}
-            {canEdit ? (
-              <MenuItem
-                onSelect={() =>
-                  pick(() => {
-                    setDraft(body)
-                    setEditing(true)
-                  })
-                }>
-                <Pencil />
-                Edit
-              </MenuItem>
-            ) : null}
-            {canDelete && onDelete ? (
-              <MenuItem destructive onSelect={() => pick(onDelete)}>
-                <Trash2 />
-                Delete
-              </MenuItem>
-            ) : null}
-          </PopoverContent>
-        </Popover>
-      </header>
-      <div className="flex flex-col gap-2 px-3 py-2">
-        {editing ? (
-          <>
-            <MarkdownEditor
-              label="Edit comment"
-              value={draft}
-              onChange={setDraft}
-              onSubmit={() => void save()}
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
-                Cancel
+    <div className="relative flex gap-3">
+      <span className="hidden sm:block">
+        <Avatar user={author} large />
+      </span>
+      <article className="min-w-0 flex-1 rounded-md border border-border bg-card">
+        <header className="flex min-h-10 items-center gap-1.5 rounded-t-md border-border border-b bg-muted/40 px-3 py-1 text-muted-foreground">
+          <span className="sm:hidden">
+            <Avatar user={author} />
+          </span>
+          <span className="font-bold text-foreground">{author.login}</span>
+          <span>commented {ago(createdAt)}</span>
+          {edited ? <span>· edited</span> : null}
+          <span className="ms-auto" />
+          {label ? (
+            <Badge variant="outline" size="sm">
+              {label}
+            </Badge>
+          ) : null}
+          <Popover open={menu} onOpenChange={setMenu}>
+            <PopoverTrigger asChild>
+              <Button size="icon" variant="ghost" aria-label={`Actions for ${author.login}'s comment`}>
+                <Ellipsis />
               </Button>
-              <Button size="sm" loading={saving} onClick={() => void save()}>
-                Update comment
-              </Button>
-            </div>
-          </>
-        ) : (
-          <Body text={body} html={html} />
-        )}
-        {reactions}
-      </div>
-    </article>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="flex w-52 flex-col p-1">
+              <MenuItem onSelect={() => pick(onQuote)}>
+                <MessageSquareQuote />
+                Quote reply
+              </MenuItem>
+              {link ? (
+                <MenuItem
+                  onSelect={() =>
+                    pick(() => void navigator.clipboard.writeText(link).then(() => toast('Copied the link')))
+                  }>
+                  <Copy />
+                  Copy link
+                </MenuItem>
+              ) : null}
+              {canEdit ? (
+                <MenuItem
+                  onSelect={() =>
+                    pick(() => {
+                      setDraft(body)
+                      setEditing(true)
+                    })
+                  }>
+                  <Pencil />
+                  Edit
+                </MenuItem>
+              ) : null}
+              {canDelete && onDelete ? (
+                <MenuItem destructive onSelect={() => pick(onDelete)}>
+                  <Trash2 />
+                  Delete
+                </MenuItem>
+              ) : null}
+            </PopoverContent>
+          </Popover>
+        </header>
+        <div className="flex flex-col gap-2 px-3 py-2">
+          {editing ? (
+            <>
+              <MarkdownEditor
+                label="Edit comment"
+                value={draft}
+                onChange={setDraft}
+                onSubmit={() => void save()}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" loading={saving} onClick={() => void save()}>
+                  Update comment
+                </Button>
+              </div>
+            </>
+          ) : (
+            <Body text={body} html={html} />
+          )}
+          {reactions}
+        </div>
+      </article>
+    </div>
   )
 }
 
@@ -198,10 +202,13 @@ const EVENT_ICON: Record<string, ReactNode> = {
   unlabeled: <Tag className="size-4 text-muted-foreground" />,
 }
 
+// An event on the thread's line: its mark sits on the line that runs down behind the comments.
 function Line({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-2 ps-4 text-muted-foreground">
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted">{icon}</span>
+    <div className="relative flex items-center gap-2 py-0.5 ps-3 text-muted-foreground sm:ps-[3.25rem]">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-full border-2 border-background bg-muted">
+        {icon}
+      </span>
       <span className="min-w-0">{children}</span>
     </div>
   )
@@ -244,7 +251,9 @@ export function ThreadView({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="relative flex flex-col gap-3">
+      {/* The thread's line, from the first comment down to the last event, as on GitHub. */}
+      <span aria-hidden className="absolute inset-y-0 start-[4.1875rem] hidden w-0.5 bg-border sm:block" />
       <CommentCard
         author={thread.author}
         createdAt={thread.createdAt}
@@ -294,14 +303,14 @@ export function ThreadView({
                 <span className="text-foreground">{event.author.login}</span> {look?.text} {ago(event.createdAt)}
               </Line>
               {event.body.trim() ? (
-                <div className="ms-12 rounded-md border border-border bg-card px-3 py-2">
+                <div className="relative rounded-md border border-border bg-card px-3 py-2 sm:ms-[3.25rem]">
                   <Body text={event.body} html={event.html} />
                 </div>
               ) : null}
               {reviewComments
                 .filter((comment) => comment.reviewId === event.id && comment.inReplyTo === null)
                 .map((comment) => (
-                  <div key={comment.id} className="ms-12 rounded-md border border-border bg-card">
+                  <div key={comment.id} className="relative rounded-md border border-border bg-card sm:ms-[3.25rem]">
                     <header className="flex items-center gap-2 border-border border-b px-3 py-1.5">
                       <FileCode className="size-4 shrink-0 text-muted-foreground" />
                       <button

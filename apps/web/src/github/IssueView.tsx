@@ -1,12 +1,23 @@
 import type { IssueDetails } from '@duck-diff/protocol'
-import { Button } from '@duck-diff/ui'
-import { ArrowLeft, CircleCheck, CircleDot, Lock, LockOpen, SquareArrowOutUpRight } from 'lucide-react'
+import { Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  CircleCheck,
+  CircleDot,
+  CircleSlash,
+  Lock,
+  LockOpen,
+  SquareArrowOutUpRight,
+} from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { Comment, Composer } from './Conversation'
 import { ItemSidebar } from './ItemSidebar'
+import { NewIssue } from './NewIssue'
 import { sidebarActions } from './SidebarEditors'
 import { StatePill } from './StatePill'
 import { ThreadMenu } from './ThreadMenu'
@@ -14,6 +25,71 @@ import { ThreadView } from './Timeline'
 import { ago } from './time'
 import { usePoll } from './usePoll'
 import { EditableTitle, useThread } from './useThread'
+
+const CLOSE_REASONS = [
+  {
+    reason: 'completed' as const,
+    label: 'Close as completed',
+    detail: 'Done, closed, fixed, resolved',
+    icon: CircleCheck,
+  },
+  {
+    reason: 'not_planned' as const,
+    label: 'Close as not planned',
+    detail: "Won't fix, can't repro, duplicate, stale",
+    icon: CircleSlash,
+  },
+]
+
+// GitHub's close button: one press closes as completed, the arrow picks the reason.
+function CloseIssue({ busy, onClose }: { busy: boolean; onClose(reason: 'completed' | 'not_planned'): void }) {
+  const [reason, setReason] = useState<'completed' | 'not_planned'>('completed')
+  const chosen = CLOSE_REASONS.find((entry) => entry.reason === reason) ?? CLOSE_REASONS[0]
+  return (
+    <div className="flex">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="rounded-e-none"
+        loading={busy}
+        onClick={() => onClose(reason)}>
+        {chosen ? (
+          <chosen.icon className={reason === 'completed' ? 'text-tn-magenta' : 'text-muted-foreground'} />
+        ) : null}
+        {reason === 'completed' ? 'Close issue' : 'Close as not planned'}
+      </Button>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-label="Choose how to close"
+            className="rounded-s-none border-s-0 px-2">
+            <ChevronDown />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="flex w-72 flex-col p-1">
+          {CLOSE_REASONS.map((entry) => (
+            <button
+              key={entry.reason}
+              type="button"
+              onClick={() => setReason(entry.reason)}
+              className="flex cursor-pointer gap-2 rounded-sm p-2 text-start hover:bg-accent">
+              <span className="w-4 pt-0.5">{entry.reason === reason ? <Check className="size-4" /> : null}</span>
+              <entry.icon className="mt-0.5 size-4 shrink-0" />
+              <span className="flex min-w-0 flex-col">
+                <span className="text-foreground">{entry.label}</span>
+                <span className="text-muted-foreground">{entry.detail}</span>
+              </span>
+            </button>
+          ))}
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
 
 export default function IssueView({ number, onChanged }: { number: number; onChanged(): void }) {
   const { api, issueSelection } = useApp()
@@ -73,11 +149,11 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
     await Promise.all([load(), reloadThread()])
     onChanged()
   }
-  const toggle = async () => {
+  const toggle = async (reason?: 'completed' | 'not_planned') => {
     setBusy(true)
     try {
-      await api.github.setIssueState(number, open ? 'closed' : 'open')
-      toast(open ? `Closed #${number}` : `Reopened #${number}`)
+      await api.github.setIssueState(number, open ? 'closed' : 'open', reason)
+      toast(open ? `Closed #${number}${reason === 'not_planned' ? ' as not planned' : ''}` : `Reopened #${number}`)
       await refresh()
     } catch (error) {
       toast.error((error as Error).message)
@@ -108,6 +184,7 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
             canEdit={thread?.viewer.canEdit ?? false}
             onChanged={() => void refresh()}
           />
+          <NewIssue onCreated={onChanged} />
           <Button size="sm" variant="outline" asChild>
             <a href={issue.url} target="_blank" rel="noreferrer">
               <SquareArrowOutUpRight />
@@ -153,12 +230,16 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
               <Comment author={issue.author} createdAt={issue.createdAt} body={issue.body} />
             )}
             <Composer draft={draft} label="Comment on this issue" onSend={comment}>
-              {() => (
-                <Button type="button" size="sm" variant="outline" loading={busy} onClick={() => void toggle()}>
-                  {open ? <CircleCheck /> : <CircleDot />}
-                  {open ? 'Close issue' : 'Reopen issue'}
-                </Button>
-              )}
+              {() =>
+                open ? (
+                  <CloseIssue busy={busy} onClose={(reason) => void toggle(reason)} />
+                ) : (
+                  <Button type="button" size="sm" variant="outline" loading={busy} onClick={() => void toggle()}>
+                    <CircleDot />
+                    Reopen issue
+                  </Button>
+                )
+              }
             </Composer>
           </div>
           <ItemSidebar

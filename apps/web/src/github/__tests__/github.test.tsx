@@ -310,6 +310,32 @@ describe('GitHub views', () => {
     expect(await screen.findByText('Why this exists')).toBeTruthy()
   })
 
+  it('closes an issue as not planned from the close button menu', async () => {
+    window.history.replaceState(null, '', '/?view=issues&number=3')
+    const setIssueState = vi.fn(async () => {})
+    const issue = async () => ({
+      number: 3,
+      title: 'Graph lanes overlap',
+      state: 'open' as const,
+      author,
+      createdAt: '2026-10-01T00:00:00Z',
+      updatedAt: '2026-10-02T00:00:00Z',
+      labels: [],
+      comments: 0,
+      url: 'u',
+      locked: false,
+      assignees: [],
+      milestone: null,
+      body: 'Lanes cross',
+      conversation: [],
+    })
+    render(<App api={fakeApi({ github: githubApi({ issue, setIssueState }) })} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose how to close' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Close as not planned/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Close as not planned$/ }))
+    await waitFor(() => expect(setIssueState).toHaveBeenCalledWith(3, 'closed', 'not_planned'))
+  })
+
   it('says so when the repo has no GitHub remote', async () => {
     render(
       <App
