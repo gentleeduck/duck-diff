@@ -331,3 +331,58 @@ export type IssueTemplate = z.infer<typeof IssueTemplateSchema>
 
 export const TemplatesSchema = z.object({ issue: z.array(IssueTemplateSchema), pull: z.string().nullable() })
 export type Templates = z.infer<typeof TemplatesSchema>
+
+export const NotificationSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  // Issue, PullRequest, Release, CheckSuite, Discussion...
+  type: z.string(),
+  reason: z.string(),
+  unread: z.boolean(),
+  updatedAt: z.string(),
+  // The pull request or issue it points at, when it points at one.
+  number: z.number().int().nullable(),
+})
+export type Notification = z.infer<typeof NotificationSchema>
+
+export const ReleaseSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  tag: z.string(),
+  body: z.string(),
+  html: z.string().nullable(),
+  draft: z.boolean(),
+  prerelease: z.boolean(),
+  publishedAt: z.string().nullable(),
+  author: GitHubUserSchema,
+  url: z.string(),
+})
+export type Release = z.infer<typeof ReleaseSchema>
+
+export const CreateReleaseSchema = z.object({
+  tag: z.string().trim().min(1).max(256),
+  target: z.string().trim().max(256).default(''),
+  name: z.string().max(256),
+  body: z.string().max(125_000),
+  draft: z.boolean(),
+  prerelease: z.boolean(),
+  generateNotes: z.boolean(),
+})
+
+export const WorkflowRunSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  title: z.string(),
+  status: z.string(),
+  conclusion: z.string().nullable(),
+  branch: z.string(),
+  event: z.string(),
+  createdAt: z.string(),
+  actor: GitHubUserSchema,
+  url: z.string(),
+})
+export type WorkflowRun = z.infer<typeof WorkflowRunSchema>
+export const RunActionSchema = z.object({
+  runId: z.number().int(),
+  action: z.enum(['rerun', 'rerun-failed', 'cancel']),
+})

@@ -263,4 +263,110 @@ describe('GitHub views', () => {
     )
     expect(await screen.findByText('No GitHub remote')).toBeTruthy()
   })
+
+  it('shows unread notifications with a rail badge, marks one read, and jumps to its pull request', async () => {
+    window.history.replaceState(null, '', '/?view=inbox')
+    const markRead = vi.fn(async () => {})
+    const notifications = vi.fn(async (all: boolean) => [
+      {
+        id: 'n1',
+        title: 'Add things',
+        type: 'PullRequest',
+        reason: 'review_requested',
+        unread: true,
+        updatedAt: '2026-10-02T00:00:00Z',
+        number: 7,
+      },
+      ...(all
+        ? [
+            {
+              id: 'n2',
+              title: 'Old news',
+              type: 'Issue',
+              reason: 'mention',
+              unread: false,
+              updatedAt: '2026-09-02T00:00:00Z',
+              number: 3,
+            },
+          ]
+        : []),
+    ])
+    render(<App api={fakeApi({ github: githubApi({ notifications, markRead }) })} />)
+    expect(await screen.findByRole('button', { name: 'Notifications, 1 unread' })).toBeTruthy()
+    expect(await screen.findByText('Review requested')).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: 'All' }))
+    expect(await screen.findByText('Old news')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Mark all as read' }))
+    await waitFor(() => expect(markRead).toHaveBeenCalledWith(null))
+    fireEvent.click(screen.getByRole('button', { name: /Add things/ }))
+    expect(await screen.findByText('Why this exists')).toBeTruthy()
+    expect(window.location.search).toContain('view=prs')
+  })
+
+  it('lists releases and publishes a new one with generated notes', async () => {
+    window.history.replaceState(null, '', '/?view=releases')
+    const release = {
+      id: 1,
+      name: 'First',
+      tag: 'v1.0.0',
+      body: 'Hello',
+      html: '<p>Hello <em>world</em></p>',
+      draft: false,
+      prerelease: true,
+      publishedAt: '2026-10-01T00:00:00Z',
+      author,
+      url: 'https://github.com/o/r/releases/tag/v1.0.0',
+    }
+    const createRelease = vi.fn(async () => ({ ...release, id: 2, tag: 'v1.1.0' }))
+    render(<App api={fakeApi({ github: githubApi({ releases: async () => [release], createRelease }) })} />)
+    expect(await screen.findByRole('article', { name: 'First' })).toBeTruthy()
+    expect(screen.getByText('Pre-release')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'New release' }))
+    fireEvent.change(await screen.findByLabelText('Tag'), { target: { value: 'v1.1.0' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Publish release' }))
+    await waitFor(() =>
+      expect(createRelease).toHaveBeenCalledWith({
+        tag: 'v1.1.0',
+        target: '',
+        name: '',
+        body: '',
+        draft: false,
+        prerelease: false,
+        generateNotes: true,
+      }),
+    )
+  })
+
+  it('lists workflow runs, re-runs a finished one and cancels a running one', async () => {
+    window.history.replaceState(null, '', '/?view=actions')
+    const run = {
+      id: 5,
+      name: 'CI',
+      title: 'Add things',
+      status: 'completed',
+      conclusion: 'failure',
+      branch: 'feat',
+      event: 'push',
+      createdAt: '2026-10-02T00:00:00Z',
+      actor: author,
+      url: 'u',
+    }
+    const runAction = vi.fn(async () => {})
+    render(
+      <App
+        api={fakeApi({
+          github: githubApi({
+            runs: async () => [run, { ...run, id: 6, name: 'Deploy', status: 'in_progress', conclusion: null }],
+            runAction,
+          }),
+        })}
+      />,
+    )
+    expect(await screen.findByRole('img', { name: 'Failed' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'In progress' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Re-run CI' }))
+    await waitFor(() => expect(runAction).toHaveBeenCalledWith(5, 'rerun'))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Deploy' }))
+    await waitFor(() => expect(runAction).toHaveBeenCalledWith(6, 'cancel'))
+  })
 })

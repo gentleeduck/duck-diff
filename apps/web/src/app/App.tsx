@@ -6,7 +6,8 @@ import { FilesSidebar } from '../files/FilesSidebar'
 import { BranchMenu } from '../git/BranchMenu'
 import { GitProvider } from '../git/GitProvider'
 import { SyncButtons } from '../git/SyncButtons'
-import { IssuesPage, PullsPage } from '../github/Pages'
+import { useUnread } from '../github/Inbox'
+import { ActionsPage, InboxPage, IssuesPage, PullsPage, ReleasesPage } from '../github/Pages'
 import { useGitHub } from '../github/SignIn'
 import { FindCommit } from '../graph/FindCommit'
 import { GraphSidebar } from '../graph/GraphSidebar'
@@ -39,7 +40,7 @@ const Viewer = lazy(() => import('../viewer/Viewer'))
 const GraphView = lazy(() => import('../graph/GraphView'))
 const FileView = lazy(() => import('../files/FileView'))
 
-const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues']
+const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues', 'inbox', 'releases', 'actions']
 
 const selectCommitCount = (state: GraphState) => state.entries.length
 const selectPanel = (state: Settings) => state.sidebar
@@ -166,13 +167,50 @@ function Screen() {
       label: 'Issues',
       main: <IssuesPage version={issuesVersion} onChanged={issuesChanged} />,
     },
+    inbox: {
+      top: (
+        <>
+          <GitHubTitle title="Notifications" />
+          {search}
+          <FontSizeMenu />
+        </>
+      ),
+      side: null,
+      label: 'Notifications',
+      main: <InboxPage />,
+    },
+    releases: {
+      top: (
+        <>
+          <GitHubTitle title="Releases" />
+          {search}
+          <FontSizeMenu />
+        </>
+      ),
+      side: null,
+      label: 'Releases',
+      main: <ReleasesPage />,
+    },
+    actions: {
+      top: (
+        <>
+          <GitHubTitle title="Actions" />
+          {search}
+          <FontSizeMenu />
+        </>
+      ),
+      side: null,
+      label: 'Actions',
+      main: <ActionsPage />,
+    },
   }
   const screen = screens[view]
   const panel = useSettings(selectPanel)
+  const unread = useUnread()
   return (
     <>
       <Shell
-        rail={<ActivityRail views={SHIPPED} />}
+        rail={<ActivityRail views={SHIPPED} badges={{ inbox: unread }} />}
         topBar={screen.top}
         sidebar={panel ? screen.side : null}
         sidebarLabel={screen.label}

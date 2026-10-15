@@ -4,6 +4,7 @@ import {
   BaseSchema,
   CreateIssueSchema,
   CreatePullSchema,
+  CreateReleaseSchema,
   DraftSchema,
   EditIssueSchema,
   ListQuerySchema,
@@ -17,6 +18,7 @@ import {
   RerunSchema,
   ResolveThreadSchema,
   ReviewersSchema,
+  RunActionSchema,
   SetTokenSchema,
   SubmitReviewSchema,
   ViewedSchema,
@@ -58,6 +60,25 @@ export async function handleGitHub(
     return Response.json(await github.status())
   }
   // Avatars are a nicety, so being signed out or offline answers with none rather than an error.
+  if (area === 'notifications') {
+    if (post) {
+      await github.markRead(z.object({ id: z.string().nullable() }).parse(await body()).id)
+      return new Response(null, { status: 204 })
+    }
+    return Response.json(await github.notifications(url.searchParams.get('all') === 'true'))
+  }
+  if (area === 'releases') {
+    if (post) return Response.json(await github.createRelease(CreateReleaseSchema.parse(await body())), { status: 201 })
+    return Response.json(await github.releases())
+  }
+  if (area === 'runs') {
+    if (post) {
+      const { runId, action: what } = RunActionSchema.parse(await body())
+      await github.runAction(runId, what)
+      return new Response(null, { status: 204 })
+    }
+    return Response.json(await github.runs())
+  }
   if (area === 'rerun' && post) {
     await github.rerunFailed(RerunSchema.parse(await body()).runId)
     return new Response(null, { status: 204 })

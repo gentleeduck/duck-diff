@@ -1,4 +1,4 @@
-export const VIEWS = ['changes', 'graph', 'files', 'prs', 'issues'] as const
+export const VIEWS = ['changes', 'graph', 'files', 'prs', 'issues', 'inbox', 'releases', 'actions'] as const
 export type View = (typeof VIEWS)[number]
 
 export function readView(search: string): View {

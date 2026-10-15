@@ -1,5 +1,16 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
-import { CircleDot, FileDiff, FolderTree, GitGraph, GitPullRequest, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import {
+  Bell,
+  CircleDot,
+  FileDiff,
+  FolderTree,
+  GitGraph,
+  GitPullRequest,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PlayCircle,
+  Rocket,
+} from 'lucide-react'
 import { useSettings } from '../hooks/useSettings'
 import { useView } from '../hooks/useView'
 import type { View } from '../lib/view-url'
@@ -12,10 +23,19 @@ const ITEMS: { view: View; label: string; icon: typeof FileDiff }[] = [
   { view: 'files', label: 'Files', icon: FolderTree },
   { view: 'prs', label: 'Pull requests', icon: GitPullRequest },
   { view: 'issues', label: 'Issues', icon: CircleDot },
+  { view: 'inbox', label: 'Notifications', icon: Bell },
+  { view: 'releases', label: 'Releases', icon: Rocket },
+  { view: 'actions', label: 'Actions', icon: PlayCircle },
 ]
 
 // Views appear here as they ship, so the rail never offers an empty screen.
-export function ActivityRail({ views }: { views: readonly View[] }) {
+export function ActivityRail({
+  views,
+  badges = {},
+}: {
+  views: readonly View[]
+  badges?: Partial<Record<View, number>>
+}) {
   const { view, show } = useView()
   return (
     <nav
@@ -28,14 +48,19 @@ export function ActivityRail({ views }: { views: readonly View[] }) {
             <Button
               size="icon"
               variant="ghost"
-              aria-label={label}
+              aria-label={badges[id] ? `${label}, ${badges[id]} unread` : label}
               aria-current={view === id ? 'page' : undefined}
               onClick={() => show(id)}
-              className="aria-[current=page]:bg-accent aria-[current=page]:text-tn-blue">
+              className="relative aria-[current=page]:bg-accent aria-[current=page]:text-tn-blue">
               <Icon />
+              {badges[id] ? (
+                <span className="absolute end-0.5 top-0.5 min-w-3.5 rounded-full bg-tn-blue px-1 text-[0.625rem] text-background leading-3.5">
+                  {badges[id] > 99 ? '99+' : badges[id]}
+                </span>
+              ) : null}
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">{label}</TooltipContent>
+          <TooltipContent side="right">{badges[id] ? `${label} (${badges[id]} unread)` : label}</TooltipContent>
         </Tooltip>
       ))}
     </nav>

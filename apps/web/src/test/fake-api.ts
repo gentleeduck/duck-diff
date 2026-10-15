@@ -85,6 +85,14 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       setHeadBranch: async () => {},
       setBase: async () => {},
       rerunFailed: async () => {},
+      notifications: async () => [],
+      markRead: async () => {},
+      releases: async () => [],
+      createRelease: async () => {
+        throw new Error('no releases')
+      },
+      runs: async () => [],
+      runAction: async () => {},
       jobLog: async () => '',
       merge: async () => {},
       issues: async () => [],

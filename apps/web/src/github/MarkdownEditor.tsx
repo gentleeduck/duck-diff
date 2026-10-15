@@ -29,6 +29,7 @@ export function MarkdownEditor({
   onSubmit,
   rows = 4,
   autoFocus,
+  placeholder = 'Leave a comment. Markdown, @people and #references work.',
 }: {
   label: string
   value: string
@@ -37,6 +38,7 @@ export function MarkdownEditor({
   onSubmit?(): void
   rows?: number
   autoFocus?: boolean
+  placeholder?: string
 }) {
   const { api } = useApp()
   const area = useRef<HTMLTextAreaElement>(null)
@@ -130,7 +132,7 @@ export function MarkdownEditor({
           <Textarea
             ref={area}
             aria-label={label}
-            placeholder="Leave a comment. Markdown, @people and #references work."
+            placeholder={placeholder}
             rows={rows}
             autoFocus={autoFocus}
             value={value}

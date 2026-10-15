@@ -1,8 +1,11 @@
 import { lazy } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
+import { Actions } from './Actions'
+import { Inbox } from './Inbox'
 import { IssuesList } from './IssuesList'
 import { PullsList } from './PullsList'
+import { Releases } from './Releases'
 import { GitHubGate } from './SignIn'
 
 const PullView = lazy(() => import('./PullView'))
@@ -35,6 +38,30 @@ export function IssuesPage({ version, onChanged }: { version: number; onChanged(
       ) : (
         <IssueView key={number} number={number} onChanged={onChanged} />
       )}
+    </GitHubGate>
+  )
+}
+
+export function InboxPage() {
+  return (
+    <GitHubGate>
+      <Inbox />
+    </GitHubGate>
+  )
+}
+
+export function ReleasesPage() {
+  return (
+    <GitHubGate>
+      <Releases />
+    </GitHubGate>
+  )
+}
+
+export function ActionsPage() {
+  return (
+    <GitHubGate>
+      <Actions />
     </GitHubGate>
   )
 }

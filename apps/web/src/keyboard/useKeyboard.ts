@@ -17,6 +17,9 @@ const VIEWS: Partial<Record<Action, View>> = {
   'view-files': 'files',
   'view-prs': 'prs',
   'view-issues': 'issues',
+  'view-inbox': 'inbox',
+  'view-releases': 'releases',
+  'view-actions': 'actions',
 }
 // Everything else acts on the diff, so it only runs where the diff is on screen.
 const ANYWHERE = new Set<Action>([

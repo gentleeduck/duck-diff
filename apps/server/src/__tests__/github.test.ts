@@ -106,6 +106,68 @@ function fakeGitHub(calls: Call[]) {
     }
     if (path === '/repos/o/r/issues/comments/1/reactions/55') return new Response(null, { status: 204 })
     if (path === '/repos/o/r/assignees') return Response.json([user])
+    if (path === '/repos/o/r/notifications' && method === 'GET') {
+      return Response.json([
+        {
+          id: '55',
+          reason: 'review_requested',
+          unread: true,
+          updated_at: 'x',
+          subject: { title: 'Add things', type: 'PullRequest', url: 'https://api.github.com/repos/o/r/pulls/7' },
+        },
+      ])
+    }
+    if (path === '/notifications/threads/55') return new Response(null, { status: 205 })
+    if (path === '/repos/o/r/releases' && method === 'GET') {
+      return Response.json([
+        {
+          id: 1,
+          name: null,
+          tag_name: 'v1',
+          body: 'notes',
+          draft: false,
+          prerelease: false,
+          published_at: 'p',
+          author: user,
+          html_url: 'r',
+        },
+      ])
+    }
+    if (path === '/repos/o/r/releases' && method === 'POST') {
+      return Response.json(
+        {
+          id: 2,
+          name: 'v2',
+          tag_name: 'v2',
+          body: '',
+          draft: true,
+          prerelease: false,
+          published_at: null,
+          author: user,
+          html_url: 'r2',
+        },
+        { status: 201 },
+      )
+    }
+    if (path === '/repos/o/r/actions/runs' && method === 'GET') {
+      return Response.json({
+        workflow_runs: [
+          {
+            id: 9,
+            name: 'ci',
+            display_title: 'feat: x',
+            status: 'completed',
+            conclusion: 'failure',
+            head_branch: 'feat',
+            event: 'push',
+            created_at: 'c',
+            actor: user,
+            html_url: 'h',
+          },
+        ],
+      })
+    }
+    if (path === '/repos/o/r/actions/runs/9/rerun-failed-jobs') return new Response(null, { status: 201 })
     if (path === '/repos/o/r/labels') return Response.json([{ name: 'bug', color: 'f00', description: null }])
     if (path === '/repos/o/r/milestones') return Response.json([{ number: 3, title: 'v1' }])
     if (path === '/repos/o/r/pulls/7/requested_reviewers') return Response.json({})
@@ -446,6 +508,42 @@ describe('/api/github', () => {
       body: 'ok',
       comments,
     })
+  })
+
+  it('reads notifications, releases and workflow runs, and acts on them', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    expect(await (await call('GET', '/api/github/notifications')).json()).toEqual([
+      {
+        id: '55',
+        title: 'Add things',
+        type: 'PullRequest',
+        reason: 'review_requested',
+        unread: true,
+        updatedAt: 'x',
+        number: 7,
+      },
+    ])
+    expect((await call('POST', '/api/github/notifications', { id: '55' })).status).toBe(204)
+    expect(await (await call('GET', '/api/github/releases')).json()).toMatchObject([{ name: 'v1', tag: 'v1' }])
+    const created = await call('POST', '/api/github/releases', {
+      tag: 'v2',
+      name: '',
+      body: '',
+      draft: true,
+      prerelease: false,
+      generateNotes: true,
+    })
+    expect(created.status).toBe(201)
+    expect(calls.findLast((entry) => entry.path === '/repos/o/r/releases')?.body).toMatchObject({
+      tag_name: 'v2',
+      name: 'v2',
+      generate_release_notes: true,
+    })
+    expect(await (await call('GET', '/api/github/runs')).json()).toMatchObject([
+      { id: 9, conclusion: 'failure', branch: 'feat' },
+    ])
+    expect((await call('POST', '/api/github/runs', { runId: 9, action: 'rerun-failed' })).status).toBe(204)
   })
 
   it('lists issues without the pull requests GitHub mixes in', async () => {

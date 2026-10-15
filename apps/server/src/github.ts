@@ -12,15 +12,18 @@ import type {
   ListItem,
   ListPage,
   ListQuery,
+  Notification,
   Options,
   PendingComment,
   PullCommit,
   PullDetails,
   PullSummary,
+  Release,
   Reviewer,
   ReviewState,
   Thread,
   TimelineEvent,
+  WorkflowRun,
 } from '@duck-diff/protocol'
 import { HttpError } from './errors'
 
@@ -355,6 +358,69 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
           jobId: ids ? Number(ids[2]) : null,
         }
       })
+    },
+    async notifications(all: boolean): Promise<Notification[]> {
+      const raw = await call<RawNotification[]>(`${await repoPath()}/notifications?all=${all}&per_page=50`)
+      return raw.map((entry) => ({
+        id: entry.id,
+        title: entry.subject.title,
+        type: entry.subject.type,
+        reason: entry.reason,
+        unread: entry.unread,
+        updatedAt: entry.updated_at,
+        number: Number(/\/(?:issues|pulls)\/(\d+)$/.exec(entry.subject.url ?? '')?.[1]) || null,
+      }))
+    },
+    async markRead(id: string | null): Promise<void> {
+      if (id) await call(`/notifications/threads/${encodeURIComponent(id)}`, { method: 'PATCH' })
+      else await call(`${await repoPath()}/notifications`, { method: 'PUT', body: JSON.stringify({}) })
+    },
+    async releases(): Promise<Release[]> {
+      const raw = await call<RawRelease[]>(`${await repoPath()}/releases?per_page=30`, FULL)
+      return raw.map(release)
+    },
+    async createRelease(input: {
+      tag: string
+      target: string
+      name: string
+      body: string
+      draft: boolean
+      prerelease: boolean
+      generateNotes: boolean
+    }): Promise<Release> {
+      return release(
+        await call<RawRelease>(`${await repoPath()}/releases`, {
+          method: 'POST',
+          body: JSON.stringify({
+            tag_name: input.tag,
+            target_commitish: input.target || undefined,
+            name: input.name || input.tag,
+            body: input.body,
+            draft: input.draft,
+            prerelease: input.prerelease,
+            generate_release_notes: input.generateNotes,
+          }),
+        }),
+      )
+    },
+    async runs(): Promise<WorkflowRun[]> {
+      const raw = await call<{ workflow_runs: RawRun[] }>(`${await repoPath()}/actions/runs?per_page=40`)
+      return raw.workflow_runs.map((run) => ({
+        id: run.id,
+        name: run.name ?? '',
+        title: run.display_title ?? run.name ?? '',
+        status: run.status,
+        conclusion: run.conclusion,
+        branch: run.head_branch ?? '',
+        event: run.event,
+        createdAt: run.created_at,
+        actor: user(run.actor),
+        url: run.html_url,
+      }))
+    },
+    async runAction(runId: number, action: 'rerun' | 'rerun-failed' | 'cancel'): Promise<void> {
+      const path = action === 'rerun-failed' ? 'rerun-failed-jobs' : action
+      await call(`${await repoPath()}/actions/runs/${runId}/${path}`, { method: 'POST' })
     },
     async rerunFailed(runId: number): Promise<void> {
       await call(`${await repoPath()}/actions/runs/${runId}/rerun-failed-jobs`, { method: 'POST' })
@@ -894,5 +960,52 @@ interface RawReviewState {
       }
       files: { nodes: { path: string; viewerViewedState: string }[] }
     }
+  }
+}
+
+interface RawNotification {
+  id: string
+  reason: string
+  unread: boolean
+  updated_at: string
+  subject: { title: string; type: string; url: string | null }
+}
+interface RawRelease {
+  id: number
+  name: string | null
+  tag_name: string
+  body: string | null
+  body_html?: string
+  draft: boolean
+  prerelease: boolean
+  published_at: string | null
+  author: RawUser | null
+  html_url: string
+}
+interface RawRun {
+  id: number
+  name: string | null
+  display_title?: string
+  status: string
+  conclusion: string | null
+  head_branch: string | null
+  event: string
+  created_at: string
+  actor: RawUser | null
+  html_url: string
+}
+
+function release(raw: RawRelease): Release {
+  return {
+    id: raw.id,
+    name: raw.name || raw.tag_name,
+    tag: raw.tag_name,
+    body: raw.body ?? '',
+    html: raw.body_html ?? null,
+    draft: raw.draft,
+    prerelease: raw.prerelease,
+    publishedAt: raw.published_at,
+    author: user(raw.author),
+    url: raw.html_url,
   }
 }

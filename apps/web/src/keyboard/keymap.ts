@@ -18,6 +18,9 @@ export type Action =
   | 'view-files'
   | 'view-prs'
   | 'view-issues'
+  | 'view-inbox'
+  | 'view-releases'
+  | 'view-actions'
   | 'toggle-sidebar'
   | 'font-bigger'
   | 'font-smaller'
@@ -50,6 +53,9 @@ const PLAIN: Record<string, Action> = {
   '3': 'view-files',
   '4': 'view-prs',
   '5': 'view-issues',
+  '6': 'view-inbox',
+  '7': 'view-releases',
+  '8': 'view-actions',
 }
 
 function isTyping(target: KeyLike['target']): boolean {

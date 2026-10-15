@@ -42,6 +42,9 @@ const VIEWS: { view: View; label: string }[] = [
   { view: 'files', label: 'Files' },
   { view: 'prs', label: 'Pull requests' },
   { view: 'issues', label: 'Issues' },
+  { view: 'inbox', label: 'Notifications' },
+  { view: 'releases', label: 'Releases' },
+  { view: 'actions', label: 'Actions' },
 ]
 
 export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) {

@@ -32,6 +32,8 @@ import {
   type ListPage,
   ListPageSchema,
   type ListQuery,
+  type Notification,
+  NotificationSchema,
   type Options,
   OptionsSchema,
   type PendingComment,
@@ -46,6 +48,8 @@ import {
   type Reaction,
   type Ref,
   RefSchema,
+  type Release,
+  ReleaseSchema,
   type Remote,
   RemoteSchema,
   type RepoInfo,
@@ -62,6 +66,8 @@ import {
   ThreadSchema,
   type UndoResult,
   UndoResultSchema,
+  type WorkflowRun,
+  WorkflowRunSchema,
   type WriteRequest,
 } from '@duck-diff/protocol'
 import { z } from 'zod'
@@ -157,6 +163,21 @@ export interface GitHubApi {
   setHeadBranch(number: number, exists: boolean): Promise<void>
   setBase(number: number, base: string): Promise<void>
   rerunFailed(runId: number): Promise<void>
+  notifications(all: boolean): Promise<Notification[]>
+  // One thread, or every notification of this repo when null.
+  markRead(id: string | null): Promise<void>
+  releases(): Promise<Release[]>
+  createRelease(input: {
+    tag: string
+    target: string
+    name: string
+    body: string
+    draft: boolean
+    prerelease: boolean
+    generateNotes: boolean
+  }): Promise<Release>
+  runs(): Promise<WorkflowRun[]>
+  runAction(runId: number, action: 'rerun' | 'rerun-failed' | 'cancel'): Promise<void>
   jobLog(jobId: number): Promise<string>
   merge(number: number, method: MergeMethod): Promise<void>
   issues(state: ItemState): Promise<IssueSummary[]>
@@ -294,6 +315,12 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     setHeadBranch: (number, exists) => post(`/api/github/pulls/${number}/branch`, { exists }),
     setBase: (number, base) => post(`/api/github/pulls/${number}/base`, { base }),
     rerunFailed: (runId) => post('/api/github/rerun', { runId }),
+    notifications: (all) => json(`/api/github/notifications?all=${all}`, z.array(NotificationSchema)),
+    markRead: (id) => post('/api/github/notifications', { id }),
+    releases: () => json('/api/github/releases', z.array(ReleaseSchema)),
+    createRelease: (input) => send('POST', '/api/github/releases', input, ReleaseSchema),
+    runs: () => json('/api/github/runs', z.array(WorkflowRunSchema)),
+    runAction: (runId, action) => post('/api/github/runs', { runId, action }),
     jobLog: async (jobId) => (await request(`/api/github/job-log/${jobId}`)).text(),
     merge: (number, method) => post(`/api/github/pulls/${number}/merge`, { method }),
     issues: (state) => json(`/api/github/issues?state=${state}`, z.array(IssueSummarySchema)),
