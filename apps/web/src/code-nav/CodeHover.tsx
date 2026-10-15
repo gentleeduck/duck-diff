@@ -209,33 +209,49 @@ export function CodeHover({ root, locate }: { root: () => HTMLElement | null; lo
     app.symbol.set(target)
   }
   actions.current = { definition, references, uses }
+  // The arrow points at the middle of the name, kept inside the card's corners.
+  const GAP = 8
+  const arrowX = Math.max(left + 10, Math.min(rect.left + rect.width / 2 - 5, left + width - 20))
   return createPortal(
-    <div
-      ref={card}
-      role="dialog"
-      aria-label={`About ${target.name}`}
-      className="fixed z-50 flex flex-col overflow-hidden rounded-sm border border-tn-cyan/60 bg-popover text-popover-foreground shadow-lg"
-      style={{ left, width, ...(below ? { top: rect.bottom + 4 } : { bottom: window.innerHeight - rect.top + 4 }) }}>
-      {/* A slim line of actions on top, then the signature and its doc comment, as Neovim's hover float. */}
-      <div className="flex h-7 shrink-0 items-center border-border border-b px-1 text-muted-foreground">
-        <HoverAction keys="gd" label="Definition" onClick={definition} />
-        <HoverAction keys="gr" label="References" pressed={peeking} onClick={references} />
-        <HoverAction keys="gR" label="All uses" onClick={uses} />
-        <span
-          className="ms-auto truncate px-1.5"
-          title={hover.source === 'nvim' ? 'Answered by a Neovim client' : 'Answered by a language server'}>
-          {hover.source === 'nvim' ? 'Neovim' : hover.server}
-        </span>
-      </div>
-      <div className="max-h-[min(28rem,60vh)] overflow-y-auto px-2.5 py-1.5">
-        <Markdown text={hover.contents ?? ''} float />
-      </div>
-      {peeking ? (
-        <div className="border-border border-t">
-          <Peek target={target} onOpen={open} />
+    <>
+      <span
+        aria-hidden
+        className={`pointer-events-none fixed z-[51] size-2.5 rotate-45 border-tn-cyan/60 bg-popover ${
+          below ? 'border-s border-t' : 'border-e border-b'
+        }`}
+        style={{ left: arrowX, ...(below ? { top: rect.bottom + GAP - 5 } : { top: rect.top - GAP - 5 }) }}
+      />
+      <div
+        ref={card}
+        role="dialog"
+        aria-label={`About ${target.name}`}
+        className="fixed z-50 flex flex-col overflow-hidden rounded-sm border border-tn-cyan/60 bg-popover text-popover-foreground shadow-lg"
+        style={{
+          left,
+          width,
+          ...(below ? { top: rect.bottom + GAP } : { bottom: window.innerHeight - rect.top + GAP }),
+        }}>
+        {/* A slim line of actions on top, then the signature and its doc comment, as Neovim's hover float. */}
+        <div className="flex h-7 shrink-0 items-center border-border border-b px-1 text-muted-foreground">
+          <HoverAction keys="gd" label="Definition" onClick={definition} />
+          <HoverAction keys="gr" label="References" pressed={peeking} onClick={references} />
+          <HoverAction keys="gR" label="All uses" onClick={uses} />
+          <span
+            className="ms-auto truncate px-1.5"
+            title={hover.source === 'nvim' ? 'Answered by a Neovim client' : 'Answered by a language server'}>
+            {hover.source === 'nvim' ? 'Neovim' : hover.server}
+          </span>
         </div>
-      ) : null}
-    </div>,
+        <div className="max-h-[min(28rem,60vh)] overflow-y-auto px-2.5 py-1.5">
+          <Markdown text={hover.contents ?? ''} float />
+        </div>
+        {peeking ? (
+          <div className="border-border border-t">
+            <Peek target={target} onOpen={open} />
+          </div>
+        ) : null}
+      </div>
+    </>,
     document.body,
   )
 }
