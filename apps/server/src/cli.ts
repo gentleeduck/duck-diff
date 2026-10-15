@@ -1,21 +1,28 @@
 #!/usr/bin/env bun
+import { resolveRepo } from '@duck-diff/git'
 import type { Handshake } from '@duck-diff/protocol'
-import { type Command, parseArgs, USAGE, VERSION } from './args'
+import { type Command, parseArgs, VERSION } from './args'
 import { clearCaches, dataHome } from './disk-cache'
+import { help, say } from './help'
+import { instanceFile, liveInstance, openBrowser, pageUrl, removeInstance, writeInstance } from './instance'
 import { buildStamp, watchBinary } from './self-update'
 import { createServer } from './server'
+import { update } from './update'
+
+// A compiled server runs from its own binary; from source there is nothing to watch or replace.
+const binary = Bun.main.includes('$bunfs') ? process.execPath : null
 
 async function main(): Promise<number> {
   let command: Command
   try {
     command = parseArgs(process.argv.slice(2), process.cwd())
   } catch (error) {
-    console.error((error as Error).message)
+    console.error(`duck-diff: ${(error as Error).message}`)
     return 2
   }
 
   if (command.name === 'help') {
-    console.info(USAGE)
+    console.info(help(command.topic))
     return 0
   }
   if (command.name === 'version') {
@@ -27,6 +34,39 @@ async function main(): Promise<number> {
     console.info(`Cleared ${cleared} cache${cleared === 1 ? '' : 's'}`)
     return 0
   }
+  if (command.name === 'update') {
+    if (!binary) {
+      console.error('duck-diff: running from source; update the checkout with git instead')
+      return 1
+    }
+    try {
+      console.info(await update(binary, VERSION, command.version))
+      return 0
+    } catch (error) {
+      console.error(`duck-diff: ${(error as Error).message}`)
+      return 1
+    }
+  }
+
+  let repo: string
+  try {
+    repo = await resolveRepo(command.repo)
+  } catch {
+    console.error(`duck-diff: ${command.repo} is not a git repository, or inside one`)
+    return 1
+  }
+  const record = instanceFile(dataHome(), repo)
+
+  // One server per repo: a second `duck-diff` opens its page on the one already running.
+  if (command.name === 'open') {
+    const running = await liveInstance(record)
+    if (running) {
+      const url = pageUrl(running, command.path)
+      if (command.browser && openBrowser(url)) console.info(`Opened in the duck-diff already running for ${repo}`)
+      else console.info(url)
+      return 0
+    }
+  }
 
   let finish: (code: number) => void = () => {}
   const finished = new Promise<number>((resolve) => {
@@ -37,29 +77,39 @@ async function main(): Promise<number> {
   const takeover = { port: Number(process.env.DUCK_DIFF_PORT) || 0, token: process.env.DUCK_DIFF_TOKEN || undefined }
   delete process.env.DUCK_DIFF_PORT
   delete process.env.DUCK_DIFF_TOKEN
-  // A compiled server runs from its own binary; from source there is nothing to watch.
-  const binary = Bun.main.includes('$bunfs') ? process.execPath : null
   const server = await createServer({
-    repo: command.repo,
+    repo,
     // After replacing itself the server comes back on the same port with the same token, so open pages
     // and Neovim keep talking to it.
     port: takeover.port || command.port,
     token: takeover.token,
     build: binary ? buildStamp(binary) : 'source',
     idleTimeoutMs: command.idleTimeoutMs,
-    nvim: command.nvim,
+    nvim: command.name === 'serve' ? command.nvim : null,
     terminal: command.terminal,
     persist: true,
-    repos: command.more,
+    repos: command.name === 'serve' ? command.more : [],
     onIdle: () => finish(0),
   }).catch((error: Error) => {
-    console.error(error.message)
+    console.error(`duck-diff: ${error.message}`)
     return null
   })
   if (!server) return 1
+  await writeInstance(record, { pid: process.pid, port: server.port, token: server.token }).catch(() => {})
 
-  const handshake: Handshake = { port: server.port, token: server.token, url: server.url }
-  process.stdout.write(`${JSON.stringify(handshake)}\n`)
+  if (command.name === 'serve') {
+    const handshake: Handshake = { port: server.port, token: server.token, url: server.url }
+    process.stdout.write(`${JSON.stringify(handshake)}\n`)
+    // The plugin keeps stdin open; when the editor dies the pipe closes and the server follows.
+    process.stdin.on('end', () => finish(0))
+    process.stdin.resume()
+  } else if (!takeover.port) {
+    const url = pageUrl(server, command.path)
+    console.info(`${say.bold('duck-diff')} ${say.dim(VERSION)} serving ${say.blue(repo)}`)
+    console.info(`  ${say.green(url)}`)
+    console.info(say.dim('  Ctrl-C stops it; it also stops on its own once no page has been open for a while.'))
+    if (command.browser && !openBrowser(url)) console.info(say.dim('  No browser to open; use the link above.'))
+  }
 
   // A new build installed over this binary takes over in place: same process, so Neovim's pipe and the
   // plugin's handle stay, and pages reconnect and reload.
@@ -74,12 +124,10 @@ async function main(): Promise<number> {
 
   process.on('SIGINT', () => finish(0))
   process.on('SIGTERM', () => finish(0))
-  // The plugin keeps stdin open; when Neovim dies the pipe closes and the server follows.
-  process.stdin.on('end', () => finish(0))
-  process.stdin.resume()
 
   const code = await finished
   stopWatching()
+  await removeInstance(record, process.pid).catch(() => {})
   await server.stop()
   return code
 }

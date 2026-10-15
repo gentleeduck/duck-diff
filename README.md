@@ -1,10 +1,44 @@
 # duck-diff
 
-A fast local git diff viewer for Neovim. `:DuckDiff` opens your changes, a branch, a range or a commit in an app
-window rendered with [@pierre/diffs](https://diffs.com): split or stacked, syntax highlighted, virtualized, and live
-as you edit.
+A fast local git diff viewer and GitHub client in your browser, from the terminal or from Neovim. It opens your
+changes, a branch, a range or a commit rendered with [@pierre/diffs](https://diffs.com): split or stacked, syntax
+highlighted, virtualized, and live as you edit; plus the commit graph, files, pull requests, issues and the rest of
+GitHub.
 
 ## Install
+
+### From the terminal
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/gentleeduck/duck-diff/main/install.sh | sh
+```
+
+It puts the binary for your machine (Linux or macOS, x64 or arm64) in `~/.local/bin` after checking its sha256.
+`sh -s -- --version 0.5.0` picks a release, `--dir` another folder, `--uninstall` takes it out again. While the
+repo is private, fetch the script with a token and let it use the same one:
+
+```sh
+export GITHUB_TOKEN="$(gh auth token)"
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://raw.githubusercontent.com/gentleeduck/duck-diff/main/install.sh | sh
+```
+
+Later, `duck-diff update` replaces it with the newest release.
+
+### Use it from the terminal
+
+```sh
+duck-diff                      # what you changed
+duck-diff main                 # what this branch adds on top of main
+duck-diff a...b                # any two refs (a..b for tip to tip), commit [sha] for one commit
+duck-diff prs 12               # pull request #12; issues, inbox, graph, files src/app.ts:40, ...
+duck-diff --help               # everything else
+```
+
+It opens the page in your browser and keeps serving until Ctrl-C, or until no page has been open for a while. A
+second `duck-diff` in the same repo opens its view on the server already running.
+
+### In Neovim
 
 With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
@@ -81,11 +115,10 @@ opts = {
 }
 ```
 
-## Without Neovim
+## For other editors
 
-```sh
-duck-diff serve --repo . # prints {"port":..., "token":..., "url":...}; open the url
-```
+`duck-diff serve --repo .` is what editor plugins run: it prints one line of JSON (`{"port":…,"token":…,"url":…}`)
+and stops when its stdin closes. `duck-diff help serve` lists its options.
 
 ## Development
 
