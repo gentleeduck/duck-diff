@@ -1,7 +1,14 @@
 import type { Insights as InsightsData } from '@duck-diff/protocol'
 import { Skeleton, ToggleGroup, ToggleGroupItem } from '@duck-diff/ui'
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@duck-diff/ui/chart'
 import { useEffect, useState } from 'react'
+import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from 'recharts'
 import { useApp } from '../app/AppProvider'
+
+const CHART = {
+  commits: { label: 'Commits', color: 'var(--tn-blue)' },
+  people: { label: 'Commits', color: 'var(--tn-green)' },
+} satisfies ChartConfig
 
 const RANGES = [
   { days: 30, label: 'Month' },
@@ -31,8 +38,9 @@ export default function Insights() {
     }
   }, [api, days])
 
-  const busiest = Math.max(1, ...(data?.weeks.map((week) => week.commits) ?? []))
-  const top = Math.max(1, data?.contributors[0]?.commits ?? 1)
+  // The busiest people; the rest are a long tail the chart cannot label.
+  const people = data?.contributors.slice(0, 15) ?? []
+  const weeks = data?.weeks.map((week) => ({ ...week, week: `Week of ${day(week.start)}` })) ?? []
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
@@ -65,37 +73,44 @@ export default function Insights() {
           <>
             <section aria-label="Commits per week" className="flex flex-col gap-2">
               <h2 className="text-tn-blue">Commits per week</h2>
-              <div className="flex h-40 items-end gap-1 rounded-md border border-border p-3">
-                {data.weeks.map((week) => (
-                  <div
-                    key={week.start}
-                    title={`Week of ${day(week.start)}: ${week.commits} commits`}
-                    className="min-w-0.5 flex-1 rounded-t-sm bg-tn-blue/70 hover:bg-tn-blue"
-                    style={{ height: `${(week.commits / busiest) * 100}%` }}
+              <ChartContainer config={CHART} className="aspect-auto h-56 w-full rounded-md border border-border p-3">
+                <BarChart accessibilityLayer data={weeks} margin={{ left: 0, right: 8, top: 8 }}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="start"
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={32}
+                    tickFormatter={(start: number) => day(start)}
                   />
-                ))}
-              </div>
-              <p className="flex justify-between text-muted-foreground">
-                <span>{day(data.weeks[0]?.start ?? 0)}</span>
-                <span>{day(data.weeks.at(-1)?.start ?? 0)}</span>
-              </p>
+                  <YAxis width={44} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(_, payload) => (payload[0]?.payload as { week?: string } | undefined)?.week}
+                      />
+                    }
+                  />
+                  <Bar dataKey="commits" fill="var(--color-commits)" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ChartContainer>
             </section>
             <section aria-label="Contributors" className="flex flex-col gap-2">
               <h2 className="text-tn-blue">Contributors</h2>
-              <ol className="flex flex-col gap-1">
-                {data.contributors.map((person) => (
-                  <li key={`${person.email}:${person.name}`} className="flex items-center gap-3">
-                    <span className="w-56 shrink-0 truncate" title={person.email}>
-                      {person.name}
-                    </span>
-                    <span
-                      className="h-3 rounded-sm bg-tn-green/70"
-                      style={{ width: `${(person.commits / top) * 60}%` }}
-                    />
-                    <span className="text-muted-foreground tabular-nums">{person.commits}</span>
-                  </li>
-                ))}
-              </ol>
+              <ChartContainer
+                config={CHART}
+                className="aspect-auto w-full"
+                style={{ height: Math.max(80, people.length * 28 + 16) }}>
+                <BarChart accessibilityLayer data={people} layout="vertical" margin={{ left: 8, right: 32 }}>
+                  <XAxis type="number" hide allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" width={180} tickLine={false} axisLine={false} />
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel={false} />} />
+                  <Bar dataKey="commits" fill="var(--color-people)" radius={3} barSize={14}>
+                    <LabelList dataKey="commits" position="right" className="fill-muted-foreground" />
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
             </section>
           </>
         ) : null}
