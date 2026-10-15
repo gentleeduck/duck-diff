@@ -17,6 +17,12 @@ test('clicking a name in the diff lists where it is defined and used, and opens 
   const definitions = panel.getByRole('region', { name: 'Definitions' })
   await expect(definitions).toContainText('src/app.ts')
   await expect(panel.getByRole('region', { name: 'Imports' })).toContainText('src/use.ts')
+
+  // It belongs to the code views: gone on other pages, back with the diff.
+  await page.getByRole('button', { name: 'Pull requests', exact: true }).click()
+  await expect(panel).toHaveCount(0)
+  await page.getByRole('button', { name: 'Changes', exact: true }).click()
+  await expect(panel).toBeVisible()
   await expect(panel.getByRole('region', { name: 'References' })).toContainText('twice')
 
   await definitions.getByRole('button').first().click()

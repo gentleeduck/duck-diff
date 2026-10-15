@@ -325,7 +325,8 @@ function Screen() {
         panelShown={panel}
         onTogglePanel={togglePanel}
         viewer={<Suspense fallback={null}>{screen.main}</Suspense>}
-        aside={<SymbolPanel />}
+        // The symbol panel belongs to the code views; other pages never show it.
+        aside={view === 'changes' || view === 'files' ? <SymbolPanel /> : null}
         bottom={<BottomPanel />}
         status={<StatusBar live={live} />}
       />
