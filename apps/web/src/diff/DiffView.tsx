@@ -21,6 +21,8 @@ interface DiffViewProps {
   renderNote(note: Note): ReactNode
   // Names the comparison, so its scroll position comes back with it.
   scrollKey?: string
+  // Called with the file at the top as the diff scrolls.
+  onTopItem?(item: NoteItem | null): void
 }
 
 const ESTIMATE: Record<PageRow['type'], number> = { header: 48, row: 22, note: 120, end: 16 }
@@ -33,7 +35,7 @@ const fixedHeight = (row: PageRow, wrap: boolean) =>
 
 // One scroll container for every file; only rows near the viewport are in the DOM.
 export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffView(
-  { page, context, renderHeader, renderNote, scrollKey },
+  { page, context, renderHeader, renderNote, scrollKey, onTopItem },
   ref,
 ) {
   const scroller = useRef<HTMLDivElement>(null)
@@ -148,6 +150,10 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         const y = Math.max(top, Math.min(end + 2, viewBottom - BAR))
         return [sideways.bar(id, { position: 'absolute', insetInline: 0, transform: `translateY(${y}px)` })]
       })
+
+  const topItem =
+    firstRow?.type === 'end' ? (page.rows[(first?.index ?? 0) + 1]?.item ?? null) : (firstRow?.item ?? null)
+  useEffect(() => onTopItem?.(topItem), [onTopItem, topItem])
 
   const content = useMemo(
     () => (row: PageRow) => {

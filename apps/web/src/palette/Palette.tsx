@@ -112,12 +112,10 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
     setInput('')
     void items.refresh(STALE_MS)
   }, [open, items])
-  // Every file in the repo, read once the search can need them.
+  // Every file in the repo, read as the palette opens so file: has them by the first keystroke.
   useEffect(() => {
-    if (open && tree === null && (scope === 'file' || (scope === 'all' && term))) {
-      api.tree().then(setTree, () => setTree([]))
-    }
-  }, [open, tree, scope, term, api])
+    if (open && tree === null) api.tree().then(setTree, () => setTree([]))
+  }, [open, tree, api])
 
   // Read through a ref so the result list below is rebuilt only when what it shows changes.
   const latest = useRef({ onOpenChange, pullSelection, issueSelection })

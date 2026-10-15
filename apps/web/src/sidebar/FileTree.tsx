@@ -142,6 +142,11 @@ export function FileTree({
     estimateSize: () => ROW_HEIGHT,
     overscan: 20,
   })
+  // The selected file stays in sight: picked in search, opened by link, or reached by scrolling the diff.
+  const shownIndex = selected ? rows.findIndex((row) => row.path === selected) : -1
+  useEffect(() => {
+    if (shownIndex >= 0) virtualizer.scrollToIndex(shownIndex, { align: 'auto' })
+  }, [shownIndex, virtualizer])
   // A new interface size changes every row's height at once.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the height is the trigger
   useEffect(() => virtualizer.measure(), [virtualizer, ROW_HEIGHT])

@@ -117,6 +117,7 @@ export default function Viewer() {
     fileSelection,
     fileLine,
     fileAt,
+    diffTop,
   } = useApp()
   const { show } = useView()
   const plain = useSession(selectItems)
@@ -263,6 +264,13 @@ export default function Viewer() {
     return ranges
   }, [comments, remote])
 
+  const onTopItem = useCallback(
+    (item: NoteItem | null) => {
+      const path = item?.fileDiff.name ?? null
+      if (diffTop.get() !== path) diffTop.set(path)
+    },
+    [diffTop],
+  )
   const diffRoot = useCallback(() => document.querySelector<HTMLElement>('[data-diff-view]'), [])
   // A comment on selected words covers their lines and keeps the exact columns, so the words stay highlighted.
   const commentOnSelection = useCallback(
@@ -498,6 +506,7 @@ export default function Viewer() {
         renderHeader={renderHeader}
         renderNote={renderNote}
         scrollKey={shownKey}
+        onTopItem={onTopItem}
       />
     </div>
   )
