@@ -339,6 +339,34 @@ describe('GitHub views', () => {
     expect(await screen.findByRole('tab', { name: '#7' })).toBeTruthy()
   })
 
+  it('changes the base by picking one of the remote branches', async () => {
+    const setBase = vi.fn(async () => {})
+    const ref = (name: string, committedAt: number) => ({
+      name,
+      kind: 'remote' as const,
+      sha: 'a',
+      committedAt,
+      current: false,
+    })
+    const refs = async () => [
+      ref('origin/HEAD', 3),
+      ref('origin/main', 2),
+      ref('origin/next', 5),
+      ref('origin/feat', 4),
+    ]
+    render(<App api={fakeApi({ refs, github: githubApi({ setBase }) })} />)
+    fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
+    fireEvent.click(await screen.findByTitle('Change the base branch'))
+    const list = await screen.findByRole('listbox', { name: 'Base branch' })
+    // The pull request's own branch and the remote's HEAD are not bases it can take.
+    expect((await within(list).findAllByRole('option')).map((option) => option.textContent?.trim())).toEqual([
+      'next',
+      'main',
+    ])
+    fireEvent.click(within(list).getByRole('option', { name: /next/ }))
+    await waitFor(() => expect(setBase).toHaveBeenCalledWith(7, 'next'))
+  })
+
   it('steps back to the list and forward to the pull request with the page buttons', async () => {
     render(<App api={fakeApi({ github: githubApi() })} />)
     fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))

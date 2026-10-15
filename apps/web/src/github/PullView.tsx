@@ -1,4 +1,4 @@
-import type { DiffTarget } from '@duck-diff/protocol'
+import { type DiffTarget, targetKey } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -20,7 +20,6 @@ import {
 import { lazy, type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
-import { ask } from '../app/Ask'
 import { IconTool } from '../app/IconTool'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useTarget } from '../hooks/useTarget'
@@ -33,6 +32,7 @@ import { CodeMenu } from './CodeMenu'
 import { Avatar, Comment, Composer } from './Conversation'
 import { ItemSidebar } from './ItemSidebar'
 import { MergeBox } from './MergeBox'
+import { Picker } from './Picker'
 import { ReviewChanges } from './ReviewChanges'
 import { sidebarActions } from './SidebarEditors'
 import { useGitHub } from './SignIn'
@@ -125,28 +125,21 @@ function Commits({ number }: { number: number }) {
 
 // The diff viewer itself, on the fetched head, so a review happens without leaving the pull request. It shows
 // here only: the changes view and its tabs keep their own comparison until "Open in diff".
-function Files({ number }: { number: number }) {
-  const { api, session } = useApp()
+function Files({ number, head }: { number: number; head: string }) {
+  const { session, queries } = useApp()
   const { navigate } = useTarget()
   const { show } = useView()
-  const [target, setTarget] = useState<DiffTarget | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
+  const refs = useQuery(queries.gh.pullRefs(number, head))
+  const target: DiffTarget | null = refs.data
+    ? { kind: 'range', from: refs.data.base, to: refs.data.head, mode: 'merge-base' }
+    : null
+  const key = target ? targetKey(target) : null
+  // The session keeps recent diffs, so coming back to this tab shows the one it had at once.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the key stands for the target
   useEffect(() => {
-    let alive = true
-    api.github.fetchPull(number).then(
-      (refs) => {
-        if (!alive) return
-        const next: DiffTarget = { kind: 'range', from: refs.base, to: refs.head, mode: 'merge-base' }
-        void session.load(next)
-        setTarget(next)
-      },
-      (error: Error) => alive && setFailed(error.message),
-    )
-    return () => {
-      alive = false
-    }
-  }, [api, number, session])
-  if (failed) return <p className="p-4 text-removed">Could not fetch the pull request: {failed}</p>
+    if (target && targetKey(session.get().target) !== key) void session.load(target)
+  }, [key, session])
+  if (refs.error) return <p className="p-4 text-removed">Could not fetch the pull request: {refs.error.message}</p>
   if (!target) return <p className="p-4 text-muted-foreground">Fetching the head of #{number}...</p>
   return (
     <div className="flex flex-col gap-2">
@@ -193,6 +186,16 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   // The conversation is ready once its thread has read; the other tabs carry their own heights.
   useScrollMemory(page, pull && (tab !== 'conversation' || thread) ? `pull:${number}:${tab}` : null)
 
+  // GitHub merges only into branches it has, so the choices are the remote's, newest first.
+  const baseBranches = async (head: string) => {
+    const refs = await queryClient.fetchQuery(queries.git.refs())
+    return refs
+      .filter((ref) => ref.kind === 'remote' && ref.name.startsWith('origin/') && ref.name !== 'origin/HEAD')
+      .sort((a, b) => b.committedAt - a.committedAt)
+      .map((ref) => ref.name.slice('origin/'.length))
+      .filter((name) => name !== head)
+      .map((name) => ({ value: name, label: name }))
+  }
   const act = async (name: string, task: () => Promise<unknown>, done: string) => {
     setBusy(name)
     try {
@@ -318,22 +321,25 @@ export default function PullView({ number, onChanged }: { number: number; onChan
             {pull.merged ? 'merged' : 'wants to merge'} {pull.commits} {pull.commits === 1 ? 'commit' : 'commits'} into
           </span>
           {pull.state === 'open' ? (
-            <button
-              type="button"
-              title="Change the base branch"
-              className="cursor-pointer rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue hover:bg-tn-blue/25"
-              onClick={async () => {
-                const values = await ask.prompt({
-                  title: 'Change the base branch',
-                  fields: [{ name: 'base', label: 'Base branch', initial: pull.baseRef }],
-                  action: 'Change base',
-                })
-                const base = values?.base
+            <Picker
+              title="Base branch"
+              single
+              live
+              selected={[pull.baseRef]}
+              load={() => baseBranches(pull.headRef)}
+              onApply={([base]) => {
                 if (base && base !== pull.baseRef)
                   void act('base', () => api.github.setBase(number, base), `Now merging into ${base}`)
-              }}>
-              {pull.baseRef}
-            </button>
+              }}
+              trigger={
+                <button
+                  type="button"
+                  title="Change the base branch"
+                  className="cursor-pointer rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue hover:bg-tn-blue/25">
+                  {pull.baseRef}
+                </button>
+              }
+            />
           ) : (
             <code className="rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue">{pull.baseRef}</code>
           )}
@@ -391,7 +397,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
         </div>
         {tab === 'commits' ? <Commits number={number} /> : null}
         {tab === 'checks' ? <ChecksList number={number} /> : null}
-        {tab === 'files' ? <Files number={number} /> : null}
+        {tab === 'files' ? <Files number={number} head={pull.headSha} /> : null}
         {tab === 'conversation' ? (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
             <div className="flex min-w-0 flex-col gap-4">

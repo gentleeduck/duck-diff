@@ -248,6 +248,24 @@ export const ReactionSchema = z.enum(REACTIONS)
 export type Reaction = z.infer<typeof ReactionSchema>
 export const ReactionCountsSchema = z.partialRecord(ReactionSchema, z.number().int())
 
+// An event's sentence in pieces, so names, items, commits and labels in it can link like GitHub's.
+export const EventPartSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('text'), text: z.string() }),
+  z.object({ kind: z.literal('user'), login: z.string() }),
+  z.object({
+    kind: z.literal('item'),
+    number: z.number().int(),
+    title: z.string(),
+    pull: z.boolean(),
+    // owner/name of the repo the item is in.
+    repo: z.string().nullable(),
+    url: z.string(),
+  }),
+  z.object({ kind: z.literal('commit'), sha: z.string() }),
+  z.object({ kind: z.literal('label'), name: z.string(), color: z.string() }),
+])
+export type EventPart = z.infer<typeof EventPartSchema>
+
 export const TimelineEventSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('comment'),
@@ -284,6 +302,7 @@ export const TimelineEventSchema = z.discriminatedUnion('kind', [
     event: z.string(),
     actor: GitHubUserSchema,
     text: z.string(),
+    parts: z.array(EventPartSchema).optional(),
     createdAt: z.string(),
   }),
 ])

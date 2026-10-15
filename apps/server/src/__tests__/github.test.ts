@@ -94,7 +94,22 @@ function fakeGitHub(calls: Call[]) {
           reactions: { eyes: 1 },
           html_url: 'h',
         },
-        { event: 'labeled', actor: user, label: { name: 'bug' }, created_at: 'd', node_id: 'n1' },
+        { event: 'labeled', actor: user, label: { name: 'bug', color: 'd73a4a' }, created_at: 'd', node_id: 'n1' },
+        {
+          event: 'cross-referenced',
+          actor: user,
+          created_at: 'd2',
+          source: {
+            issue: {
+              number: 12,
+              title: 'Docs',
+              html_url: 'https://github.com/o/r/pull/12',
+              pull_request: {},
+              repository: { full_name: 'o/r' },
+            },
+          },
+        },
+        { event: 'merged', actor: user, commit_id: 'fedcba9876', created_at: 'd3', node_id: 'n3' },
         { event: 'renamed', actor: user, rename: { from: 'Bg', to: 'Bug' }, created_at: 'e', node_id: 'n2' },
         { event: 'subscribed', actor: user, created_at: 'f' },
         { event: 'committed', sha: 'abc1234', message: 'fix', author: { name: 'Octo', date: 'g' } },
@@ -555,12 +570,36 @@ describe('/api/github', () => {
       viewer: { login: 'octo', canEdit: true },
       timeline: [
         { kind: 'comment', id: 1, body: 'me too', reactions: { eyes: 1 }, edited: false },
-        { kind: 'event', text: 'added the bug label' },
+        {
+          kind: 'event',
+          text: 'added the bug label',
+          parts: [
+            { kind: 'text', text: 'added the ' },
+            { kind: 'label', name: 'bug', color: 'd73a4a' },
+            { kind: 'text', text: ' label' },
+          ],
+        },
+        {
+          kind: 'event',
+          text: 'mentioned this in #12 Docs',
+          parts: [
+            { kind: 'text', text: 'mentioned this in ' },
+            { kind: 'item', number: 12, title: 'Docs', pull: true, repo: 'o/r', url: 'https://github.com/o/r/pull/12' },
+          ],
+        },
+        {
+          kind: 'event',
+          text: 'merged commit fedcba9',
+          parts: [
+            { kind: 'text', text: 'merged commit ' },
+            { kind: 'commit', sha: 'fedcba9876' },
+          ],
+        },
         { kind: 'event', text: 'changed the title from "Bg" to "Bug"' },
         { kind: 'commit', sha: 'abc1234', message: 'fix' },
       ],
     })
-    expect(thread.timeline).toHaveLength(4)
+    expect(thread.timeline).toHaveLength(6)
     expect((await call('PATCH', '/api/github/comments/1', { body: 'edited' })).status).toBe(204)
     // A reaction GitHub already had (200) is taken back with a delete.
     expect((await call('POST', '/api/github/react', { target: { comment: 1 }, content: 'heart' })).status).toBe(204)

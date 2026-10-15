@@ -6,6 +6,7 @@ import type {
   CreatePull,
   Discussion,
   DiscussionSummary,
+  EventPart,
   GitHubReviewComment,
   GitHubStatus,
   GitHubUser,
@@ -1402,14 +1403,22 @@ interface RawTimeline {
   sha?: string
   message?: string
   author?: { name: string; date: string }
-  label?: { name: string }
+  label?: { name: string; color?: string }
   rename?: { from: string; to: string }
   assignee?: RawUser
   requested_reviewer?: RawUser
   requested_team?: { name: string }
   milestone?: { title: string }
   commit_id?: string
-  source?: { issue?: { number: number; title: string } }
+  source?: {
+    issue?: {
+      number: number
+      title: string
+      html_url?: string
+      pull_request?: unknown
+      repository?: { full_name: string }
+    }
+  }
 }
 
 const REACTION_KEYS = ['+1', '-1', 'laugh', 'hooray', 'confused', 'heart', 'rocket', 'eyes'] as const
@@ -1423,30 +1432,67 @@ function reactions(raw: RawReactions | undefined): Partial<Record<(typeof REACTI
   return counts
 }
 
-const EVENT_TEXT: Record<string, (raw: RawTimeline) => string | null> = {
-  labeled: (raw) => `added the ${raw.label?.name} label`,
-  unlabeled: (raw) => `removed the ${raw.label?.name} label`,
-  renamed: (raw) => `changed the title from "${raw.rename?.from}" to "${raw.rename?.to}"`,
-  closed: () => 'closed this',
-  reopened: () => 'reopened this',
-  merged: (raw) => `merged commit ${raw.commit_id?.slice(0, 7)}`,
-  assigned: (raw) => `assigned ${raw.assignee?.login}`,
-  unassigned: (raw) => `unassigned ${raw.assignee?.login}`,
-  review_requested: (raw) => `requested a review from ${raw.requested_reviewer?.login ?? raw.requested_team?.name}`,
-  review_request_removed: (raw) =>
-    `removed the review request for ${raw.requested_reviewer?.login ?? raw.requested_team?.name}`,
-  milestoned: (raw) => `added this to the ${raw.milestone?.title} milestone`,
-  demilestoned: (raw) => `removed this from the ${raw.milestone?.title} milestone`,
-  'cross-referenced': (raw) =>
-    raw.source?.issue ? `mentioned this in #${raw.source.issue.number} ${raw.source.issue.title}` : null,
-  referenced: (raw) => (raw.commit_id ? `referenced this in commit ${raw.commit_id.slice(0, 7)}` : null),
-  head_ref_force_pushed: () => 'force-pushed the branch',
-  head_ref_deleted: () => 'deleted the branch',
-  head_ref_restored: () => 'restored the branch',
-  convert_to_draft: () => 'marked this as a draft',
-  ready_for_review: () => 'marked this ready for review',
-  locked: () => 'locked the conversation',
-  unlocked: () => 'unlocked the conversation',
+const text = (value: string): EventPart => ({ kind: 'text', text: value })
+const label = (raw: RawTimeline): EventPart => ({
+  kind: 'label',
+  name: raw.label?.name ?? '',
+  color: raw.label?.color ?? '',
+})
+// A person by login, or a team by name, which has no profile to link to.
+const reviewer = (raw: RawTimeline): EventPart =>
+  raw.requested_reviewer ? { kind: 'user', login: raw.requested_reviewer.login } : text(raw.requested_team?.name ?? '')
+
+// Each event's sentence, in parts the page can link.
+const EVENT_PARTS: Record<string, (raw: RawTimeline) => EventPart[] | null> = {
+  labeled: (raw) => [text('added the '), label(raw), text(' label')],
+  unlabeled: (raw) => [text('removed the '), label(raw), text(' label')],
+  renamed: (raw) => [text(`changed the title from "${raw.rename?.from}" to "${raw.rename?.to}"`)],
+  closed: () => [text('closed this')],
+  reopened: () => [text('reopened this')],
+  merged: (raw) => [text('merged commit '), { kind: 'commit', sha: raw.commit_id ?? '' }],
+  assigned: (raw) => [text('assigned '), { kind: 'user', login: raw.assignee?.login ?? '' }],
+  unassigned: (raw) => [text('unassigned '), { kind: 'user', login: raw.assignee?.login ?? '' }],
+  review_requested: (raw) => [text('requested a review from '), reviewer(raw)],
+  review_request_removed: (raw) => [text('removed the review request for '), reviewer(raw)],
+  milestoned: (raw) => [text(`added this to the ${raw.milestone?.title} milestone`)],
+  demilestoned: (raw) => [text(`removed this from the ${raw.milestone?.title} milestone`)],
+  'cross-referenced': (raw) => {
+    const issue = raw.source?.issue
+    if (!issue) return null
+    return [
+      text('mentioned this in '),
+      {
+        kind: 'item',
+        number: issue.number,
+        title: issue.title,
+        pull: Boolean(issue.pull_request),
+        repo: issue.repository?.full_name ?? null,
+        url: issue.html_url ?? '',
+      },
+    ]
+  },
+  referenced: (raw) =>
+    raw.commit_id ? [text('referenced this in commit '), { kind: 'commit', sha: raw.commit_id }] : null,
+  head_ref_force_pushed: () => [text('force-pushed the branch')],
+  head_ref_deleted: () => [text('deleted the branch')],
+  head_ref_restored: () => [text('restored the branch')],
+  convert_to_draft: () => [text('marked this as a draft')],
+  ready_for_review: () => [text('marked this ready for review')],
+  locked: () => [text('locked the conversation')],
+  unlocked: () => [text('unlocked the conversation')],
+}
+
+// The same sentence as plain text, for places that show it without links.
+export function partsText(parts: EventPart[]): string {
+  return parts
+    .map((part) => {
+      if (part.kind === 'text') return part.text
+      if (part.kind === 'user') return part.login
+      if (part.kind === 'item') return `#${part.number} ${part.title}`
+      if (part.kind === 'commit') return part.sha.slice(0, 7)
+      return part.name
+    })
+    .join('')
 }
 
 // GitHub's timeline mixes many shapes; each becomes one of four the page draws, the rest are dropped.
@@ -1490,15 +1536,16 @@ function timelineEvent(raw: RawTimeline): TimelineEvent[] {
       },
     ]
   }
-  const text = EVENT_TEXT[raw.event]?.(raw)
-  if (!text) return []
+  const parts = EVENT_PARTS[raw.event]?.(raw)
+  if (!parts) return []
   return [
     {
       kind: 'event',
       id: raw.node_id ?? `${raw.event}:${raw.created_at}`,
       event: raw.event,
       actor: user(raw.actor ?? null),
-      text,
+      text: partsText(parts),
+      parts,
       createdAt: raw.created_at ?? '',
     },
   ]

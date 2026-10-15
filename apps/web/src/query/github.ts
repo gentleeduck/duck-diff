@@ -70,6 +70,9 @@ export function githubQueries(api: Api) {
         queryFn: () => gh.checks(number),
         meta: { topics: [item(number), 'runs'] },
       }),
+    // The pull request's head fetched into the local repo; the same head never needs fetching again.
+    pullRefs: (number: number, head: string) =>
+      queryOptions({ queryKey: ['github', 'pull-refs', number, head], queryFn: () => gh.fetchPull(number) }),
     pullCommits: (number: number) =>
       queryOptions({
         queryKey: ['github', 'pull-commits', number],

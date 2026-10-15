@@ -23,6 +23,7 @@ import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import type { Store } from '../lib/store'
 import { Avatar, Body } from './Conversation'
+import { CommitLink, EventParts, UserLink } from './EventParts'
 import { MarkdownEditor } from './MarkdownEditor'
 import { Reactions } from './Reactions'
 import { ago } from './time'
@@ -341,14 +342,17 @@ export function ThreadView({
         if (event.kind === 'commit') {
           return (
             <Line key={`m${event.sha}`} icon={<GitCommitHorizontal className="size-4" />}>
-              <span className="text-foreground">{event.message.split('\n')[0]}</span>{' '}
-              <span className="text-tn-comment">{event.sha.slice(0, 7)}</span>
+              <CommitLink sha={event.sha}>{event.message.split('\n')[0]}</CommitLink>{' '}
+              <CommitLink sha={event.sha} className="cursor-pointer text-tn-comment hover:text-tn-blue hover:underline">
+                {event.sha.slice(0, 7)}
+              </CommitLink>
             </Line>
           )
         }
         return (
           <Line key={event.id} icon={EVENT_ICON[event.event] ?? <CircleDot className="size-4 text-muted-foreground" />}>
-            <span className="text-foreground">{event.actor.login}</span> {event.text} {ago(event.createdAt)}
+            <UserLink login={event.actor.login} /> {event.parts ? <EventParts parts={event.parts} /> : event.text}{' '}
+            {ago(event.createdAt)}
           </Line>
         )
       })}
