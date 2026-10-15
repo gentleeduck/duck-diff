@@ -1,6 +1,6 @@
 import { expect, test } from './fixture'
 
-test('clicking a name in the diff lists where it is defined and used, and opens the file at that line', async ({
+test('double-clicking a name in the diff lists where it is defined and used, and opens the file at that line', async ({
   page,
   app,
   repo,
@@ -10,7 +10,10 @@ test('clicking a name in the diff lists where it is defined and used, and opens 
   await expect(page.getByRole('banner')).toContainText('3 files')
   const code = page.locator('[data-side="additions"] [data-code]').filter({ hasText: 'twice = answer' }).first()
   await expect(code.locator('.tok').first()).toBeVisible()
+  // One click only places the cursor; a double-click opens the panel.
   await code.getByText('answer', { exact: true }).last().click()
+  await expect(page.getByRole('complementary', { name: 'Symbol answer' })).toHaveCount(0)
+  await code.getByText('answer', { exact: true }).last().dblclick()
 
   const panel = page.getByRole('complementary', { name: 'Symbol answer' })
   await expect(panel).toBeVisible()
@@ -42,7 +45,7 @@ test('a language server tells two functions of the same name apart', async ({ pa
   await page.goto(app.url)
   const code = page.locator('[data-side="additions"] [data-code]').filter({ hasText: 'x = load()' }).first()
   await expect(code.locator('.tok').first()).toBeVisible()
-  await code.getByText('load', { exact: true }).click()
+  await code.getByText('load', { exact: true }).dblclick()
 
   const panel = page.getByRole('complementary', { name: 'Symbol load' })
   await expect(panel).toContainText('server')

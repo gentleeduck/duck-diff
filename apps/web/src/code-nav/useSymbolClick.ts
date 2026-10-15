@@ -17,28 +17,41 @@ export function targetOf(found: SymbolUnder, locate: LocateSymbol): SymbolTarget
   }
 }
 
-// A plain click on a name opens the symbol panel; Ctrl or Cmd click jumps to its definition. Drags and
-// selections are left alone.
+// A double-click on a name opens the symbol panel; Ctrl or Cmd click jumps to its definition. A single click
+// only places the cursor, and drags are left to line selection.
 export function useSymbolClick(root: () => HTMLElement | null, locate: LocateSymbol) {
   const app = useApp()
   const { show } = useView()
   const latest = useRef(locate)
   latest.current = locate
   useEffect(() => {
-    const onClick = (event: MouseEvent) => {
-      if (event.button !== 0 || event.defaultPrevented || event.altKey || event.shiftKey) return
+    const nameAt = (event: MouseEvent) => {
+      if (event.button !== 0 || event.defaultPrevented || event.altKey || event.shiftKey) return null
       const element = root()
-      if (!element?.contains(event.target as Node)) return
-      if (!(window.getSelection()?.isCollapsed ?? true)) return
+      if (!element?.contains(event.target as Node)) return null
       const found = symbolUnder(event)
-      if (!found) return
-      const target = targetOf(found, latest.current)
-      if ((event.ctrlKey || event.metaKey) && target.at) {
-        event.preventDefault()
-        void goToDefinition(app, target, () => show('files'))
-      } else app.symbol.set(target)
+      return found ? targetOf(found, latest.current) : null
+    }
+    const onClick = (event: MouseEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !(window.getSelection()?.isCollapsed ?? true)) return
+      const target = nameAt(event)
+      if (!target?.at) return
+      event.preventDefault()
+      void goToDefinition(app, target, () => show('files'))
+    }
+    const onDouble = (event: MouseEvent) => {
+      if (event.ctrlKey || event.metaKey) return
+      const target = nameAt(event)
+      if (!target) return
+      // The browser selected the word; the panel is what the double-click was for.
+      window.getSelection()?.removeAllRanges()
+      app.symbol.set(target)
     }
     document.addEventListener('click', onClick)
-    return () => document.removeEventListener('click', onClick)
+    document.addEventListener('dblclick', onDouble)
+    return () => {
+      document.removeEventListener('click', onClick)
+      document.removeEventListener('dblclick', onDouble)
+    }
   }, [root, app, show])
 }

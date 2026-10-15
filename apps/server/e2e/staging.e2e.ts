@@ -59,3 +59,11 @@ test('stages two lines of a five-line hunk from a drag, leaving the rest unstage
   expect(staged).not.toContain('called four')
   expect(repo.git('diff', '--', 'lines.txt')).toContain('+the line called one')
 })
+
+test('a double-click on a word selects it without opening the selection bar', async ({ page, app }) => {
+  await page.goto(`${app.url}&target=${encodeURIComponent(JSON.stringify({ kind: 'unstaged' }))}`)
+  const code = page.locator('[data-side="additions"] [data-code]').filter({ hasText: 'answer = 42' }).first()
+  await code.getByText('answer', { exact: true }).dblclick()
+  await expect(page.getByRole('toolbar', { name: /Selected/ })).toHaveCount(0)
+  await expect(page.getByRole('complementary', { name: 'Symbol answer' })).toBeVisible()
+})
