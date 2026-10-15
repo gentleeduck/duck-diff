@@ -237,6 +237,7 @@ export default function FileView() {
           Could not read {path}: {failed}
         </p>
       ) : null}
+      {contents?.text === '' ? <p className="p-4 text-muted-foreground">This file is empty.</p> : null}
       {contents && contents.text === null ? (
         <p className="p-4 text-muted-foreground">
           {contents.binary ? 'Binary file, not shown.' : `Too large to show (${formatBytes(contents.size)}).`}

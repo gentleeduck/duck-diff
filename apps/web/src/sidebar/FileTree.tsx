@@ -12,7 +12,7 @@ import {
   useState,
 } from 'react'
 import { useRowHeight } from '../app/useSizes'
-import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_GLYPH } from './icons'
+import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_LETTER } from './icons'
 import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
 export type { Row as TreeRow }
@@ -32,17 +32,8 @@ function TreeItem({
 >) {
   const folder = row.kind === 'directory'
   const icon = folder ? { glyph: row.expanded ? FOLDER.open : FOLDER.closed, color: FOLDER.color } : fileGlyph(row.name)
-  const status = file ? STATUS_GLYPH[file.status] : null
-  const dim = file && (file.status === 'modified' || file.status === 'type-changed')
-  const name = folder
-    ? 'text-tn-blue'
-    : isSpecialFile(row.name)
-      ? 'text-tn-pink underline'
-      : file?.status === 'deleted'
-        ? 'text-tn-comment line-through'
-        : dim
-          ? 'text-tn-dark5'
-          : 'text-tn-blue'
+  const status = file ? STATUS_LETTER[file.status] : null
+  const special = !folder && isSpecialFile(row.name)
   return (
     <Button
       {...rest}
@@ -54,24 +45,31 @@ function TreeItem({
       onClick={onClick}
       aria-expanded={folder ? row.expanded : undefined}
       aria-current={selected || undefined}
-      title={row.path}
-      className="h-7 w-full items-stretch justify-start gap-0 rounded-none p-0 pe-3 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
+      title={status ? `${row.path} (${status.title})` : row.path}
+      className="h-7 w-full items-stretch justify-start gap-0 rounded-none p-0 ps-1 pe-2 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
       {row.ancestors.map((ancestor) => (
-        // Indent guides, one per ancestor, like the editor's tree.
-        <span key={ancestor} className="w-5 shrink-0 self-stretch border-tn-gutter border-s ms-[9px]" />
+        // One guide per ancestor, drawn through the middle of that folder's chevron, like the editor's tree.
+        <span
+          key={ancestor}
+          className="relative w-4 shrink-0 self-stretch before:absolute before:inset-y-0 before:start-[7px] before:w-px before:bg-tn-gutter"
+        />
       ))}
-      <span className="w-5 shrink-0 justify-center text-tn-comment">
+      <span className="w-4 shrink-0 justify-center text-tn-comment">
         {folder ? (row.expanded ? CHEVRON.open : CHEVRON.closed) : ''}
       </span>
-      <span className="w-6 shrink-0 justify-center" style={{ color: icon.color }}>
+      <span className="w-5 shrink-0 justify-center" style={{ color: icon.color }}>
         {icon.glyph}
       </span>
+      <span
+        className={`ms-1 min-w-0 flex-1 truncate ${folder ? 'text-tn-blue' : special ? 'text-tn-pink underline' : 'text-foreground'} ${file?.status === 'deleted' ? 'line-through' : ''}`}
+        style={status && !folder ? { color: status.color } : undefined}>
+        {row.name}
+      </span>
       {status ? (
-        <span className="w-6 shrink-0 justify-center" style={{ color: status.color }}>
-          {status.glyph}
+        <span className="w-4 shrink-0 justify-end ps-1" style={{ color: status.color }}>
+          {status.letter}
         </span>
       ) : null}
-      <span className={`min-w-0 truncate ${name}`}>{row.name}</span>
     </Button>
   )
 }

@@ -7,13 +7,13 @@ test('the changes tree marks the file at the top of the diff as it scrolls', asy
   const tree = page.getByRole('tree', { name: 'Changed files' })
   const marked = tree.locator('[aria-current="true"]')
   // Folders come first, so the diff opens on src/app.ts.
-  await expect(marked).toHaveAttribute('title', 'src/app.ts')
+  await expect(marked).toHaveAttribute('title', /^src\/app\.ts/)
   const diff = page.locator('[data-diff-view]')
   await expect.poll(() => diff.evaluate((element) => element.scrollHeight)).toBeGreaterThan(5000)
   await diff.evaluate((element) => {
     element.scrollTop = 600
   })
-  await expect(marked).toHaveAttribute('title', 'a-long.ts')
+  await expect(marked).toHaveAttribute('title', /^a-long\.ts/)
 })
 
 test('a file picked in search is marked and opened in the files tree', async ({ page, app }) => {

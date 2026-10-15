@@ -22,5 +22,10 @@ export function fileNote(file: ChangedFile): string | null {
     return size != null ? `Binary, ${formatBytes(size)}` : 'Binary'
   }
   if (file.generated) return 'Generated'
+  // No lines on either side: say why the file has no body, as GitHub does.
+  if (file.additions === 0 && file.deletions === 0) {
+    if (file.status === 'renamed') return 'Renamed without changes'
+    if (file.status === 'added' || file.status === 'untracked' || file.status === 'deleted') return 'Empty file'
+  }
   return null
 }

@@ -6,7 +6,7 @@ import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
-import { fileGlyph, STATUS_GLYPH } from '../sidebar/icons'
+import { fileGlyph, STATUS_LETTER } from '../sidebar/icons'
 import { relativeTime } from '../sidebar/relative-time'
 import { CommitActions } from './CommitActions'
 
@@ -109,20 +109,24 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
           <ul>
             {loaded.files.map((file) => {
               const icon = fileGlyph(file.path.split('/').pop() ?? file.path)
-              const status = STATUS_GLYPH[file.status]
+              const status = STATUS_LETTER[file.status]
               return (
                 <li key={file.path}>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="w-full justify-start gap-2"
-                    title={file.path}
+                    title={`${file.path} (${status.title})`}
                     onClick={() => openChanges(file.path)}>
                     <span style={{ color: icon.color }}>{icon.glyph}</span>
-                    <span style={{ color: status.color }}>{status.glyph}</span>
-                    <span className="min-w-0 flex-1 truncate text-start">{file.path}</span>
+                    <span className="min-w-0 flex-1 truncate text-start" style={{ color: status.color }}>
+                      {file.path}
+                    </span>
                     {file.additions !== null ? <span className="text-added">+{file.additions}</span> : null}
                     {file.deletions !== null ? <span className="text-removed">-{file.deletions}</span> : null}
+                    <span className="w-3 text-end" style={{ color: status.color }}>
+                      {status.letter}
+                    </span>
                   </Button>
                 </li>
               )
