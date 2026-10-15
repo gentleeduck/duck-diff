@@ -34,6 +34,12 @@ const DOING: Record<GitAction, string> = {
   resolve: 'Resolve',
   'mark-resolved': 'Mark resolved',
   'resolve-text': 'Resolve',
+  'rebase-interactive': 'Rebase',
+  fixup: 'Fixup',
+  'cherry-pick-range': 'Cherry-pick',
+  'bisect-mark': 'Bisect',
+  'bisect-run': 'Bisect run',
+  'bisect-reset': 'Stop bisecting',
   'undo-commit': 'Undo commit',
   reset: 'Reset',
   'branch-rename': 'Rename branch',
@@ -80,6 +86,7 @@ export function GitProvider({ children }: { children: ReactNode }) {
         const result = await api.git(action, body)
         // A stop on conflicts is not a failure: the files wait in the changes view for resolving.
         if (result.conflicts) toast.warning(`${DOING[action]} stopped on conflicts. Resolve them, then continue.`)
+        else if (result.stopped) toast(`${DOING[action]} stopped to let you edit a commit. Continue when ready.`)
         else toast(done ?? `${DOING[action]} done`)
         refresh()
         void session.reload()

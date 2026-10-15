@@ -12,6 +12,7 @@ import {
   HoverCardContent,
 } from '@duck-diff/ui'
 import {
+  Bug,
   Cherry,
   Copy,
   FileDiff,
@@ -19,10 +20,12 @@ import {
   GitCommitHorizontal,
   GitCompareArrows,
   History,
+  ListOrdered,
   LocateFixed,
   SquareArrowOutUpRight,
   Tag,
   Undo2,
+  Wrench,
 } from 'lucide-react'
 import { type ReactNode, useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
@@ -37,10 +40,12 @@ const selectStatus = (state: GitHubState) => state
 export function CommitMenu({
   entry,
   onNewBranch,
+  onRebase,
   children,
 }: {
   entry: GraphEntry
   onNewBranch(sha: string): void
+  onRebase(sha: string): void
   children: ReactNode
 }) {
   const actions = useCommitActions()
@@ -81,6 +86,26 @@ export function CommitMenu({
           <Tag />
           Create tag here...
         </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onSelect={() => onRebase(sha)}>
+          <ListOrdered />
+          Rebase interactively onto this...
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void actions.fixup(sha)}>
+          <Wrench />
+          Fix up with staged changes
+        </ContextMenuItem>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <Bug />
+            Bisect
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-56">
+            <ContextMenuItem onSelect={() => void actions.bisect('bad', sha)}>Mark as bad</ContextMenuItem>
+            <ContextMenuItem onSelect={() => void actions.bisect('good', sha)}>Mark as good</ContextMenuItem>
+            <ContextMenuItem onSelect={() => void actions.bisect('skip', sha)}>Skip this commit</ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
         <ContextMenuSub>
           <ContextMenuSubTrigger>
             <History />
@@ -169,6 +194,19 @@ export function CommitHover({
   useEffect(() => {
     if (open) void githubStore.load()
   }, [open, githubStore])
+  // A click or a right-click means the reader moved on to the row's actions; the card would cover them.
+  useEffect(() => {
+    if (!open) return
+    const close = (event: Event) => {
+      if (!(event.target as Element | null)?.closest?.('[data-slot="hover-card-content"]')) setOpen(false)
+    }
+    document.addEventListener('pointerdown', close, true)
+    document.addEventListener('contextmenu', close, true)
+    return () => {
+      document.removeEventListener('pointerdown', close, true)
+      document.removeEventListener('contextmenu', close, true)
+    }
+  }, [open])
   const { copy } = useCommitActions()
   const [subject = entry.subject, ...rest] = (info?.message ?? entry.subject).split('\n')
   const body = rest.join('\n').trim()

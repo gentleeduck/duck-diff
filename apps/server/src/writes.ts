@@ -1,8 +1,12 @@
 import {
   abortOperation,
   addRemote,
+  bisectMark,
+  bisectReset,
+  bisectRun,
   checkoutDetached,
   cherryPick,
+  cherryPickRange,
   cleanUntracked,
   commit,
   continueOperation,
@@ -15,7 +19,9 @@ import {
   discardLines,
   fetchAll,
   fetchRemote,
+  fixupInto,
   forcePush,
+  interactiveRebase,
   markResolved,
   mergeRef,
   pull,
@@ -50,11 +56,14 @@ import {
   writeResolution,
 } from '@duck-diff/git'
 import {
+  BisectMarkSchema,
+  BisectRunSchema,
   type ChangeReason,
   CheckoutRequestSchema,
   CommitRequestSchema,
   DeleteBranchSchema,
   FetchRemoteSchema,
+  InteractiveRebaseSchema,
   MessageSchema,
   NameSchema,
   PathRequestSchema,
@@ -66,6 +75,7 @@ import {
   ResetSchema,
   ResolveSchema,
   ResolveTextSchema,
+  ShaListSchema,
   StashApplySchema,
   StashDropSchema,
   StashSaveSchema,
@@ -174,6 +184,25 @@ export async function gitAction(
       await writeResolution(repo, path, text)
       return { reason: 'index', body: {} }
     }
+    case 'rebase-interactive': {
+      const { base, steps } = InteractiveRebaseSchema.parse(await request.json())
+      return { reason: 'refs', body: await interactiveRebase(repo, base, steps) }
+    }
+    case 'fixup':
+      return { reason: 'refs', body: await fixupInto(repo, CheckoutRequestSchema.parse(await request.json()).sha) }
+    case 'cherry-pick-range':
+      return { reason: 'refs', body: await cherryPickRange(repo, ShaListSchema.parse(await request.json()).shas) }
+    case 'bisect-mark': {
+      const { kind, sha } = BisectMarkSchema.parse(await request.json())
+      await bisectMark(repo, kind, sha)
+      return { reason: 'refs', body: {} }
+    }
+    case 'bisect-run':
+      await bisectRun(repo, BisectRunSchema.parse(await request.json()).command)
+      return { reason: 'refs', body: {} }
+    case 'bisect-reset':
+      await bisectReset(repo)
+      return { reason: 'refs', body: {} }
     case 'mark-resolved':
       await markResolved(repo, PathRequestSchema.parse(await request.json()).path)
       return { reason: 'index', body: {} }

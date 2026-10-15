@@ -1,5 +1,6 @@
 import {
   Badge,
+  Button,
   HoverCardTrigger,
   ResizableHandle,
   ResizablePanel,
@@ -9,19 +10,22 @@ import {
   TooltipTrigger,
 } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { GitBranch, Tag } from 'lucide-react'
+import { Cherry, GitBranch, Tag } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useRowHeight } from '../app/useSizes'
 import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
 import { useStore } from '../lib/store'
 import { avatarFor, useAvatars } from './avatars'
+import { BisectBanner } from './BisectBanner'
 import { CommitHover, CommitMenu } from './CommitMenu'
 import { CommitPanel } from './CommitPanel'
+import { useCommitActions } from './commit-actions'
 import { matchesCommit } from './FindCommit'
 import { GraphLines, LANE_WIDTH, laneColor } from './GraphLines'
 import type { GraphRow } from './layout'
 import { NewBranchDialog } from './NewBranchDialog'
+import { RebaseDialog } from './RebaseDialog'
 import type { RefLabel } from './records'
 import type { GraphState } from './store'
 
@@ -87,6 +91,10 @@ export default function GraphView() {
   const needle = useStore(graphQuery, selectQuery).trim().toLowerCase()
   const avatars = useAvatars()
   const [branchFrom, setBranchFrom] = useState<string | null>(null)
+  const [rebaseOnto, setRebaseOnto] = useState<string | null>(null)
+  // Shift-click picks every commit between the selected one and the clicked one, for picking them over.
+  const [picked, setPicked] = useState<string[]>([])
+  const actions = useCommitActions()
   const selected = useStore(graphSelection, (sha: string | null) => sha)
   const scroller = useRef<HTMLDivElement>(null)
   useScrollMemory(scroller, 'graph')
@@ -124,29 +132,60 @@ export default function GraphView() {
   return (
     <>
       <NewBranchDialog sha={branchFrom} onClose={() => setBranchFrom(null)} />
+      <RebaseDialog base={rebaseOnto} onClose={() => setRebaseOnto(null)} />
       <ResizablePanelGroup orientation="horizontal" className="h-full">
-        <ResizablePanel minSize="40%">
+        <ResizablePanel minSize="40%" className="flex flex-col">
+          <BisectBanner />
+          {picked.length > 1 ? (
+            <div
+              role="toolbar"
+              aria-label="Selected commits"
+              className="flex items-center gap-2 border-border border-b bg-accent/40 px-3 py-1.5">
+              <span className="me-auto">{picked.length} commits selected</span>
+              <Button
+                size="sm"
+                onClick={() => {
+                  // The graph lists newest first; git picks them in the order they were made.
+                  void actions.cherryPickRange([...picked].reverse()).then((ok) => ok && setPicked([]))
+                }}>
+                <Cherry />
+                Cherry-pick {picked.length} commits
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setPicked([])}>
+                Clear
+              </Button>
+            </div>
+          ) : null}
           <div
             ref={scroller}
             role="listbox"
             aria-label="Commits"
-            className="@container h-full overflow-auto"
+            className="@container min-h-0 flex-1 overflow-auto"
             data-graph>
             <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
               {items.map((virtual) => {
                 const entry = state.entries[virtual.index]
                 const row = state.rows[virtual.index]
                 if (!entry || !row) return null
-                const isSelected = entry.sha === selected
+                const isSelected = entry.sha === selected || picked.includes(entry.sha)
                 return (
                   <CommitHover key={entry.sha} entry={entry} avatar={avatarFor(avatars, entry.email)}>
-                    <CommitMenu entry={entry} onNewBranch={setBranchFrom}>
+                    <CommitMenu entry={entry} onNewBranch={setBranchFrom} onRebase={setRebaseOnto}>
                       <HoverCardTrigger asChild>
                         <div
                           role="option"
                           tabIndex={-1}
                           aria-selected={isSelected}
-                          onClick={() => graphSelection.set(entry.sha)}
+                          onClick={(event) => {
+                            const from = selected ? index.get(selected) : undefined
+                            if (event.shiftKey && from !== undefined) {
+                              const [low, high] = from < virtual.index ? [from, virtual.index] : [virtual.index, from]
+                              setPicked(state.entries.slice(low, high + 1).map((each) => each.sha))
+                              return
+                            }
+                            setPicked([])
+                            graphSelection.set(entry.sha)
+                          }}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter') graphSelection.set(entry.sha)
                           }}

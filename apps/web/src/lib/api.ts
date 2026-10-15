@@ -1,4 +1,6 @@
 import {
+  type BisectState,
+  BisectStateSchema,
   type BlameLine,
   BlameLineSchema,
   type ChangedFile,
@@ -48,6 +50,8 @@ import {
   type Options,
   OptionsSchema,
   type PendingComment,
+  type PlanCommit,
+  PlanCommitSchema,
   type PullCommit,
   PullCommitSchema,
   type PullDetails,
@@ -121,6 +125,9 @@ export interface Api {
   // Without a ref these read the working tree.
   tree(ref?: string): Promise<string[]>
   file(path: string, ref?: string): Promise<FileContents>
+  // The commits a rebase onto base replays, oldest first.
+  rebasePlan(base: string): Promise<PlanCommit[]>
+  bisect(): Promise<BisectState>
   // A conflicted file as blocks, with what each side had.
   conflict(path: string): Promise<ConflictFile>
   sync(): Promise<SyncStatus>
@@ -135,7 +142,7 @@ export interface Api {
     references(query: LspQuery): Promise<LspLocations>
     hover(query: LspQuery): Promise<LspHover>
   }
-  git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean }>
+  git(action: GitAction, body?: unknown): Promise<{ sha?: string; conflicts?: boolean; stopped?: boolean }>
   github: GitHubApi
 }
 
@@ -244,6 +251,12 @@ export type GitAction =
   | 'resolve'
   | 'mark-resolved'
   | 'resolve-text'
+  | 'rebase-interactive'
+  | 'fixup'
+  | 'cherry-pick-range'
+  | 'bisect-mark'
+  | 'bisect-run'
+  | 'bisect-reset'
   | 'undo-commit'
   | 'reset'
   | 'branch-rename'
@@ -418,6 +431,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       return response.body
     },
     tree: (ref) => json(`/api/tree${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`, z.array(z.string())),
+    rebasePlan: (base) => json(`/api/rebase-plan?${new URLSearchParams({ base })}`, z.array(PlanCommitSchema)),
+    bisect: () => json('/api/bisect', BisectStateSchema),
     conflict: (path) => json(`/api/conflict?${new URLSearchParams({ path })}`, ConflictFileSchema),
     file(path, ref) {
       const params = new URLSearchParams({ path })
@@ -447,7 +462,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
         'POST',
         `/api/git/${action}`,
         body ?? {},
-        z.object({ sha: z.string().optional(), conflicts: z.boolean().optional() }),
+        z.object({ sha: z.string().optional(), conflicts: z.boolean().optional(), stopped: z.boolean().optional() }),
       ),
     commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),
     reviews: (target) => json(`/api/reviews?target=${encodeTarget(target)}`, z.array(ReviewCommentSchema)),

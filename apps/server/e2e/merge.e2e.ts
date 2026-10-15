@@ -3,7 +3,7 @@ import { expect, test } from './fixture'
 test('a merge stops on three conflicts, each resolved its own way, and continues', async ({ page, app, repo }) => {
   repo.commit('work in progress')
   // Edits far enough apart that git keeps them as three blocks.
-  const list = (side: string) => ['1', '2', '3'].map((n) => `${n}${side}\nkeep\nkeep\nkeep\nkeep`).join('\n') + '\n'
+  const list = (side: string) => `${['1', '2', '3'].map((n) => `${n}${side}\nkeep\nkeep\nkeep\nkeep`).join('\n')}\n`
   repo.write('list.txt', list(''))
   repo.commit('base')
   repo.git('checkout', '-q', '-b', 'feature')

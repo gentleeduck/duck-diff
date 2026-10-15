@@ -48,6 +48,10 @@ export function useCommitActions() {
       if (!values) return false
       return run('tag-create', { name: values.name, sha, message: values.message ?? '' }, `Tagged ${values.name}`)
     },
+    fixup: (sha: string) => run('fixup', { sha }, `Folded the staged changes into ${short(sha)}`),
+    bisect: (kind: 'good' | 'bad' | 'skip', sha?: string) =>
+      run('bisect-mark', sha ? { kind, sha } : { kind }, sha ? `Marked ${short(sha)} ${kind}` : `Marked ${kind}`),
+    cherryPickRange: (shas: string[]) => run('cherry-pick-range', { shas }, `Cherry-picked ${shas.length} commits`),
     async copy(text: string, what: string) {
       await navigator.clipboard.writeText(text)
       toast(`Copied the ${what}`)

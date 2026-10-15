@@ -6,18 +6,20 @@ export function IconTool({
   label,
   tip = label,
   onClick,
+  disabled,
   children,
 }: {
   label: string
   // What the tooltip says when it differs from the accessible name, like "Copied".
   tip?: ReactNode
   onClick(): void
+  disabled?: boolean
   children: ReactNode
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button size="icon" variant="ghost" aria-label={label} onClick={onClick}>
+        <Button size="icon" variant="ghost" aria-label={label} disabled={disabled} onClick={onClick}>
           {children}
         </Button>
       </TooltipTrigger>

@@ -249,3 +249,29 @@ export const LspHoverSchema = z.object({
   contents: z.string().nullable(),
 })
 export type LspHover = z.infer<typeof LspHoverSchema>
+
+// Rewriting history: an interactive rebase plan, fixups, picking several commits, and bisect.
+export const PlanCommitSchema = z.object({ sha: z.string(), subject: z.string(), author: z.string(), time: z.number() })
+export type PlanCommit = z.infer<typeof PlanCommitSchema>
+export const RebaseActionSchema = z.enum(['pick', 'reword', 'edit', 'squash', 'fixup', 'drop'])
+export type RebaseAction = z.infer<typeof RebaseActionSchema>
+export const InteractiveRebaseSchema = z.object({
+  base: RefNameSchema,
+  steps: z
+    .array(z.object({ sha: RefNameSchema, action: RebaseActionSchema, message: z.string().max(100_000).optional() }))
+    .min(1)
+    .max(2000),
+})
+export type InteractiveRebase = z.infer<typeof InteractiveRebaseSchema>
+export const ShaListSchema = z.object({ shas: z.array(RefNameSchema).min(1).max(1000) })
+export const BisectMarkSchema = z.object({ kind: z.enum(['good', 'bad', 'skip']), sha: RefNameSchema.optional() })
+export const BisectRunSchema = z.object({ command: z.string().trim().min(1).max(2000) })
+export const BisectStateSchema = z.object({
+  active: z.boolean(),
+  bad: z.boolean(),
+  good: z.number().int(),
+  remaining: z.number().nullable(),
+  culprit: z.object({ sha: z.string(), subject: z.string() }).nullable(),
+  log: z.string(),
+})
+export type BisectState = z.infer<typeof BisectStateSchema>

@@ -4,11 +4,13 @@ import {
   listFiles,
   listRefs,
   listTree,
+  readBisect,
   readCommit,
   readConflict,
   readSide,
   readSideBytes,
   readTreeFile,
+  rebasePlan,
   runGit,
   streamDiff,
   streamGraph,
@@ -107,6 +109,12 @@ export async function handleApi(repo: string, url: URL, nvim = false): Promise<R
       const { ref } = TreeQuery.parse(Object.fromEntries(url.searchParams))
       return Response.json(await listTree(repo, ref ?? null))
     }
+    case '/api/rebase-plan': {
+      const { base } = z.object({ base: RefNameSchema }).parse(Object.fromEntries(url.searchParams))
+      return Response.json(await rebasePlan(repo, base))
+    }
+    case '/api/bisect':
+      return Response.json(await readBisect(repo))
     case '/api/conflict': {
       const { path } = z.object({ path: RepoPathSchema }).parse(Object.fromEntries(url.searchParams))
       return Response.json(await readConflict(repo, path))

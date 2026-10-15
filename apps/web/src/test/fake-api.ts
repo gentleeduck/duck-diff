@@ -37,6 +37,8 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     remotes: async () => [],
     lastMessage: async () => '',
     symbols: async (name) => ({ name, hits: [], truncated: false }),
+    rebasePlan: async () => [],
+    bisect: async () => ({ active: false, bad: false, good: 0, remaining: null, culprit: null, log: '' }),
     conflict: async (path) => ({
       path,
       eol: '\n',
