@@ -220,7 +220,7 @@ export function SettingsPopover() {
             onCheckedChange={(next: boolean) => void setNotices(next)}
           />
         </Row>
-        <div className="mt-2 flex justify-end gap-2 border-border border-t pt-2">
+        <div className="mt-2 grid grid-cols-2 gap-2 border-border border-t pt-2">
           <Button
             variant="outline"
             size="sm"

@@ -1,7 +1,8 @@
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import type { ReactNode } from 'react'
 import { IconTool } from './IconTool'
 import { NavButtons } from './NavButtons'
+import { ResizeHandle, useStoredWidth } from './ResizeHandle'
 
 interface ShellProps {
   rail: ReactNode
@@ -20,52 +21,7 @@ interface ShellProps {
   status: ReactNode
 }
 
-const WIDTH_KEY = 'duck-diff:sidebar-width'
-// Pixels, not percent: the tree and commit box need the same room on every screen width.
-const DEFAULT_WIDTH = 340
-const MIN_WIDTH = 260
-const clampWidth = (width: number) => Math.round(Math.min(window.innerWidth * 0.45, Math.max(MIN_WIDTH, width)))
-
-function readWidth(): number {
-  try {
-    const stored = Number(window.localStorage.getItem(WIDTH_KEY))
-    return stored ? clampWidth(stored) : DEFAULT_WIDTH
-  } catch {
-    return DEFAULT_WIDTH
-  }
-}
-
-// Dragging resizes the side panel; double-click puts it back to its default width.
-function ResizeHandle({ width, onResize }: { width: number; onResize(width: number): void }) {
-  const save = (next: number) => {
-    onResize(next)
-    try {
-      window.localStorage.setItem(WIDTH_KEY, String(next))
-    } catch {}
-  }
-  return (
-    <hr
-      aria-orientation="vertical"
-      aria-label="Resize the side panel"
-      aria-valuenow={width}
-      onDoubleClick={() => save(DEFAULT_WIDTH)}
-      onPointerDown={(event) => {
-        event.preventDefault()
-        const startX = event.clientX
-        const move = (moved: PointerEvent) => save(clampWidth(width + moved.clientX - startX))
-        const up = () => {
-          window.removeEventListener('pointermove', move)
-          window.removeEventListener('pointerup', up)
-          document.body.style.removeProperty('cursor')
-        }
-        document.body.style.cursor = 'col-resize'
-        window.addEventListener('pointermove', move)
-        window.addEventListener('pointerup', up)
-      }}
-      className="relative m-0 h-full w-px shrink-0 cursor-col-resize border-0 bg-border after:absolute after:inset-y-0 after:-inset-x-1.5 hover:bg-tn-blue"
-    />
-  )
-}
+const SIDEBAR = { key: 'duck-diff:sidebar-width', initial: 340, min: 260, maxShare: 0.45 }
 
 export function Shell({
   rail,
@@ -80,7 +36,7 @@ export function Shell({
   status,
 }: ShellProps) {
   const shown = sidebar !== null && panelShown
-  const [width, setWidth] = useState(readWidth)
+  const [width, setWidth] = useStoredWidth(SIDEBAR)
   return (
     <div className="flex h-full flex-col">
       <header className="@container/top flex h-12 shrink-0 items-center gap-2 border-border border-b bg-card px-3 @6xl/top:gap-4 @6xl/top:px-4">
@@ -116,7 +72,15 @@ export function Shell({
             {sidebar}
           </nav>
         ) : null}
-        {shown ? <ResizeHandle width={width} onResize={setWidth} /> : null}
+        {shown ? (
+          <ResizeHandle
+            label="Resize the side panel"
+            width={width}
+            initial={SIDEBAR.initial}
+            side="left"
+            onResize={setWidth}
+          />
+        ) : null}
         <div className="flex h-full min-w-0 flex-1 flex-col">
           <main data-region="main" tabIndex={-1} className="min-h-0 w-full flex-1 outline-none">
             {viewer}

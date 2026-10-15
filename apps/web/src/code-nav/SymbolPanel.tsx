@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { ResizeHandle, useStoredWidth } from '../app/ResizeHandle'
 import { openFile } from '../files/open-file'
 import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
@@ -85,12 +86,15 @@ function Snippet({ text, name, column }: { text: string; name: string; column: n
 }
 
 // GitHub's symbol pane: where the clicked name is defined, imported and used, each opening at its line.
+const PANEL = { key: 'duck-diff:symbol-panel-width', initial: 384, min: 280, maxShare: 0.6 }
+
 export function SymbolPanel() {
   const app = useApp()
   const { api, symbol } = app
   const current = useStore(symbol, selectSymbol)
   const { show } = useView()
   const [result, setResult] = useState<Found | null>(null)
+  const [width, setWidth] = useStoredWidth(PANEL)
   const [failed, setFailed] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   useHighlight(current?.name ?? null)
@@ -181,41 +185,48 @@ export function SymbolPanel() {
     ))
 
   return (
-    <aside
-      aria-label={`Symbol ${current.name}`}
-      className="flex h-full w-96 shrink-0 flex-col border-border border-s bg-card">
-      <header className="flex h-11 shrink-0 items-center gap-2 border-border border-b ps-3 pe-1">
-        <span className="text-muted-foreground">Symbol</span>
-        <code className="min-w-0 flex-1 truncate text-tn-yellow">{current.name}</code>
-        {result ? (
-          <span
-            className={`shrink-0 ${result.source === 'text' ? 'text-muted-foreground' : 'text-tn-green'}`}
-            title={
-              result.source === 'text'
-                ? 'Every place the name appears as text; same-named symbols mix'
-                : 'Exact answers from a language server'
-            }>
-            {sourceLabel(result)}
-          </span>
+    <>
+      <ResizeHandle
+        label="Resize the symbol panel"
+        width={width}
+        initial={PANEL.initial}
+        side="right"
+        onResize={setWidth}
+      />
+      <aside aria-label={`Symbol ${current.name}`} style={{ width }} className="flex h-full shrink-0 flex-col bg-card">
+        <header className="flex h-11 shrink-0 items-center gap-2 border-border border-b ps-3 pe-1">
+          <span className="text-muted-foreground">Symbol</span>
+          <code className="min-w-0 flex-1 truncate text-tn-yellow">{current.name}</code>
+          {result ? (
+            <span
+              className={`shrink-0 ${result.source === 'text' ? 'text-muted-foreground' : 'text-tn-green'}`}
+              title={
+                result.source === 'text'
+                  ? 'Every place the name appears as text; same-named symbols mix'
+                  : 'Exact answers from a language server'
+              }>
+              {sourceLabel(result)}
+            </span>
+          ) : null}
+          <IconTool label="Close the symbol panel" tip="Close (Esc)" onClick={() => symbol.set(null)}>
+            <X />
+          </IconTool>
+        </header>
+        <div className="shrink-0 border-border border-b p-2">
+          <Input
+            aria-label="Filter by file"
+            placeholder="Filter by file"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+          />
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
+        {result?.truncated ? (
+          <p className="shrink-0 border-border border-t px-3 py-1.5 text-muted-foreground">
+            Showing the first {result.hits.length} matches.
+          </p>
         ) : null}
-        <IconTool label="Close the symbol panel" tip="Close (Esc)" onClick={() => symbol.set(null)}>
-          <X />
-        </IconTool>
-      </header>
-      <div className="shrink-0 border-border border-b p-2">
-        <Input
-          aria-label="Filter by file"
-          placeholder="Filter by file"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-        />
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
-      {result?.truncated ? (
-        <p className="shrink-0 border-border border-t px-3 py-1.5 text-muted-foreground">
-          Showing the first {result.hits.length} matches.
-        </p>
-      ) : null}
-    </aside>
+      </aside>
+    </>
   )
 }
