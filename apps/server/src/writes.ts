@@ -44,6 +44,7 @@ import {
   unstageAll,
   unstageFile,
   unstageHunk,
+  writeResolution,
 } from '@duck-diff/git'
 import {
   type ChangeReason,
@@ -61,6 +62,7 @@ import {
   RenameBranchSchema,
   ResetSchema,
   ResolveSchema,
+  ResolveTextSchema,
   StashApplySchema,
   StashDropSchema,
   StashSaveSchema,
@@ -157,6 +159,11 @@ export async function gitAction(
     case 'resolve':
       await resolveConflict(repo, ResolveSchema.parse(await request.json()))
       return { reason: 'index', body: {} }
+    case 'resolve-text': {
+      const { path, text } = ResolveTextSchema.parse(await request.json())
+      await writeResolution(repo, path, text)
+      return { reason: 'index', body: {} }
+    }
     case 'mark-resolved':
       await markResolved(repo, PathRequestSchema.parse(await request.json()).path)
       return { reason: 'index', body: {} }

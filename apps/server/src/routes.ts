@@ -5,6 +5,7 @@ import {
   listRefs,
   listTree,
   readCommit,
+  readConflict,
   readSide,
   readSideBytes,
   readTreeFile,
@@ -105,6 +106,10 @@ export async function handleApi(repo: string, url: URL, nvim = false): Promise<R
     case '/api/tree': {
       const { ref } = TreeQuery.parse(Object.fromEntries(url.searchParams))
       return Response.json(await listTree(repo, ref ?? null))
+    }
+    case '/api/conflict': {
+      const { path } = z.object({ path: RepoPathSchema }).parse(Object.fromEntries(url.searchParams))
+      return Response.json(await readConflict(repo, path))
     }
     case '/api/symbols': {
       const { name, ref } = SymbolQuerySchema.parse(Object.fromEntries(url.searchParams))

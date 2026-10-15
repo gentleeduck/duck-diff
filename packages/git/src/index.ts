@@ -1,4 +1,13 @@
 export { type Commit, type CommitDetails, listCommits, readCommit } from './commits'
+export {
+  type ConflictFile,
+  type ConflictSegment,
+  hasConflictMarkers,
+  type ParsedConflicts,
+  parseConflicts,
+  readConflict,
+  writeResolution,
+} from './conflicts'
 export { readSide, readSideBytes, type Side } from './content'
 export { GitError, type GitErrorCode } from './errors'
 export { type ChangedFile, type FileStatus, listFiles, parseDiffSummary, parseNumstat, parseRaw } from './files'

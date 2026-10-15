@@ -9,6 +9,8 @@ import {
   type CommitDetails,
   CommitDetailsSchema,
   CommitSchema,
+  type ConflictFile,
+  ConflictFileSchema,
   type ConversationComment,
   ConversationCommentSchema,
   type CreatePull,
@@ -119,6 +121,8 @@ export interface Api {
   // Without a ref these read the working tree.
   tree(ref?: string): Promise<string[]>
   file(path: string, ref?: string): Promise<FileContents>
+  // A conflicted file as blocks, with what each side had.
+  conflict(path: string): Promise<ConflictFile>
   sync(): Promise<SyncStatus>
   remotes(): Promise<Remote[]>
   lastMessage(): Promise<string>
@@ -239,6 +243,7 @@ export type GitAction =
   | 'unstage-all'
   | 'resolve'
   | 'mark-resolved'
+  | 'resolve-text'
   | 'undo-commit'
   | 'reset'
   | 'branch-rename'
@@ -413,6 +418,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       return response.body
     },
     tree: (ref) => json(`/api/tree${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`, z.array(z.string())),
+    conflict: (path) => json(`/api/conflict?${new URLSearchParams({ path })}`, ConflictFileSchema),
     file(path, ref) {
       const params = new URLSearchParams({ path })
       if (ref) params.set('ref', ref)

@@ -1,6 +1,11 @@
 import type { SyncStatus } from '@duck-diff/protocol'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
-import { TriangleAlert } from 'lucide-react'
+import { GitMerge, TriangleAlert } from 'lucide-react'
+import { useApp } from '../app/AppProvider'
+import { useView } from '../hooks/useView'
+import { useStore } from '../lib/store'
+import { openMerge } from '../merge/open-merge'
+import type { StageState } from '../state/stage'
 import { useGit } from './GitProvider'
 
 const NAMES: Record<NonNullable<SyncStatus['operation']>, string> = {
@@ -10,9 +15,14 @@ const NAMES: Record<NonNullable<SyncStatus['operation']>, string> = {
   rebase: 'A rebase',
 }
 
+const countConflicts = (state: StageState) => state.unstaged.filter((file) => file.status === 'conflicted').length
+
 // While git waits on an unfinished operation, say so where the user will commit or abort it.
 export function OperationBanner() {
   const { status, busy, run } = useGit()
+  const app = useApp()
+  const { show } = useView()
+  const conflicts = useStore(app.stage, countConflicts)
   const operation = status?.operation
   if (!operation) return null
   return (
@@ -20,17 +30,21 @@ export function OperationBanner() {
       role="status"
       className="flex flex-wrap items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2">
       <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" />
-      <p className="min-w-0 flex-1">
-        {NAMES[operation]} is in progress.{' '}
-        {operation === 'rebase'
-          ? 'Resolve the conflicts, stage them, then continue.'
-          : 'Resolve the conflicts, stage them, then commit.'}
-      </p>
-      {operation === 'rebase' ? (
-        <Button size="sm" loading={busy === 'continue'} onClick={() => void run('continue', undefined, 'Continued')}>
-          Continue
+      <p className="min-w-0 flex-1">{NAMES[operation]} is in progress. Resolve the conflicts, then continue.</p>
+      {conflicts ? (
+        <Button size="sm" variant="outline" onClick={() => openMerge(app, show, null)}>
+          <GitMerge />
+          Resolve {conflicts} {conflicts === 1 ? 'conflict' : 'conflicts'}
         </Button>
       ) : null}
+      <Button
+        size="sm"
+        disabled={conflicts > 0}
+        title={conflicts ? 'Resolve every conflict first' : undefined}
+        loading={busy === 'continue'}
+        onClick={() => void run('continue', undefined, 'Continued')}>
+        Continue
+      </Button>
       {operation !== 'merge' ? (
         <Button
           size="sm"

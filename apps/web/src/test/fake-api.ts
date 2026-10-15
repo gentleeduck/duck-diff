@@ -37,6 +37,13 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     remotes: async () => [],
     lastMessage: async () => '',
     symbols: async (name) => ({ name, hits: [], truncated: false }),
+    conflict: async (path) => ({
+      path,
+      eol: '\n',
+      finalNewline: true,
+      segments: [],
+      stages: { base: null, ours: null, theirs: null },
+    }),
     lsp: {
       definition: async () => ({ source: null, server: null, locations: [] }),
       references: async () => ({ source: null, server: null, locations: [] }),

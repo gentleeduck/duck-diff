@@ -138,6 +138,32 @@ export const ReviewCommentSchema = CreateReviewSchema.extend({
 export type ReviewComment = z.infer<typeof ReviewCommentSchema>
 
 export const ResolveSchema = z.object({ path: RepoPathSchema, side: z.enum(['ours', 'theirs']) })
+// A merged text written over a conflicted file and staged.
+export const ResolveTextSchema = z.object({ path: RepoPathSchema, text: z.string().max(20_000_000) })
+
+const ConflictBlockSchema = z.object({
+  kind: z.literal('conflict'),
+  ours: z.array(z.string()),
+  base: z.array(z.string()).nullable(),
+  theirs: z.array(z.string()),
+  oursLabel: z.string(),
+  baseLabel: z.string().nullable(),
+  theirsLabel: z.string(),
+})
+export type ConflictBlock = z.infer<typeof ConflictBlockSchema>
+export const ConflictSegmentSchema = z.union([
+  z.object({ kind: z.literal('common'), lines: z.array(z.string()) }),
+  ConflictBlockSchema,
+])
+export type ConflictSegment = z.infer<typeof ConflictSegmentSchema>
+export const ConflictFileSchema = z.object({
+  path: z.string(),
+  eol: z.enum(['\n', '\r\n']),
+  finalNewline: z.boolean(),
+  segments: z.array(ConflictSegmentSchema),
+  stages: z.object({ base: z.string().nullable(), ours: z.string().nullable(), theirs: z.string().nullable() }),
+})
+export type ConflictFile = z.infer<typeof ConflictFileSchema>
 export const PathRequestSchema = z.object({ path: RepoPathSchema })
 export const ResetSchema = z.object({ sha: RefNameSchema, mode: z.enum(['soft', 'mixed', 'hard']) })
 export const RenameBranchSchema = z.object({ from: RefNameSchema, to: RefNameSchema })

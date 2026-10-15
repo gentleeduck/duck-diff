@@ -51,6 +51,8 @@ export interface AppContextValue {
   pullTab: Store<PullTab>
   // The file last jumped to in the diff, so back and forward can return to it.
   diffFile: Store<string | null>
+  // The conflicted file open in the merge editor.
+  mergeFile: Store<string | null>
   // The file at the top of the diff as it scrolls, which the changes tree highlights.
   diffTop: Store<string | null>
   // Every pull request and issue, saved per repo, for the palette's search.
@@ -90,6 +92,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       issueSelection: createStore<number | null>(null),
       pullTab: createStore<PullTab>('conversation'),
       diffFile: createStore<string | null>(null),
+      mergeFile: createStore<string | null>(null),
       diffTop: createStore<string | null>(null),
       pullReview: createPullReview(client),
       items: createItemIndex(client),

@@ -1,12 +1,26 @@
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
 import { Badge, Button } from '@duck-diff/ui'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, GitMerge } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useApp } from '../app/AppProvider'
+import { useView } from '../hooks/useView'
+import { openMerge } from '../merge/open-merge'
 
 const ADDED = 'border-added/40 bg-added/15 text-added'
 const CHANGED = 'border-warning/40 bg-warning/15 text-warning'
 const REMOVED = 'border-destructive/40 bg-destructive/15 text-destructive'
 const MOVED = 'border-tn-magenta/40 bg-tn-magenta/15 text-tn-magenta'
+
+function ResolveButton({ path }: { path: string }) {
+  const app = useApp()
+  const { show } = useView()
+  return (
+    <Button size="sm" variant="outline" aria-label={`Resolve ${path}`} onClick={() => openMerge(app, show, path)}>
+      <GitMerge />
+      Resolve
+    </Button>
+  )
+}
 
 // Soft fills in the status color, so the badge reads at a glance without shouting over the code.
 const STATUS: Record<FileStatus, { label: string; tone: string }> = {
@@ -52,6 +66,7 @@ export function FileHeader({
           {STATUS[file.status].label}
         </Badge>
       ) : null}
+      {file?.status === 'conflicted' ? <ResolveButton path={file.path} /> : null}
       <span className="min-w-0 truncate" title={onOpen ? `Open ${path} in Files` : path}>
         {file?.oldPath ? <span className="text-muted-foreground">{file.oldPath} to </span> : null}
         {onOpen ? (

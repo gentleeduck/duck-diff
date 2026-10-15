@@ -21,6 +21,7 @@ import type { Api } from '../lib/api'
 import { useStore } from '../lib/store'
 import type { View } from '../lib/view-url'
 import { useLiveRefresh } from '../live/useLiveRefresh'
+import { MergeSidebar } from '../merge/MergeSidebar'
 import { Palette } from '../palette/Palette'
 import { CommentsSheet } from '../review/CommentsSheet'
 import { SettingsPopover } from '../settings/SettingsPopover'
@@ -38,6 +39,7 @@ import { useThemeClass } from './useThemeClass'
 // Memoized: the page around them re-renders for panels and badges, which these big views do not need.
 const Viewer = lazy(() => import('../viewer/Viewer').then((module) => ({ default: memo(module.default) })))
 const GraphView = lazy(() => import('../graph/GraphView').then((module) => ({ default: memo(module.default) })))
+const MergeEditor = lazy(() => import('../merge/MergeEditor'))
 const FileView = lazy(() => import('../files/FileView').then((module) => ({ default: memo(module.default) })))
 // GitHub pages load when first opened, keeping them out of the bundle every view waits for.
 const pages = () => import('../github/Pages')
@@ -215,6 +217,19 @@ function Screen() {
       side: null,
       label: 'Actions',
       main: <ActionsPage />,
+    },
+    merge: {
+      top: (
+        <>
+          <BranchMenu />
+          <h1 className="min-w-0 flex-1">Resolve conflicts</h1>
+          {search}
+          <SettingsPopover />
+        </>
+      ),
+      side: <MergeSidebar />,
+      label: 'Conflicted files',
+      main: <MergeEditor />,
     },
   }
   const screen = screens[view]

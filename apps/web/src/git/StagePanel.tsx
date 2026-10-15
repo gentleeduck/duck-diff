@@ -1,12 +1,24 @@
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@duck-diff/ui'
-import { ArrowLeftToLine, ArrowRightToLine, Check, ChevronDown, ChevronRight, Minus, Plus, Undo2 } from 'lucide-react'
+import {
+  ArrowLeftToLine,
+  ArrowRightToLine,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  GitMerge,
+  Minus,
+  Plus,
+  Undo2,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useCanOpen } from '../hooks/useCanOpen'
 import { useTarget } from '../hooks/useTarget'
+import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
+import { openMerge } from '../merge/open-merge'
 import { fileGlyph } from '../sidebar/icons'
 import { FileMenu } from '../sidebar/tree-menus'
 import type { StageState } from '../state/stage'
@@ -39,7 +51,9 @@ function Row({
   selected: boolean
   onSelect(): void
 }) {
-  const { api, fileHistory, diffFile } = useApp()
+  const app = useApp()
+  const { api, fileHistory, diffFile } = app
+  const { show } = useView()
   const { run } = useGit()
   const { target, navigate } = useTarget()
   const writes = useWrites()
@@ -79,6 +93,12 @@ function Row({
           <span className="hidden shrink-0 group-focus-within:flex group-hover:flex">
             {conflicted ? (
               <>
+                <IconTool
+                  label={`Resolve ${file.path} in the merge editor`}
+                  tip="Resolve block by block"
+                  onClick={() => openMerge(app, show, file.path)}>
+                  <GitMerge />
+                </IconTool>
                 <IconTool
                   label={`Take ours for ${file.path}`}
                   tip="Keep ours (this branch)"
