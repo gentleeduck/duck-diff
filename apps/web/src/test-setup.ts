@@ -8,6 +8,7 @@ class ResizeObserverStub {
   disconnect() {}
 }
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver
+globalThis.IntersectionObserver ??= ResizeObserverStub as unknown as typeof IntersectionObserver
 window.matchMedia ??= (query: string) =>
   ({
     matches: false,

@@ -36,6 +36,20 @@ function githubApi(overrides: Partial<GitHubApi> = {}): GitHubApi {
     ...base,
     status: async () => ({ repo: 'o/r', user: author, source: 'gh' }),
     pulls: async () => [pull],
+    list: async () => ({
+      items: [
+        {
+          ...pull,
+          comments: 1,
+          assignees: [],
+          milestone: null,
+          review: 'APPROVED' as const,
+          checks: 'SUCCESS' as const,
+        },
+      ],
+      total: 1,
+      cursor: null,
+    }),
     pull: async () => pull,
     ...overrides,
   }
@@ -104,6 +118,16 @@ describe('GitHub views', () => {
         draft: false,
       }),
     )
+  })
+
+  it('searches with GitHub syntax and filters after typing settles', async () => {
+    const list = vi.fn(githubApi().list)
+    render(<App api={fakeApi({ github: githubApi({ list }) })} />)
+    fireEvent.change(await screen.findByLabelText('Search pull requests'), { target: { value: 'label:bug' } })
+    await waitFor(() =>
+      expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'pr', query: 'label:bug' })),
+    )
+    expect(screen.getByLabelText('Approved')).toBeTruthy()
   })
 
   it('says so when the repo has no GitHub remote', async () => {

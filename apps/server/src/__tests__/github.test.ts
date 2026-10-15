@@ -53,6 +53,35 @@ function fakeGitHub(calls: Call[]) {
     if (path === '/repos/o/r/pulls' && method === 'GET') return Response.json([pull])
     if (path === '/repos/o/r/pulls' && method === 'POST') return Response.json({ ...pull, number: 8 }, { status: 201 })
     if (path === '/repos/o/r') return Response.json({ default_branch: 'trunk' })
+    if (path === '/graphql') {
+      return Response.json({
+        data: {
+          search: {
+            issueCount: 41,
+            pageInfo: { hasNextPage: true, endCursor: 'c2' },
+            nodes: [
+              {
+                number: 7,
+                title: 'Add things',
+                state: 'MERGED',
+                url: 'u7',
+                updatedAt: 'x',
+                isDraft: false,
+                merged: true,
+                reviewDecision: 'APPROVED',
+                author: { login: 'octo', avatarUrl: 'a' },
+                labels: { nodes: [{ name: 'bug', color: 'f00' }] },
+                comments: { totalCount: 3 },
+                assignees: { nodes: [] },
+                milestone: { title: 'v1' },
+                commits: { nodes: [{ commit: { statusCheckRollup: { state: 'SUCCESS' } } }] },
+              },
+              {},
+            ],
+          },
+        },
+      })
+    }
     if (path === '/repos/o/r/commits' && url.searchParams.get('page') === '1') {
       return Response.json([{ commit: { author: { email: 'Octo@X.dev' } }, author: user }])
     }
@@ -200,6 +229,31 @@ describe('/api/github', () => {
     repo?.cleanup()
     await start({ token: null, remote: 'git@github.com:o/r.git' })
     expect(await (await call('GET', '/api/github/avatars')).json()).toEqual({})
+  })
+
+  it('searches with filters in one GraphQL request and maps review and CI state', async () => {
+    const calls: Call[] = []
+    await start({ token: 't', remote: 'git@github.com:o/r.git', calls })
+    const page = await (
+      await call('GET', '/api/github/list?kind=pr&state=closed&filter=review-requested&sort=comments&query=label:bug')
+    ).json()
+    expect(page).toMatchObject({
+      total: 41,
+      cursor: 'c2',
+      items: [
+        {
+          number: 7,
+          state: 'closed',
+          merged: true,
+          review: 'APPROVED',
+          checks: 'SUCCESS',
+          milestone: 'v1',
+          comments: 3,
+        },
+      ],
+    })
+    const body = calls.find((entry) => entry.path === '/graphql')?.body as { variables: { q: string } }
+    expect(body.variables.q).toBe('repo:o/r is:pr is:closed review-requested:@me sort:comments-desc label:bug')
   })
 
   it('lists issues without the pull requests GitHub mixes in', async () => {

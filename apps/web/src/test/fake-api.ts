@@ -41,6 +41,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       status: async () => ({ repo: null, user: null, source: null }),
       signIn: async () => ({ repo: null, user: null, source: null }),
       pulls: async () => [],
+      list: async () => ({ items: [], total: 0, cursor: null }),
       createPull: async () => {
         throw new Error('no pull requests')
       },

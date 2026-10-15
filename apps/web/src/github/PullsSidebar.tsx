@@ -6,9 +6,8 @@ import { useApp } from '../app/AppProvider'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
 import { ItemSidebar } from './ItemSidebar'
-import { Labels } from './Labels'
+import { ListRow } from './ListRow'
 import { NewPull } from './NewPull'
-import { ago } from './time'
 
 export function PullIcon({ pull }: { pull: Pick<PullSummary, 'state' | 'merged' | 'draft'> }) {
   if (pull.merged) return <GitMerge aria-label="Merged" className="size-4 shrink-0 text-tn-magenta" />
@@ -34,38 +33,18 @@ export function PullsSidebar({ version, onChanged }: { version: number; onChange
   }
   return (
     <ItemSidebar
+      kind="pr"
       label="Pull requests"
-      load={api.github.pulls}
       selection={pullSelection}
       version={version}
       actions={<NewPull onCreated={onChanged} />}
-      menuFor={(pull: PullSummary) => (
+      menuFor={(pull) => (
         <ContextMenuItem onSelect={() => void reviewFiles(pull.number)}>
           <FileDiff />
           Review files
         </ContextMenuItem>
       )}
-      row={(pull: PullSummary) => (
-        <>
-          <span className="pt-1">
-            <PullIcon pull={pull} />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="truncate text-foreground">{pull.title}</span>
-            <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
-              <span className="shrink-0">#{pull.number}</span>
-              <span className="truncate">
-                {pull.author.login} · {ago(pull.updatedAt)}
-              </span>
-            </span>
-            {pull.labels.length ? (
-              <span className="flex gap-1 overflow-hidden">
-                <Labels labels={pull.labels} max={2} />
-              </span>
-            ) : null}
-          </span>
-        </>
-      )}
+      row={(pull) => <ListRow item={pull} kind="pr" />}
     />
   )
 }

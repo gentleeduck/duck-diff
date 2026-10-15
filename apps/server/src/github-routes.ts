@@ -2,6 +2,7 @@ import { runGit } from '@duck-diff/git'
 import {
   CreateIssueSchema,
   CreatePullSchema,
+  ListQuerySchema,
   MergePullSchema,
   PostCommentSchema,
   PostReviewCommentSchema,
@@ -47,6 +48,8 @@ export async function handleGitHub(
   }
   // Avatars are a nicety, so being signed out or offline answers with none rather than an error.
   if (area === 'avatars') return Response.json(await github.avatars().catch(() => ({})))
+  if (area === 'list')
+    return Response.json(await github.list(ListQuerySchema.parse(Object.fromEntries(url.searchParams))))
   if (area === 'default-branch') return Response.json({ branch: await github.defaultBranch() })
   if (area === 'pulls') {
     if (id === undefined && post) {

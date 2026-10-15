@@ -27,6 +27,9 @@ import {
   IssueDetailsSchema,
   type IssueSummary,
   IssueSummarySchema,
+  type ListPage,
+  ListPageSchema,
+  type ListQuery,
   type PullDetails,
   PullDetailsSchema,
   type PullRefs,
@@ -96,6 +99,8 @@ export interface GitHubApi {
   status(): Promise<GitHubStatus>
   signIn(token: string): Promise<GitHubStatus>
   pulls(state: ItemState): Promise<PullSummary[]>
+  // Search-backed list for both kinds, a page of 30 at a time.
+  list(query: Partial<ListQuery> & Pick<ListQuery, 'kind'>): Promise<ListPage>
   createPull(input: CreatePull): Promise<PullSummary>
   defaultBranch(): Promise<string>
   // email (lower case) -> avatar url; empty when signed out.
@@ -193,6 +198,12 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     signIn: (token) => send('POST', '/api/github/token', { token }, GitHubStatusSchema),
     pulls: (state) => json(`/api/github/pulls?state=${state}`, z.array(PullSummarySchema)),
     pull: (number) => json(`/api/github/pulls/${number}`, PullDetailsSchema),
+    list(query) {
+      const params = new URLSearchParams()
+      for (const [key, value] of Object.entries(query))
+        if (value !== undefined && value !== '') params.set(key, String(value))
+      return json(`/api/github/list?${params}`, ListPageSchema)
+    },
     checks: (number) => json(`/api/github/pulls/${number}/checks`, z.array(CheckRunSchema)),
     createPull: (input) => send('POST', '/api/github/pulls', input, PullSummarySchema),
     avatars: () => json('/api/github/avatars', z.record(z.string(), z.string())),

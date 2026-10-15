@@ -112,3 +112,42 @@ export const CreateIssueSchema = z.object({ title: z.string().trim().min(1).max(
 export const SetTokenSchema = z.object({ token: z.string().trim().min(10).max(500) })
 export const PullRefsSchema = z.object({ base: z.string(), head: z.string() })
 export type PullRefs = z.infer<typeof PullRefsSchema>
+
+export const ListFilterSchema = z.enum(['all', 'mine', 'review-requested', 'assigned', 'mentioned'])
+export const ListSortSchema = z.enum(['updated', 'created', 'comments'])
+export const ListQuerySchema = z.object({
+  kind: z.enum(['pr', 'issue']),
+  state: z.enum(['open', 'closed']).default('open'),
+  filter: ListFilterSchema.default('all'),
+  sort: ListSortSchema.default('updated'),
+  // Free text in GitHub's own search syntax, added to the filters above.
+  query: z.string().max(256).default(''),
+  after: z.string().max(200).optional(),
+})
+export type ListQuery = z.infer<typeof ListQuerySchema>
+
+export const ListItemSchema = z.object({
+  number: z.number().int(),
+  title: z.string(),
+  state: z.enum(['open', 'closed']),
+  merged: z.boolean(),
+  draft: z.boolean(),
+  author: GitHubUserSchema,
+  labels: z.array(GitHubLabelSchema),
+  comments: z.number().int(),
+  assignees: z.array(GitHubUserSchema),
+  milestone: z.string().nullable(),
+  updatedAt: z.string(),
+  url: z.string(),
+  // Pull requests only.
+  review: z.enum(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED']).nullable(),
+  checks: z.enum(['SUCCESS', 'FAILURE', 'ERROR', 'PENDING', 'EXPECTED']).nullable(),
+})
+export type ListItem = z.infer<typeof ListItemSchema>
+
+export const ListPageSchema = z.object({
+  items: z.array(ListItemSchema),
+  total: z.number().int(),
+  cursor: z.string().nullable(),
+})
+export type ListPage = z.infer<typeof ListPageSchema>

@@ -9,14 +9,13 @@ import {
   Input,
   Textarea,
 } from '@duck-diff/ui'
-import { CircleCheck, CircleDot, MessageSquare, Plus } from 'lucide-react'
+import { CircleCheck, CircleDot, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { ItemSidebar } from './ItemSidebar'
-import { Labels } from './Labels'
-import { ago } from './time'
+import { ListRow } from './ListRow'
 
 export function IssueIcon({ state }: { state: IssueSummary['state'] }) {
   return state === 'open' ? (
@@ -96,12 +95,12 @@ export function IssuesSidebar({ version, onChanged }: { version: number; onChang
   const { api, issueSelection } = useApp()
   return (
     <ItemSidebar
+      kind="issue"
       label="Issues"
-      load={api.github.issues}
       selection={issueSelection}
       version={version}
       actions={<NewIssue onCreated={onChanged} />}
-      menuFor={(issue: IssueSummary, reload) => (
+      menuFor={(issue, reload) => (
         <ContextMenuItem
           onSelect={async () => {
             const next = issue.state === 'open' ? 'closed' : 'open'
@@ -118,33 +117,7 @@ export function IssuesSidebar({ version, onChanged }: { version: number; onChang
           {issue.state === 'open' ? 'Close issue' : 'Reopen issue'}
         </ContextMenuItem>
       )}
-      row={(issue: IssueSummary) => (
-        <>
-          <span className="pt-1">
-            <IssueIcon state={issue.state} />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="truncate text-foreground">{issue.title}</span>
-            <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
-              <span className="shrink-0">#{issue.number}</span>
-              <span className="truncate">
-                {issue.author.login} · {ago(issue.updatedAt)}
-              </span>
-              {issue.comments ? (
-                <span className="ms-auto flex shrink-0 items-center gap-1">
-                  <MessageSquare className="size-3.5" />
-                  {issue.comments}
-                </span>
-              ) : null}
-            </span>
-            {issue.labels.length ? (
-              <span className="flex gap-1 overflow-hidden">
-                <Labels labels={issue.labels} max={2} />
-              </span>
-            ) : null}
-          </span>
-        </>
-      )}
+      row={(issue) => <ListRow item={issue} kind="issue" />}
     />
   )
 }

@@ -9,6 +9,9 @@ import type {
   GitHubUser,
   IssueDetails,
   IssueSummary,
+  ListItem,
+  ListPage,
+  ListQuery,
   PullDetails,
   PullSummary,
 } from '@duck-diff/protocol'
@@ -111,6 +114,17 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     return (response.status === 204 ? {} : await response.json()) as T
   }
 
+  async function graphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+    const result = await call<{ data?: T; errors?: { message: string }[] }>('/graphql', {
+      method: 'POST',
+      body: JSON.stringify({ query, variables }),
+    })
+    if (result.errors?.length || !result.data) {
+      throw new HttpError(502, 'failed', `GitHub: ${result.errors?.[0]?.message ?? 'empty answer'}`)
+    }
+    return result.data
+  }
+
   async function repoPath(): Promise<string> {
     const name = await repoSlug()
     if (!name) throw new HttpError(409, 'bad-request', 'this repository has no GitHub remote named origin')
@@ -132,6 +146,26 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
         `${await repoPath()}/pulls?state=${state}&per_page=50&sort=updated&direction=desc`,
       )
       return raw.map(pullSummary)
+    },
+    async list(input: ListQuery): Promise<ListPage> {
+      const name = await repoSlug()
+      if (!name) throw new HttpError(409, 'bad-request', 'this repository has no GitHub remote named origin')
+      const q = [
+        `repo:${name}`,
+        input.kind === 'pr' ? 'is:pr' : 'is:issue',
+        `is:${input.state}`,
+        FILTERS[input.filter],
+        `sort:${input.sort}-desc`,
+        input.query,
+      ]
+        .filter(Boolean)
+        .join(' ')
+      const data = await graphql<RawSearch>(SEARCH, { q, after: input.after ?? null })
+      return {
+        items: data.search.nodes.filter((node) => node.number !== undefined).map(listItem),
+        total: data.search.issueCount,
+        cursor: data.search.pageInfo.hasNextPage ? data.search.pageInfo.endCursor : null,
+      }
     },
     async createPull(input: CreatePull): Promise<PullSummary> {
       return pullSummary(
@@ -355,5 +389,79 @@ function issueSummary(raw: RawIssue): IssueSummary {
     labels: labels(raw.labels),
     comments: raw.comments,
     url: raw.html_url,
+  }
+}
+
+const FILTERS: Record<ListQuery['filter'], string> = {
+  all: '',
+  mine: 'author:@me',
+  'review-requested': 'review-requested:@me',
+  assigned: 'assignee:@me',
+  mentioned: 'mentions:@me',
+}
+
+// One search returns everything a list row shows, review state and CI included, in one request.
+const SEARCH = `query($q: String!, $after: String) {
+  search(query: $q, type: ISSUE, first: 30, after: $after) {
+    issueCount
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      ... on Issue {
+        number title state url updatedAt
+        author { login avatarUrl }
+        labels(first: 10) { nodes { name color } }
+        comments { totalCount }
+        assignees(first: 5) { nodes { login avatarUrl } }
+        milestone { title }
+      }
+      ... on PullRequest {
+        number title state url updatedAt isDraft merged reviewDecision
+        author { login avatarUrl }
+        labels(first: 10) { nodes { name color } }
+        comments { totalCount }
+        assignees(first: 5) { nodes { login avatarUrl } }
+        milestone { title }
+        commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+      }
+    }
+  }
+}`
+
+interface RawNode {
+  number: number
+  title: string
+  state: 'OPEN' | 'CLOSED' | 'MERGED'
+  url: string
+  updatedAt: string
+  isDraft?: boolean
+  merged?: boolean
+  reviewDecision?: ListItem['review']
+  author: { login: string; avatarUrl: string } | null
+  labels: { nodes: { name: string; color: string }[] }
+  comments: { totalCount: number }
+  assignees: { nodes: { login: string; avatarUrl: string }[] }
+  milestone: { title: string } | null
+  commits?: { nodes: { commit: { statusCheckRollup: { state: NonNullable<ListItem['checks']> } | null } }[] }
+}
+interface RawSearch {
+  search: { issueCount: number; pageInfo: { hasNextPage: boolean; endCursor: string | null }; nodes: RawNode[] }
+}
+
+function listItem(node: RawNode): ListItem {
+  return {
+    number: node.number,
+    title: node.title,
+    state: node.state === 'OPEN' ? 'open' : 'closed',
+    merged: node.merged ?? node.state === 'MERGED',
+    draft: node.isDraft ?? false,
+    author: { login: node.author?.login ?? 'ghost', avatarUrl: node.author?.avatarUrl ?? '' },
+    labels: node.labels.nodes,
+    comments: node.comments.totalCount,
+    assignees: node.assignees.nodes.map((entry) => ({ login: entry.login, avatarUrl: entry.avatarUrl })),
+    milestone: node.milestone?.title ?? null,
+    updatedAt: node.updatedAt,
+    url: node.url,
+    review: node.reviewDecision ?? null,
+    checks: node.commits?.nodes[0]?.commit.statusCheckRollup?.state ?? null,
   }
 }
