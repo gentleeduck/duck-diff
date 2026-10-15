@@ -1,5 +1,17 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
-import { Bell, CircleDot, FileDiff, FolderTree, GitGraph, GitPullRequest, PlayCircle, Rocket } from 'lucide-react'
+import {
+  Bell,
+  ChartColumn,
+  CircleDot,
+  FileDiff,
+  FolderTree,
+  GitGraph,
+  GitPullRequest,
+  MessagesSquare,
+  PlayCircle,
+  Rocket,
+  ShieldAlert,
+} from 'lucide-react'
 import { useView } from '../hooks/useView'
 import type { View } from '../lib/view-url'
 import { RepoSwitcher } from './RepoSwitcher'
@@ -13,6 +25,9 @@ const ITEMS: { view: View; label: string; icon: typeof FileDiff }[] = [
   { view: 'inbox', label: 'Notifications', icon: Bell },
   { view: 'releases', label: 'Releases', icon: Rocket },
   { view: 'actions', label: 'Actions', icon: PlayCircle },
+  { view: 'discussions', label: 'Discussions', icon: MessagesSquare },
+  { view: 'security', label: 'Security', icon: ShieldAlert },
+  { view: 'insights', label: 'Insights', icon: ChartColumn },
 ]
 
 // Views appear here as they ship, so the rail never offers an empty screen.

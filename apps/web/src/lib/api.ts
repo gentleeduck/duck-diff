@@ -18,6 +18,10 @@ import {
   type CreatePull,
   type CreateReview,
   type DiffTarget,
+  type Discussion,
+  DiscussionSchema,
+  type DiscussionSummary,
+  DiscussionSummarySchema,
   ErrorBodySchema,
   type ErrorCode,
   encodeTarget,
@@ -29,6 +33,8 @@ import {
   GitHubStatusSchema,
   type GitHubUser,
   GitHubUserSchema,
+  type Insights,
+  InsightsSchema,
   type IssueDetails,
   IssueDetailsSchema,
   type IssueSummary,
@@ -45,6 +51,8 @@ import {
   type LspQuery,
   type MergeInfo,
   MergeInfoSchema,
+  type MergeQueue,
+  MergeQueueSchema,
   type Notification,
   NotificationSchema,
   type Options,
@@ -73,6 +81,9 @@ import {
   ReviewCommentSchema,
   type ReviewState,
   ReviewStateSchema,
+  type SecurityAlert,
+  type SecurityAlerts,
+  SecurityAlertsSchema,
   type Submodule,
   SubmoduleSchema,
   type SymbolResult,
@@ -134,6 +145,8 @@ export interface Api {
   file(path: string, ref?: string): Promise<FileContents>
   // The commits a rebase onto base replays, oldest first.
   rebasePlan(base: string): Promise<PlanCommit[]>
+  // Contributors and weekly commits over the last days, from local history.
+  insights(days: number): Promise<Insights>
   worktrees(): Promise<Worktree[]>
   submodules(): Promise<Submodule[]>
   // The commits a submodule pointer move brings in, newest first.
@@ -230,6 +243,14 @@ export interface GitHubApi {
   // One thread, or every notification of this repo when null.
   markRead(id: string | null): Promise<void>
   releases(): Promise<Release[]>
+  discussions(): Promise<DiscussionSummary[]>
+  discussion(number: number): Promise<Discussion>
+  replyDiscussion(number: number, body: string, replyTo?: string): Promise<void>
+  markAnswer(comment: string, answer: boolean): Promise<void>
+  security(): Promise<SecurityAlerts>
+  dismissAlert(input: { kind: SecurityAlert['kind']; number: number; reason: string; comment?: string }): Promise<void>
+  mergeQueue(number: number): Promise<MergeQueue>
+  setQueued(number: number, queued: boolean): Promise<void>
   createRelease(input: {
     tag: string
     target: string
@@ -405,6 +426,15 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     notifications: (all) => json(`/api/github/notifications?all=${all}`, z.array(NotificationSchema)),
     markRead: (id) => post('/api/github/notifications', { id }),
     releases: () => json('/api/github/releases', z.array(ReleaseSchema)),
+    discussions: () => json('/api/github/discussions', z.array(DiscussionSummarySchema)),
+    discussion: (number) => json(`/api/github/discussions/${number}`, DiscussionSchema),
+    replyDiscussion: (number, body, replyTo) =>
+      sendEmpty('POST', `/api/github/discussions/${number}/reply`, replyTo ? { body, replyTo } : { body }),
+    markAnswer: (comment, answer) => sendEmpty('POST', `/api/github/discussions/0/answer`, { comment, answer }),
+    security: () => json('/api/github/security', SecurityAlertsSchema),
+    dismissAlert: (input) => sendEmpty('POST', '/api/github/security', input),
+    mergeQueue: (number) => json(`/api/github/pulls/${number}/queue`, MergeQueueSchema),
+    setQueued: (number, queued) => sendEmpty('POST', `/api/github/pulls/${number}/queue`, { queued }),
     createRelease: (input) => send('POST', '/api/github/releases', input, ReleaseSchema),
     runs: () => json('/api/github/runs', z.array(WorkflowRunSchema)),
     runAction: (runId, action) => post('/api/github/runs', { runId, action }),
@@ -458,6 +488,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     tree: (ref) => json(`/api/tree${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`, z.array(z.string())),
     rebasePlan: (base) => json(`/api/rebase-plan?${new URLSearchParams({ base })}`, z.array(PlanCommitSchema)),
     bisect: () => json('/api/bisect', BisectStateSchema),
+    insights: (days) => json(`/api/insights?days=${days}`, InsightsSchema),
     worktrees: () => json('/api/worktrees', z.array(WorktreeSchema)),
     submodules: () => json('/api/submodules', z.array(SubmoduleSchema)),
     submoduleLog(path, from, to) {

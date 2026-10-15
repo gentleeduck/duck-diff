@@ -48,9 +48,24 @@ const PullsPage = lazy(() => pages().then((module) => ({ default: module.PullsPa
 const IssuesPage = lazy(() => pages().then((module) => ({ default: module.IssuesPage })))
 const InboxPage = lazy(() => pages().then((module) => ({ default: module.InboxPage })))
 const ReleasesPage = lazy(() => pages().then((module) => ({ default: module.ReleasesPage })))
+const DiscussionsPage = lazy(() => pages().then((module) => ({ default: module.DiscussionsPage })))
+const SecurityPage = lazy(() => pages().then((module) => ({ default: module.SecurityPage })))
+const Insights = lazy(() => import('../insights/Insights'))
 const ActionsPage = lazy(() => pages().then((module) => ({ default: module.ActionsPage })))
 
-const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues', 'inbox', 'releases', 'actions']
+const SHIPPED: View[] = [
+  'changes',
+  'graph',
+  'files',
+  'prs',
+  'issues',
+  'inbox',
+  'releases',
+  'actions',
+  'discussions',
+  'security',
+  'insights',
+]
 
 const selectCommitCount = (state: GraphState) => state.entries.length
 const selectPanel = (state: Settings) => state.sidebar
@@ -219,6 +234,43 @@ function Screen() {
       side: null,
       label: 'Actions',
       main: <ActionsPage />,
+    },
+    discussions: {
+      top: (
+        <>
+          <GitHubTitle title="Discussions" />
+          {search}
+          <SettingsPopover />
+        </>
+      ),
+      side: null,
+      label: 'Discussions',
+      main: <DiscussionsPage />,
+    },
+    security: {
+      top: (
+        <>
+          <GitHubTitle title="Security" />
+          {search}
+          <SettingsPopover />
+        </>
+      ),
+      side: null,
+      label: 'Security',
+      main: <SecurityPage />,
+    },
+    insights: {
+      top: (
+        <>
+          <BranchMenu />
+          <h1 className="min-w-0 flex-1">Insights</h1>
+          {search}
+          <SettingsPopover />
+        </>
+      ),
+      side: null,
+      label: 'Insights',
+      main: <Insights />,
     },
     merge: {
       top: (

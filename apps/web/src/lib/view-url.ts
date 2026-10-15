@@ -1,4 +1,17 @@
-export const VIEWS = ['changes', 'graph', 'files', 'prs', 'issues', 'inbox', 'releases', 'actions', 'merge'] as const
+export const VIEWS = [
+  'changes',
+  'graph',
+  'files',
+  'prs',
+  'issues',
+  'inbox',
+  'releases',
+  'actions',
+  'discussions',
+  'security',
+  'insights',
+  'merge',
+] as const
 export type View = (typeof VIEWS)[number]
 
 export const PULL_TABS = ['conversation', 'commits', 'checks', 'files'] as const

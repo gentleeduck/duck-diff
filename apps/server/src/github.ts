@@ -4,6 +4,8 @@ import type {
   CheckRun,
   ConversationComment,
   CreatePull,
+  Discussion,
+  DiscussionSummary,
   GitHubReviewComment,
   GitHubStatus,
   GitHubUser,
@@ -15,6 +17,7 @@ import type {
   ListPage,
   ListQuery,
   MergeInfo,
+  MergeQueue,
   Notification,
   Options,
   PendingComment,
@@ -24,6 +27,8 @@ import type {
   Release,
   Reviewer,
   ReviewState,
+  SecurityAlert,
+  SecurityAlerts,
   Thread,
   TimelineEvent,
   WorkflowRun,
@@ -104,6 +109,69 @@ const comment = (raw: RawComment): ConversationComment => ({
   author: user(raw.user),
   body: raw.body ?? '',
   createdAt: raw.created_at,
+})
+
+interface RawGraphUser {
+  login: string
+  avatarUrl: string
+}
+interface RawDiscussion {
+  number: number
+  title: string
+  url: string
+  updatedAt: string
+  author: RawGraphUser | null
+  category: { name: string; emoji: string }
+  answer: { id: string } | null
+  comments: { totalCount: number }
+}
+interface RawDiscussionReply {
+  id: string
+  body: string
+  createdAt: string
+  author: RawGraphUser | null
+}
+interface RawDiscussionFull extends Omit<RawDiscussion, 'category' | 'comments'> {
+  id: string
+  body: string
+  createdAt: string
+  category: { name: string; emoji: string; isAnswerable: boolean }
+  comments: {
+    totalCount: number
+    nodes: (RawDiscussionReply & { isAnswer: boolean; replies: { nodes: RawDiscussionReply[] } })[]
+  }
+}
+interface RawDependabotAlert {
+  number: number
+  created_at: string
+  html_url: string
+  security_advisory?: { severity?: string; summary?: string }
+  dependency?: { package?: { name?: string }; manifest_path?: string }
+}
+interface RawScanningAlert {
+  number: number
+  created_at: string
+  html_url: string
+  rule?: { id?: string; description?: string; severity?: string; security_severity_level?: string | null }
+  most_recent_instance?: { location?: { path?: string } }
+}
+
+const DISCUSSION_FIELDS =
+  'number title url updatedAt author { login avatarUrl } category { name emoji } answer { id } comments { totalCount }'
+const graphUser = (raw: RawGraphUser | null): GitHubUser => ({
+  login: raw?.login ?? 'ghost',
+  avatarUrl: raw?.avatarUrl ?? '',
+})
+const discussionSummary = (raw: RawDiscussion): DiscussionSummary => ({
+  number: raw.number,
+  title: raw.title,
+  author: graphUser(raw.author),
+  category: raw.category.name,
+  emoji: raw.category.emoji,
+  answered: Boolean(raw.answer),
+  comments: raw.comments.totalCount,
+  updatedAt: raw.updatedAt,
+  url: raw.url,
 })
 
 export function createGitHub(repo: string, options: GitHubOptions = {}) {
@@ -252,6 +320,136 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
 
   return {
     kind: 'github' as const,
+    async discussions(): Promise<DiscussionSummary[]> {
+      const [owner, name] = await ownerAndName()
+      const data = await graphql<{ repository: { discussions: { nodes: RawDiscussion[] } } }>(
+        `query($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { discussions(first: 40, orderBy: { field: UPDATED_AT, direction: DESC }) { nodes { ${DISCUSSION_FIELDS} } } } }`,
+        { owner, repo: name },
+      )
+      return data.repository.discussions.nodes.map(discussionSummary)
+    },
+    async discussion(number: number): Promise<Discussion> {
+      const [owner, name] = await ownerAndName()
+      const data = await graphql<{ repository: { discussion: RawDiscussionFull | null } }>(
+        `query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { discussion(number: $number) { ${DISCUSSION_FIELDS} id body createdAt category { isAnswerable } comments(first: 60) { nodes { id body createdAt isAnswer author { login avatarUrl } replies(first: 30) { nodes { id body createdAt author { login avatarUrl } } } } } } } }`,
+        { owner, repo: name, number },
+      )
+      const raw = data.repository.discussion
+      if (!raw) throw new HttpError(404, 'not-found', `no discussion #${number}`)
+      const reply = (entry: RawDiscussionReply) => ({
+        id: entry.id,
+        author: graphUser(entry.author),
+        body: entry.body,
+        createdAt: entry.createdAt,
+      })
+      return {
+        ...discussionSummary(raw),
+        id: raw.id,
+        body: raw.body,
+        createdAt: raw.createdAt,
+        answerable: raw.category.isAnswerable,
+        thread: raw.comments.nodes.map((entry) => ({
+          ...reply(entry),
+          answer: entry.isAnswer,
+          replies: entry.replies.nodes.map(reply),
+        })),
+      }
+    },
+    async replyDiscussion(number: number, input: { body: string; replyTo?: string }): Promise<void> {
+      const { id } = await this.discussion(number)
+      await graphql(
+        'mutation($id: ID!, $body: String!, $replyTo: ID) { addDiscussionComment(input: { discussionId: $id, body: $body, replyToId: $replyTo }) { comment { id } } }',
+        { id, body: input.body, replyTo: input.replyTo ?? null },
+      )
+    },
+    async markAnswer(comment: string, answer: boolean): Promise<void> {
+      const mutation = answer ? 'markDiscussionCommentAsAnswer' : 'unmarkDiscussionCommentAsAnswer'
+      await graphql(`mutation($id: ID!) { ${mutation}(input: { id: $id }) { discussion { id } } }`, { id: comment })
+    },
+
+    // Each kind needs its own feature and token scope; one missing is reported, not fatal.
+    async securityAlerts(): Promise<SecurityAlerts> {
+      const base = await repoPath()
+      const unavailable: SecurityAlerts['unavailable'] = []
+      const read = async <T>(kind: 'dependabot' | 'code-scanning', path: string): Promise<T[]> =>
+        call<T[]>(path).catch((error: Error) => {
+          unavailable.push({ kind, reason: error.message })
+          return []
+        })
+      const [dependabot, scanning] = await Promise.all([
+        read<RawDependabotAlert>('dependabot', `${base}/dependabot/alerts?state=open&per_page=50`),
+        read<RawScanningAlert>('code-scanning', `${base}/code-scanning/alerts?state=open&per_page=50`),
+      ])
+      const alerts: SecurityAlert[] = [
+        ...dependabot.map((alert) => ({
+          kind: 'dependabot' as const,
+          number: alert.number,
+          severity: alert.security_advisory?.severity ?? 'unknown',
+          summary: alert.security_advisory?.summary ?? '',
+          subject: alert.dependency?.package?.name ?? '',
+          path: alert.dependency?.manifest_path ?? null,
+          createdAt: alert.created_at,
+          url: alert.html_url,
+        })),
+        ...scanning.map((alert) => ({
+          kind: 'code-scanning' as const,
+          number: alert.number,
+          severity: alert.rule?.security_severity_level ?? alert.rule?.severity ?? 'unknown',
+          summary: alert.rule?.description ?? '',
+          subject: alert.rule?.id ?? '',
+          path: alert.most_recent_instance?.location?.path ?? null,
+          createdAt: alert.created_at,
+          url: alert.html_url,
+        })),
+      ]
+      return { alerts, unavailable }
+    },
+    async dismissAlert(input: {
+      kind: 'dependabot' | 'code-scanning'
+      number: number
+      reason: string
+      comment: string
+    }): Promise<void> {
+      const base = await repoPath()
+      const body = { state: 'dismissed', dismissed_reason: input.reason, dismissed_comment: input.comment || undefined }
+      await call(`${base}/${input.kind}/alerts/${input.number}`, { method: 'PATCH', body: JSON.stringify(body) })
+    },
+
+    async mergeQueue(number: number): Promise<MergeQueue> {
+      const [owner, name] = await ownerAndName()
+      const data = await graphql<{
+        repository: {
+          pullRequest: { baseRefName: string; mergeQueueEntry: { position: number; state: string } | null } | null
+        }
+      }>(
+        'query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $number) { baseRefName mergeQueueEntry { position state } } } }',
+        { owner, repo: name, number },
+      )
+      const pull = data.repository.pullRequest
+      if (!pull) throw new HttpError(404, 'not-found', `no pull request #${number}`)
+      const queue = await graphql<{ repository: { mergeQueue: { id: string } | null } }>(
+        'query($owner: String!, $repo: String!, $branch: String!) { repository(owner: $owner, name: $repo) { mergeQueue(branch: $branch) { id } } }',
+        { owner, repo: name, branch: pull.baseRefName },
+      ).catch(() => ({ repository: { mergeQueue: null } }))
+      return {
+        enabled: Boolean(queue.repository.mergeQueue),
+        position: pull.mergeQueueEntry?.position ?? null,
+        state: pull.mergeQueueEntry?.state ?? null,
+      }
+    },
+    async setQueued(number: number, queued: boolean): Promise<void> {
+      const id = await nodeIdOf(number)
+      if (queued)
+        await graphql(
+          'mutation($id: ID!) { enqueuePullRequest(input: { pullRequestId: $id }) { mergeQueueEntry { id } } }',
+          { id },
+        )
+      else
+        await graphql('mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { mergeQueueEntry { id } } }', {
+          id,
+        })
+    },
+
     async pullRefspec(number: number): Promise<string> {
       return `pull/${number}/head`
     },

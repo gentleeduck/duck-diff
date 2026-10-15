@@ -9,6 +9,7 @@ import {
   readBisect,
   readCommit,
   readConflict,
+  readInsights,
   readSide,
   readSideBytes,
   readTreeFile,
@@ -22,6 +23,7 @@ import {
 import {
   decodeTarget,
   FileStatusSchema,
+  InsightsQuerySchema,
   RefNameSchema,
   type RepoInfo,
   RepoPathSchema,
@@ -116,6 +118,10 @@ export async function handleApi(repo: string, url: URL, nvim = false): Promise<R
     case '/api/rebase-plan': {
       const { base } = z.object({ base: RefNameSchema }).parse(Object.fromEntries(url.searchParams))
       return Response.json(await rebasePlan(repo, base))
+    }
+    case '/api/insights': {
+      const { days } = InsightsQuerySchema.parse(Object.fromEntries(url.searchParams))
+      return Response.json(await readInsights(repo, { since: Math.floor(Date.now() / 1000) - days * 86_400 }))
     }
     case '/api/worktrees':
       return Response.json(await listWorktrees(repo))

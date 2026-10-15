@@ -1,4 +1,4 @@
-import type { CheckRun, MergeInfo, PullCommit, PullDetails } from '@duck-diff/protocol'
+import type { CheckRun, MergeInfo, MergeQueue, PullCommit, PullDetails } from '@duck-diff/protocol'
 import { Button, Checkbox, Input, Label, Popover, PopoverContent, PopoverTrigger, Textarea } from '@duck-diff/ui'
 import {
   Check,
@@ -188,6 +188,7 @@ export function MergeBox({
   const [showChecks, setShowChecks] = useState(false)
   const [showReviews, setShowReviews] = useState(false)
   const [showCli, setShowCli] = useState(false)
+  const [queue, setQueue] = useState<MergeQueue | null>(null)
 
   const number = pull.number
   const load = useCallback(
@@ -195,6 +196,7 @@ export function MergeBox({
       Promise.all([
         api.github.mergeInfo(number).then(setInfo, () => {}),
         api.github.checks(number).then(setRuns, () => {}),
+        api.github.mergeQueue(number).then(setQueue, () => setQueue(null)),
       ]),
     [api, number],
   )
@@ -379,6 +381,36 @@ export function MergeBox({
           )}
 
           <div className="flex flex-col gap-3 border-border border-t bg-card/50 px-4 py-3">
+            {queue?.enabled && !pull.draft && pull.state === 'open' ? (
+              <section aria-label="Merge queue" className="flex flex-wrap items-center gap-3">
+                <span className="min-w-0 flex-1 text-foreground">
+                  {queue.position !== null
+                    ? `In the merge queue at position ${queue.position}${queue.state ? ` (${queue.state.toLowerCase()})` : ''}.`
+                    : 'This branch merges through a queue: it lands once the checks pass on top of everything ahead of it.'}
+                </span>
+                {queue.position !== null ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={busy === 'queue'}
+                    onClick={() =>
+                      void act('queue', () => api.github.setQueued(number, false), 'Removed from the merge queue')
+                    }>
+                    Remove from queue
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    loading={busy === 'queue'}
+                    disabled={conflicts}
+                    onClick={() =>
+                      void act('queue', () => api.github.setQueued(number, true), 'Added to the merge queue')
+                    }>
+                    Merge when ready
+                  </Button>
+                )}
+              </section>
+            ) : null}
             {info.autoMerge ? (
               <div className="flex flex-wrap items-center gap-3">
                 <span className="min-w-0 flex-1 text-foreground">

@@ -27,6 +27,7 @@ export {
   rebasePlan,
   todoText,
 } from './history'
+export { type Insights, readInsights, weekStart } from './insights'
 export { buildLinePatch, discardLines, type PickedLine, stageLines, unstageLines } from './line-patch'
 export {
   addRemote,

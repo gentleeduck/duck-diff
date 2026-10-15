@@ -6,10 +6,13 @@ import {
   CreateIssueSchema,
   CreatePullSchema,
   CreateReleaseSchema,
+  DiscussionReplyInputSchema,
+  DismissAlertSchema,
   DraftSchema,
   EditIssueSchema,
   ListQuerySchema,
   LockSchema,
+  MarkAnswerSchema,
   MergePullSchema,
   PinSchema,
   PostCommentSchema,
@@ -72,6 +75,27 @@ export async function handleGitHub(
       return new Response(null, { status: 204 })
     }
     return Response.json(await github.notifications(url.searchParams.get('all') === 'true'))
+  }
+  if (area === 'discussions') {
+    if (id === undefined) return Response.json(await github.discussions())
+    if (!Number.isInteger(number)) throw new HttpError(400, 'bad-request', 'bad discussion number')
+    if (action === 'reply' && post) {
+      await github.replyDiscussion(number, DiscussionReplyInputSchema.parse(await body()))
+      return new Response(null, { status: 204 })
+    }
+    if (action === 'answer' && post) {
+      const { comment, answer } = MarkAnswerSchema.parse(await body())
+      await github.markAnswer(comment, answer)
+      return new Response(null, { status: 204 })
+    }
+    return Response.json(await github.discussion(number))
+  }
+  if (area === 'security') {
+    if (post) {
+      await github.dismissAlert(DismissAlertSchema.parse(await body()))
+      return new Response(null, { status: 204 })
+    }
+    return Response.json(await github.securityAlerts())
   }
   if (area === 'releases') {
     if (post) return Response.json(await github.createRelease(CreateReleaseSchema.parse(await body())), { status: 201 })
@@ -222,6 +246,13 @@ export async function handleGitHub(
       const { event, body: text, comments } = SubmitReviewSchema.parse(await body())
       await github.submitReview(number, event, text, comments)
       return new Response(null, { status: 204 })
+    }
+    if (action === 'queue') {
+      if (post) {
+        await github.setQueued(number, z.object({ queued: z.boolean() }).parse(await body()).queued)
+        return new Response(null, { status: 204 })
+      }
+      return Response.json(await github.mergeQueue(number))
     }
     if (action === 'merge' && post) {
       await github.merge(number, MergePullSchema.parse(await body()))

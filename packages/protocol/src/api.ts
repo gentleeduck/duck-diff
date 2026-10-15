@@ -316,3 +316,12 @@ export const SubmoduleLogQuerySchema = z.object({
 })
 export const SubmoduleCommitSchema = PlanCommitSchema
 export type SubmoduleCommit = PlanCommit
+
+// Contributors and weekly commits from local history.
+export const InsightsSchema = z.object({
+  total: z.number().int(),
+  contributors: z.array(z.object({ name: z.string(), email: z.string(), commits: z.number().int() })),
+  weeks: z.array(z.object({ start: z.number().int(), commits: z.number().int() })),
+})
+export type Insights = z.infer<typeof InsightsSchema>
+export const InsightsQuerySchema = z.object({ days: z.coerce.number().int().min(1).max(3650).default(365) })

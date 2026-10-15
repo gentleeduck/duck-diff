@@ -38,6 +38,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     lastMessage: async () => '',
     symbols: async (name) => ({ name, hits: [], truncated: false }),
     rebasePlan: async () => [],
+    insights: async () => ({ total: 0, contributors: [], weeks: [] }),
     worktrees: async () => [],
     submodules: async () => [],
     submoduleLog: async () => [],
@@ -133,6 +134,16 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       notifications: async () => [],
       markRead: async () => {},
       releases: async () => [],
+      discussions: async () => [],
+      discussion: async () => {
+        throw new Error('no discussion')
+      },
+      replyDiscussion: async () => {},
+      markAnswer: async () => {},
+      security: async () => ({ alerts: [], unavailable: [] }),
+      dismissAlert: async () => {},
+      mergeQueue: async () => ({ enabled: false, position: null, state: null }),
+      setQueued: async () => {},
       createRelease: async () => {
         throw new Error('no releases')
       },
