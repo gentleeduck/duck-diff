@@ -58,7 +58,7 @@ export function ItemSidebar({
   actions?: Partial<Record<'reviewers' | 'assignees' | 'labels' | 'milestone', ReactNode>>
 }) {
   return (
-    <aside aria-label="Details" className="flex flex-col gap-3">
+    <aside aria-label="Details" className="flex flex-col gap-3 self-start lg:sticky lg:top-4">
       {reviewers ? (
         <Section title="Reviewers" action={actions.reviewers}>
           {reviewers.length ? (
