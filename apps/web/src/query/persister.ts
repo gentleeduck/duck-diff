@@ -12,12 +12,14 @@ export function createServerPersister({
   throttleMs?: number
 }): Persister {
   let latest: PersistedClient | null = null
-  let timer: ReturnType<typeof setTimeout> | null = null
+  let waiting = false
   return {
     persistClient(client) {
       latest = client
-      timer ??= setTimeout(() => {
-        timer = null
+      if (waiting) return
+      waiting = true
+      setTimeout(() => {
+        waiting = false
         if (latest) put(JSON.stringify(latest)).catch(() => {})
       }, throttleMs)
     },
