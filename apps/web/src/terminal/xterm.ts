@@ -43,13 +43,16 @@ export interface Mounted {
   dispose(): void
 }
 
-export function mountTerminal(element: HTMLElement, options: { fontSize: number; readOnly: boolean }): Mounted {
+export function mountTerminal(
+  element: HTMLElement,
+  options: { fontSize: number; fontWeight: number; readOnly: boolean },
+): Mounted {
   const terminal = new Terminal({
     allowProposedApi: true,
     fontFamily: css('--font-sans', 'monospace'),
     fontSize: options.fontSize,
-    fontWeight: 'bold',
-    fontWeightBold: 'bold',
+    fontWeight: options.fontWeight,
+    fontWeightBold: 700,
     lineHeight: 1.2,
     theme: theme(),
     scrollback: 10_000,

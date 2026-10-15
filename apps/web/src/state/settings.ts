@@ -17,6 +17,9 @@ export interface Settings {
   fontSize: number
   // Everything else: text, buttons, rows and spacing scale together from this.
   uiFontSize: number
+  // One weight and one style for every piece of text, code and terminals included.
+  fontWeight: 400 | 500 | 600 | 700
+  italic: boolean
   tabSize: number
   // Test files in a comparison: shown as usual, folded under their headers, or left out of diff and tree.
   tests: 'show' | 'fold' | 'hide'
@@ -40,6 +43,8 @@ export const DEFAULT_SETTINGS: Settings = {
   themes: { light: 'tokyo-night', dark: 'tokyo-night' },
   fontSize: 15,
   uiFontSize: 15,
+  fontWeight: 700,
+  italic: true,
   tabSize: 2,
   tests: 'show',
   sidebar: true,
@@ -62,6 +67,8 @@ const FIELDS = {
   themes: z.object({ light: z.string(), dark: z.string() }),
   fontSize: z.number().int().min(10).max(24),
   uiFontSize: z.number().int().min(10).max(24),
+  fontWeight: z.union([z.literal(400), z.literal(500), z.literal(600), z.literal(700)]),
+  italic: z.boolean(),
   tabSize: z.number().int().min(1).max(8),
   tests: z.enum(['show', 'fold', 'hide']),
   sidebar: z.boolean(),

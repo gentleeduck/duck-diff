@@ -1,5 +1,5 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
-import { Check, Circle, CircleCheck, Copy, History, SquareArrowOutUpRight } from 'lucide-react'
+import { Check, Copy, History, SquareArrowOutUpRight } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { IconTool } from '../app/IconTool'
 
@@ -53,8 +53,8 @@ export function FileActions({
             aria-checked={viewed}
             aria-label="Viewed"
             onClick={onViewed}
-            className={viewed ? 'text-tn-green hover:text-tn-green' : undefined}>
-            {viewed ? <CircleCheck /> : <Circle />}
+            className={viewed ? 'text-tn-green hover:text-tn-green' : 'text-muted-foreground'}>
+            <Check />
           </Button>
         </TooltipTrigger>
         <TooltipContent>{viewed ? 'Viewed, click to unmark' : 'Mark as viewed'}</TooltipContent>

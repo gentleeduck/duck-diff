@@ -5,6 +5,7 @@ import type { Settings } from '../state/settings'
 import type { Mounted, Terminal } from './xterm'
 
 const selectFontSize = (settings: Settings) => settings.fontSize
+const selectWeight = (settings: Settings) => settings.fontWeight
 
 interface SurfaceProps {
   label: string
@@ -19,11 +20,12 @@ interface SurfaceProps {
 export function TerminalSurface({ label, readOnly = false, attach, autoFocus = false }: SurfaceProps) {
   const { settings } = useApp()
   const fontSize = useStore(settings, selectFontSize)
+  const fontWeight = useStore(settings, selectWeight)
   const host = useRef<HTMLElement>(null)
   const current = useRef<Mounted | null>(null)
   // Read at mount; later changes are applied below without rebuilding the terminal.
-  const size = useRef(fontSize)
-  size.current = fontSize
+  const size = useRef({ fontSize, fontWeight })
+  size.current = { fontSize, fontWeight }
   const focus = useRef(autoFocus)
   focus.current = autoFocus
 
@@ -41,7 +43,7 @@ export function TerminalSurface({ label, readOnly = false, attach, autoFocus = f
     import('./xterm')
       .then(({ mountTerminal }) => {
         if (disposed) return
-        mounted = mountTerminal(element, { fontSize: size.current, readOnly })
+        mounted = mountTerminal(element, { ...size.current, readOnly })
         current.current = mounted
         observer.observe(element)
         cleanup = attach(mounted.terminal)
@@ -66,8 +68,9 @@ export function TerminalSurface({ label, readOnly = false, attach, autoFocus = f
     const mounted = current.current
     if (!mounted) return
     mounted.terminal.options.fontSize = fontSize
+    mounted.terminal.options.fontWeight = fontWeight
     mounted.fit()
-  }, [fontSize])
+  }, [fontSize, fontWeight])
 
   return <section aria-label={label} ref={host} className="h-full min-h-0 w-full overflow-hidden ps-2 pt-1" />
 }

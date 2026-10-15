@@ -113,20 +113,19 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
       context.prefetch(item)
     }
   }, [lastIndex, page, context])
-  // The file at the top keeps its header pinned. It takes over as soon as the file's own header starts to
-  // scroll away (not once it is gone), so there is never a frame without one; the gap after a file
-  // already belongs to the next.
+  // The file at the top keeps its header pinned from the moment its own header starts to scroll away, so
+  // there is never a frame without one. The next file's header pushes it up and out, as section headers
+  // do in a long list, instead of sliding under it.
   const scrollTop = virtualizer.scrollOffset ?? 0
   const first = items.find((virtual) => virtual.end > scrollTop)
   const firstRow = first ? page.rows[first.index] : undefined
-  const pinned =
-    !first || !firstRow
-      ? null
-      : firstRow.type === 'end'
-        ? (page.rows[first.index + 1]?.item ?? null)
-        : firstRow.type === 'header' && first.start >= scrollTop
-          ? null
-          : firstRow.item
+  const pinned = !first || !firstRow || (firstRow.type === 'header' && first.start >= scrollTop) ? null : firstRow.item
+  const pinnedHeight =
+    (pinned ? virtualizer.measurementsCache[page.starts.get(pinned.id) ?? -1]?.size : undefined) ?? ESTIMATE.header
+  const nextHeader = pinned
+    ? items.find((virtual) => virtual.start > scrollTop && page.rows[virtual.index]?.type === 'header')
+    : undefined
+  const pushed = nextHeader ? Math.min(0, nextHeader.start - scrollTop - pinnedHeight) : 0
 
   // Where each file's code ends, so its sideways bar can sit on the file: at the bottom of the screen while
   // the file runs past it, then in the gap under its last line.
@@ -180,7 +179,11 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         {sideways.probe}
         {pinned ? (
           <div className="sticky top-0 z-20 h-0">
-            <div className="bg-card shadow-[0_1px_0_var(--border)]">{renderHeader(pinned)}</div>
+            <div
+              className="bg-card shadow-[0_1px_0_var(--border)]"
+              style={pushed ? { transform: `translateY(${pushed}px)` } : undefined}>
+              {renderHeader(pinned)}
+            </div>
           </div>
         ) : null}
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>

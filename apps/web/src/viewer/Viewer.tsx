@@ -241,6 +241,25 @@ export default function Viewer() {
     [api, target, byPath, sourcePath],
   )
 
+  // With "Show unchanged lines" on, each file's full text is read as it nears the screen, which opens every gap.
+  const asked = useRef(new Set<string>())
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the comparison's key is the trigger
+  useEffect(() => asked.current.clear(), [shownKey])
+  const readUnchanged = useCallback(
+    (item: NoteItem) => {
+      const path = item.fileDiff.name
+      if (!settings.expandUnchanged || contents.has(path) || asked.current.has(path)) return
+      const file = byPath.get(path)
+      if (!file || file.binary || file.status === 'deleted') return
+      asked.current.add(path)
+      api.content(target, 'new', { path, oldPath: file.oldPath }).then(
+        (text) => setContents((prev) => new Map(prev).set(path, (text ?? '').split('\n'))),
+        () => asked.current.delete(path),
+      )
+    },
+    [settings.expandUnchanged, contents, byPath, api, target, setContents],
+  )
+
   // A file asked for by the tree, the palette or back and forward is scrolled to once it is on the page.
   const wanted = useRef<string | null>(hasScrollMemory(`diff:${shownKey}`, isPopping()) ? null : diffFile.get())
   const reveal = useCallback(() => {
@@ -383,6 +402,7 @@ export default function Viewer() {
         // takes over with its full context (strings and comments that open above a hunk).
         const hunks = highlighter.tokens(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
         loadSource(item, false)
+        readUnchanged(item)
         const source = sources.current.get(sourceKey(item))
         const text = typeof source === 'object' ? source[side] : null
         const full = text ? highlighter.text(`${sourceKey(item)}:${side}`, sourcePath(item, side), text, false) : null
@@ -392,6 +412,7 @@ export default function Viewer() {
         const file = page.files.get(item.id)
         if (file) highlighter.prefetch(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
         loadSource(item, false)
+        readUnchanged(item)
       },
       kinds(item) {
         const file = byPath.get(item.fileDiff.name)
@@ -486,6 +507,7 @@ export default function Viewer() {
       setExpanded,
       setContents,
       loadSource,
+      readUnchanged,
       sourcePath,
       pullReview,
       selecting,

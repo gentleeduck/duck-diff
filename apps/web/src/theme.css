@@ -1,3 +1,10 @@
+@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-400-italic.css";
+@import "@fontsource/jetbrains-mono/latin-500.css";
+@import "@fontsource/jetbrains-mono/latin-500-italic.css";
+@import "@fontsource/jetbrains-mono/latin-600.css";
+@import "@fontsource/jetbrains-mono/latin-600-italic.css";
+@import "@fontsource/jetbrains-mono/latin-700.css";
 @import "@fontsource/jetbrains-mono/latin-700-italic.css";
 
 /* The page matches the terminal: tokyonight-night colors and JetBrainsMono Nerd Font in bold italic. */
@@ -123,9 +130,25 @@
   --color-tn-gutter: var(--tn-gutter);
 }
 
+/* The weight and style settings drive every piece of text; duck-ui's medium and bold utilities included,
+   so nothing on the page is heavier or lighter than the rest. */
+:root {
+  --dd-weight: 700;
+  --dd-style: italic;
+}
+
+@theme inline {
+  --font-weight-normal: var(--dd-weight);
+  --font-weight-medium: var(--dd-weight);
+  --font-weight-semibold: var(--dd-weight);
+  --font-weight-bold: var(--dd-weight);
+  --font-weight-extrabold: var(--dd-weight);
+}
+
 @layer base {
   * {
-    @apply font-bold italic;
+    font-weight: var(--dd-weight);
+    font-style: var(--dd-style);
   }
 }
 
@@ -160,7 +183,7 @@ body {
 .gh-markdown :is(h1, h2, h3, h4, h5, h6) {
   scroll-margin-top: 5rem;
   color: var(--foreground);
-  font-weight: 800;
+  font-weight: var(--dd-weight);
   line-height: 1.35;
   letter-spacing: -0.01em;
 }
@@ -201,7 +224,7 @@ body {
 }
 .gh-markdown :is(strong, b) {
   color: var(--foreground);
-  font-weight: 800;
+  font-weight: var(--dd-weight);
 }
 .gh-markdown ul {
   list-style: disc;
@@ -286,7 +309,7 @@ body {
 .gh-markdown th {
   background: color-mix(in oklab, var(--muted) 55%, transparent);
   color: var(--foreground);
-  font-weight: 800;
+  font-weight: var(--dd-weight);
 }
 .gh-markdown tr:last-child > td {
   border-bottom: 0;
@@ -327,7 +350,7 @@ body {
 .gh-markdown .user-mention,
 .gh-markdown .issue-link {
   color: var(--tn-blue);
-  font-weight: 800;
+  font-weight: var(--dd-weight);
   text-decoration: none;
 }
 
@@ -349,7 +372,7 @@ body {
   gap: 0.5rem;
   margin: 0 0 0.35rem;
   color: var(--alert);
-  font-weight: 800;
+  font-weight: var(--dd-weight);
 }
 .gh-markdown .markdown-alert-title + * {
   margin-top: 0;
@@ -398,13 +421,13 @@ body {
 }
 .gh-markdown :is(.pl-mh, .pl-mh .pl-en, .pl-ms) {
   color: var(--tn-blue);
-  font-weight: 800;
+  font-weight: var(--dd-weight);
 }
 .gh-markdown :is(.pl-mi, .pl-mi1) {
   font-style: italic;
 }
 .gh-markdown .pl-mb {
-  font-weight: 800;
+  font-weight: var(--dd-weight);
 }
 .gh-markdown :is(.pl-mi1, .pl-mdi) {
   color: var(--tn-green);

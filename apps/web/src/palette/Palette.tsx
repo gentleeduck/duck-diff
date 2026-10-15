@@ -1,15 +1,4 @@
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from '@duck-diff/ui'
+import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@duck-diff/ui'
 import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { presets } from '../compare/model'
@@ -113,7 +102,20 @@ function MatchedPath({ path, positions }: { path: string; positions: number[] })
 
 // GitHub's command palette: one box for files, pull requests, issues and commands, narrowed with file:,
 // pr:, issue:, #123 or >, and a preview of the highlighted result beside the list.
-export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) {
+// The last search typed, for <leader>sr to bring back.
+let lastSearch = ''
+export const previousSearch = () => lastSearch
+
+export function Palette({
+  open,
+  onOpenChange,
+  initial = '',
+}: {
+  open: boolean
+  onOpenChange(open: boolean): void
+  // What the box starts with, like file: for <leader>sf.
+  initial?: string
+}) {
   const app = useApp()
   const { api, settings, diffFile, pullSelection, issueSelection, items } = app
   const changed = useSession(selectFiles)
@@ -131,9 +133,12 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
 
   useEffect(() => {
     if (!open) return
-    setInput('')
+    setInput(initial)
     void items.refresh(STALE_MS)
-  }, [open, items])
+  }, [open, items, initial])
+  useEffect(() => {
+    if (input) lastSearch = input
+  }, [input])
   // Every file in the repo, read as the palette opens so file: has them by the first keystroke.
   useEffect(() => {
     if (open && tree === null) api.tree().then(setTree, () => setTree([]))
@@ -286,65 +291,61 @@ export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(op
   const current = all.find((entry) => entry.id === active) ?? all[0]
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="h-[clamp(min(90vh,28rem),72vh,52rem)] w-[clamp(min(94vw,40rem),80vw,90rem)] max-w-none p-0"
-        hideClose>
-        <DialogTitle className="sr-only">Search</DialogTitle>
-        <DialogDescription className="sr-only">Files, pull requests, issues and commands</DialogDescription>
-        <Command shouldFilter={false} className="flex h-full max-w-none flex-col">
-          <CommandInput
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              // Nothing highlighted yet: Enter takes the top result, as GitHub's palette does.
-              if (event.key !== 'Enter' || results.current?.querySelector('[data-highlighted]')) return
-              event.preventDefault()
-              current?.run()
-            }}
-            placeholder="Search files, pull requests and issues, or > for commands"
-          />
-          <div
-            ref={results}
-            // CommandList wraps itself in a scroll area; that wrapper is what has to fill the row.
-            className="flex min-h-0 w-full flex-1 [&>[data-slot=scroll-area]]:min-w-0 [&>[data-slot=scroll-area]]:flex-1">
-            <CommandList className="max-h-none min-w-0 flex-1 overflow-y-auto">
-              <CommandEmpty>
-                {scope === 'file' && tree === null ? 'Reading the file list...' : 'Nothing matches.'}
-              </CommandEmpty>
-              {groups.map((group) => (
-                <CommandGroup key={group.heading} heading={group.heading}>
-                  {group.entries.map((entry) => (
-                    <CommandItem key={entry.id} value={entry.id} onSelect={entry.run} className="gap-2">
-                      {entry.icon}
-                      {entry.label}
-                      {entry.detail ? (
-                        <span className="ms-auto shrink-0 text-muted-foreground">{entry.detail}</span>
-                      ) : null}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      shouldFilter={false}
+      title="Search"
+      description="Files, pull requests, issues and commands"
+      contentClassName="h-[clamp(min(90vh,28rem),72vh,52rem)] w-[clamp(min(94vw,40rem),80vw,90rem)] max-w-none lg:w-[clamp(min(94vw,40rem),80vw,90rem)]">
+      <CommandInput
+        value={input}
+        onChange={(event) => setInput(event.target.value)}
+        onKeyDown={(event) => {
+          // Nothing highlighted yet: Enter takes the top result, as GitHub's palette does.
+          if (event.key !== 'Enter' || results.current?.querySelector('[data-highlighted]')) return
+          event.preventDefault()
+          current?.run()
+        }}
+        placeholder="Search files, pull requests and issues, or > for commands"
+      />
+      <div
+        ref={results}
+        // CommandList wraps itself in a scroll area; that wrapper is what has to fill the row.
+        className="flex min-h-0 w-full flex-1 [&>[data-slot=scroll-area]]:min-w-0 [&>[data-slot=scroll-area]]:flex-1">
+        <CommandList className="max-h-none min-w-0 flex-1 overflow-y-auto">
+          <CommandEmpty>
+            {scope === 'file' && tree === null ? 'Reading the file list...' : 'Nothing matches.'}
+          </CommandEmpty>
+          {groups.map((group) => (
+            <CommandGroup key={group.heading} heading={group.heading}>
+              {group.entries.map((entry) => (
+                <CommandItem key={entry.id} value={entry.id} onSelect={entry.run} className="gap-2">
+                  {entry.icon}
+                  {entry.label}
+                  {entry.detail ? <span className="ms-auto shrink-0 text-muted-foreground">{entry.detail}</span> : null}
+                </CommandItem>
               ))}
-            </CommandList>
-            <div className="hidden w-[45%] shrink-0 border-border border-s md:block">
-              <Preview target={current?.preview ?? null} />
-            </div>
-          </div>
-          <footer className="flex shrink-0 flex-wrap items-center gap-2 border-border border-t px-3 py-1.5 text-muted-foreground">
-            Narrow with
-            {SCOPES.map((entry) => (
-              <button
-                key={entry.prefix}
-                type="button"
-                onClick={() => setInput(`${entry.prefix}${entry.prefix.endsWith(':') ? ' ' : ''}${term}`)}
-                className="cursor-pointer rounded-sm border border-border px-1.5 hover:text-foreground"
-                title={entry.label}>
-                <code>{entry.prefix}</code>
-              </button>
-            ))}
-          </footer>
-        </Command>
-      </DialogContent>
-    </Dialog>
+            </CommandGroup>
+          ))}
+        </CommandList>
+        <div className="hidden w-[45%] shrink-0 border-border border-s md:block">
+          <Preview target={current?.preview ?? null} />
+        </div>
+      </div>
+      <footer className="flex shrink-0 flex-wrap items-center gap-2 border-border border-t px-3 py-1.5 text-muted-foreground">
+        Narrow with
+        {SCOPES.map((entry) => (
+          <button
+            key={entry.prefix}
+            type="button"
+            onClick={() => setInput(`${entry.prefix}${entry.prefix.endsWith(':') ? ' ' : ''}${term}`)}
+            className="cursor-pointer rounded-sm border border-border px-1.5 hover:text-foreground"
+            title={entry.label}>
+            <code>{entry.prefix}</code>
+          </button>
+        ))}
+      </footer>
+    </CommandDialog>
   )
 }
