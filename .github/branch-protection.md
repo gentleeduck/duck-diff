@@ -1,17 +1,12 @@
 # Branch protection
 
-Applied to `main` with `gh api` (see below). Keep this file in step with the live settings.
+Applied through the GitHub API. Keep this file in step with the live settings.
 
 ## `main`
 
-- Pull request required, 1 approval, stale approvals dismissed, code owner review on.
-- Required checks, branch up to date:
-  - `verify (ubuntu-latest)` and `verify (macos-latest)` from `ci`
-  - `Analyze` from `CodeQL`
-  - `dependency-review` from `Dependency Review`
-  - `lint` from `Lint PR title`
+- Required checks: `verify (ubuntu-latest)` and `verify (macos-latest)` from `ci`, and `lint` from `Lint PR title`.
 - Conversation resolution required, linear history, no force pushes, no deletions.
-- Admins may bypass, so a sole maintainer can still merge their own PRs.
+- No required approvals and admins may bypass, so a sole maintainer can merge their own PRs, as on duck-ui.
 
 ## Repository settings
 
@@ -20,4 +15,4 @@ Applied to `main` with `gh api` (see below). Keep this file in step with the liv
 
 ## Tags
 
-`v*` tags trigger `release.yml`, which builds the four binaries and `checksums.txt` and checks `install.sh` against them.
+Only admins can create, move or delete `v*` tags (the `release tags` ruleset). They trigger `release.yml`, which builds the four binaries and `checksums.txt` and checks `install.sh` against them.
