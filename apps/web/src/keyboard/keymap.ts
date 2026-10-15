@@ -18,6 +18,7 @@ export type Action =
   | 'view-files'
   | 'view-prs'
   | 'view-issues'
+  | 'toggle-sidebar'
 
 interface KeyLike {
   key: string
@@ -55,6 +56,7 @@ function isTyping(target: KeyLike['target']): boolean {
 
 export function resolveKey(event: KeyLike): Action | null {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') return 'palette'
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') return 'toggle-sidebar'
   if (event.ctrlKey || event.metaKey || event.altKey || isTyping(event.target)) return null
   return PLAIN[event.key] ?? null
 }

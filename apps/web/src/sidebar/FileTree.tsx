@@ -1,7 +1,16 @@
 import type { ChangedFile } from '@duck-diff/protocol'
 import { Button, ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { type ComponentProps, type ReactElement, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ComponentProps,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { CHEVRON, FOLDER, fileGlyph, isSpecialFile, STATUS_GLYPH } from './icons'
 import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
@@ -87,10 +96,33 @@ interface FileTreeProps {
   collapsed?: boolean
   // Right-click menu items for a row, or nothing for no menu.
   menuFor?(row: Row): ReactNode
+  // Folders flipped from their starting state, when the caller keeps them (to fold the diff along).
+  toggled?: ReadonlySet<string>
+  onToggled?(next: ReadonlySet<string>): void
 }
 
-export function FileTree({ label, paths, fileFor, selected, onOpenFile, collapsed = false, menuFor }: FileTreeProps) {
-  const [toggled, setToggled] = useState<ReadonlySet<string>>(new Set())
+export function FileTree({
+  label,
+  paths,
+  fileFor,
+  selected,
+  onOpenFile,
+  collapsed = false,
+  menuFor,
+  toggled: controlled,
+  onToggled,
+}: FileTreeProps) {
+  const [own, setOwn] = useState<ReadonlySet<string>>(new Set())
+  const toggled = controlled ?? own
+  const setToggled = useCallback(
+    (update: (prev: ReadonlySet<string>) => ReadonlySet<string>) => {
+      const next = update(toggled)
+      if (next === toggled) return
+      if (onToggled) onToggled(next)
+      else setOwn(next)
+    },
+    [toggled, onToggled],
+  )
   const tree = useMemo(() => buildTree(paths), [paths])
   const rows = useMemo(() => visibleRows(tree, toggled, !collapsed), [tree, toggled, collapsed])
 
@@ -100,7 +132,7 @@ export function FileTree({ label, paths, fileFor, selected, onOpenFile, collapse
     const parts = selected.split('/').slice(0, -1)
     const folders = parts.map((_, i) => parts.slice(0, i + 1).join('/'))
     setToggled((prev) => (folders.every((folder) => prev.has(folder)) ? prev : new Set([...prev, ...folders])))
-  }, [collapsed, selected])
+  }, [collapsed, selected, setToggled])
   const scroller = useRef<HTMLDivElement>(null)
   const virtualizer = useVirtualizer({
     count: rows.length,

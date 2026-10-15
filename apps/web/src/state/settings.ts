@@ -15,6 +15,10 @@ export interface Settings {
   themes: { light: string; dark: string }
   fontSize: number
   tabSize: number
+  // Test files in a comparison: shown as usual, folded under their headers, or left out of diff and tree.
+  tests: 'show' | 'fold' | 'hide'
+  // The left panel (tree, branches, files), hidden for a wider diff.
+  sidebar: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -31,6 +35,8 @@ export const DEFAULT_SETTINGS: Settings = {
   themes: { light: 'tokyo-night', dark: 'tokyo-night' },
   fontSize: 15,
   tabSize: 2,
+  tests: 'show',
+  sidebar: true,
 }
 
 const KEY = 'duck-diff:settings'
@@ -49,6 +55,8 @@ const FIELDS = {
   themes: z.object({ light: z.string(), dark: z.string() }),
   fontSize: z.number().int().min(10).max(24),
   tabSize: z.number().int().min(1).max(8),
+  tests: z.enum(['show', 'fold', 'hide']),
+  sidebar: z.boolean(),
 } satisfies { [K in keyof Settings]: z.ZodType<Settings[K]> }
 
 function load(storage: Pick<Storage, 'getItem'> | null): Settings {

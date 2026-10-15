@@ -12,6 +12,7 @@ import { FindCommit } from '../graph/FindCommit'
 import { GraphSidebar } from '../graph/GraphSidebar'
 import type { GraphState } from '../graph/store'
 import { useItemUrl } from '../hooks/useItemUrl'
+import { useSettings } from '../hooks/useSettings'
 import { useView } from '../hooks/useView'
 import { HelpDialog } from '../keyboard/HelpDialog'
 import { useKeyboard } from '../keyboard/useKeyboard'
@@ -23,6 +24,7 @@ import { Palette } from '../palette/Palette'
 import { CommentsSheet } from '../review/CommentsSheet'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
+import type { Settings } from '../state/settings'
 import { WritesProvider } from '../writes/WritesProvider'
 import { ActivityRail } from './ActivityRail'
 import { AppProvider, useApp } from './AppProvider'
@@ -38,6 +40,7 @@ const FileView = lazy(() => import('../files/FileView'))
 const SHIPPED: View[] = ['changes', 'graph', 'files', 'prs', 'issues']
 
 const selectCommitCount = (state: GraphState) => state.entries.length
+const selectPanel = (state: Settings) => state.sidebar
 
 function GraphTitle() {
   const { graph } = useApp()
@@ -157,12 +160,13 @@ function Screen() {
     },
   }
   const screen = screens[view]
+  const panel = useSettings(selectPanel)
   return (
     <>
       <Shell
         rail={<ActivityRail views={SHIPPED} />}
         topBar={screen.top}
-        sidebar={screen.side}
+        sidebar={panel ? screen.side : null}
         sidebarLabel={screen.label}
         viewer={<Suspense fallback={null}>{screen.main}</Suspense>}
         status={<StatusBar live={live} />}

@@ -32,6 +32,8 @@ interface AppContextValue {
   graphSelection: Store<string | null>
   // What the graph's find box holds, so matching rows can stand out.
   graphQuery: Store<string>
+  // Folders folded in the changes tree; their files fold in the diff too.
+  changesFolders: Store<ReadonlySet<string>>
   // The file open in the Files view.
   fileSelection: Store<string | null>
   github: GitHub
@@ -64,6 +66,7 @@ export function AppProvider({ api, children }: { api?: Api; children: ReactNode 
       graphSelection: createStore<string | null>(null),
       graphQuery: createStore(''),
       fileSelection: createStore<string | null>(null),
+      changesFolders: createStore<ReadonlySet<string>>(new Set()),
       github: createGitHub(client),
       pullSelection: createStore<number | null>(null),
       issueSelection: createStore<number | null>(null),

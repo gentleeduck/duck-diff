@@ -1,7 +1,10 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
-import { CircleDot, FileDiff, FolderTree, GitGraph, GitPullRequest } from 'lucide-react'
+import { CircleDot, FileDiff, FolderTree, GitGraph, GitPullRequest, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { useSettings } from '../hooks/useSettings'
 import { useView } from '../hooks/useView'
 import type { View } from '../lib/view-url'
+import type { Settings } from '../state/settings'
+import { useApp } from './AppProvider'
 
 const ITEMS: { view: View; label: string; icon: typeof FileDiff }[] = [
   { view: 'changes', label: 'Changes', icon: FileDiff },
@@ -18,6 +21,7 @@ export function ActivityRail({ views }: { views: readonly View[] }) {
     <nav
       aria-label="Views"
       className="flex w-12 shrink-0 flex-col items-center gap-1 border-border border-e bg-card py-2">
+      <PanelToggle />
       {ITEMS.filter((item) => views.includes(item.view)).map(({ view: id, label, icon: Icon }) => (
         <Tooltip key={id}>
           <TooltipTrigger asChild>
@@ -35,5 +39,31 @@ export function ActivityRail({ views }: { views: readonly View[] }) {
         </Tooltip>
       ))}
     </nav>
+  )
+}
+
+const selectPanel = (state: Settings) => state.sidebar
+
+// Hides the left panel for a wider page; Ctrl B does the same.
+function PanelToggle() {
+  const { settings } = useApp()
+  const shown = useSettings(selectPanel)
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label={shown ? 'Hide the left panel' : 'Show the left panel'}
+          aria-pressed={!shown}
+          onClick={() => settings.set((prev) => ({ ...prev, sidebar: !prev.sidebar }))}
+          className="mb-1">
+          {shown ? <PanelLeftClose /> : <PanelLeftOpen />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        {shown ? 'Hide the left panel (Ctrl B)' : 'Show the left panel (Ctrl B)'}
+      </TooltipContent>
+    </Tooltip>
   )
 }

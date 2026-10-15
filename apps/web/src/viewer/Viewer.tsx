@@ -11,6 +11,7 @@ import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
 import { useStore } from '../lib/store'
+import { isTestFile } from '../lib/tests'
 import { lineHash } from '../review/anchor'
 import { createAnnotator, type Note, type NoteItem } from '../review/annotations'
 import { ReviewNote } from '../review/ReviewNote'
@@ -23,11 +24,13 @@ import { actionsFor, type WriteKind } from './actions'
 import { FileActions } from './FileActions'
 import { FileHeader } from './FileHeader'
 import { fileNote } from './file-info'
+import { visibleItems } from './visible-items'
 import { WriteButtons } from './WriteButtons'
 
 const selectItems = (state: SessionState) => state.items
 const selectFiles = (state: SessionState) => state.files
 const selectStatus = (state: SessionState) => state.status
+const selectFolders = (folders: ReadonlySet<string>) => folders
 
 const EMPTY: Record<DiffTarget['kind'], string> = {
   local: 'Nothing to commit. The working tree matches the last commit.',
@@ -57,7 +60,7 @@ const emptyContents = () => new Map<string, readonly string[]>() as ReadonlyMap<
 const emptyExpanded = () => new Map<string, ReadonlySet<number>>() as ReadonlyMap<string, ReadonlySet<number>>
 
 export default function Viewer() {
-  const { api, viewer, reviews, viewed, fileHistory, pullReview } = useApp()
+  const { api, viewer, reviews, viewed, fileHistory, pullReview, changesFolders } = useApp()
   const plain = useSession(selectItems)
   const files = useSession(selectFiles)
   const status = useSession(selectStatus)
@@ -77,16 +80,22 @@ export default function Viewer() {
 
   // Paths the header chevron folded (true) or opened (false), on top of the viewed marks.
   const [toggled, setToggled] = usePerTarget(shownKey, emptyToggles)
+  const foldedFolders = useStore(changesFolders, selectFolders)
   const folded = useMemo(() => {
     const paths = viewedPaths(viewedState, target, files)
     for (const [path, fold] of toggled) if (fold) paths.add(path)
+    if (settings.tests === 'fold') for (const file of files) if (isTestFile(file.path)) paths.add(file.path)
+    // A folder folded in the tree folds its files here too.
+    for (const folder of foldedFolders)
+      for (const file of files) if (file.path.startsWith(`${folder}/`)) paths.add(file.path)
     return paths
-  }, [viewedState, target, files, toggled])
+  }, [viewedState, target, files, toggled, settings.tests, foldedFolders])
+  const shown = useMemo(() => visibleItems(plain, settings.tests), [plain, settings.tests])
   const opened = useMemo(() => new Set([...toggled].filter(([, fold]) => !fold).map(([path]) => path)), [toggled])
   const annotate = useMemo(createAnnotator, [])
   const items = useMemo(
-    () => annotate(plain, comments, draft, folded, files, opened, remote),
-    [annotate, plain, comments, draft, folded, files, opened, remote],
+    () => annotate(shown, comments, draft, folded, files, opened, remote),
+    [annotate, shown, comments, draft, folded, files, opened, remote],
   )
 
   // Unchanged lines are read from the full file the first time someone opens a gap.

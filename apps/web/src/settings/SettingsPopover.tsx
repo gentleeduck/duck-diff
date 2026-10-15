@@ -22,6 +22,12 @@ const selectAll = (state: Settings) => state
 
 type Options<K extends keyof Settings> = { value: Settings[K]; label: string }[]
 
+const TESTS: Options<'tests'> = [
+  { value: 'show', label: 'Show' },
+  { value: 'fold', label: 'Fold' },
+  { value: 'hide', label: 'Hide' },
+]
+
 const INDICATORS: Options<'diffIndicators'> = [
   { value: 'bars', label: 'Bars' },
   { value: 'classic', label: '+ and -' },
@@ -55,7 +61,7 @@ export function SettingsPopover() {
   const settings = useSettings(selectAll)
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => store.set((prev) => ({ ...prev, [key]: value }))
 
-  const choice = <K extends 'diffIndicators' | 'lineDiffType' | 'hunkSeparators'>(
+  const choice = <K extends 'diffIndicators' | 'lineDiffType' | 'hunkSeparators' | 'tests'>(
     key: K,
     options: Options<K>,
     label: string,
@@ -156,6 +162,7 @@ export function SettingsPopover() {
         {choice('lineDiffType', INLINE, 'Inline changes')}
         {choice('diffIndicators', INDICATORS, 'Change markers')}
         {choice('hunkSeparators', SEPARATORS, 'Hunk separators')}
+        {choice('tests', TESTS, 'Test files')}
         {toggle('overflow', 'Wrap long lines')}
         {toggle('lineNumbers', 'Line numbers')}
         {toggle('backgrounds', 'Line backgrounds')}

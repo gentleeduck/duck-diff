@@ -10,6 +10,7 @@ const SHORTCUTS: [string, string][] = [
   ['t', 'Switch between split and stacked'],
   ['/', 'Filter files'],
   ['1 to 5', 'Changes, graph, files, pull requests, issues'],
+  ['Ctrl B', 'Hide or show the left panel'],
   ['Ctrl K', 'Command palette'],
   ['?', 'This list'],
 ]
