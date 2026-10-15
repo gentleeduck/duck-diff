@@ -71,8 +71,12 @@ const toComment = (draft: Draft, body: string) => ({
   body: body.trim(),
   path: draft.path,
   line: draft.line,
+  ...(draft.startLine ? { startLine: draft.startLine } : {}),
   side: draft.side === 'deletions' ? ('LEFT' as const) : ('RIGHT' as const),
 })
+
+const lines = (start: number | null | undefined, end: number | null) =>
+  start && end && start < end ? `Lines ${start} to ${end}` : null
 
 function Editor({
   initial,
@@ -187,6 +191,7 @@ function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
   return (
     <article className="flex flex-col gap-1">
       <header className="flex items-center gap-2 text-muted-foreground">
+        {lines(comment.startLine, comment.line) ? <span>{lines(comment.startLine, comment.line)}</span> : null}
         {outdated ? <span>Outdated: line {comment.line} has changed</span> : null}
         <span>{relativeTime(comment.updatedAt / 1000)}</span>
         <span className="ml-auto flex gap-1">
@@ -234,6 +239,9 @@ function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['t
   }
   return (
     <div className="mx-3 my-2 max-w-3xl divide-y divide-border rounded-md border border-border bg-card font-normal font-sans">
+      {root && lines(root.startLine, root.line) ? (
+        <p className="px-3 py-1.5 text-muted-foreground">{lines(root.startLine, root.line)}</p>
+      ) : null}
       {thread.map((comment) => (
         <div key={comment.id}>
           <GitHubComment {...comment} bare />
@@ -299,6 +307,11 @@ export function ReviewNote({ note }: { note: Note }) {
   if (note.kind === 'pending') return <Pending note={note} />
   return (
     <div className="mx-3 my-2 max-w-3xl rounded-md border border-border bg-card p-3 font-normal font-sans shadow-xs">
+      {note.kind === 'draft' && note.draft.startLine ? (
+        <p className="mb-2 text-muted-foreground">
+          Commenting on {lines(note.draft.startLine, note.draft.line)?.toLowerCase()}
+        </p>
+      ) : null}
       {note.kind === 'draft' ? (
         <Editor
           initial=""

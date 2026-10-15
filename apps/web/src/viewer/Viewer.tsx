@@ -33,6 +33,23 @@ const selectStatus = (state: SessionState) => state.status
 const selectFolders = (folders: ReadonlySet<string>) => folders
 // Above this a file keeps hunk-only colors; tokenizing it whole would cost more than it shows.
 const FULL_LINES = 3000
+
+// One side's text for lines from..to, read off the rows the diff already built.
+function sideLines(rows: readonly DiffRow[], side: 'additions' | 'deletions', from: number, to: number): string[] {
+  const found = new Map<number, string>()
+  const take = (line: DiffLine | null | undefined) => {
+    const number = line ? (side === 'additions' ? line.newNo : line.oldNo) : null
+    if (line && number !== null && number >= from && number <= to) found.set(number, line.text)
+  }
+  for (const row of rows) {
+    if (row.type === 'line') take(row.line)
+    else if (row.type === 'pair') {
+      take(row.left)
+      take(row.right)
+    }
+  }
+  return [...found.keys()].sort((a, b) => a - b).map((number) => found.get(number) ?? '')
+}
 const sourceKey = (item: NoteItem) => item.fileDiff.cacheKey ?? item.id
 
 const EMPTY: Record<DiffTarget['kind'], string> = {
@@ -165,6 +182,16 @@ export default function Viewer() {
     [api, target, byPath, sourcePath],
   )
 
+  const anchor = useRef(0)
+  const dragging = useRef(false)
+  useEffect(() => {
+    const stop = () => {
+      dragging.current = false
+    }
+    window.addEventListener('pointerup', stop)
+    return () => window.removeEventListener('pointerup', stop)
+  }, [])
+
   const context = useMemo<RowContextValue>(
     () => ({
       settings,
@@ -190,16 +217,38 @@ export default function Viewer() {
         const file = byPath.get(item.fileDiff.name)
         return file && file.status !== 'untracked' && file.status !== 'conflicted' ? kinds : []
       },
-      comment(item: NoteItem, line: DiffLine, side) {
+      comment(item: NoteItem, line: DiffLine, side, extend = false) {
         const number = side === 'additions' ? line.newNo : line.oldNo
         if (number === null) return
+        const open = reviews.get().draft
+        const same = open && open.path === item.fileDiff.name && open.side === side
+        if (!extend || !same) anchor.current = number
+        const [from, to] = [Math.min(anchor.current, number), Math.max(anchor.current, number)]
+        const lines = sideLines(page.files.get(item.id)?.rows ?? [], side, from, to)
+        const last = lines.at(-1) ?? line.text
         reviews.startDraft({
           path: item.fileDiff.name,
           side,
-          line: number,
-          lineHash: lineHash(line.text),
-          text: line.text,
+          line: to,
+          ...(from < to ? { startLine: from } : {}),
+          lineHash: lineHash(last),
+          text: lines.length ? lines.join('\n') : line.text,
         })
+      },
+      startSelect(item, line, side) {
+        dragging.current = true
+        context.comment(item, line, side)
+      },
+      dragOver(item, line, side) {
+        const open = reviews.get().draft
+        if (dragging.current && open?.path === item.fileDiff.name && open.side === side)
+          context.comment(item, line, side, true)
+      },
+      subscribeDraft: reviews.subscribe,
+      inDraft(item, side, number) {
+        const open = reviews.get().draft
+        if (!open || number === null || open.path !== item.fileDiff.name || open.side !== side) return false
+        return number >= (open.startLine ?? open.line) && number <= open.line
       },
       write(kind: WriteKind, item, index) {
         const file = byPath.get(item.fileDiff.name)

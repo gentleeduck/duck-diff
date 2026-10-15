@@ -41,6 +41,7 @@ export type ConversationComment = z.infer<typeof ConversationCommentSchema>
 export const GitHubReviewCommentSchema = ConversationCommentSchema.extend({
   path: z.string(),
   line: z.number().int().nullable(),
+  startLine: z.number().int().nullable().default(null),
   side: z.enum(['LEFT', 'RIGHT']),
   inReplyTo: z.number().int().nullable(),
 })
@@ -118,12 +119,14 @@ export const PostCommentSchema = z.object({ body: z.string().trim().min(1).max(6
 export const PostReviewCommentSchema = PostCommentSchema.extend({
   path: z.string().min(1),
   line: z.number().int().min(1),
+  startLine: z.number().int().min(1).optional(),
   side: z.enum(['LEFT', 'RIGHT']),
 })
 export const ReplySchema = PostCommentSchema.extend({ inReplyTo: z.number().int() })
 export const PendingCommentSchema = z.object({
   path: z.string().min(1),
   line: z.number().int().min(1),
+  startLine: z.number().int().min(1).optional(),
   side: z.enum(['LEFT', 'RIGHT']),
   body: z.string().trim().min(1).max(65_000),
 })

@@ -16,7 +16,13 @@ export interface RowContextValue {
   // Starts a file's colors before it scrolls into view.
   prefetch(item: NoteItem): void
   kinds(item: NoteItem): WriteKind[]
-  comment(item: NoteItem, line: DiffLine, side: 'additions' | 'deletions'): void
+  // Extend grows the open comment's range to this line, for shift-click and dragging.
+  comment(item: NoteItem, line: DiffLine, side: 'additions' | 'deletions', extend?: boolean): void
+  // Drag from a line's comment button over other lines to cover them all.
+  startSelect(item: NoteItem, line: DiffLine, side: 'additions' | 'deletions'): void
+  dragOver(item: NoteItem, line: DiffLine, side: 'additions' | 'deletions'): void
+  subscribeDraft(listener: () => void): () => void
+  inDraft(item: NoteItem, side: 'additions' | 'deletions', line: number | null): boolean
   write(kind: WriteKind, item: NoteItem, hunk: number): void
   expand(item: NoteItem, gap: Extract<DiffRow, { type: 'gap' }>): void
 }
@@ -53,17 +59,27 @@ const BAR: Record<DiffLine['kind'], string> = {
 const SIGN: Record<DiffLine['kind'], string> = { addition: '+', deletion: '-', context: ' ' }
 
 function Toolbar({ item, line, side }: { item: NoteItem; line: DiffLine; side: 'additions' | 'deletions' }) {
-  const { kinds, comment, write } = useRow()
+  const { kinds, comment, startSelect, write } = useRow()
   const writable = line.hunk >= 0 ? kinds(item) : []
   return (
     <span className="absolute inset-y-0 start-0 z-10 hidden items-center gap-0.5 bg-popover px-0.5 group-hover/line:flex">
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label="Comment on line" onClick={() => comment(item, line, side)}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Comment on line"
+            onPointerDown={(event) => {
+              if (event.button !== 0) return
+              if (event.shiftKey) comment(item, line, side, true)
+              else startSelect(item, line, side)
+            }}
+            // Keyboard activation; pointer presses are handled on the way down.
+            onClick={(event) => event.detail === 0 && comment(item, line, side)}>
             <MessageSquarePlus />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Comment on line</TooltipContent>
+        <TooltipContent>Comment on line (drag or shift-click for several)</TooltipContent>
       </Tooltip>
       {writable.map((kind) => {
         const { icon: Icon, label } = WRITE[kind]
@@ -98,7 +114,9 @@ function Cell({
   side: 'additions' | 'deletions'
   numbers: 'both' | 'one'
 }) {
-  const { settings, tokens } = useRow()
+  const { settings, tokens, dragOver, subscribeDraft, inDraft } = useRow()
+  const number = line ? (side === 'additions' ? line.newNo : line.oldNo) : null
+  const selected = useSyncExternalStore(subscribeDraft, () => inDraft(item, side, number))
   const tokenSide = line?.kind === 'deletion' ? 'old' : 'new'
   const tokenLine = line ? (tokenSide === 'old' ? line.oldNo : line.newNo) : null
   // Each line listens for its own colors, so a file's tokens landing repaints just its rows on screen.
@@ -121,7 +139,10 @@ function Cell({
   const wrap = settings.overflow === 'wrap'
   return (
     <div
-      className={`group/line relative flex min-w-0 flex-1 ${settings.backgrounds ? BG[line.kind] : ''} ${MARK[line.kind]}`}>
+      onPointerEnter={() => dragOver(item, line, side)}
+      className={`group/line relative flex min-w-0 flex-1 ${settings.backgrounds ? BG[line.kind] : ''} ${MARK[line.kind]} ${
+        selected ? 'shadow-[inset_3px_0_0_var(--tn-yellow)] bg-tn-yellow/10!' : ''
+      }`}>
       {settings.lineNumbers ? (
         <span className="relative flex shrink-0 select-none text-tn-gutter tabular-nums">
           {numbers === 'both' || side === 'deletions' ? (

@@ -117,6 +117,8 @@ export const CreateReviewSchema = z.object({
   path: RepoPathSchema,
   side: z.enum(['additions', 'deletions']),
   line: z.number().int().min(1),
+  // The first line when the comment covers a range ending at line.
+  startLine: z.number().int().min(1).optional(),
   lineHash: z.string().min(1).max(64),
   body: z.string().trim().min(1).max(20_000),
 })

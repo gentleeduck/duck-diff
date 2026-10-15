@@ -671,7 +671,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     },
     async reviewComment(
       number: number,
-      input: { body: string; path: string; line: number; side: 'LEFT' | 'RIGHT'; commitId: string },
+      input: { body: string; path: string; line: number; startLine?: number; side: 'LEFT' | 'RIGHT'; commitId: string },
     ): Promise<GitHubReviewComment> {
       return reviewComment(
         await call<RawReviewComment>(`${await repoPath()}/pulls/${number}/comments`, {
@@ -681,6 +681,7 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
             path: input.path,
             line: input.line,
             side: input.side,
+            ...rangeStart(input),
             commit_id: input.commitId,
           }),
         }),
@@ -697,7 +698,13 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     async submitReview(number: number, event: string, body: string, comments: PendingComment[] = []): Promise<void> {
       await call(`${await repoPath()}/pulls/${number}/reviews`, {
         method: 'POST',
-        body: JSON.stringify({ event, body: body || undefined, comments: comments.length ? comments : undefined }),
+        body: JSON.stringify({
+          event,
+          body: body || undefined,
+          comments: comments.length
+            ? comments.map(({ startLine, ...comment }) => ({ ...comment, ...rangeStart({ ...comment, startLine }) }))
+            : undefined,
+        }),
       })
     },
     async reviewState(number: number): Promise<ReviewState> {
@@ -858,9 +865,14 @@ interface RawCheckRun {
 interface RawReviewComment extends RawComment {
   path: string
   line: number | null
+  start_line?: number | null
   side?: 'LEFT' | 'RIGHT'
   in_reply_to_id?: number
 }
+
+// GitHub takes a range as start_line and start_side beside line; one line sends neither.
+const rangeStart = (input: { line: number; startLine?: number; side: string }) =>
+  input.startLine && input.startLine < input.line ? { start_line: input.startLine, start_side: input.side } : {}
 interface RawIssue {
   number: number
   title: string
@@ -900,6 +912,7 @@ function reviewComment(raw: RawReviewComment): GitHubReviewComment {
     ...comment(raw),
     path: raw.path,
     line: raw.line,
+    startLine: raw.start_line ?? null,
     side: raw.side ?? 'RIGHT',
     inReplyTo: raw.in_reply_to_id ?? null,
   }

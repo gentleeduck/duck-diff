@@ -7,8 +7,10 @@ export interface Draft {
   path: string
   side: Side
   line: number
+  // Set when the comment covers several lines, ending at line.
+  startLine?: number
   lineHash: string
-  // The line as it reads now, for a suggested change to start from.
+  // The lines as they read now, for a suggested change to start from.
   text?: string
 }
 

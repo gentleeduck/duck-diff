@@ -29,6 +29,7 @@ const github = (id: number, inReplyTo: number | null, line: number | null): GitH
   createdAt: '2026-10-01T00:00:00Z',
   path: 'a.ts',
   line,
+  startLine: null,
   side: 'RIGHT',
   inReplyTo,
 })
