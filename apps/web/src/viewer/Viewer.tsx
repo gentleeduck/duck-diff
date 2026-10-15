@@ -149,15 +149,17 @@ export default function Viewer() {
   // Paths the header chevron folded (true) or opened (false), on top of the viewed marks.
   const [toggled, setToggled] = usePerTarget(shownKey, emptyToggles)
   const foldedFolders = useStore(changesFolders, selectFolders)
+  // The Viewed box shows only the viewed mark; folding by the chevron is not the same thing.
+  const viewedSet = useMemo(() => viewedPaths(viewedState, target, files), [viewedState, target, files])
   const folded = useMemo(() => {
-    const paths = viewedPaths(viewedState, target, files)
+    const paths = new Set(viewedSet)
     for (const [path, fold] of toggled) if (fold) paths.add(path)
     if (settings.tests === 'fold') for (const file of files) if (isTestFile(file.path)) paths.add(file.path)
     // A folder folded in the tree folds its files here too.
     for (const folder of foldedFolders)
       for (const file of files) if (file.path.startsWith(`${folder}/`)) paths.add(file.path)
     return paths
-  }, [viewedState, target, files, toggled, settings.tests, foldedFolders])
+  }, [viewedSet, files, toggled, settings.tests, foldedFolders])
   const shown = useMemo(() => visibleItems(plain, settings.tests), [plain, settings.tests])
   const opened = useMemo(() => new Set([...toggled].filter(([, fold]) => !fold).map(([path]) => path)), [toggled])
   const annotate = useMemo(createAnnotator, [])
@@ -451,11 +453,18 @@ export default function Viewer() {
           }>
           <FileActions
             path={path}
-            viewed={folded.has(path)}
+            viewed={viewedSet.has(path)}
             onViewed={() => {
               if (!file) return
               const nowViewed = !viewedPaths(viewed.get(), target, files).has(file.path)
               viewed.toggle(target, file)
+              // Marking viewed folds the file and unmarking opens it, whatever the chevron did before.
+              setToggled((prev) => {
+                if (!prev.has(path)) return prev
+                const next = new Map(prev)
+                next.delete(path)
+                return next
+              })
               // On a pull request the mark is GitHub's too, so it shows on github.com and comes back next time.
               if (pull !== null) pullReview.setViewed(file.path, nowViewed).catch(() => {})
             }}
@@ -477,7 +486,7 @@ export default function Viewer() {
       byPath,
       kinds,
       writes,
-      folded,
+      viewedSet,
       viewed,
       target,
       fileHistory,

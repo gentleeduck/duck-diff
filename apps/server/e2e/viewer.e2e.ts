@@ -43,3 +43,48 @@ test('the palette jumps to a file', async ({ page, app }) => {
   await page.keyboard.press('Enter')
   await expect(page.locator('main')).toContainText('fresh file')
 })
+
+test('a file header and its gaps all act: unchanged lines open above and below, the file folds, Viewed folds it', async ({
+  page,
+  app,
+  repo,
+}) => {
+  const lines = Array.from({ length: 80 }, (_, i) => `export const line${i} = ${i}`)
+  repo.write('long.ts', `${lines.join('\n')}\n`)
+  repo.commit('long')
+  lines[40] = 'export const line40 = 4000'
+  repo.write('long.ts', `${lines.join('\n')}\n`)
+  await page.goto(app.url)
+  const main = page.locator('main')
+  await expect(main).toContainText('line40 = 4000')
+
+  // The lines above the change, then the lines after it.
+  const above = page.getByRole('button', { name: 'Show 37 unchanged lines' })
+  await above.click()
+  await expect(main).toContainText('line10 = 10')
+  await expect(above).toHaveCount(0)
+  // Rows are drawn near the screen only, so the lower gap comes into the page once scrolled to.
+  await page.locator('[data-diff-view]').evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  const below = page.getByRole('button', { name: /Show 3\d unchanged lines/ })
+  await below.click()
+  await expect(below).toHaveCount(0)
+  await page.locator('[data-diff-view]').evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  await expect(main).toContainText('line79 = 79')
+
+  // Folding hides the file's body; opening brings it back.
+  await page.getByRole('button', { name: 'Hide long.ts' }).click()
+  await expect(main).not.toContainText('line40 = 4000')
+  await page.getByRole('button', { name: 'Show long.ts' }).click()
+  await expect(main).toContainText('line40 = 4000')
+
+  // Viewed folds it too, and unticking opens it again.
+  const viewed = page.getByRole('checkbox', { name: 'Viewed' }).first()
+  await page.getByRole('button', { name: 'Hide long.ts' }).waitFor()
+  await page.locator('[data-diff-view]').getByText('long.ts', { exact: true }).first().hover()
+  await viewed.click()
+  await expect(page.getByRole('button', { name: 'Show long.ts' })).toBeVisible()
+})
