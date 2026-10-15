@@ -144,7 +144,6 @@ export default function FileView() {
   useScrollMemory(scroller, path && contents?.text ? scrollKey : null)
   useSymbolClick(fileRoot, () => at)
   // Opening at a line (a definition, a use) centres it once the text is in.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a new text for the same line needs the scroll again
   useEffect(() => {
     if (line && contents?.text) requestAnimationFrame(() => virtualizer.scrollToIndex(line - 1, { align: 'center' }))
   }, [line, contents, virtualizer])
