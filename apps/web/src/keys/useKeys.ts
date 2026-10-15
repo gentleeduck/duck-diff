@@ -215,7 +215,10 @@ export function useKeys(handlers: KeyHandlers) {
       'terminal-toggle': () => openTerminal(false),
       'toggle-panel': () => {
         panel.toggle()
-        if (!panel.get().open) blur()
+        const { open, tab } = panel.get()
+        // Opening onto a terminal hands it the keyboard, as a terminal pane in an editor does.
+        if (open && tab !== 'output') focusTerminal(tab)
+        if (!open) blur()
       },
       'leave-terminal': () => {
         blur()

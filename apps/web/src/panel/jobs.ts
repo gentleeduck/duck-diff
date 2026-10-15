@@ -29,9 +29,12 @@ export function createJobs(api: Pick<Api, 'jobs' | 'jobOutput'>): Jobs {
   return {
     ...store,
     async load() {
-      const known = new Set(store.get().jobs.map((job) => job.id))
-      const read = (await api.jobs()).filter((job) => !known.has(job.id))
-      put([...store.get().jobs, ...read].sort((a, b) => b.startedAt - a.startedAt))
+      const read = await api.jobs()
+      // Merged by id against the list as it is when the answer lands: another load or a live event may
+      // have added the same jobs meanwhile.
+      const byId = new Map(read.map((job) => [job.id, job]))
+      for (const job of store.get().jobs) byId.set(job.id, job)
+      put([...byId.values()].sort((a, b) => b.startedAt - a.startedAt))
     },
     apply(event) {
       if (event.type === 'job') {

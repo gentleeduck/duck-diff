@@ -45,3 +45,30 @@ describe('jobs store', () => {
     expect(jobs.get().running).toBe(1)
   })
 })
+
+describe('jobs store, loading twice at once', () => {
+  it('lists each job once when two loads race, or an event came in between', async () => {
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const jobs = createJobs({
+      jobs: async () => {
+        await gate
+        return [job('a', 'ok'), job('b', 'ok')]
+      },
+      jobOutput: async () => '',
+    })
+    const first = jobs.load()
+    const second = jobs.load()
+    jobs.apply({ type: 'job', job: job('a', 'ok') })
+    release()
+    await Promise.all([first, second])
+    expect(
+      jobs
+        .get()
+        .jobs.map((entry) => entry.id)
+        .sort(),
+    ).toEqual(['a', 'b'])
+  })
+})
