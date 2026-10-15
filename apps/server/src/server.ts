@@ -1,14 +1,17 @@
-import { resolveRepo } from '@duck-diff/git'
+import { readSyncStatus, resolveRepo } from '@duck-diff/git'
 import {
   type ChangeReason,
   CreateReviewSchema,
   decodeTarget,
+  NavigateRequestSchema,
   OpenRequestSchema,
   UpdateReviewSchema,
   WriteRequestSchema,
 } from '@duck-diff/protocol'
-import { createToken, isAuthorized, TOKEN_COOKIE } from './auth'
+import { createToken, isAuthorized, tokenCookie } from './auth'
 import { errorResponse, HttpError } from './errors'
+import { createGitHub, type GitHubOptions } from './github'
+import { handleGitHub } from './github-routes'
 import { Hub } from './hub'
 import { type NvimRunner, openKeys, runNvim } from './nvim'
 import { createReviewStore } from './reviews'
@@ -16,7 +19,7 @@ import { handleApi, repoInfo } from './routes'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
-import { applyWrite, createWriteQueue, undoLatest } from './writes'
+import { applyWrite, createWriteQueue, gitAction, undoLatest } from './writes'
 
 export interface ServerOptions {
   repo: string
@@ -32,6 +35,8 @@ export interface ServerOptions {
   undoCache?: string
   // Where review comments are kept; tests point it at a temp folder.
   dataDir?: string
+  // GitHub access; tests swap in a fake fetch and token.
+  github?: GitHubOptions
 }
 
 export interface RunningServer {
@@ -55,6 +60,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
   const enqueue = createWriteQueue()
   const reviews = createReviewStore(repo, options.dataDir)
+  const github = createGitHub(repo, options.github)
 
   const server = Bun.serve({
     hostname: HOST,
@@ -62,7 +68,8 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     async fetch(request, bun) {
       const url = new URL(request.url)
       try {
-        if (!isAuthorized(request, token)) throw new HttpError(401, 'unauthorized', 'missing or wrong token')
+        const port = bun.port ?? 0
+        if (!isAuthorized(request, token, port)) throw new HttpError(401, 'unauthorized', 'missing or wrong token')
         if (url.pathname === '/api/events') {
           if (bun.upgrade(request)) return undefined
           throw new HttpError(400, 'bad-request', 'expected a websocket upgrade')
@@ -71,6 +78,18 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           hub.touch()
           notify('saved')
           return new Response(null, { status: 204 })
+        }
+        if (url.pathname === '/api/sync') return Response.json(await readSyncStatus(repo))
+        if (url.pathname.startsWith('/api/github/')) return await handleGitHub(github, repo, url, request, enqueue)
+        if (url.pathname.startsWith('/api/git/') && request.method === 'POST') {
+          const result = await enqueue(() => gitAction(repo, url.pathname.slice(9), request))
+          notify(result.reason)
+          return Response.json(result.body)
+        }
+        if (url.pathname === '/api/navigate' && request.method === 'POST') {
+          const { target } = NavigateRequestSchema.parse(await request.json())
+          hub.broadcast({ type: 'navigate', target })
+          return Response.json({ pages: hub.size })
         }
         if (url.pathname === '/api/write' && request.method === 'POST') {
           const write = WriteRequestSchema.parse(await request.json())
@@ -123,7 +142,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         const response = serveWeb(url.pathname)
         // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
         if (response.headers.get('content-type')?.startsWith('text/html')) {
-          response.headers.set('set-cookie', `${TOKEN_COOKIE}=${token}; HttpOnly; SameSite=Strict; Path=/`)
+          response.headers.set('set-cookie', `${tokenCookie(port)}=${token}; HttpOnly; SameSite=Strict; Path=/`)
         }
         return response
       } catch (error) {

@@ -31,6 +31,55 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       throw new Error('not faked')
     },
     deleteReview: async () => {},
+    tree: async () => ['a.ts', 'b.ts'],
+    sync: async () => ({ branch: 'main', upstream: 'origin/main', ahead: 0, behind: 0, staged: 0, operation: null }),
+    git: async () => ({}),
+    github: {
+      status: async () => ({ repo: null, user: null, source: null }),
+      signIn: async () => ({ repo: null, user: null, source: null }),
+      pulls: async () => [],
+      createPull: async () => {
+        throw new Error('no pull requests')
+      },
+      defaultBranch: async () => 'main',
+      avatars: async () => ({}),
+      pull: async () => {
+        throw new Error('no pull requests')
+      },
+      checks: async () => [],
+      fetchPull: async () => ({ base: 'main', head: 'main' }),
+      comment: async () => {
+        throw new Error('no pull requests')
+      },
+      reviewComment: async () => {
+        throw new Error('no pull requests')
+      },
+      reply: async () => {
+        throw new Error('no pull requests')
+      },
+      review: async () => {},
+      merge: async () => {},
+      issues: async () => [],
+      issue: async () => {
+        throw new Error('no issues')
+      },
+      createIssue: async () => {
+        throw new Error('no issues')
+      },
+      setIssueState: async () => {},
+    },
+    file: async () => ({ text: 'a\n', size: 2, binary: false }),
+    graph: async () => new Response('').body as ReadableStream<Uint8Array>,
+    commit: async (sha) => ({
+      sha,
+      parents: [],
+      authorName: 'Duck',
+      authorEmail: 'd@x',
+      authoredAt: 0,
+      committerName: 'Duck',
+      committedAt: 0,
+      message: 'message',
+    }),
     files: async () => FILES,
     diff: async () => new Response(PATCH).body as ReadableStream<Uint8Array>,
     ...overrides,

@@ -15,4 +15,6 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { proxy: apiProxy() },
   build: { outDir: 'dist', emptyOutDir: true, sourcemap: false },
+  // ES workers can split; Shiki's grammars then load per language instead of all 10 MB up front.
+  worker: { format: 'es' },
 })

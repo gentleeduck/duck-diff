@@ -44,7 +44,7 @@ const SEPARATORS: Options<'hunkSeparators'> = [
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 py-1.5">
-      <span className="text-[13px]">{label}</span>
+      <span>{label}</span>
       {children}
     </div>
   )
@@ -62,7 +62,7 @@ export function SettingsPopover() {
   ) => (
     <Row label={label}>
       <Select value={settings[key]} onValueChange={(value: string) => set(key, value as Settings[K])}>
-        <SelectTrigger aria-label={label} className="h-7 w-44 text-[13px]">
+        <SelectTrigger aria-label={label} className="h-7 w-44">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -81,6 +81,7 @@ export function SettingsPopover() {
     return (
       <Row label={label}>
         <Switch
+          className="border-muted-foreground"
           aria-label={label}
           checked={checked}
           onCheckedChange={(next: boolean) =>
@@ -95,23 +96,21 @@ export function SettingsPopover() {
     <Row label={label}>
       <div className="flex items-center gap-1">
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
-          className="size-6"
           aria-label={`Decrease ${label.toLowerCase()}`}
           disabled={settings[key] <= min}
           onClick={() => set(key, settings[key] - 1)}>
-          <Minus className="size-3.5" />
+          <Minus />
         </Button>
-        <output className="w-6 text-center text-[13px] tabular-nums">{settings[key]}</output>
+        <output className="w-6 text-center tabular-nums">{settings[key]}</output>
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
-          className="size-6"
           aria-label={`Increase ${label.toLowerCase()}`}
           disabled={settings[key] >= max}
           onClick={() => set(key, settings[key] + 1)}>
-          <Plus className="size-3.5" />
+          <Plus />
         </Button>
       </div>
     </Row>
@@ -120,8 +119,8 @@ export function SettingsPopover() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Diff settings">
-          <Settings2 className="size-4" />
+        <Button variant="outline" size="icon" aria-label="Diff settings">
+          <Settings2 />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[23rem]">
@@ -163,8 +162,8 @@ export function SettingsPopover() {
         {toggle('expandUnchanged', 'Show unchanged lines')}
         {stepper('fontSize', 'Font size', 10, 24)}
         {stepper('tabSize', 'Tab width', 1, 8)}
-        <div className="mt-2 flex justify-end border-[var(--dd-line)] border-t pt-2">
-          <Button variant="ghost" size="sm" onClick={() => store.set(DEFAULT_SETTINGS)}>
+        <div className="mt-2 flex justify-end border-border border-t pt-2">
+          <Button variant="outline" size="sm" onClick={() => store.set(DEFAULT_SETTINGS)}>
             Reset to defaults
           </Button>
         </div>

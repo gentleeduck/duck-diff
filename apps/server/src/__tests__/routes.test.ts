@@ -28,7 +28,9 @@ describe('auth', () => {
     const response = await fetch(`http://127.0.0.1:${fixture.server.port}/?token=${fixture.server.token}`)
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toContain('text/html')
-    expect(response.headers.get('set-cookie')).toContain(`duck_diff_token=${fixture.server.token}`)
+    expect(response.headers.get('set-cookie')).toContain(
+      `duck_diff_token_${fixture.server.port}=${fixture.server.token}`,
+    )
     expect(response.headers.get('set-cookie')).toContain('HttpOnly')
   })
 
@@ -81,6 +83,32 @@ describe('api', () => {
     const commits = await (await fixture.get('/api/commits?head=main&path=a.txt')).json()
     expect(commits.map((c: { subject: string }) => c.subject)).toEqual(['base'])
     expect((await fixture.get('/api/commits?head=main&path=../x')).status).toBe(400)
+  })
+
+  it('streams the commit graph with parents and ref names', async () => {
+    fixture = await startFixture((repo) => {
+      repo.write('a.txt', 'one\n')
+      repo.commit('base')
+      repo.commit('second')
+    })
+    const text = await (await fixture.get('/api/graph?limit=10')).text()
+    const records = text.split('\x1e').filter((record) => record.trim())
+    expect(records).toHaveLength(2)
+    expect(records[0]).toContain('HEAD -> main')
+    expect((await fixture.get('/api/graph?limit=0')).status).toBe(400)
+  })
+
+  it('lists the file tree and reads files, refusing paths outside the repo', async () => {
+    fixture = await startFixture((repo) => {
+      repo.write('src/a.ts', 'one\n')
+      repo.commit('base')
+      repo.write('src/a.ts', 'two\n')
+    })
+    expect(await (await fixture.get('/api/tree')).json()).toEqual(['src/a.ts'])
+    expect(await (await fixture.get('/api/file?path=src/a.ts')).json()).toMatchObject({ text: 'two\n' })
+    expect(await (await fixture.get('/api/file?ref=HEAD&path=src/a.ts')).json()).toMatchObject({ text: 'one\n' })
+    expect((await fixture.get('/api/file?path=../etc/passwd')).status).toBe(400)
+    expect((await fixture.get('/api/file?path=nope.ts')).status).toBe(404)
   })
 
   it('answers 400 for a bad target and an unknown ref', async () => {

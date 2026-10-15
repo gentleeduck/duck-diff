@@ -1,4 +1,4 @@
-import type { ChangedFile, ReviewComment } from '@duck-diff/protocol'
+import type { ChangedFile, GitHubReviewComment, ReviewComment } from '@duck-diff/protocol'
 import type { CodeViewDiffItem, DiffLineAnnotation } from '@pierre/diffs'
 import { isImage } from '../viewer/file-info'
 import { anchorComments, type Side } from './anchor'
@@ -14,6 +14,7 @@ export type Note =
   | { kind: 'comment'; comment: ReviewComment; outdated: boolean }
   | { kind: 'draft'; draft: Draft }
   | { kind: 'image'; file: ChangedFile }
+  | { kind: 'github'; thread: GitHubReviewComment[] }
 
 export type NoteItem = CodeViewDiffItem<Note>
 
@@ -35,7 +36,10 @@ export function createAnnotator() {
     draft: Draft | null,
     folded: ReadonlySet<string> = new Set(),
     files: readonly ChangedFile[] = [],
+    opened: ReadonlySet<string> = new Set(),
+    remote: readonly GitHubReviewComment[] = [],
   ): NoteItem[] => {
+    const threads = githubThreads(remote)
     const images = new Map(files.filter((file) => file.binary && isImage(file.path)).map((file) => [file.path, file]))
     const byPath = new Map<string, ReviewComment[]>()
     for (const comment of comments) byPath.set(comment.path, [...(byPath.get(comment.path) ?? []), comment])
@@ -52,13 +56,24 @@ export function createAnnotator() {
           metadata: { kind: 'comment', comment, outdated },
         }),
       )
+      for (const thread of threads.get(path) ?? []) {
+        const [first] = thread
+        if (first?.line) {
+          annotations.push({
+            side: first.side === 'LEFT' ? 'deletions' : 'additions',
+            lineNumber: first.line,
+            metadata: { kind: 'github', thread },
+          })
+        }
+      }
       const image = images.get(path)
       // Binary images have no lines, so their preview sits above the (empty) diff as a file-level note.
       if (image) annotations.unshift({ side: 'additions', lineNumber: 0, metadata: { kind: 'image', file: image } })
       if (draft?.path === path) {
         annotations.push({ side: draft.side, lineNumber: draft.line, metadata: { kind: 'draft', draft } })
       }
-      const collapsed = folded.has(path) || Boolean(item.collapsed)
+      // An explicit open beats both the viewed mark and the size rule that folds big files.
+      const collapsed = !opened.has(path) && (folded.has(path) || Boolean(item.collapsed))
       const key = JSON.stringify([collapsed, annotations])
       const cached = cache.get(item.id)
       if (cached && cached.base === item && cached.key === key) return cached.out
@@ -67,4 +82,21 @@ export function createAnnotator() {
       return out
     })
   }
+}
+
+// Replies point at the first comment of their thread; outdated threads (no line) stay on GitHub.
+function githubThreads(comments: readonly GitHubReviewComment[]): Map<string, GitHubReviewComment[][]> {
+  const roots = new Map<number, GitHubReviewComment[]>()
+  for (const comment of comments) {
+    if (comment.inReplyTo === null) roots.set(comment.id, [comment])
+  }
+  for (const comment of comments) {
+    if (comment.inReplyTo !== null) roots.get(comment.inReplyTo)?.push(comment)
+  }
+  const byPath = new Map<string, GitHubReviewComment[][]>()
+  for (const thread of roots.values()) {
+    const path = thread[0]?.path ?? ''
+    byPath.set(path, [...(byPath.get(path) ?? []), thread])
+  }
+  return byPath
 }

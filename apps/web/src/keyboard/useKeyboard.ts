@@ -1,16 +1,26 @@
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import type { View } from '../lib/view-url'
 import { lineHash, lineText } from '../review/anchor'
 import { actionsFor, firstChange, type WriteKind } from '../viewer/actions'
 import { useWrites } from '../writes/WritesProvider'
 import { type Action, type Position, resolveKey, step } from './keymap'
 
 const MOVES = new Set<Action>(['next-hunk', 'prev-hunk', 'next-file', 'prev-file'])
+const VIEWS: Partial<Record<Action, View>> = {
+  'view-changes': 'changes',
+  'view-graph': 'graph',
+  'view-files': 'files',
+  'view-prs': 'prs',
+  'view-issues': 'issues',
+}
+// Everything else acts on the diff, so it only runs where the diff is on screen.
+const ANYWHERE = new Set<Action>(['palette', 'help', ...(Object.keys(VIEWS) as Action[])])
 const WRITES: Partial<Record<Action, WriteKind>> = { stage: 'stage', unstage: 'unstage', discard: 'discard' }
 
-export function useKeyboard(open: { palette(): void; help(): void }) {
-  const { api, session, settings, viewer, reviews, viewed } = useApp()
+export function useKeyboard(open: { palette(): void; help(): void; show(view: View): void }) {
+  const { api, session, settings, viewer, reviews, viewed, view } = useApp()
   const writes = useWrites()
   const position = useRef<Position>({ item: 0, hunk: 0 })
   const handlers = useRef(open)
@@ -29,9 +39,12 @@ export function useKeyboard(open: { palette(): void; help(): void }) {
     const onKey = (event: KeyboardEvent) => {
       const action = resolveKey(event)
       if (!action) return
+      if (view.get() !== 'changes' && !ANYWHERE.has(action)) return
       event.preventDefault()
       if (action === 'palette') return handlers.current.palette()
       if (action === 'help') return handlers.current.help()
+      const destination = VIEWS[action]
+      if (destination) return handlers.current.show(destination)
       if (action === 'focus-filter') return document.getElementById('file-filter')?.focus()
       if (action === 'toggle-layout') {
         return settings.set((prev) => ({ ...prev, diffStyle: prev.diffStyle === 'split' ? 'unified' : 'split' }))
@@ -78,5 +91,5 @@ export function useKeyboard(open: { palette(): void; help(): void }) {
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [api, session, settings, viewer, reviews, viewed, writes])
+  }, [api, session, settings, viewer, reviews, viewed, writes, view])
 }

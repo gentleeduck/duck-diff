@@ -13,7 +13,7 @@ import {
   unstageHunk,
 } from '../index'
 
-const BASE = Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join('\n') + '\n'
+const BASE = `${Array.from({ length: 30 }, (_, i) => `line ${i + 1}`).join('\n')}\n`
 
 function twoHunks(content: string) {
   const lines = content.split('\n')

@@ -45,8 +45,13 @@ export function pathArgs(target: DiffTarget): string[] {
 // Paths stuck in a merge conflict; only targets that read the index or working tree can have them.
 export async function unmergedPaths(repo: string, target: DiffTarget): Promise<string[]> {
   if (target.kind !== 'unstaged' && target.kind !== 'staged' && target.kind !== 'local') return []
-  const out = await runGit(['diff', '--name-only', '--diff-filter=U', '-z'], { cwd: repo })
-  return out.split('\0').filter(Boolean)
+  // The index alone knows which paths are unmerged, so this avoids a full working-tree diff.
+  const out = await runGit(['ls-files', '-u', '-z'], { cwd: repo })
+  const paths = out
+    .split('\0')
+    .filter(Boolean)
+    .map((entry) => entry.slice(entry.indexOf('\t') + 1))
+  return [...new Set(paths)]
 }
 
 // The index cannot show a conflicted path as a normal patch, so index-side targets leave it out.

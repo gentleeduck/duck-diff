@@ -16,6 +16,7 @@ describe('resolveKey', () => {
   it('maps the single-key shortcuts', () => {
     expect(resolveKey(key({ key: 'j' }))).toBe('next-hunk')
     expect(resolveKey(key({ key: 'k' }))).toBe('prev-hunk')
+    expect(resolveKey(key({ key: '2' }))).toBe('view-graph')
     expect(resolveKey(key({ key: 'J', shiftKey: true }))).toBe('next-file')
     expect(resolveKey(key({ key: 'K', shiftKey: true }))).toBe('prev-file')
     expect(resolveKey(key({ key: 't' }))).toBe('toggle-layout')

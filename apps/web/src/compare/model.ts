@@ -12,8 +12,11 @@ export interface TargetDescription {
 const WORKTREE = 'working tree'
 const INDEX = 'staged'
 
-// Full commit hashes (from history picks) read better at the length git prints them.
+// Full commit hashes (from history picks) read better at the length git prints them, and fetched
+// pull request heads by their number.
 function short(ref: string): string {
+  const pull = /^refs\/duck-diff\/pr\/(\d+)$/.exec(ref)
+  if (pull) return `PR #${pull[1]}`
   return /^[0-9a-f]{40}$/.test(ref) ? ref.slice(0, 7) : ref
 }
 

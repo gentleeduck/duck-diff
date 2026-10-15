@@ -5,9 +5,9 @@ import { relativeTime } from '../sidebar/relative-time'
 import type { SessionState } from '../state/session'
 
 const STATUS = {
-  open: { label: 'Live', color: '#3fb950' },
-  connecting: { label: 'Connecting', color: 'var(--dd-muted)' },
-  closed: { label: 'Reconnecting', color: '#d29922' },
+  open: { label: 'Live', color: 'var(--diff-added)' },
+  connecting: { label: 'Connecting', color: 'var(--muted-foreground)' },
+  closed: { label: 'Reconnecting', color: 'var(--warning)' },
 }
 
 const selectLoad = (state: SessionState) => `${state.status}:${state.loadedAt}:${state.error ?? ''}`
@@ -29,14 +29,14 @@ export function StatusBar({ live }: { live: LiveState }) {
         {indicator.label}
       </span>
       {live.repo && (
-        <span className="font-[var(--dd-font-code)]">
+        <span className="font-mono">
           {live.repo.branch ?? 'detached'}
           {live.repo.head && <span className="ml-1.5 opacity-70">{live.repo.head.slice(0, 7)}</span>}
         </span>
       )}
       <span className="ml-auto" aria-live="polite">
         {status === 'loading' && 'Loading changes'}
-        {status === 'error' && <span className="text-[#f85149]">Could not load changes: {error}</span>}
+        {status === 'error' && <span className="text-removed">Could not load changes: {error}</span>}
         {status === 'ready' && `Updated ${relativeTime(Number(loadedAt) / 1000)}`}
       </span>
     </>

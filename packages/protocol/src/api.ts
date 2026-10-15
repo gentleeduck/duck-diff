@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { type DiffTarget, DiffTargetSchema, FileStatusSchema, RepoPathSchema } from './git'
+import { type DiffTarget, DiffTargetSchema, FileStatusSchema, RefNameSchema, RepoPathSchema } from './git'
 
 export function encodeTarget(target: DiffTarget): string {
   return encodeURIComponent(JSON.stringify(target))
@@ -56,6 +56,42 @@ export const WriteRequestSchema = z.union([
 ])
 export type WriteRequest = z.infer<typeof WriteRequestSchema>
 export type WriteAction = WriteRequest['action']
+
+export const FileContentsSchema = z.object({ text: z.string().nullable(), size: z.number(), binary: z.boolean() })
+export type FileContents = z.infer<typeof FileContentsSchema>
+
+export const SyncStatusSchema = z.object({
+  branch: z.string().nullable(),
+  upstream: z.string().nullable(),
+  ahead: z.number().int(),
+  behind: z.number().int(),
+  staged: z.number().int(),
+  operation: z.enum(['merge', 'cherry-pick', 'revert', 'rebase']).nullable(),
+})
+export type SyncStatus = z.infer<typeof SyncStatusSchema>
+
+export const CommitRequestSchema = z.object({ message: z.string().trim().min(1).max(100_000), amend: z.boolean() })
+export type CommitRequest = z.infer<typeof CommitRequestSchema>
+
+export const SwitchRequestSchema = z.object({
+  branch: RefNameSchema,
+  create: z.boolean(),
+  start: RefNameSchema.optional(),
+})
+export type SwitchRequest = z.infer<typeof SwitchRequestSchema>
+
+export const CheckoutRequestSchema = z.object({ sha: RefNameSchema })
+
+export const RefRequestSchema = z.object({ ref: RefNameSchema })
+export const DeleteBranchSchema = z.object({ name: RefNameSchema, force: z.boolean() })
+
+export const StashSaveSchema = z.object({ message: z.string().trim().max(1000), untracked: z.boolean() })
+export const StashNameSchema = z.string().regex(/^stash@\{\d+\}$/)
+export const StashApplySchema = z.object({ name: StashNameSchema, pop: z.boolean() })
+export const StashDropSchema = z.object({ name: StashNameSchema })
+
+export const NavigateRequestSchema = z.object({ target: DiffTargetSchema })
+export const NavigateResultSchema = z.object({ pages: z.number().int() })
 
 export const UndoResultSchema = z.object({ restored: z.array(z.string()).nullable() })
 export type UndoResult = z.infer<typeof UndoResultSchema>

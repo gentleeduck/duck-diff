@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 // Refs come from the page, so anything that git could read as an option is refused.
-const RefName = z
+export const RefNameSchema = z
   .string()
   .min(1)
   .max(256)
@@ -19,12 +19,12 @@ export const DiffTargetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('local') }),
   z.object({
     kind: z.literal('range'),
-    from: RefName,
-    to: RefName,
+    from: RefNameSchema,
+    to: RefNameSchema,
     mode: z.enum(['two-dot', 'merge-base']),
     path: RepoPathSchema.optional(),
   }),
-  z.object({ kind: z.literal('commit'), sha: RefName, path: RepoPathSchema.optional() }),
+  z.object({ kind: z.literal('commit'), sha: RefNameSchema, path: RepoPathSchema.optional() }),
 ])
 export type DiffTarget = z.infer<typeof DiffTargetSchema>
 
@@ -66,6 +66,18 @@ export const CommitSchema = z.object({
   subject: z.string(),
 })
 export type Commit = z.infer<typeof CommitSchema>
+
+export const CommitDetailsSchema = z.object({
+  sha: z.string(),
+  parents: z.array(z.string()),
+  authorName: z.string(),
+  authorEmail: z.string(),
+  authoredAt: z.number(),
+  committerName: z.string(),
+  committedAt: z.number(),
+  message: z.string(),
+})
+export type CommitDetails = z.infer<typeof CommitDetailsSchema>
 
 export const RefKindSchema = z.enum(['branch', 'remote', 'tag', 'stash'])
 export type RefKind = z.infer<typeof RefKindSchema>

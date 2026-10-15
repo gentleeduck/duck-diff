@@ -13,6 +13,11 @@ export type Action =
   | 'comment'
   | 'viewed'
   | 'open'
+  | 'view-changes'
+  | 'view-graph'
+  | 'view-files'
+  | 'view-prs'
+  | 'view-issues'
 
 interface KeyLike {
   key: string
@@ -36,6 +41,11 @@ const PLAIN: Record<string, Action> = {
   c: 'comment',
   v: 'viewed',
   o: 'open',
+  '1': 'view-changes',
+  '2': 'view-graph',
+  '3': 'view-files',
+  '4': 'view-prs',
+  '5': 'view-issues',
 }
 
 function isTyping(target: KeyLike['target']): boolean {

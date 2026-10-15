@@ -1,4 +1,5 @@
 import {
+  Button,
   Command,
   CommandEmpty,
   CommandGroup,
@@ -9,6 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@duck-diff/ui'
+import { GitBranch } from 'lucide-react'
 import { useState } from 'react'
 import type { RefList } from '../hooks/useRefs'
 import type { Endpoint } from './model'
@@ -33,12 +35,17 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
+        <Button
+          size="sm"
+          variant="outline"
           aria-label={side === 'from' ? `Compare from ${label}` : `Compare to ${label}`}
-          className="rounded-sm px-1 underline decoration-[var(--dd-line)] underline-offset-4 hover:decoration-[var(--dd-accent)]">
-          {label}
-        </button>
+          title={label}
+          // Short names like HEAD never give up room; long branch names truncate first.
+          style={{ flexShrink: label.length > 8 ? 1 : 0 }}
+          className="min-w-0 max-w-56 gap-1.5">
+          <GitBranch />
+          <span className="truncate">{label}</span>
+        </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0">
         <Command>
@@ -58,9 +65,9 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
                       key={ref.name}
                       value={`${ref.name} ${ref.subject ?? ''}`}
                       onSelect={() => pick({ kind: 'ref', name: ref.name })}>
-                      <span className="font-[var(--dd-font-code)]">{ref.name}</span>
-                      {ref.subject && <span className="truncate text-[var(--dd-muted)]">{ref.subject}</span>}
-                      {ref.current && <span className="ml-auto text-[var(--dd-muted)] text-[12px]">current</span>}
+                      <span className="font-mono">{ref.name}</span>
+                      {ref.subject && <span className="truncate text-muted-foreground">{ref.subject}</span>}
+                      {ref.current && <span className="ml-auto text-muted-foreground">current</span>}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -73,7 +80,7 @@ export function RefPicker({ label, side, refs, onPick }: RefPickerProps) {
                     key={commit.sha}
                     value={`${commit.sha} ${commit.subject}`}
                     onSelect={() => pick({ kind: 'ref', name: commit.sha })}>
-                    <span className="font-[var(--dd-font-code)] text-[var(--dd-muted)]">{commit.sha.slice(0, 7)}</span>
+                    <span className="font-mono text-muted-foreground">{commit.sha.slice(0, 7)}</span>
                     <span className="truncate">{commit.subject}</span>
                   </CommandItem>
                 ))}

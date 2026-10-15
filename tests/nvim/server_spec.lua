@@ -64,4 +64,20 @@ return {
     eq(204, status.value)
     server.stop_all()
   end,
+
+  ['navigate reports no pages when none are open'] = function()
+    config.setup({ binary = BINARY })
+    local dir = repo()
+    local started = await(function(cb)
+      server.ensure(dir, cb)
+    end)
+    eq(nil, started.err)
+    local pages = await(function(cb)
+      server.navigate(dir, { kind = 'staged' }, function(count)
+        cb(nil, count)
+      end)
+    end)
+    eq(0, pages.value)
+    server.stop_all()
+  end,
 }

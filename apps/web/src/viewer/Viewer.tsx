@@ -1,78 +1,151 @@
-import type { CodeViewItem, DiffLineAnnotation, LineAnnotation } from '@pierre/diffs'
-import { CodeView, type CodeViewHandle, WorkerPoolContextProvider } from '@pierre/diffs/react'
-import DiffsWorker from '@pierre/diffs/worker/worker.js?worker'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type DiffTarget, targetKey } from '@duck-diff/protocol'
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
+import { DiffView } from '../diff/DiffView'
+import { highlighter } from '../diff/highlighter'
+import { buildPage } from '../diff/page'
+import type { RowContextValue } from '../diff/RowViews'
+import type { DiffLine, DiffRow } from '../diff/rows'
+import { type PullReviewState, pullOf } from '../github/pull-review'
 import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
 import { useStore } from '../lib/store'
-import { createAnnotator, type Note } from '../review/annotations'
+import { lineHash } from '../review/anchor'
+import { createAnnotator, type Note, type NoteItem } from '../review/annotations'
 import { ReviewNote } from '../review/ReviewNote'
 import type { ReviewsState } from '../review/reviews'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
 import { type ViewedState, viewedPaths } from '../state/viewed'
 import { useWrites } from '../writes/WritesProvider'
-import { actionsFor } from './actions'
+import { actionsFor, type WriteKind } from './actions'
 import { FileActions } from './FileActions'
+import { FileHeader } from './FileHeader'
 import { fileNote } from './file-info'
-import { type HoveredLineGetter, HunkToolbar } from './HunkToolbar'
-import { createContentLoader, viewerOptions, viewerStyle } from './options'
-import { syncItems } from './sync-items'
 import { WriteButtons } from './WriteButtons'
-
-type Item = CodeViewItem<Note>
-
-const POOL = {
-  poolSize: Math.max(1, (globalThis.navigator?.hardwareConcurrency ?? 2) - 1),
-  workerFactory: () => new DiffsWorker(),
-}
 
 const selectItems = (state: SessionState) => state.items
 const selectFiles = (state: SessionState) => state.files
+const selectStatus = (state: SessionState) => state.status
+
+const EMPTY: Record<DiffTarget['kind'], string> = {
+  local: 'Nothing to commit. The working tree matches the last commit.',
+  staged: 'Nothing is staged. Stage files or hunks from the working tree to see them here.',
+  unstaged: 'No unstaged changes. Everything left is already staged.',
+  range: 'These two points have the same content.',
+  commit: 'This commit changes no files.',
+}
 const selectSettings = (state: Settings) => state
 const selectReviews = (state: ReviewsState) => state
+const selectRemote = (state: PullReviewState) => state.comments
 const selectViewed = (state: ViewedState) => state
 
+// State that belongs to one comparison and starts over when the comparison changes.
+function usePerTarget<T>(key: string, initial: () => T): [T, (update: (prev: T) => T) => void] {
+  const [state, setState] = useState(() => ({ key, value: initial() }))
+  const value = state.key === key ? state.value : initial()
+  const update = useCallback(
+    (fn: (prev: T) => T) => setState((prev) => ({ key, value: fn(prev.key === key ? prev.value : initial()) })),
+    [key, initial],
+  )
+  return [value, update]
+}
+
+const emptyToggles = () => new Map<string, boolean>() as ReadonlyMap<string, boolean>
+const emptyContents = () => new Map<string, readonly string[]>() as ReadonlyMap<string, readonly string[]>
+const emptyExpanded = () => new Map<string, ReadonlySet<number>>() as ReadonlyMap<string, ReadonlySet<number>>
+
 export default function Viewer() {
-  const { api, session, viewer, reviews, viewed, fileHistory } = useApp()
+  const { api, viewer, reviews, viewed, fileHistory, pullReview } = useApp()
   const plain = useSession(selectItems)
   const files = useSession(selectFiles)
+  const status = useSession(selectStatus)
   const { target } = useTarget()
+  const shownKey = targetKey(target)
   const { comments, draft } = useStore(reviews, selectReviews)
+  const remote = useStore(pullReview, selectRemote)
+  const pull = pullOf(target)
+  useEffect(() => {
+    pullReview.load(pull).catch(() => {})
+  }, [pullReview, pull])
   const viewedState = useStore(viewed, selectViewed)
-  const folded = useMemo(() => viewedPaths(viewedState, target, files), [viewedState, target, files])
-  const annotate = useMemo(createAnnotator, [])
-  const items = useMemo(
-    () => annotate(plain, comments, draft, folded, files),
-    [annotate, plain, comments, draft, folded, files],
-  )
+  const settings = useSettings(selectSettings)
   const writes = useWrites()
   const kinds = useMemo(() => actionsFor(target), [target])
   const byPath = useMemo(() => new Map(files.map((file) => [file.path, file])), [files])
-  const settings = useSettings(selectSettings)
-  const synced = useRef<readonly Item[]>([])
-  // CodeView hands over its handle after mount, so syncing waits for it rather than for the first render.
-  const [handle, setHandle] = useState<CodeViewHandle<Note, undefined> | null>(null)
-  const attach = useCallback(
-    (next: CodeViewHandle<Note, undefined> | null) => {
-      viewer.current = next
-      synced.current = []
-      setHandle(next)
-    },
-    [viewer],
+  useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
+
+  // Paths the header chevron folded (true) or opened (false), on top of the viewed marks.
+  const [toggled, setToggled] = usePerTarget(shownKey, emptyToggles)
+  const folded = useMemo(() => {
+    const paths = viewedPaths(viewedState, target, files)
+    for (const [path, fold] of toggled) if (fold) paths.add(path)
+    return paths
+  }, [viewedState, target, files, toggled])
+  const opened = useMemo(() => new Set([...toggled].filter(([, fold]) => !fold).map(([path]) => path)), [toggled])
+  const annotate = useMemo(createAnnotator, [])
+  const items = useMemo(
+    () => annotate(plain, comments, draft, folded, files, opened, remote),
+    [annotate, plain, comments, draft, folded, files, opened, remote],
   )
 
-  const loader = useMemo(() => createContentLoader(api, () => session.get().target), [api, session])
-  const options = useMemo(() => ({ ...viewerOptions(settings, loader), enableGutterUtility: true }), [settings, loader])
-  const highlighter = useMemo(() => ({ theme: settings.themes }), [settings.themes])
+  // Unchanged lines are read from the full file the first time someone opens a gap.
+  const [expanded, setExpanded] = usePerTarget(shownKey, emptyExpanded)
+  const [contents, setContents] = usePerTarget(shownKey, emptyContents)
 
-  useEffect(() => {
-    if (!handle) return
-    syncItems(handle, synced.current, items)
-    synced.current = items
-  }, [items, handle])
+  const layout = settings.diffStyle === 'split' ? 'split' : 'unified'
+  const page = useMemo(
+    () =>
+      buildPage(items, layout, (item) => {
+        const lines = contents.get(item.fileDiff.name)
+        const open = expanded.get(item.id) ?? new Set<number>()
+        const all =
+          settings.expandUnchanged && lines
+            ? new Set(item.fileDiff.hunks.map((_, i) => i).concat(item.fileDiff.hunks.length))
+            : open
+        return { newLines: lines, expanded: all, key: `${lines ? 'full' : 'patch'}:${[...all].join(',')}` }
+      }),
+    [items, layout, contents, expanded, settings.expandUnchanged],
+  )
+
+  const context = useMemo<RowContextValue>(
+    () => ({
+      settings,
+      tokens(item, side, line) {
+        const file = page.files.get(item.id)
+        if (!file) return undefined
+        return highlighter
+          .tokens(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
+          ?.[side].get(line)
+      },
+      kinds(item) {
+        const file = byPath.get(item.fileDiff.name)
+        return file && file.status !== 'untracked' && file.status !== 'conflicted' ? kinds : []
+      },
+      comment(item: NoteItem, line: DiffLine, side) {
+        const number = side === 'additions' ? line.newNo : line.oldNo
+        if (number === null) return
+        reviews.startDraft({ path: item.fileDiff.name, side, line: number, lineHash: lineHash(line.text) })
+      },
+      write(kind: WriteKind, item, index) {
+        const file = byPath.get(item.fileDiff.name)
+        const hunk = item.fileDiff.hunks[index]
+        if (file && hunk) void writes.perform(kind, file, { index, hunk })
+      },
+      expand(item, gap: Extract<DiffRow, { type: 'gap' }>) {
+        const path = item.fileDiff.name
+        setExpanded((prev) => new Map(prev).set(item.id, new Set([...(prev.get(item.id) ?? []), gap.before])))
+        if (contents.has(path)) return
+        const file = byPath.get(path)
+        api.content(target, 'new', { path, oldPath: file?.oldPath ?? null }).then(
+          (text) => setContents((prev) => new Map(prev).set(path, (text ?? '').split('\n'))),
+          () => {},
+        )
+      },
+    }),
+    [settings, page, byPath, kinds, reviews, writes, api, target, contents, setExpanded, setContents],
+  )
 
   // Only a server started from Neovim can open files there, so the button follows repo info.
   const [canOpen, setCanOpen] = useState(false)
@@ -83,54 +156,38 @@ export default function Viewer() {
     )
   }, [api])
 
-  const renderMeta = useCallback(
-    (item: Item) => {
-      if (item.type !== 'diff') return null
+  const renderHeader = useCallback(
+    (item: NoteItem) => {
       const path = item.fileDiff.name
       const file = byPath.get(path)
       const firstLine = item.fileDiff.hunks[0]?.additionStart ?? 1
+      const collapsed = Boolean(item.collapsed)
+      const toggle = () => setToggled((prev) => new Map(prev).set(path, !collapsed))
       return (
-        <FileActions
-          path={path}
-          viewed={folded.has(path)}
-          onViewed={() => file && viewed.toggle(target, file)}
-          onHistory={() => fileHistory.set(path)}
-          note={file ? fileNote(file) : null}
-          onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
-          writes={
-            file && file.status !== 'conflicted' && kinds.length > 0 ? (
-              <WriteButtons kinds={kinds} scope="file" onWrite={(kind) => void writes.perform(kind, file)} />
-            ) : null
-          }
-        />
+        <FileHeader path={path} file={file} collapsed={collapsed} onToggle={toggle}>
+          <FileActions
+            path={path}
+            viewed={folded.has(path)}
+            onViewed={() => file && viewed.toggle(target, file)}
+            onHistory={() => fileHistory.set(path)}
+            note={file ? fileNote(file) : null}
+            onOpen={canOpen ? () => void api.open(path, firstLine) : undefined}
+            writes={
+              file && file.status !== 'conflicted' && kinds.length > 0 ? (
+                <WriteButtons kinds={kinds} scope="file" onWrite={(kind) => void writes.perform(kind, file)} />
+              ) : null
+            }
+          />
+        </FileHeader>
       )
     },
-    [api, canOpen, byPath, kinds, writes, folded, viewed, target, fileHistory],
+    [api, canOpen, byPath, kinds, writes, folded, viewed, target, fileHistory, setToggled],
   )
 
-  const renderGutter = useCallback(
-    (getHoveredLine: HoveredLineGetter, item: Item) => <HunkToolbar item={item} getHoveredLine={getHoveredLine} />,
-    [],
-  )
+  const renderNote = useCallback((note: Note) => <ReviewNote note={note} />, [])
 
-  const renderNote = useCallback(
-    (annotation: LineAnnotation<Note> | DiffLineAnnotation<Note>) =>
-      annotation.metadata ? <ReviewNote note={annotation.metadata} /> : null,
-    [],
-  )
-
-  return (
-    <WorkerPoolContextProvider poolOptions={POOL} highlighterOptions={highlighter}>
-      <CodeView<Note>
-        ref={attach}
-        initialItems={[]}
-        options={options}
-        style={viewerStyle(settings)}
-        className="h-full overflow-y-auto [contain:strict]"
-        renderHeaderMetadata={renderMeta}
-        renderGutterUtility={renderGutter}
-        renderAnnotation={renderNote}
-      />
-    </WorkerPoolContextProvider>
-  )
+  if (status === 'ready' && files.length === 0) {
+    return <p className="p-6 text-muted-foreground">{EMPTY[target.kind]}</p>
+  }
+  return <DiffView ref={viewer} page={page} context={context} renderHeader={renderHeader} renderNote={renderNote} />
 }

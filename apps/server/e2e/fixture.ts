@@ -30,12 +30,24 @@ export const test = base.extend<Fixtures>({
   app: async ({ repo }, use) => {
     // Comments and undo snapshots go to a throwaway home so tests never touch the real ones.
     const home = mkdtempSync(join(tmpdir(), 'duck-diff-e2e-'))
-    const env = { ...process.env, XDG_DATA_HOME: join(home, 'data'), XDG_CACHE_HOME: join(home, 'cache') }
+    // CI machines have no git identity, so commits made from the page need one.
+    const env = {
+      ...process.env,
+      XDG_DATA_HOME: join(home, 'data'),
+      XDG_CACHE_HOME: join(home, 'cache'),
+      GIT_AUTHOR_NAME: 'Duck Test',
+      GIT_AUTHOR_EMAIL: 'test@duck.local',
+      GIT_COMMITTER_NAME: 'Duck Test',
+      GIT_COMMITTER_EMAIL: 'test@duck.local',
+    }
     const child = spawn(BINARY, ['serve', '--repo', repo.path], { stdio: ['pipe', 'pipe', 'inherit'], env })
     const [chunk] = (await once(child.stdout, 'data')) as [Buffer]
     const handshake = HandshakeSchema.parse(JSON.parse(chunk.toString().split('\n')[0] ?? ''))
     await use({ url: handshake.url })
+    // Wait for the exit so the repo is not deleted under a git command still running.
+    const exited = once(child, 'exit')
     child.kill()
+    await exited
     rmSync(home, { recursive: true, force: true })
   },
 })

@@ -1,0 +1,90 @@
+import { Button, Input, Kbd } from '@duck-diff/ui'
+import { RefreshCw } from 'lucide-react'
+import { type ReactNode, useEffect, useState } from 'react'
+import { useApp } from '../app/AppProvider'
+import { useStore } from '../lib/store'
+import { type GitHubState, isReady } from './store'
+
+const selectState = (state: GitHubState) => state
+
+export function useGitHub(): GitHubState {
+  const { github } = useApp()
+  const state = useStore(github, selectState)
+  useEffect(() => {
+    void github.load()
+  }, [github])
+  return state
+}
+
+function SignInPanel({ state }: { state: GitHubState }) {
+  const { github } = useApp()
+  const [token, setToken] = useState('')
+  const noRemote = state.status !== null && state.status.repo === null
+
+  if (noRemote) {
+    return (
+      <div className="flex max-w-lg flex-col gap-2">
+        <h2 className="text-foreground">No GitHub remote</h2>
+        <p className="text-muted-foreground">
+          This repository has no <code className="text-tn-cyan">origin</code> on github.com, so there are no pull
+          requests or issues to show.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <form
+      className="flex max-w-lg flex-col gap-3"
+      aria-label="Sign in to GitHub"
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (token.trim()) void github.signIn(token.trim())
+      }}>
+      <h2 className="flex items-center gap-2 text-foreground">
+        <span aria-hidden="true"></span>
+        Sign in to GitHub
+      </h2>
+      <p className="text-muted-foreground">
+        duck-diff uses the GitHub CLI's login. Run <Kbd>gh auth login</Kbd> in a terminal, then check again.
+      </p>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="self-start"
+        loading={state.loading}
+        onClick={() => void github.load(true)}>
+        <RefreshCw />
+        Check again
+      </Button>
+      <p className="text-muted-foreground">Or paste a personal access token. It stays in this server's memory.</p>
+      <div className="flex gap-2">
+        <Input
+          type="password"
+          aria-label="GitHub token"
+          placeholder="ghp_..."
+          autoComplete="off"
+          value={token}
+          onChange={(event) => setToken(event.target.value)}
+        />
+        <Button type="submit" size="sm" disabled={token.trim().length < 10 || state.loading}>
+          Sign in
+        </Button>
+      </div>
+      {state.error ? <p className="text-removed">{state.error}</p> : null}
+    </form>
+  )
+}
+
+// Shows the children once signed in to the repo's GitHub, and the way to get there otherwise.
+export function GitHubGate({ children }: { children: ReactNode }) {
+  const state = useGitHub()
+  if (isReady(state)) return children
+  if (!state.status && state.loading) return null
+  return (
+    <div className="p-6">
+      <SignInPanel state={state} />
+    </div>
+  )
+}

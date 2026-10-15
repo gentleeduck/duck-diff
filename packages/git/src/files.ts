@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
 import { runGit } from './run'
@@ -76,6 +76,18 @@ export function parseNumstat(output: string): NumstatEntry[] {
   return entries
 }
 
+// `--raw --numstat -z` prints every raw record, then every numstat record. Walking the raw records
+// positionally finds where the numstat half starts, so one git process serves both.
+export function parseDiffSummary(output: string): { raw: RawEntry[]; numstat: NumstatEntry[] } {
+  const parts = output.split('\0')
+  let i = 0
+  while (i < parts.length && parts[i]?.startsWith(':')) {
+    const code = parts[i]?.split(' ')[4]?.charAt(0)
+    i += code === 'R' || code === 'C' ? 3 : 2
+  }
+  return { raw: parseRaw(parts.slice(0, i).join('\0')), numstat: parseNumstat(parts.slice(i).join('\0')) }
+}
+
 async function hashWorkTreeFiles(repo: string, paths: string[]): Promise<Map<string, string>> {
   if (paths.length === 0) return new Map()
   const out = await runGit(['hash-object', '--', ...paths], { cwd: repo })
@@ -83,23 +95,31 @@ async function hashWorkTreeFiles(repo: string, paths: string[]): Promise<Map<str
   return new Map(paths.map((path, i) => [path, shas[i] ?? '']))
 }
 
+// Counted here rather than with one `git diff --no-index` per file: with many new files the processes
+// dominated the file list. Binary detection follows git's rule, a NUL byte in the first 8000 bytes.
+async function countNewFile(repo: string, path: string): Promise<{ lines: number | null }> {
+  const bytes = await readFile(join(repo, path)).catch(() => null)
+  if (!bytes) return { lines: 0 }
+  if (bytes.subarray(0, 8000).includes(0)) return { lines: null }
+  if (bytes.length === 0) return { lines: 0 }
+  let lines = 0
+  for (const byte of bytes) if (byte === 10) lines++
+  return { lines: bytes[bytes.length - 1] === 10 ? lines : lines + 1 }
+}
+
 async function listUntracked(repo: string): Promise<ChangedFile[]> {
   const out = await runGit(['ls-files', '--others', '--exclude-standard', '-z'], { cwd: repo })
   const paths = out.split('\0').filter(Boolean)
   return Promise.all(
     paths.map(async (path): Promise<ChangedFile> => {
-      const stat = await runGit(['diff', '--no-index', '--numstat', '-z', '--', '/dev/null', path], {
-        cwd: repo,
-        okExitCodes: [1],
-      })
-      const [entry] = parseNumstat(stat)
-      const binary = entry !== undefined && entry.additions === null
+      const { lines } = await countNewFile(repo, path)
+      const binary = lines === null
       return {
         path,
         oldPath: null,
         status: 'untracked',
-        additions: binary ? null : (entry?.additions ?? 0),
-        deletions: binary ? null : (entry?.deletions ?? 0),
+        additions: lines,
+        deletions: binary ? null : 0,
         binary,
         oldSha: null,
         newSha: null,
@@ -180,13 +200,18 @@ async function markGenerated(repo: string, files: ChangedFile[]): Promise<void> 
 export async function listFiles(repo: string, target: DiffTarget): Promise<ChangedFile[]> {
   const unmerged = await unmergedPaths(repo, target)
   const args = [...(await targetArgs(repo, target)), ...pathArgs(target), ...excludeArgs(target, unmerged)]
-  const [raw, numstat] = await Promise.all([
-    runGit(['diff', ...DIFF_FLAGS, '--raw', '--no-abbrev', ...args], { cwd: repo }),
-    runGit(['diff', ...DIFF_FLAGS, '--numstat', ...args], { cwd: repo }),
+  const worktree = readsWorkTree(target)
+  // Every diff re-reads the index and stats the tree, and two at once contend, so one call prints both halves.
+  const [summary, extra] = await Promise.all([
+    runGit(['diff', ...DIFF_FLAGS, '--raw', '--numstat', '--no-abbrev', ...args], { cwd: repo }),
+    worktree
+      ? Promise.all([conflictedFiles(repo, unmerged), listUntracked(repo)]).then((lists) => lists.flat())
+      : Promise.resolve([]),
   ])
-  const counts = new Map(parseNumstat(numstat).map((entry) => [entry.path, entry]))
+  const { raw, numstat } = parseDiffSummary(summary)
+  const counts = new Map(numstat.map((entry) => [entry.path, entry]))
   const conflicted = new Set(unmerged)
-  const files: ChangedFile[] = parseRaw(raw)
+  const files: ChangedFile[] = raw
     .filter((entry) => !conflicted.has(entry.path))
     .map((entry) => {
       const count = counts.get(entry.path)
@@ -199,13 +224,13 @@ export async function listFiles(repo: string, target: DiffTarget): Promise<Chang
       }
     })
 
-  if (readsWorkTree(target)) {
-    files.push(...(await conflictedFiles(repo, unmerged)), ...(await listUntracked(repo)))
+  files.push(...extra)
+  const hashing = async () => {
+    if (!worktree) return
     const present = files.filter((file) => file.status !== 'deleted').map((file) => file.path)
     const shas = await hashWorkTreeFiles(repo, present)
     for (const file of files) file.newSha = shas.get(file.path) ?? file.newSha
   }
-
-  await Promise.all([fillSizes(repo, target, files), markGenerated(repo, files)])
+  await Promise.all([hashing(), fillSizes(repo, target, files), markGenerated(repo, files)])
   return files.sort((a, b) => a.path.localeCompare(b.path))
 }

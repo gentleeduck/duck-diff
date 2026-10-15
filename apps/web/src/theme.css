@@ -1,44 +1,132 @@
-@import "@fontsource/ibm-plex-sans/latin-400.css";
-@import "@fontsource/ibm-plex-sans/latin-500.css";
-@import "@fontsource/ibm-plex-sans/latin-600.css";
-@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-700-italic.css";
 
-:root {
-  --dd-base: #fafaf9;
-  --dd-surface: #ffffff;
-  --dd-line: #e6e6e3;
-  --dd-text: #1d1f23;
-  --dd-muted: #6b707a;
-  --dd-accent: #3f4cc9;
-  --dd-font-ui: "IBM Plex Sans", system-ui, sans-serif;
-  --dd-font-code: "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
-}
-
-:root.dark {
-  --dd-base: #17181b;
-  --dd-surface: #1e2024;
-  --dd-line: #2c2f35;
-  --dd-text: #e4e6eb;
-  --dd-muted: #8b909a;
-  --dd-accent: #7c8cff;
-}
-
-/* duck-ui reads these; pointing them at the duck-diff palette keeps every component on one set of colors. */
+/* The page matches the terminal: tokyonight-night colors and JetBrainsMono Nerd Font in bold italic. */
 :root,
 :root.dark {
-  --background: var(--dd-base);
-  --foreground: var(--dd-text);
-  --card: var(--dd-surface);
-  --card-foreground: var(--dd-text);
-  --popover: var(--dd-surface);
-  --popover-foreground: var(--dd-text);
-  --muted-foreground: var(--dd-muted);
-  --border: var(--dd-line);
-  --input: var(--dd-line);
-  --ring: var(--dd-accent);
-  --sidebar: var(--dd-surface);
-  --sidebar-foreground: var(--dd-text);
-  --sidebar-border: var(--dd-line);
+  --font-sans: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, monospace;
+  --font-mono: var(--font-sans);
+
+  --tn-bg: #1a1b26;
+  --tn-bg-dark: #16161e;
+  --tn-bg-highlight: #292e42;
+  --tn-gutter: #3b4261;
+  --tn-fg: #c0caf5;
+  --tn-fg-dark: #a9b1d6;
+  --tn-comment: #565f89;
+  --tn-dark5: #737aa2;
+  --tn-blue: #7aa2f7;
+  --tn-cyan: #7dcfff;
+  --tn-magenta: #bb9af7;
+  --tn-pink: #ff007c;
+  --tn-orange: #ff9e64;
+  --tn-yellow: #e0af68;
+  --tn-green: #9ece6a;
+  --tn-teal: #73daca;
+  --tn-red: #f7768e;
+
+  /* duck-ui reads these, so every component lands on the same palette. */
+  --background: var(--tn-bg);
+  --foreground: var(--tn-fg);
+  --card: var(--tn-bg-dark);
+  --card-foreground: var(--tn-fg);
+  --popover: var(--tn-bg-dark);
+  --popover-foreground: var(--tn-fg);
+  --primary: var(--tn-blue);
+  --primary-foreground: var(--tn-bg);
+  --secondary: var(--tn-bg-highlight);
+  --secondary-foreground: var(--tn-fg);
+  --muted: var(--tn-bg-highlight);
+  --muted-foreground: var(--tn-dark5);
+  --accent: var(--tn-bg-highlight);
+  --accent-foreground: var(--tn-fg);
+  --destructive: var(--tn-red);
+  --destructive-foreground: var(--tn-bg);
+  --warning: var(--tn-yellow);
+  --warning-foreground: var(--tn-bg);
+  --border: var(--tn-bg-highlight);
+  --input: var(--tn-gutter);
+  --ring: var(--tn-blue);
+  --sidebar: var(--tn-bg-dark);
+  --sidebar-foreground: var(--tn-fg);
+  --sidebar-primary: var(--tn-blue);
+  --sidebar-primary-foreground: var(--tn-bg);
+  --sidebar-accent: var(--tn-bg-highlight);
+  --sidebar-accent-foreground: var(--tn-fg);
+  --sidebar-border: var(--tn-bg-highlight);
+  --sidebar-ring: var(--tn-blue);
+
+  /* Diff colors, from tokyonight's diff groups. */
+  --diff-added: var(--tn-green);
+  --diff-removed: var(--tn-red);
+  --diff-add-bg: #20303b;
+  --diff-del-bg: #37222c;
+  --diff-add-word: #2c5a66;
+  --diff-del-word: #713137;
+}
+
+/* tokyonight-day, for the light setting. */
+:root:not(.dark) {
+  --tn-bg: #e1e2e7;
+  --tn-bg-dark: #d0d5e3;
+  --tn-bg-highlight: #c4c8da;
+  --tn-gutter: #a8aecb;
+  --tn-fg: #3760bf;
+  --tn-fg-dark: #6172b0;
+  --tn-comment: #848cb5;
+  --tn-dark5: #68709a;
+  --tn-blue: #2e7de9;
+  --tn-cyan: #007197;
+  --tn-magenta: #9854f1;
+  --tn-pink: #d20065;
+  --tn-orange: #b15c00;
+  --tn-yellow: #8c6c3e;
+  --tn-green: #587539;
+  --tn-teal: #118c74;
+  --tn-red: #f52a65;
+
+  --diff-add-bg: #cfe1c9;
+  --diff-del-bg: #f0cfd6;
+  --diff-add-word: #a9cf9d;
+  --diff-del-word: #eaa5b3;
+}
+
+/* Shiki only ships tokyo-night, so in light mode each token keeps its hue and flips its lightness. */
+.tok {
+  color: var(--tok);
+}
+:root:not(.dark) .tok {
+  color: oklch(from var(--tok) calc(1 - l * 0.62) calc(c * 1.15) h);
+}
+
+/* One size across the page, the same as the code, including duck-ui's own small and large text. */
+@theme {
+  --text-xs: 15px;
+  --text-sm: 15px;
+  --text-base: 15px;
+  --text-lg: 15px;
+  --text-xl: 15px;
+  --text-2xl: 15px;
+}
+
+@theme inline {
+  --color-added: var(--diff-added);
+  --color-removed: var(--diff-removed);
+  --color-tn-blue: var(--tn-blue);
+  --color-tn-cyan: var(--tn-cyan);
+  --color-tn-magenta: var(--tn-magenta);
+  --color-tn-pink: var(--tn-pink);
+  --color-tn-yellow: var(--tn-yellow);
+  --color-tn-green: var(--tn-green);
+  --color-tn-red: var(--tn-red);
+  --color-tn-comment: var(--tn-comment);
+  --color-tn-dark5: var(--tn-dark5);
+  --color-tn-gutter: var(--tn-gutter);
+}
+
+@layer base {
+  * {
+    @apply font-bold italic;
+  }
 }
 
 html,
@@ -48,14 +136,8 @@ body,
 }
 
 body {
-  background: var(--dd-base);
-  color: var(--dd-text);
-  font-family: var(--dd-font-ui);
-  font-size: 13px;
-  -webkit-font-smoothing: antialiased;
-}
-
-:focus-visible {
-  outline: 2px solid var(--dd-accent);
-  outline-offset: 1px;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 15px;
 }

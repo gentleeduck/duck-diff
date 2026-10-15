@@ -35,18 +35,19 @@ function Row({
 }) {
   return (
     <li>
-      <button
-        type="button"
+      <Button
+        size="sm"
+        variant="ghost"
         aria-current={current}
         onClick={onClick}
-        className="flex w-full flex-col gap-0.5 px-3 py-1.5 text-left hover:bg-[var(--dd-base)] aria-[current=true]:bg-[color-mix(in_oklab,var(--dd-accent)_18%,transparent)]">
-        <span className="truncate text-[13px]">{subject}</span>
-        <span className="flex gap-2 text-[12px] text-[var(--dd-muted)]">
-          <span className="font-[var(--dd-font-code)]">{sha.slice(0, 7)}</span>
+        className="mx-2 h-auto w-[calc(100%-1rem)] flex-col items-stretch gap-0.5 px-2 py-1.5 text-start aria-[current=true]:bg-accent">
+        <span className="truncate">{subject}</span>
+        <span className="flex gap-2 text-muted-foreground">
+          <span className="font-mono">{sha.slice(0, 7)}</span>
           <span className="truncate">{who}</span>
           <span className="ml-auto shrink-0">{when}</span>
         </span>
-      </button>
+      </Button>
     </li>
   )
 }
@@ -97,23 +98,18 @@ export function HistoryList({ now }: { now?: number }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {path ? (
-        <div className="flex items-center gap-1 border-[var(--dd-line)] border-b px-3 py-1.5">
-          <span className="min-w-0 flex-1 truncate font-[var(--dd-font-code)] text-[12px]" title={path}>
+        <div className="flex items-center gap-1 border-border border-b px-3 py-1.5">
+          <span className="min-w-0 flex-1 truncate font-mono" title={path}>
             {path}
           </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            aria-label="Back to branch history"
-            onClick={() => fileHistory.set(null)}>
-            <X className="size-3.5" />
+          <Button variant="ghost" size="icon" aria-label="Back to branch history" onClick={() => fileHistory.set(null)}>
+            <X />
           </Button>
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto py-1">
         {state.commits.length === 0 ? (
-          <p className="p-3 text-[13px] text-[var(--dd-muted)]">No commits to show.</p>
+          <p className="p-3 text-muted-foreground">No commits to show.</p>
         ) : (
           <ol>
             {state.commits.map((commit) => (
@@ -130,13 +126,11 @@ export function HistoryList({ now }: { now?: number }) {
           </ol>
         )}
         {path && state.commits.length > 1 ? (
-          <p className="px-3 py-2 text-[12px] text-[var(--dd-muted)]">
-            Shift-click a second commit to compare versions.
-          </p>
+          <p className="px-3 py-2 text-muted-foreground">Shift-click a second commit to compare versions.</p>
         ) : null}
         {!path && state.stashes.length > 0 ? (
-          <section aria-label="Stashes" className="mt-2 border-[var(--dd-line)] border-t pt-1">
-            <h3 className="px-3 py-1 text-[12px] text-[var(--dd-muted)]">Stashes</h3>
+          <section aria-label="Stashes" className="mt-2 border-border border-t pt-1">
+            <h3 className="px-3 py-1 text-muted-foreground">Stashes</h3>
             <ol>
               {state.stashes.map((stash) => (
                 <Row

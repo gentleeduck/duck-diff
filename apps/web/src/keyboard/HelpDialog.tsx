@@ -9,6 +9,7 @@ const SHORTCUTS: [string, string][] = [
   ['o', 'Open the current change in Neovim'],
   ['t', 'Switch between split and stacked'],
   ['/', 'Filter files'],
+  ['1 to 5', 'Changes, graph, files, pull requests, issues'],
   ['Ctrl K', 'Command palette'],
   ['?', 'This list'],
 ]
@@ -18,13 +19,13 @@ export function HelpDialog({ open, onOpenChange }: { open: boolean; onOpenChange
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogTitle>Keyboard shortcuts</DialogTitle>
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[13px]">
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2">
           {SHORTCUTS.map(([keys, label]) => (
             <div key={keys} className="contents">
               <dt>
                 <Kbd>{keys}</Kbd>
               </dt>
-              <dd className="text-[var(--dd-muted)]">{label}</dd>
+              <dd className="text-muted-foreground">{label}</dd>
             </div>
           ))}
         </dl>
