@@ -147,10 +147,18 @@ export function createHighlighter(makeWorker: (() => Worker) | null, poolSize = 
       return () => listeners.delete(listener)
     },
     // A whole file, line numbers from 1; same caching as diffs.
-    text(key: string, path: string, text: string): LineTokens | null {
+    text(key: string, path: string, text: string, now = true): LineTokens | null {
       if (!makeWorker) return null
       const hit = cache.get(key)
-      if (hit === 'pending') return null
+      if (hit === 'pending') {
+        const queued = now ? later.get(key) : undefined
+        if (queued) {
+          later.delete(key)
+          urgent.push(queued)
+          pump()
+        }
+        return null
+      }
       if (hit) return hit.new
       cache.set(key, 'pending')
       enqueue(
@@ -161,7 +169,7 @@ export function createHighlighter(makeWorker: (() => Worker) | null, poolSize = 
           for (const [offset, tokens] of (response.runs?.[0] ?? []).entries()) entry.new.set(offset + 1, tokens)
           settle(key, entry)
         },
-        true,
+        now,
       )
       return null
     },

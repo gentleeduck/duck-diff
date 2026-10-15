@@ -1,5 +1,5 @@
 import { type DiffTarget, targetKey } from '@duck-diff/protocol'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { DiffView } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
@@ -31,6 +31,9 @@ const selectItems = (state: SessionState) => state.items
 const selectFiles = (state: SessionState) => state.files
 const selectStatus = (state: SessionState) => state.status
 const selectFolders = (folders: ReadonlySet<string>) => folders
+// Above this a file keeps hunk-only colors; tokenizing it whole would cost more than it shows.
+const FULL_LINES = 3000
+const sourceKey = (item: NoteItem) => item.fileDiff.cacheKey ?? item.id
 
 const EMPTY: Record<DiffTarget['kind'], string> = {
   local: 'Nothing to commit. The working tree matches the last commit.',
@@ -117,12 +120,52 @@ export default function Viewer() {
     [items, layout, contents, expanded, settings.expandUnchanged],
   )
 
+  // Whole old and new files per diff item, read for files on or near the screen. Huge ones keep hunk-only colors.
+  const sources = useRef(new Map<string, { old: string | null; new: string | null } | 'pending'>())
+  const sourcePath = useCallback(
+    (item: NoteItem, side: 'old' | 'new') =>
+      side === 'old' ? (byPath.get(item.fileDiff.name)?.oldPath ?? item.fileDiff.name) : item.fileDiff.name,
+    [byPath],
+  )
+  // Sources belong to one comparison; a new one starts empty.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the comparison's key is the trigger
+  useEffect(() => sources.current.clear(), [shownKey])
+  const loadSource = useCallback(
+    (item: NoteItem, now: boolean) => {
+      const key = sourceKey(item)
+      if (sources.current.has(key)) return
+      const file = byPath.get(item.fileDiff.name)
+      if (!file || file.binary) return
+      sources.current.set(key, 'pending')
+      const ref = { path: file.path, oldPath: file.oldPath }
+      const read = (side: 'old' | 'new') =>
+        (side === 'old' && (file.status === 'added' || file.status === 'untracked')) ||
+        (side === 'new' && file.status === 'deleted')
+          ? Promise.resolve(null)
+          : api.content(target, side, ref).catch(() => null)
+      void Promise.all([read('old'), read('new')]).then(([old, next]) => {
+        const fits = (text: string | null) => (text && text.split('\n').length <= FULL_LINES ? text : null)
+        const source = { old: fits(old), new: fits(next) }
+        sources.current.set(key, source)
+        if (source.old) highlighter.text(`${key}:old`, sourcePath(item, 'old'), source.old, now)
+        if (source.new) highlighter.text(`${key}:new`, sourcePath(item, 'new'), source.new, now)
+      })
+    },
+    [api, target, byPath, sourcePath],
+  )
+
   const context = useMemo<RowContextValue>(
     () => ({
       settings,
       tokens(item, side, line) {
         const file = page.files.get(item.id)
         if (!file) return undefined
+        // The whole file, once read, colors with its full context; until then each hunk colors on its own.
+        loadSource(item, true)
+        const source = sources.current.get(sourceKey(item))
+        const text = typeof source === 'object' ? source[side] : null
+        const full = text ? highlighter.text(`${sourceKey(item)}:${side}`, sourcePath(item, side), text) : null
+        if (full) return full.get(line)
         return highlighter
           .tokens(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
           ?.[side].get(line)
@@ -130,6 +173,7 @@ export default function Viewer() {
       prefetch(item) {
         const file = page.files.get(item.id)
         if (file) highlighter.prefetch(`${item.fileDiff.cacheKey}:${file.key}`, item.fileDiff.name, file.rows)
+        loadSource(item, false)
       },
       kinds(item) {
         const file = byPath.get(item.fileDiff.name)
@@ -156,7 +200,21 @@ export default function Viewer() {
         )
       },
     }),
-    [settings, page, byPath, kinds, reviews, writes, api, target, contents, setExpanded, setContents],
+    [
+      settings,
+      page,
+      byPath,
+      kinds,
+      reviews,
+      writes,
+      api,
+      target,
+      contents,
+      setExpanded,
+      setContents,
+      loadSource,
+      sourcePath,
+    ],
   )
 
   // Only a server started from Neovim can open files there, so the button follows repo info.
