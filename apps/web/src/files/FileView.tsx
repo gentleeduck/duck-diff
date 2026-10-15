@@ -231,7 +231,7 @@ export default function FileView() {
                 className="absolute inset-x-0 flex hover:bg-accent/40"
                 data-scroll-key="file"
                 style={{
-                  ...sideways.rowProps('file').style,
+                  ...sideways.rowStyle('file'),
                   height: lineHeight,
                   transform: `translateY(${virtual.start}px)`,
                 }}>
@@ -247,7 +247,9 @@ export default function FileView() {
               </div>
             ))}
           </div>
-          {sideways.scrollbar}
+          <div className="pointer-events-none sticky bottom-0 z-10 h-0">
+            {sideways.bar('file', undefined, 'pointer-events-auto absolute inset-x-0 bottom-0')}
+          </div>
         </div>
       ) : null}
     </section>

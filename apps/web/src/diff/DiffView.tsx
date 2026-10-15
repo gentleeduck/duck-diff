@@ -121,6 +121,29 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
           ? null
           : firstRow.item
 
+  // Where each file's code ends, so its sideways bar can sit on the file: at the bottom of the screen while
+  // the file runs past it, then in the gap under its last line.
+  const lastRows = useMemo(() => {
+    const last = new Map<string, number>()
+    page.rows.forEach((row, index) => {
+      if (row.type === 'row' || row.type === 'note') last.set(row.item.id, index)
+    })
+    return last
+  }, [page])
+  const BAR = 10
+  const viewBottom = scrollTop + (scroller.current?.clientHeight ?? 0)
+  const bars = wrap
+    ? null
+    : [...new Set(items.map((virtual) => page.rows[virtual.index]?.item.id))].flatMap((id) => {
+        const last = id === undefined ? undefined : lastRows.get(id)
+        const first = id === undefined ? undefined : page.starts.get(id)
+        const end = last === undefined ? undefined : virtualizer.measurementsCache[last]?.end
+        const top = first === undefined ? undefined : virtualizer.measurementsCache[first]?.end
+        if (id === undefined || end === undefined || top === undefined) return []
+        const y = Math.max(top, Math.min(end + 2, viewBottom - BAR))
+        return [sideways.bar(id, { position: 'absolute', insetInline: 0, transform: `translateY(${y}px)` })]
+      })
+
   const content = useMemo(
     () => (row: PageRow) => {
       if (row.type === 'header') return renderHeader(row.item)
@@ -162,14 +185,14 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
                 data-index={virtual.index}
                 data-row={row.type}
                 className="absolute inset-x-0"
-                {...sideways.rowProps(row.item.id)}
-                style={{ ...sideways.rowProps(row.item.id).style, transform: `translateY(${virtual.start}px)` }}>
+                data-scroll-key={row.item.id}
+                style={{ ...sideways.rowStyle(row.item.id), transform: `translateY(${virtual.start}px)` }}>
                 {content(row)}
               </div>
             )
           })}
+          {bars}
         </div>
-        {sideways.scrollbar}
       </div>
     </RowContext.Provider>
   )
