@@ -22,6 +22,9 @@ export type ScrollTarget =
 
 export interface DiffViewHandle {
   scrollTo(target: ScrollTarget): void
+  // After a file folds: if its header is above the screen, it comes to the top so the next file follows it,
+  // rather than the reader landing wherever the rows that were there now end up.
+  reveal(id: string): void
 }
 
 interface DiffViewProps {
@@ -110,6 +113,12 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         if (offset === undefined || !element) return virtualizer.scrollToIndex(index, { align })
         // Glides there, then settles on the row once rows measured on the way have moved it.
         void glide(element, offset).then(() => virtualizer.scrollToIndex(index, { align }))
+      },
+      reveal(id) {
+        const index = page.starts.get(id)
+        const element = scroller.current
+        const start = index === undefined ? undefined : virtualizer.measurementsCache[index]?.start
+        if (element && start !== undefined && start < element.scrollTop) element.scrollTop = start
       },
     }),
     [page, virtualizer],

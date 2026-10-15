@@ -133,3 +133,35 @@ test('counts the files viewed and goes to the next one not viewed', async ({ pag
     page.getByRole('tree', { name: 'Changed files' }).getByRole('treeitem', { name: /app\.ts/ }),
   ).toHaveAttribute('aria-selected', 'true')
 })
+
+test('folding or viewing a long file read halfway brings the next file up after it', async ({ page, app, repo }) => {
+  const long = Array.from({ length: 300 }, (_, i) => `export const a${i} = ${i}`)
+  repo.write('a/long.ts', `${long.join('\n')}\n`)
+  repo.commit('long')
+  repo.write('a/long.ts', `${long.map((line) => `${line} // changed`).join('\n')}\n`)
+  repo.write('z/next.ts', 'export const next = 1\n')
+  // A long file after it, so the page stays taller than where the reader was once the first one folds.
+  repo.write('zz/after.ts', `${Array.from({ length: 400 }, (_, i) => `export const z${i} = ${i}`).join('\n')}\n`)
+  await page.goto(app.url)
+  const scroller = page.locator('[data-diff-view]')
+  const nextHeader = page.locator('[data-diff-view]').getByRole('button', { name: 'Hide z/next.ts' })
+  const readHalfway = async () => {
+    await scroller.evaluate((element) => {
+      element.scrollTop = 2500
+    })
+    await expect(nextHeader).toHaveCount(0)
+    // The pinned header takes over once the page has drawn the new place.
+    await expect(page.getByRole('button', { name: 'Hide a/long.ts' })).toHaveCount(1)
+  }
+
+  await readHalfway()
+  await page.getByRole('button', { name: 'Hide a/long.ts' }).first().click()
+  await expect(nextHeader).toBeVisible()
+  expect(await scroller.evaluate((element) => element.scrollTop)).toBeLessThan(200)
+
+  await page.getByRole('button', { name: 'Show a/long.ts' }).first().click()
+  await readHalfway()
+  await page.getByRole('checkbox', { name: 'Viewed' }).first().click()
+  await expect(nextHeader).toBeVisible()
+  expect(await scroller.evaluate((element) => element.scrollTop)).toBeLessThan(200)
+})

@@ -530,13 +530,20 @@ export default function Viewer() {
     )
   }, [api])
 
+  // Folding a file read halfway brings its header back to the top, with the next file right after it.
+  const revealFile = useCallback((id: string) => requestAnimationFrame(() => viewer.current?.reveal(id)), [viewer])
+
   const renderHeader = useCallback(
     (item: NoteItem) => {
       const path = item.fileDiff.name
       const file = byPath.get(path)
       const firstLine = item.fileDiff.hunks[0]?.additionStart ?? 1
       const collapsed = Boolean(item.collapsed)
-      const toggle = () => setToggled((prev) => new Map(prev).set(path, !collapsed))
+      const reveal = () => revealFile(item.id)
+      const toggle = () => {
+        setToggled((prev) => new Map(prev).set(path, !collapsed))
+        if (!collapsed) reveal()
+      }
       return (
         <>
           <FileHeader
@@ -568,6 +575,7 @@ export default function Viewer() {
                 })
                 // On a pull request the mark is GitHub's too, so it shows on github.com and comes back next time.
                 if (pull !== null) pullReview.setViewed(file.path, nowViewed).catch(() => {})
+                if (nowViewed) reveal()
               }}
               onHistory={() => fileHistory.set(path)}
               note={file ? fileNote(file) : null}
@@ -601,6 +609,7 @@ export default function Viewer() {
       fileLine,
       fileAt,
       show,
+      revealFile,
     ],
   )
 

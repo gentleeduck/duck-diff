@@ -12,6 +12,7 @@ import { lineHash, lineText } from '../review/anchor'
 import { resize } from '../settings/resize'
 import { BASE_FONT } from '../state/settings'
 import { ROOT } from '../state/tabs'
+import { viewedPaths } from '../state/viewed'
 import { focusedTerminal, focusTerminal, sendToTerminal } from '../terminal/input'
 import { actionsFor, firstChange, type WriteKind } from '../viewer/actions'
 import { visibleItems } from '../viewer/visible-items'
@@ -164,7 +165,10 @@ export function useKeys(handlers: KeyHandlers) {
       },
       viewed: () => {
         const at = current()
-        if (at?.file) viewed.toggle(at.target, at.file)
+        if (!at?.file) return
+        const marking = !viewedPaths(viewed.get(), at.target, [at.file]).has(at.file.path)
+        viewed.toggle(at.target, at.file)
+        if (marking) requestAnimationFrame(() => viewer.current?.reveal(at.item.id))
       },
       open: () => {
         const at = current()
