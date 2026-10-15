@@ -11,6 +11,7 @@ import {
 import { MessageSquare } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { ICON_ONLY, LABEL } from '../app/fit'
 import { useSession } from '../hooks/useSession'
 import { itemId } from '../lib/items'
 import { useStore } from '../lib/store'
@@ -54,9 +55,14 @@ export function CommentsSheet() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button size="sm" variant="outline">
+        <Button
+          size="sm"
+          variant="outline"
+          aria-label="Comments"
+          title="Comments"
+          className={`shrink-0 ${ICON_ONLY.wide}`}>
           <MessageSquare />
-          Comments
+          <span className={LABEL.wide}>Comments</span>
           {comments.length > 0 ? <Badge size="sm">{comments.length}</Badge> : null}
         </Button>
       </SheetTrigger>

@@ -83,7 +83,7 @@ export function Shell({
   const [width, setWidth] = useState(readWidth)
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-4 border-border border-b bg-card px-4">
+      <header className="@container/top flex h-12 shrink-0 items-center gap-2 border-border border-b bg-card px-3 @6xl/top:gap-4 @6xl/top:px-4">
         <NavButtons />
         {sidebar !== null && !panelShown ? (
           <IconTool

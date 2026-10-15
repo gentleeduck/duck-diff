@@ -123,12 +123,13 @@ function Screen() {
     <Button
       size="sm"
       variant="outline"
-      className="w-48 shrink-0 justify-start gap-2 text-muted-foreground xl:w-72"
+      className="shrink-0 justify-start gap-2 px-[5px] text-muted-foreground @6xl/top:w-48 @6xl/top:px-2 @7xl/top:w-80"
       aria-label="Search files and actions"
+      title="Search files and actions (Ctrl K)"
       onClick={() => setPalette(true)}>
       <SearchIcon />
-      <span className="min-w-0 flex-1 truncate text-start">Search or jump to...</span>
-      <Kbd className="ms-auto">Ctrl K</Kbd>
+      <span className="hidden min-w-0 flex-1 truncate text-start @6xl/top:inline">Search or jump to...</span>
+      <Kbd className="ms-auto hidden @6xl/top:inline-flex">Ctrl K</Kbd>
     </Button>
   )
   const screens: Record<View, { top: ReactNode; side: ReactNode | null; label: string; main: ReactNode }> = {
