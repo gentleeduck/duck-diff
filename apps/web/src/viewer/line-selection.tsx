@@ -95,13 +95,23 @@ export function useLineSelection(
       window.getSelection()?.removeAllRanges()
       latest.current.onDone(picked.selection, picked.rect)
     }
+    // Esc mid-drag lets the lines go, so releasing the mouse afterwards picks nothing.
+    const onKey = (event: KeyboardEvent) => {
+      if (!down || event.key !== 'Escape') return
+      down = false
+      current = null
+      window.getSelection()?.removeAllRanges()
+      latest.current.onSelecting(null)
+    }
     document.addEventListener('pointerdown', onDown, true)
     document.addEventListener('selectionchange', onChange)
     document.addEventListener('pointerup', onUp, true)
+    window.addEventListener('keydown', onKey, true)
     return () => {
       document.removeEventListener('pointerdown', onDown, true)
       document.removeEventListener('selectionchange', onChange)
       document.removeEventListener('pointerup', onUp, true)
+      window.removeEventListener('keydown', onKey, true)
     }
   }, [root])
 }
