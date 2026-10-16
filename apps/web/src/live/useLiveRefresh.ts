@@ -59,7 +59,7 @@ export function useLiveRefresh(): LiveState {
         }
         if (event.type === 'github') return void invalidateTopic(client, event.topic)
         if (event.type === 'job' || event.type === 'job-output') return jobs.apply(event)
-        if (event.type === 'state') return saved.apply(event.changes)
+        if (event.type === 'state') return saved.apply(event.changes, event.all)
         if (event.type === 'navigate') {
           place.set((now) => ({ ...now, target: event.target }))
           window.focus()

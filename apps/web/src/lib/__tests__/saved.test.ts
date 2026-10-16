@@ -77,4 +77,16 @@ describe('saved storage', () => {
     expect(send).toHaveBeenCalledExactlyOnceWith({ a: 'mine' })
     vi.useRealTimers()
   })
+
+  it('drops what is missing from every value the server sent, unless it is still on its way', async () => {
+    vi.useFakeTimers()
+    const saved = createSavedStorage({ initial: { gone: '1', kept: '1' }, send: async () => {}, browser: null })
+    const told: string[] = []
+    saved.subscribe((key) => told.push(key))
+    saved.setItem('mine', 'x')
+    saved.apply({ kept: '1' }, true)
+    expect([saved.getItem('gone'), saved.getItem('kept'), saved.getItem('mine')]).toEqual([null, '1', 'x'])
+    expect(told).toEqual(['gone'])
+    vi.useRealTimers()
+  })
 })

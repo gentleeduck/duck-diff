@@ -14,9 +14,14 @@ export const ServerEventSchema = z.discriminatedUnion('type', [
   // A user action started or ended; its output follows in job-output events, in order.
   z.object({ type: z.literal('job'), job: JobSchema }),
   z.object({ type: z.literal('job-output'), id: z.string(), data: z.string() }),
-  // What pages save (settings, keys, tabs) changed, here or through another repo's server; a page that just
-  // connected gets every value, so a save that landed after the page was served still reaches it.
-  z.object({ type: z.literal('state'), changes: z.record(z.string(), z.string().nullable()) }),
+  // What pages save (settings, keys, tabs) changed, here or through another repo's server. A page that just
+  // connected gets every value (all), so a save that landed after the page was served, or a key removed while
+  // it was away, still reaches it.
+  z.object({
+    type: z.literal('state'),
+    changes: z.record(z.string(), z.string().nullable()),
+    all: z.boolean().optional(),
+  }),
 ])
 export type ServerEvent = z.infer<typeof ServerEventSchema>
 export type ChangeReason = Extract<ServerEvent, { type: 'changed' }>['reason']

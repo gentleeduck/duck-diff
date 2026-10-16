@@ -401,7 +401,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         // The repo can disappear under a running server; a missing hello is better than a crash.
         const info = await repoInfo(repo, Boolean(options.nvim), options.build).catch(() => null)
         if (info) socket.send(JSON.stringify({ type: 'hello', repo: info, build: options.build }))
-        socket.send(JSON.stringify({ type: 'state', changes: await state.values() }))
+        socket.send(JSON.stringify({ type: 'state', changes: await state.values(), all: true }))
       },
       close(socket) {
         if (socket.data.kind === 'pty') {

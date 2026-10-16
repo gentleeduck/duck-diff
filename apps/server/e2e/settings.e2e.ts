@@ -32,8 +32,8 @@ test('a page open elsewhere picks up a change instead of writing over it', async
   await other.goto(app.url)
   await addPattern(page, 'Docs', '^docs/')
   // The other page shows it without a reload, and its own change keeps it.
-  expect(await patterns(other)).toContain('^docs/')
   await other.getByRole('button', { name: 'Hide files' }).click()
+  await expect(other.getByRole('list', { name: 'Hide patterns' })).toContainText('^docs/')
   await other.getByRole('switch', { name: 'Hide Test files' }).click()
   await other.keyboard.press('Escape')
   await page.reload()
