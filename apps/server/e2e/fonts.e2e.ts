@@ -10,7 +10,7 @@ test('carries its own text font and Nerd Font icons', async ({ page, app }) => {
   await expect(page.locator('main')).toBeVisible()
   const faces = await page.evaluate(async () => ({
     // A folder icon from nvim-tree and a Material Design one from the plane above the BMP.
-    icons: (await document.fonts.load('15px "Symbols Nerd Font"', '\u{f0219}')).length,
+    icons: (await document.fonts.load('15px "Symbols Nerd Font"', '\ue5ff\u{f0219}')).length,
     text: (await document.fonts.load('italic 700 15px "JetBrains Mono"', 'duck')).length,
   }))
   expect(faces).toEqual({ icons: 1, text: 1 })
