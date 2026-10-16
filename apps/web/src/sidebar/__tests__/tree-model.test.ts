@@ -6,10 +6,12 @@ const PATHS = ['src/a.ts', 'src/lib/b.ts', 'README.md', 'docs/guide/deep/x.md', 
 const names = (rows: ReturnType<typeof visibleRows>) => rows.map((row) => `${'  '.repeat(row.depth)}${row.name}`)
 
 describe('tree model', () => {
-  it('lists folders first, joins single-folder chains, and sorts naturally', () => {
+  it('lists folders first, one row each as nvim-tree draws them, and sorts naturally', () => {
     expect(names(visibleRows(buildTree(PATHS), new Set()))).toEqual([
-      'docs/guide/deep',
-      '  x.md',
+      'docs',
+      '  guide',
+      '    deep',
+      '      x.md',
       'src',
       '  lib',
       '    b.ts',

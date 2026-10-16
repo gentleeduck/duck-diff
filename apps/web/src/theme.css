@@ -50,6 +50,10 @@
   --tn-green: #9ece6a;
   --tn-teal: #73daca;
   --tn-red: #f7768e;
+  /* tokyonight's git colors, which nvim-tree names and marks files with. */
+  --tn-git-add: #449dab;
+  --tn-git-change: #6183bb;
+  --tn-git-delete: #914c54;
 
   /* duck-ui reads these, so every component lands on the same palette. */
   --background: var(--tn-bg);
