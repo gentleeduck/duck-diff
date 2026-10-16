@@ -107,6 +107,8 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       },
       editComment: async () => {},
       deleteComment: async () => {},
+      editReviewComment: async () => {},
+      deleteReviewComment: async () => {},
       react: async () => {},
       mentions: async () => [],
       references: async () => [],

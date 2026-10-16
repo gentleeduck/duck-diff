@@ -47,4 +47,31 @@ describe('pull review', () => {
     expect(resolveThread).toHaveBeenCalledWith(7, 'T1', true)
     expect(store.get().threads.get(5)?.resolved).toBe(true)
   })
+
+  it('edits and deletes a posted line comment, here and on GitHub', async () => {
+    const comment = {
+      id: 9,
+      author: { login: 'me', avatarUrl: '' },
+      body: 'old',
+      createdAt: 'now',
+      path: 'a.ts',
+      line: 3,
+      startLine: null,
+      side: 'RIGHT' as const,
+      inReplyTo: null,
+      reviewId: null,
+    }
+    const editReviewComment = vi.fn(async () => {})
+    const deleteReviewComment = vi.fn(async () => {})
+    const store = createPullReview(
+      api({ pull: async () => ({ reviewComments: [comment] }) as never, editReviewComment, deleteReviewComment }),
+    )
+    await store.load(7)
+    await store.edit(9, 'new')
+    expect(editReviewComment).toHaveBeenCalledWith(9, 'new')
+    expect(store.get().comments[0]?.body).toBe('new')
+    await store.remove(9)
+    expect(deleteReviewComment).toHaveBeenCalledWith(9)
+    expect(store.get().comments).toEqual([])
+  })
 })
