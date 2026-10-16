@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Open in editor never uses a terminal in the page: a file opens in the Neovim the plugin started from, else
+  in VS Code (found on a Mac even without `code` on the PATH), else another editor (Cursor, VSCodium, Zed,
+  Sublime Text and others), else the system's own app. A toast says where it went.
+- The changes tree looks like nvim-tree: its git colours and marks, a folder coloured by what is inside it,
+  thin chevrons and indent lines, and no folding of single-child folders.
+- In the split layout, a comment sits under the side it was made on, deleted lines on the left and added on
+  the right.
+- Your own review comments on a pull request can be edited and deleted from a "..." menu, as on GitHub, and
+  local notes use the same card and menu instead of loose buttons. Deleting asks first.
+- Esc closes a comment being written even when its box does not have the keyboard, and Esc during a drag
+  over lines lets them go instead of commenting.
+
 ## 0.5.2
 
 - `duck-diff update` shows each step as it happens: the release it found, the download with a bar, its size
