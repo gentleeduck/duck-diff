@@ -53,7 +53,7 @@ local function download(url, dest, done, headers, progress)
     vim.list_extend(cmd, { '-H', header })
   end
   table.insert(cmd, url)
-  local errors, opts = {}, {}
+  local said, opts = {}, {}
   if progress then
     local shown = -1
     opts.stderr = function(_, data)
@@ -70,8 +70,10 @@ local function download(url, dest, done, headers, progress)
           progress(percent)
         end)
       end
-      for line in data:gmatch('curl:[^\r\n]*') do
-        table.insert(errors, line)
+      -- The last chunks, kept whole: curl's error comes at the end and can arrive split across two.
+      table.insert(said, data)
+      if #said > 64 then
+        table.remove(said, 1)
       end
     end
   end
@@ -79,7 +81,15 @@ local function download(url, dest, done, headers, progress)
     if out.code == 0 then
       return done(nil)
     end
-    done(('download failed: %s (%s)'):format(url, vim.trim(out.stderr or table.concat(errors, ' '))))
+    local reason = out.stderr
+    if not reason then
+      local errors = {}
+      for line in table.concat(said):gmatch('curl:[^\r\n]*') do
+        table.insert(errors, line)
+      end
+      reason = table.concat(errors, ' ')
+    end
+    done(('download failed: %s (%s)'):format(url, vim.trim(reason)))
   end))
 end
 
