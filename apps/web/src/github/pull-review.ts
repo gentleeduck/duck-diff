@@ -34,6 +34,8 @@ export interface PullReview extends Store<PullReviewState> {
   load(number: number | null): Promise<void>
   post(input: PendingComment): Promise<void>
   reply(inReplyTo: number, body: string): Promise<void>
+  edit(id: number, body: string): Promise<void>
+  remove(id: number): Promise<void>
   addPending(comment: PendingComment): void
   removePending(index: number): void
   submit(event: ReviewEvent, body: string): Promise<void>
@@ -136,6 +138,23 @@ export function createPullReview(
       if (number === null) return
       const comment = await api.github.reviewComment(number, input)
       store.set((prev) => ({ ...prev, comments: [...prev.comments, comment] }))
+      void reads.changed(number)
+    },
+    async edit(id, body) {
+      const { number } = store.get()
+      if (number === null) return
+      await api.github.editReviewComment(id, body)
+      store.set((prev) => ({
+        ...prev,
+        comments: prev.comments.map((comment) => (comment.id === id ? { ...comment, body } : comment)),
+      }))
+      void reads.changed(number)
+    },
+    async remove(id) {
+      const { number } = store.get()
+      if (number === null) return
+      await api.github.deleteReviewComment(id)
+      store.set((prev) => ({ ...prev, comments: prev.comments.filter((comment) => comment.id !== id) }))
       void reads.changed(number)
     },
     async reply(inReplyTo, body) {

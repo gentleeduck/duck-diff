@@ -1,12 +1,11 @@
 import type { GitHubReviewComment, Thread, TimelineEvent } from '@duck-diff/protocol'
-import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
+import { Badge, Button } from '@duck-diff/ui'
 import {
   ArrowDown,
   Check,
   CircleCheck,
   CircleDot,
   Copy,
-  Ellipsis,
   Eye,
   FileCode,
   GitCommitHorizontal,
@@ -25,28 +24,9 @@ import type { Store } from '../lib/store'
 import { Avatar, Body } from './Conversation'
 import { CommitLink, EventParts, UserLink } from './EventParts'
 import { MarkdownEditor } from './MarkdownEditor'
+import { MoreMenu } from './MoreMenu'
 import { Reactions } from './Reactions'
 import { ago } from './time'
-
-function MenuItem({
-  onSelect,
-  children,
-  destructive,
-}: {
-  onSelect(): void
-  children: ReactNode
-  destructive?: boolean
-}) {
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      className={`w-full justify-start ${destructive ? 'text-destructive' : ''}`}
-      onClick={onSelect}>
-      {children}
-    </Button>
-  )
-}
 
 // A quote reply prefixes every line, as GitHub's does.
 const quote = (text: string) => `${text.trim().replace(/^/gm, '> ')}\n\n`
@@ -83,11 +63,6 @@ function CommentCard({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(body)
   const [saving, setSaving] = useState(false)
-  const [menu, setMenu] = useState(false)
-  const pick = (action: () => void) => {
-    setMenu(false)
-    action()
-  }
   const save = async () => {
     setSaving(true)
     try {
@@ -118,46 +93,28 @@ function CommentCard({
               {label}
             </Badge>
           ) : null}
-          <Popover open={menu} onOpenChange={setMenu}>
-            <PopoverTrigger asChild>
-              <Button size="icon" variant="ghost" aria-label={`Actions for ${author.login}'s comment`}>
-                <Ellipsis />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="flex w-52 flex-col p-1">
-              <MenuItem onSelect={() => pick(onQuote)}>
-                <MessageSquareQuote />
-                Quote reply
-              </MenuItem>
-              {link ? (
-                <MenuItem
-                  onSelect={() =>
-                    pick(() => void navigator.clipboard.writeText(link).then(() => toast('Copied the link')))
-                  }>
-                  <Copy />
-                  Copy link
-                </MenuItem>
-              ) : null}
-              {canEdit ? (
-                <MenuItem
-                  onSelect={() =>
-                    pick(() => {
-                      setDraft(body)
-                      setEditing(true)
-                    })
-                  }>
-                  <Pencil />
-                  Edit
-                </MenuItem>
-              ) : null}
-              {canDelete && onDelete ? (
-                <MenuItem destructive onSelect={() => pick(onDelete)}>
-                  <Trash2 />
-                  Delete
-                </MenuItem>
-              ) : null}
-            </PopoverContent>
-          </Popover>
+          <MoreMenu
+            label={`Actions for ${author.login}'s comment`}
+            actions={[
+              { label: 'Quote reply', icon: <MessageSquareQuote />, run: onQuote },
+              link
+                ? {
+                    label: 'Copy link',
+                    icon: <Copy />,
+                    run: () => void navigator.clipboard.writeText(link).then(() => toast('Copied the link')),
+                  }
+                : null,
+              canEdit && {
+                label: 'Edit',
+                icon: <Pencil />,
+                run: () => {
+                  setDraft(body)
+                  setEditing(true)
+                },
+              },
+              canDelete && onDelete ? { label: 'Delete', icon: <Trash2 />, run: onDelete, destructive: true } : null,
+            ]}
+          />
         </header>
         <div className="flex flex-col gap-2 px-3 py-2">
           {editing ? (

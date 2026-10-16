@@ -233,6 +233,9 @@ export interface GitHubApi {
   transfer(number: number, repo: string): Promise<{ number: number; url: string }>
   editComment(id: number, body: string): Promise<void>
   deleteComment(id: number): Promise<void>
+  // A line comment in a pull request's diff.
+  editReviewComment(id: number, body: string): Promise<void>
+  deleteReviewComment(id: number): Promise<void>
   react(target: { issue: number } | { comment: number }, content: Reaction): Promise<void>
   mentions(): Promise<GitHubUser[]>
   references(query: string): Promise<{ number: number; title: string; pull: boolean }[]>
@@ -412,6 +415,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       ),
     editComment: (id, body) => sendEmpty('PATCH', `/api/github/comments/${id}`, { body }),
     deleteComment: (id) => sendEmpty('DELETE', `/api/github/comments/${id}`),
+    editReviewComment: (id, body) => sendEmpty('PATCH', `/api/github/review-comments/${id}`, { body }),
+    deleteReviewComment: (id) => sendEmpty('DELETE', `/api/github/review-comments/${id}`),
     react: (target, content) => post('/api/github/react', { target, content }),
     mentions: () => json('/api/github/mentions', z.array(GitHubUserSchema)),
     references: (query) =>
