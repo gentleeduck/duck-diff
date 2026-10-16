@@ -147,6 +147,8 @@ export function createPullReview(
       store.set((prev) => ({
         ...prev,
         comments: prev.comments.map((comment) => (comment.id === id ? { ...comment, body } : comment)),
+        // The edit may have taken the suggestion out; one that is still there is batched again by hand.
+        batch: prev.batch.filter((entry) => entry !== id),
       }))
       void reads.changed(number)
     },
@@ -154,7 +156,11 @@ export function createPullReview(
       const { number } = store.get()
       if (number === null) return
       await api.github.deleteReviewComment(id)
-      store.set((prev) => ({ ...prev, comments: prev.comments.filter((comment) => comment.id !== id) }))
+      store.set((prev) => ({
+        ...prev,
+        comments: prev.comments.filter((comment) => comment.id !== id),
+        batch: prev.batch.filter((entry) => entry !== id),
+      }))
       void reads.changed(number)
     },
     async reply(inReplyTo, body) {

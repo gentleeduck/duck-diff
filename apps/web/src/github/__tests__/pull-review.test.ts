@@ -74,4 +74,27 @@ describe('pull review', () => {
     expect(deleteReviewComment).toHaveBeenCalledWith(9)
     expect(store.get().comments).toEqual([])
   })
+
+  it('takes an edited or deleted suggestion out of the batch, so a batch commit never asks for it', async () => {
+    const suggestion = (id: number) => ({
+      id,
+      author: { login: 'me', avatarUrl: '' },
+      body: '```suggestion\nx\n```',
+      createdAt: 'now',
+      path: 'a.ts',
+      line: id,
+      startLine: null,
+      side: 'RIGHT' as const,
+      inReplyTo: null,
+      reviewId: null,
+    })
+    const store = createPullReview(
+      api({ pull: async () => ({ reviewComments: [suggestion(1), suggestion(2), suggestion(3)] }) as never }),
+    )
+    await store.load(7)
+    for (const id of [1, 2, 3]) store.toggleBatch(id)
+    await store.edit(1, 'no longer a suggestion')
+    await store.remove(2)
+    expect(store.get().batch).toEqual([3])
+  })
 })
