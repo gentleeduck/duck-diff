@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { paintFor, startBanner } from '../banner'
+import { startBanner } from '../banner'
+import { paintFor } from '../cli-ui'
 
 describe('startBanner', () => {
   const info = { version: '0.5.0', repo: '/code/shop', branch: 'main', url: 'http://127.0.0.1:4000/#t=x' }

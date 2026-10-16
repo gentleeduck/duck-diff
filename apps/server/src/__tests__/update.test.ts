@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createReporter } from '../cli-ui'
 import { browserCommand, instanceFile, liveInstance, pageUrl, removeInstance, writeInstance } from '../instance'
-import { assetName, checksumFor } from '../update'
+import { assetName, checksumFor, update } from '../update'
 
 let data: string | null = null
 afterEach(() => {
@@ -23,6 +24,89 @@ describe('update', () => {
     expect(checksumFor(sums, 'duck-diff-linux-x64')).toBe('aa11')
     expect(checksumFor(sums, 'duck-diff-darwin-arm64')).toBe('bb22')
     expect(checksumFor(sums, 'duck-diff-linux-arm64')).toBeNull()
+  })
+})
+
+// GitHub's release API for one repo: the release, this machine's binary and its checksums.
+function fakeGitHub(tag: string, binary: string, sum = new Bun.CryptoHasher('sha256').update(binary).digest('hex')) {
+  let base = ''
+  const server = Bun.serve({
+    port: 0,
+    fetch(request): Response {
+      const path = new URL(request.url).pathname
+      if (path === '/repos/o/r/releases/latest')
+        return Response.json({
+          tag_name: tag,
+          assets: [
+            { name: assetName(), url: `${base}/assets/1`, size: binary.length },
+            { name: 'checksums.txt', url: `${base}/assets/2`, size: 80 },
+          ],
+        })
+      if (path === '/assets/1') return new Response(binary)
+      if (path === '/assets/2') return new Response(`${sum}  ${assetName()}\n`)
+      return new Response('missing', { status: 404 })
+    },
+  })
+  base = `http://127.0.0.1:${server.port}`
+  return server
+}
+
+describe('updating', () => {
+  const run = async (tag: string, sum?: string) => {
+    data = mkdtempSync(join(tmpdir(), 'duck-update-'))
+    const binary = join(data, 'duck-diff')
+    writeFileSync(binary, 'old')
+    const github = fakeGitHub(tag, 'new build', sum)
+    let text = ''
+    const out = {
+      write: (chunk: string) => {
+        text += chunk
+      },
+    }
+    const report = createReporter({ out, color: false, live: false })
+    const ok = await update({
+      binary,
+      current: '0.5.1',
+      wanted: null,
+      report,
+      api: `http://127.0.0.1:${github.port}`,
+      repo: 'o/r',
+      auth: null,
+    })
+    github.stop(true)
+    return { ok, text, binary }
+  }
+
+  it('finds, downloads, checks and installs a newer release, saying each step', async () => {
+    const { ok, text, binary } = await run('v9.9.9')
+    expect(ok).toBe(true)
+    expect(readFileSync(binary, 'utf8')).toBe('new build')
+    expect(statSync(binary).mode & 0o111).toBeTruthy()
+    expect(text).toBe(
+      [
+        '✔ Found 9.9.9 (you have 0.5.1)',
+        '✔ Downloaded 9 B',
+        '✔ The sha256 matches',
+        `✔ Installed ${binary}`,
+        '',
+        '  Updated 0.5.1 to 9.9.9. Servers already running switch to it on their own.',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  it('says so when this is already the newest release, and changes nothing', async () => {
+    const { ok, text, binary } = await run('v0.5.1')
+    expect(ok).toBe(true)
+    expect(text).toBe('✔ Already on 0.5.1, the newest release\n')
+    expect(readFileSync(binary, 'utf8')).toBe('old')
+  })
+
+  it('refuses a download that does not match its checksum and keeps the old binary', async () => {
+    const { ok, text, binary } = await run('v9.9.9', '0'.repeat(64))
+    expect(ok).toBe(false)
+    expect(text).toContain('✖ the download does not match its checksum; nothing changed')
+    expect(readFileSync(binary, 'utf8')).toBe('old')
   })
 })
 

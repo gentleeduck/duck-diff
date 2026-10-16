@@ -3,8 +3,9 @@ import { resolveRepo, runGit } from '@duck-diff/git'
 import type { Handshake } from '@duck-diff/protocol'
 import { type Command, parseArgs, VERSION } from './args'
 import { startBanner } from './banner'
+import { ansi, createReporter, header, paintFor } from './cli-ui'
 import { clearCaches, dataHome } from './disk-cache'
-import { help, say } from './help'
+import { help } from './help'
 import { instanceFile, liveInstance, openBrowser, pageUrl, removeInstance, writeInstance } from './instance'
 import { buildStamp, watchBinary } from './self-update'
 import { createServer } from './server'
@@ -13,12 +14,22 @@ import { update } from './update'
 // A compiled server runs from its own binary; from source there is nothing to watch or replace.
 const binary = Bun.main.includes('$bunfs') ? process.execPath : null
 
+const color = paintFor(process.stdout)
+const report = createReporter({ out: process.stdout, color, live: Boolean(process.stdout.isTTY) })
+const showHeader = () => console.info(['', ...header(VERSION, color), ''].join('\n'))
+// A red cross on a terminal; in a log, a line that says where it came from.
+function fail(message: string) {
+  console.error(
+    process.stderr.isTTY ? `${ansi('31', paintFor(process.stderr))('✖')} ${message}` : `duck-diff: ${message}`,
+  )
+}
+
 async function main(): Promise<number> {
   let command: Command
   try {
     command = parseArgs(process.argv.slice(2), process.cwd())
   } catch (error) {
-    console.error(`duck-diff: ${(error as Error).message}`)
+    fail((error as Error).message)
     return 2
   }
 
@@ -31,29 +42,26 @@ async function main(): Promise<number> {
     return 0
   }
   if (command.name === 'cache-clear') {
+    showHeader()
     const cleared = await clearCaches(dataHome(), command.repo)
-    console.info(`Cleared ${cleared} cache${cleared === 1 ? '' : 's'}`)
+    report.ok(cleared ? `Cleared ${cleared} cache${cleared === 1 ? '' : 's'}` : 'Nothing was cached')
+    if (cleared) report.note('GitHub answers and commits are read again the next time they are needed.')
     return 0
   }
   if (command.name === 'update') {
+    showHeader()
     if (!binary) {
-      console.error('duck-diff: running from source; update the checkout with git instead')
+      report.fail('running from source; update the checkout with git instead')
       return 1
     }
-    try {
-      console.info(await update(binary, VERSION, command.version))
-      return 0
-    } catch (error) {
-      console.error(`duck-diff: ${(error as Error).message}`)
-      return 1
-    }
+    return (await update({ binary, current: VERSION, wanted: command.version, report })) ? 0 : 1
   }
 
   let repo: string
   try {
     repo = await resolveRepo(command.repo)
   } catch {
-    console.error(`duck-diff: ${command.repo} is not a git repository, or inside one`)
+    fail(`${command.repo} is not a git repository, or inside one`)
     return 1
   }
   const record = instanceFile(dataHome(), repo)
@@ -63,8 +71,11 @@ async function main(): Promise<number> {
     const running = await liveInstance(record)
     if (running) {
       const url = pageUrl(running, command.path)
-      if (command.browser && openBrowser(url)) console.info(`Opened in the duck-diff already running for ${repo}`)
-      else console.info(url)
+      // Without a browser to open, the link alone, for whoever runs this from a script.
+      if (command.browser && openBrowser(url)) {
+        showHeader()
+        report.ok(`Opened in the duck-diff already running for ${repo}`)
+      } else console.info(url)
       return 0
     }
   }
@@ -92,7 +103,7 @@ async function main(): Promise<number> {
     repos: command.name === 'serve' ? command.more : [],
     onIdle: () => finish(0),
   }).catch((error: Error) => {
-    console.error(`duck-diff: ${error.message}`)
+    fail(error.message)
     return null
   })
   if (!server) return 1
@@ -110,7 +121,7 @@ async function main(): Promise<number> {
       await runGit(['symbolic-ref', '--short', 'HEAD'], { cwd: repo, okExitCodes: [128] }).catch(() => '')
     ).trim()
     console.info(startBanner({ version: VERSION, repo, branch: branch || null, url }))
-    if (command.browser && !openBrowser(url)) console.info(say.dim('No browser to open; use the link above.'))
+    if (command.browser && !openBrowser(url)) report.note('No browser to open; use the link above.')
   }
 
   // A new build installed over this binary takes over in place: same process, so Neovim's pipe and the
