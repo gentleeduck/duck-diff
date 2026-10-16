@@ -60,6 +60,70 @@ export function notOption(value: string, what: string): string {
   return value
 }
 
+interface GitProcess {
+  stdout: AsyncIterable<Uint8Array>
+  stderr: AsyncIterable<Uint8Array>
+  // The exit code, or null when a signal ended it.
+  exited: Promise<number | null>
+  kill(): void
+}
+
+// The slice of Bun.spawn used here; this package also runs under Node, without Bun's types.
+interface BunRuntime {
+  spawn(
+    command: string[],
+    options: {
+      cwd: string
+      env: Record<string, string | undefined>
+      stdin: 'pipe' | 'ignore' | Blob
+      stdout: 'pipe'
+      stderr: 'pipe'
+    },
+  ): {
+    stdout: AsyncIterable<Uint8Array>
+    stderr: AsyncIterable<Uint8Array>
+    exited: Promise<number>
+    exitCode: number | null
+    kill(signal: string): void
+  }
+}
+const bun = (globalThis as { Bun?: BunRuntime }).Bun
+
+// Under Bun (the server and the binary) git starts through Bun.spawn: Bun's node:child_process can report a
+// quick child's exit inside spawn() and drop its output on a loaded macOS machine (oven-sh/bun#45483).
+// Under Node, where the package's own tests run, it is node:child_process.
+function startGit(args: string[], env: Record<string, string | undefined>, options: RunOptions): GitProcess {
+  if (bun) {
+    const stdin = options.input !== undefined ? new Blob([options.input]) : options.holdStdin ? 'pipe' : 'ignore'
+    const proc = bun.spawn(['git', ...args], { cwd: options.cwd, env, stdin, stdout: 'pipe', stderr: 'pipe' })
+    return {
+      stdout: proc.stdout,
+      stderr: proc.stderr,
+      exited: proc.exited.then(() => proc.exitCode),
+      kill: () => proc.kill('SIGKILL'),
+    }
+  }
+  const child = spawn('git', args, { cwd: options.cwd, env, stdio: ['pipe', 'pipe', 'pipe'] })
+  if (options.input !== undefined) child.stdin.end(options.input)
+  else if (!options.holdStdin) child.stdin.end()
+  const exited = new Promise<number | null>((resolve, reject) => {
+    child.once('error', reject)
+    child.once('close', (code) => resolve(code))
+  })
+  return { stdout: child.stdout, stderr: child.stderr, exited, kill: () => child.kill('SIGKILL') }
+}
+
+// Decoded text from a stream of bytes, keeping a character split across two chunks whole.
+async function* text(chunks: AsyncIterable<Uint8Array>): AsyncIterable<string> {
+  const decoder = new TextDecoder()
+  for await (const chunk of chunks) {
+    const piece = decoder.decode(chunk, { stream: true })
+    if (piece) yield piece
+  }
+  const rest = decoder.decode()
+  if (rest) yield rest
+}
+
 function spawnGit(args: string[], options: RunOptions) {
   const option = args.find((arg) => RUNS_PROGRAM.test(arg))
   if (option) throw new GitError('failed', null, '', `refused git option ${option.split('=')[0]}`)
@@ -68,72 +132,101 @@ function spawnGit(args: string[], options: RunOptions) {
   const env = sink ? { ...ENV, ...options.env, FORCE_COLOR: '1' } : options.env ? { ...ENV, ...options.env } : ENV
   const plumbing = PLUMBING.has(subcommand(args) ?? '')
   sink?.command(args, plumbing)
-  const child = spawn('git', args, { cwd: options.cwd, env, stdio: ['pipe', 'pipe', 'pipe'] })
-  if (options.input !== undefined) child.stdin.end(options.input)
-  else if (!options.holdStdin) child.stdin.end()
-  let stderr = ''
-  let timedOut = false
-  child.stderr.setEncoding('utf8')
-  child.stderr.on('data', (chunk: string) => {
-    stderr += chunk
-    sink?.output(chunk, 'stderr')
-  })
-  if (sink && !plumbing) {
-    child.stdout.on('data', (chunk: Buffer | string) => sink.output(String(chunk), 'stdout'))
+  let git: GitProcess
+  try {
+    git = startGit(args, env, options)
+  } catch (error) {
+    throw new GitError('failed', null, String(error), `git ${args[0]} failed to start`)
   }
+  let timedOut = false
   const timer = setTimeout(() => {
     timedOut = true
-    child.kill('SIGKILL')
+    git.kill()
   }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
 
-  const done = new Promise<void>((resolve, reject) => {
-    child.on('error', (error) => {
+  let stderr = ''
+  const readStderr = (async () => {
+    for await (const chunk of text(git.stderr)) {
+      stderr += chunk
+      sink?.output(chunk, 'stderr')
+    }
+  })()
+  const stdoutBytes =
+    sink && !plumbing
+      ? (async function* () {
+          const decoder = new TextDecoder()
+          for await (const chunk of git.stdout) {
+            sink.output(decoder.decode(chunk, { stream: true }), 'stdout')
+            yield chunk
+          }
+        })()
+      : git.stdout
+
+  const done = (async () => {
+    let code: number | null
+    try {
+      ;[code] = await Promise.all([git.exited, readStderr])
+    } catch (error) {
+      throw new GitError('failed', null, String(error), `git ${args[0]} failed to start`)
+    } finally {
       clearTimeout(timer)
-      reject(new GitError('failed', null, String(error), `git ${args[0]} failed to start`))
-    })
-    child.on('close', (code) => {
-      clearTimeout(timer)
-      if (timedOut) return reject(new GitError('timeout', null, stderr, `git ${args[0]} timed out`))
-      const ok = [0, ...(options.okExitCodes ?? [])]
-      if (code !== null && ok.includes(code)) return resolve()
-      reject(new GitError(classify(stderr), code, stderr, `git ${args[0]} exited ${code}: ${stderr.trim()}`))
-    })
-  })
-  return { child, done }
+    }
+    if (timedOut) throw new GitError('timeout', null, stderr, `git ${args[0]} timed out`)
+    const ok = [0, ...(options.okExitCodes ?? [])]
+    if (code !== null && ok.includes(code)) return
+    throw new GitError(classify(stderr), code, stderr, `git ${args[0]} exited ${code}: ${stderr.trim()}`)
+  })()
+  // A caller that stops reading early (streamGit) handles done itself; this keeps it from going unhandled meanwhile.
+  done.catch(() => {})
+  return { stdout: stdoutBytes, kill: () => git.kill(), done }
+}
+
+// Reads all of stdout, then the exit. When the read itself fails (git never started), the exit says why.
+async function readAll<T>(read: Promise<T>, done: Promise<void>): Promise<T> {
+  let result: T
+  try {
+    result = await read
+  } catch (error) {
+    await done
+    throw error
+  }
+  await done
+  return result
 }
 
 export async function runGit(args: string[], options: RunOptions): Promise<string> {
-  const { child, done } = spawnGit(args, options)
-  let stdout = ''
-  child.stdout.setEncoding('utf8')
-  child.stdout.on('data', (chunk: string) => {
-    stdout += chunk
-  })
-  await done
-  return stdout
+  const { stdout, done } = spawnGit(args, options)
+  return readAll(
+    (async () => {
+      let out = ''
+      for await (const chunk of text(stdout)) out += chunk
+      return out
+    })(),
+    done,
+  )
 }
 
 export async function runGitBytes(args: string[], options: RunOptions): Promise<Buffer> {
-  const { child, done } = spawnGit(args, options)
-  const chunks: Buffer[] = []
-  child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk))
-  await done
-  return Buffer.concat(chunks)
+  const { stdout, done } = spawnGit(args, options)
+  return readAll(
+    (async () => {
+      const chunks: Uint8Array[] = []
+      for await (const chunk of stdout) chunks.push(chunk)
+      return Buffer.concat(chunks)
+    })(),
+    done,
+  )
 }
 
 export async function* streamGit(args: string[], options: RunOptions): AsyncIterable<string> {
-  const { child, done } = spawnGit(args, options)
-  child.stdout.setEncoding('utf8')
+  const { stdout, kill, done } = spawnGit(args, options)
   let finished = false
   try {
-    for await (const chunk of child.stdout) yield chunk as string
+    for await (const chunk of text(stdout)) yield chunk
     finished = true
     await done
   } finally {
-    // The reader left early (a closed page): stop git and drop its exit, which nobody is waiting for.
-    if (!finished) {
-      done.catch(() => {})
-      child.kill('SIGKILL')
-    }
+    // The reader left early (a closed page): stop git; its exit is dropped, since nobody waits for it.
+    if (!finished) kill()
   }
 }
