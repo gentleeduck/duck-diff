@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.2
 
 - `duck-diff update` shows each step as it happens: the release it found, the download with a bar, its size
   and speed, the sha256 check and the install. On a terminal the running step spins; piped, one line per
