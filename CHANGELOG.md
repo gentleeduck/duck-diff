@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- The binary carries the Nerd Font icons as well as JetBrains Mono, so the file tree and the terminal draw
+  their icons on machines without a Nerd Font installed.
+- On a busy Mac a git, `gh` or `nvim` call could hang or come back empty, through a Bun bug
+  (oven-sh/bun#45483); they now start through `Bun.spawn`, which does not have it.
+- Stopping the server waits for the servers it started for other checkouts.
+- Settings, key bindings, panel sizes and viewed marks stay in step across open pages and repos: a change
+  made in one page shows in the others at once, instead of being written over by the next change made
+  there, and a change made just before a reload is no longer lost.
+
 ## 0.5.0
 
 The diff viewer became a git and GitHub controller you can run on its own.
