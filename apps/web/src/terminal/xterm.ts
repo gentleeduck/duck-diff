@@ -46,10 +46,14 @@ let loading: Promise<void> | null = null
 
 function redrawOnceFontsLoad(redraw: () => void): () => void {
   const fonts = typeof document === 'undefined' ? undefined : document.fonts
-  if (!fonts || fonts.check(ICON, '')) return () => {}
+  if (!fonts || fonts.check(ICON, '\ue5ff')) return () => {}
   redraws.add(redraw)
-  loading ??= fonts
-    .load(ICON, '')
+  const forget = () => {
+    redraws.delete(redraw)
+  }
+  if (loading) return forget
+  loading = fonts
+    .load(ICON, '\ue5ff')
     .then(() => fonts.ready)
     .then(() => {
       for (const each of redraws) each()
@@ -59,9 +63,7 @@ function redrawOnceFontsLoad(redraw: () => void): () => void {
       redraws.clear()
       loading = null
     })
-  return () => {
-    redraws.delete(redraw)
-  }
+  return forget
 }
 
 export interface Mounted {
