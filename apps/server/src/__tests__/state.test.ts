@@ -29,6 +29,21 @@ describe('state store', () => {
     expect(await createStateStore(data, '/c').values()).toEqual({ a: '1', b: '2' })
   })
 
+  it('reports what changed, by its own hand or by another server writing the same file', async () => {
+    const here = createStateStore(data, '/a')
+    const other = createStateStore(data, '/b')
+    await here.update({ kept: '1', dropped: '1' })
+    const seen: Record<string, string | null>[] = []
+    const stop = here.watch((changes) => seen.push(changes))
+    await here.update({ mine: '1' })
+    await other.update({ theirs: '2', dropped: null })
+    await Bun.sleep(400)
+    stop()
+    await other.update({ after: '3' })
+    await Bun.sleep(200)
+    expect(seen).toEqual([{ mine: '1' }, { theirs: '2', dropped: null }])
+  })
+
   it('keeps the query cache per repo, under its cache folder', async () => {
     const store = createStateStore(data, '/repo')
     expect(await store.queries()).toBeNull()

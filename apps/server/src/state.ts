@@ -1,3 +1,4 @@
+import { mkdirSync, watch as watchFiles } from 'node:fs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { repoId } from '@duck-diff/git'
@@ -7,14 +8,39 @@ import { type DiffTarget, DiffTargetSchema } from '@duck-diff/protocol'
 const VERSION = 1
 
 export type StateValues = Record<string, string>
+// null removes a key.
+export type StateChanges = Record<string, string | null>
 
 export interface StateStore {
   values(): Promise<StateValues>
-  // null removes a key.
-  update(changes: Record<string, string | null>): Promise<void>
+  update(changes: StateChanges): Promise<void>
+  // Told what changed, whether this server wrote it or another one (a page saving, a server for another repo).
+  watch(onChange: (changes: StateChanges) => void): () => void
   // The page's query cache for this repo, as the persister wrote it.
   queries(): Promise<string | null>
   setQueries(text: string): Promise<void>
+}
+
+function changesBetween(before: StateValues, after: StateValues): StateChanges {
+  const changes: StateChanges = {}
+  for (const [key, value] of Object.entries(after)) if (before[key] !== value) changes[key] = value
+  for (const key of Object.keys(before)) if (!(key in after)) changes[key] = null
+  return changes
+}
+
+// Tells listeners only what differs from the values last seen.
+function createChangeFeed() {
+  const listeners = new Set<(changes: StateChanges) => void>()
+  let known: StateValues | null = null
+  return {
+    listeners,
+    known: () => known,
+    see(values: StateValues) {
+      const changes = known ? changesBetween(known, values) : {}
+      known = values
+      if (Object.keys(changes).length) for (const listener of listeners) listener(changes)
+    },
+  }
 }
 
 async function writeAtomic(file: string, text: string) {
@@ -50,6 +76,7 @@ export function createStateStore(data: string, repo: string): StateStore {
     queue = next.catch(() => {})
     return next
   }
+  const feed = createChangeFeed()
 
   return {
     values: () => serial(() => readValues(file)),
@@ -61,7 +88,29 @@ export function createStateStore(data: string, repo: string): StateStore {
           else values[key] = value
         }
         await writeAtomic(file, JSON.stringify({ version: VERSION, values }))
+        if (feed.known()) feed.see(values)
       }),
+    watch(onChange) {
+      feed.listeners.add(onChange)
+      // Queued before any later write, so that write is told as a change.
+      if (!feed.known()) void serial(async () => feed.see(await readValues(file)))
+      // The folder, not the file: every write renames a new file over it.
+      const folder = dirname(file)
+      mkdirSync(folder, { recursive: true })
+      let timer: ReturnType<typeof setTimeout> | null = null
+      const watcher = watchFiles(folder, (_event, name) => {
+        if (name && name !== 'state.json') return
+        timer ??= setTimeout(() => {
+          timer = null
+          void serial(async () => feed.see(await readValues(file)))
+        }, 20)
+      })
+      return () => {
+        feed.listeners.delete(onChange)
+        watcher.close()
+        if (timer) clearTimeout(timer)
+      }
+    },
     queries: () => readFile(queriesFile, 'utf8').catch(() => null),
     setQueries: (text) => serial(() => writeAtomic(queriesFile, text)),
   }
@@ -84,6 +133,8 @@ export function pageState(html: string, values: StateValues, queries: string | n
 // For servers that keep nothing on disk (tests): the same store, held in memory.
 export function createMemoryState(): StateStore {
   const values: StateValues = {}
+  const feed = createChangeFeed()
+  feed.see({})
   let queries: string | null = null
   return {
     values: async () => ({ ...values }),
@@ -92,6 +143,11 @@ export function createMemoryState(): StateStore {
         if (value === null) delete values[key]
         else values[key] = value
       }
+      feed.see({ ...values })
+    },
+    watch(onChange) {
+      feed.listeners.add(onChange)
+      return () => feed.listeners.delete(onChange)
     },
     queries: async () => queries,
     setQueries: async (text) => {

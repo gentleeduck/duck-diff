@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { connectEvents, type EventsStatus } from '../lib/events'
+import { saved } from '../lib/saved'
 import { invalidateTopic, topicsOf, watchedTopics } from '../query/client'
 import { createRefresher } from './refresher'
 import { setQueryTopics, setTopicSender } from './topics'
@@ -58,6 +59,7 @@ export function useLiveRefresh(): LiveState {
         }
         if (event.type === 'github') return void invalidateTopic(client, event.topic)
         if (event.type === 'job' || event.type === 'job-output') return jobs.apply(event)
+        if (event.type === 'state') return saved.apply(event.changes)
         if (event.type === 'navigate') {
           place.set((now) => ({ ...now, target: event.target }))
           window.focus()

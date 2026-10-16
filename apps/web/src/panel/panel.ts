@@ -1,4 +1,4 @@
-import { saved } from '../lib/saved'
+import { onSavedElsewhere, saved } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
 
 export interface PanelState {
@@ -30,6 +30,7 @@ function readHeight(storage: Pick<Storage, 'getItem'> | null): number {
 
 export function createPanel(storage: Pick<Storage, 'getItem' | 'setItem'> | null = saved): Panel {
   const store = createStore<PanelState>({ open: false, tab: 'output', job: null, height: readHeight(storage) })
+  onSavedElsewhere(storage, KEY, () => store.set((state) => ({ ...state, height: readHeight(storage) })))
   return {
     ...store,
     toggle: () => store.set((state) => ({ ...state, open: !state.open })),
