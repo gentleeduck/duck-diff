@@ -55,7 +55,8 @@ export function checksumFor(checksums: string, name: string): string | null {
 
 // The body, reported as it arrives so a large download shows how far along it is.
 async function readBody(response: Response, size: number | null, step: Step): Promise<Uint8Array> {
-  const total = Number(response.headers.get('content-length')) || size
+  // The release says the file's size; content-length may be the compressed one, or missing.
+  const total = size || Number(response.headers.get('content-length')) || null
   const reader = response.body?.getReader()
   if (!reader) return new Uint8Array(await response.arrayBuffer())
   const chunks: Uint8Array[] = []
