@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.1
 
 - The binary carries the Nerd Font icons as well as JetBrains Mono, so the file tree and the terminal draw
   their icons on machines without a Nerd Font installed.
