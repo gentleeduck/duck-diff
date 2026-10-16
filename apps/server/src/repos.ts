@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
@@ -27,8 +28,12 @@ export function createRepoList(dataDir = defaultData()) {
     await writeFile(file, JSON.stringify(paths.slice(0, LIMIT), null, 2))
   }
   return {
+    // A folder deleted since (a removed checkout, a test repo) drops out and frees its place.
     async all(): Promise<RepoEntry[]> {
-      return (await read()).map((path) => ({ path, name: basename(path) }))
+      const paths = await read()
+      const present = paths.filter((path) => existsSync(path))
+      if (present.length < paths.length) await write(present)
+      return present.map((path) => ({ path, name: basename(path) }))
     },
     // Only a real repository goes in, by its top folder, so a typo never lands in the list.
     async add(path: string): Promise<string> {
