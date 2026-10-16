@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- `duck-diff update` shows each step as it happens: the release it found, the download with a bar, its size
+  and speed, the sha256 check and the install. On a terminal the running step spins; piped, one line per
+  step.
+- Every command starts with the same header as the server, and errors are one red line on a terminal.
+- `install.sh` shows the same steps and curl's progress bar, and the Neovim plugin shows how far the
+  first download of a version is in the command line.
+
 ## 0.5.1
 
 - The binary carries the Nerd Font icons as well as JetBrains Mono, so the file tree and the terminal draw
