@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { createSavedStorage } from '../../lib/saved'
 import { createSettingsStore, DEFAULT_SETTINGS } from '../settings'
 
 function memoryStorage(initial: Record<string, string> = {}) {
@@ -33,5 +34,20 @@ describe('settings store', () => {
     const store = createSettingsStore(null)
     store.set((prev) => ({ ...prev, lineNumbers: false }))
     expect(store.get().lineNumbers).toBe(false)
+  })
+
+  it('takes settings another page saved, without saving them back', () => {
+    const send = vi.fn(async () => {})
+    const saved = createSavedStorage({ initial: {}, send, browser: null })
+    const store = createSettingsStore(saved)
+    const theirs = {
+      ...DEFAULT_SETTINGS,
+      hidePatterns: [{ id: 'docs', label: 'Docs', pattern: '^docs/', enabled: true }],
+    }
+    saved.apply({ 'duck-diff:settings': JSON.stringify(theirs) })
+    expect(store.get().hidePatterns.map((entry) => entry.pattern)).toEqual(['^docs/'])
+    store.set((prev) => ({ ...prev, fontSize: 16 }))
+    const kept = JSON.parse(saved.getItem('duck-diff:settings') ?? '{}')
+    expect([kept.fontSize, kept.hidePatterns[0].pattern]).toEqual([16, '^docs/'])
   })
 })

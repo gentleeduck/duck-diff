@@ -143,6 +143,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
       : createTerminals({ cwd: repo, ...(typeof options.terminal === 'object' ? options.terminal : {}) })
   const reviews = createReviewStore(repo, options.dataDir)
   const state = options.persist ? createStateStore(options.dataDir ?? dataHome(), repo) : createMemoryState()
+  const stopStateWatch = state.watch((changes) => hub.broadcast({ type: 'state', changes }))
   const github = createForge(repo, { github: { ...options.github, cache }, gitlab: options.gitlab })
   const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
   const repoList = createRepoList(options.dataDir)
@@ -400,6 +401,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         // The repo can disappear under a running server; a missing hello is better than a crash.
         const info = await repoInfo(repo, Boolean(options.nvim), options.build).catch(() => null)
         if (info) socket.send(JSON.stringify({ type: 'hello', repo: info, build: options.build }))
+        socket.send(JSON.stringify({ type: 'state', changes: await state.values() }))
       },
       close(socket) {
         if (socket.data.kind === 'pty') {
@@ -443,6 +445,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     async stop() {
       stopWatching()
       clearInterval(watching)
+      stopStateWatch()
       hub.dispose()
       terminals?.dispose()
       await cache?.flush()

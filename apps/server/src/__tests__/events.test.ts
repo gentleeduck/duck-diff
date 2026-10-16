@@ -36,25 +36,41 @@ describe('events', () => {
     expect(response.status).toBe(401)
   })
 
-  it('sends hello, then changed on notify and on /api/saved', async () => {
+  it('sends hello and the saved values, then changed on notify and on /api/saved', async () => {
     repo = createRepo()
     repo.write('a.txt', '1\n')
     repo.commit('base')
     server = await createServer({ repo: repo.path, port: testPort(), watch: false })
     const { socket, messages } = await open(`ws://127.0.0.1:${server.port}/api/events?token=${server.token}`)
-    await waitFor(() => messages.length === 1)
+    await waitFor(() => messages.length === 2)
     expect(messages[0]).toMatchObject({ type: 'hello', repo: { branch: 'main' } })
+    expect(messages[1]).toEqual({ type: 'state', changes: {} })
 
     server.notify('worktree')
-    await waitFor(() => messages.length === 2)
-    expect(messages[1]).toEqual({ type: 'changed', reason: 'worktree' })
+    await waitFor(() => messages.length === 3)
+    expect(messages[2]).toEqual({ type: 'changed', reason: 'worktree' })
 
     await fetch(`http://127.0.0.1:${server.port}/api/saved`, {
       method: 'POST',
       headers: { 'x-duck-diff-token': server.token },
     })
+    await waitFor(() => messages.length === 4)
+    expect(messages[3]).toEqual({ type: 'changed', reason: 'saved' })
+    socket.close()
+  })
+
+  it('pushes what one page saves to every open page', async () => {
+    repo = createRepo()
+    server = await createServer({ repo: repo.path, port: testPort(), watch: false })
+    const { socket, messages } = await open(`ws://127.0.0.1:${server.port}/api/events?token=${server.token}`)
+    await waitFor(() => messages.length === 2)
+    await fetch(`http://127.0.0.1:${server.port}/api/state`, {
+      method: 'PUT',
+      headers: { 'x-duck-diff-token': server.token, 'content-type': 'application/json' },
+      body: JSON.stringify({ changes: { 'duck-diff:settings': '{"fontSize":16}' } }),
+    })
     await waitFor(() => messages.length === 3)
-    expect(messages[2]).toEqual({ type: 'changed', reason: 'saved' })
+    expect(messages[2]).toEqual({ type: 'state', changes: { 'duck-diff:settings': '{"fontSize":16}' } })
     socket.close()
   })
 
@@ -84,10 +100,10 @@ describe('events', () => {
     repo.commit('base')
     server = await createServer({ repo: repo.path, port: testPort(), watch: true })
     const { socket, messages } = await open(`ws://127.0.0.1:${server.port}/api/events?token=${server.token}`)
-    await waitFor(() => messages.length === 1)
-    repo.write('a.txt', '2\n')
     await waitFor(() => messages.length === 2)
-    expect(messages[1]).toEqual({ type: 'changed', reason: 'worktree' })
+    repo.write('a.txt', '2\n')
+    await waitFor(() => messages.length === 3)
+    expect(messages[2]).toEqual({ type: 'changed', reason: 'worktree' })
     socket.close()
   })
 
