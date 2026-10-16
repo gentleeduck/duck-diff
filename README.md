@@ -44,7 +44,8 @@ curl -fsSL https://raw.githubusercontent.com/gentleeduck/duck-diff/main/install.
 ```
 
 It puts the binary for your machine (Linux or macOS, x64 or arm64) in `~/.local/bin` after checking its sha256
-against the release. Options go after `sh -s --`:
+against the release. The page brings its own fonts (JetBrains Mono and the Nerd Font icons), so nothing else
+needs installing. Options go after `sh -s --`:
 
 ```sh
 curl -fsSL .../install.sh | sh -s -- --version 0.5.0   # a given release
