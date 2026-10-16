@@ -90,12 +90,27 @@ export function mountTerminal(
     } catch {}
   }
   doFit()
+  // A glyph drawn before its web font arrived stays in the GPU atlas as a box, so the terminal draws again
+  // once the page's fonts, the Nerd Font icons among them, have loaded.
+  let disposed = false
+  document.fonts
+    ?.load(`${options.fontSize}px "Symbols Nerd Font"`, '')
+    .then(() => document.fonts.ready)
+    .then(() => {
+      if (disposed) return
+      terminal.clearTextureAtlas()
+      doFit()
+    })
+    .catch(() => {})
   return {
     terminal,
     fit: doFit,
     retheme: () => {
       terminal.options.theme = theme()
     },
-    dispose: () => terminal.dispose(),
+    dispose: () => {
+      disposed = true
+      terminal.dispose()
+    },
   }
 }
