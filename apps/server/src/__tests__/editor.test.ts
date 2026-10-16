@@ -13,8 +13,18 @@ describe('opening a file', () => {
     })
   })
 
-  it('opens Neovim in a terminal in the page when it is installed', () => {
-    expect(pickOpener({ nvim: null, which: has('nvim', 'code'), platform: 'linux' })).toEqual({ how: 'terminal' })
+  it('never opens a terminal: with Neovim installed but not attached, VS Code takes the file', () => {
+    expect(pickOpener({ nvim: null, which: has('nvim', 'code'), platform: 'linux' })).toMatchObject({
+      how: 'editor',
+      command: 'code',
+    })
+  })
+
+  it('finds VS Code inside its macOS app when code is not on the PATH', () => {
+    const app = '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code'
+    const opener = pickOpener({ nvim: null, which: has('zed'), platform: 'darwin', exists: (path) => path === app })
+    expect(opener).toMatchObject({ how: 'editor', command: app })
+    expect(opener.how === 'editor' && opener.args('/r/a.ts', 4)).toEqual(['-g', '/r/a.ts:4'])
   })
 
   it('falls back to a code editor, VS Code first', () => {
@@ -29,7 +39,7 @@ describe('opening a file', () => {
   })
 
   it('opens with the system when nothing else is there', () => {
-    expect(pickOpener({ nvim: null, which: has(), platform: 'darwin' })).toMatchObject({
+    expect(pickOpener({ nvim: null, which: has(), platform: 'darwin', exists: () => false })).toMatchObject({
       how: 'system',
       command: 'open',
     })

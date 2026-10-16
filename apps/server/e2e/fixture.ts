@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { HandshakeSchema } from '@duck-diff/protocol'
@@ -11,7 +11,8 @@ const BINARY = new URL('../dist/duck-diff', import.meta.url).pathname
 
 interface Fixtures {
   repo: TestRepo
-  app: { url: string }
+  // opened: where the stand-in editor writes the arguments it was started with.
+  app: { url: string; opened: string }
 }
 
 // Each test gets a fresh repo with one committed file edited and one untracked file, served by the real binary.
@@ -30,11 +31,17 @@ export const test = base.extend<Fixtures>({
   app: async ({ repo }, use) => {
     // Comments and undo snapshots go to a throwaway home so tests never touch the real ones.
     const home = mkdtempSync(join(tmpdir(), 'duck-diff-e2e-'))
+    // A stand-in VS Code first on the PATH: Open starts it, and a test reads what it was given.
+    const opened = join(home, 'opened.txt')
+    mkdirSync(join(home, 'bin'))
+    writeFileSync(join(home, 'bin', 'code'), `#!/bin/sh\nprintf '%s\\n' "$@" > '${opened}'\n`)
+    chmodSync(join(home, 'bin', 'code'), 0o755)
     // CI machines have no git identity, so commits made from the page need one.
     const env = {
       ...process.env,
       XDG_DATA_HOME: join(home, 'data'),
       XDG_CACHE_HOME: join(home, 'cache'),
+      PATH: `${join(home, 'bin')}:${process.env.PATH}`,
       // A plain shell in the page's terminals, so the user's prompt and plugins never slow a test.
       SHELL: '/bin/sh',
       GIT_AUTHOR_NAME: 'Duck Test',
@@ -45,7 +52,7 @@ export const test = base.extend<Fixtures>({
     const child = spawn(BINARY, ['serve', '--repo', repo.path], { stdio: ['pipe', 'pipe', 'inherit'], env })
     const [chunk] = (await once(child.stdout, 'data')) as [Buffer]
     const handshake = HandshakeSchema.parse(JSON.parse(chunk.toString().split('\n')[0] ?? ''))
-    await use({ url: handshake.url })
+    await use({ url: handshake.url, opened })
     // Wait for the exit so the repo is not deleted under a git command still running.
     const exited = once(child, 'exit')
     child.kill()

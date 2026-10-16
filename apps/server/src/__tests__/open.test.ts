@@ -19,20 +19,6 @@ function post(body: unknown) {
 }
 
 describe('/api/open', () => {
-  it('without a Neovim attached, asks the page to open Neovim in a terminal at the line', async () => {
-    repo = createRepo()
-    server = await createServer({
-      repo: repo.path,
-      port: testPort(),
-      watch: false,
-      pickOpener: () => ({ how: 'terminal' }),
-    })
-    expect(await (await post({ path: "it's.ts", line: 3 })).json()).toEqual({
-      how: 'terminal',
-      command: "nvim +3 -- 'it'\\''s.ts'",
-    })
-  })
-
   it('starts a code editor when there is no Neovim', async () => {
     repo = createRepo()
     server = await createServer({

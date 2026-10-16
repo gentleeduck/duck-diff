@@ -340,9 +340,9 @@ export type GitAction =
   | 'clean'
   | 'stash-staged'
 
-// How the server opened a file (server editor.ts); a terminal answer carries the command for the page to run.
+// How the server opened a file (server editor.ts), and with which command.
 const OpenResultSchema = z.object({
-  how: z.enum(['nvim', 'terminal', 'editor', 'system']),
+  how: z.enum(['nvim', 'editor', 'system']),
   command: z.string().nullable().optional(),
 })
 export type OpenResult = z.infer<typeof OpenResultSchema>

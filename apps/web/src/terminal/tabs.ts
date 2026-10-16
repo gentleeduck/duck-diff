@@ -19,8 +19,8 @@ export interface TerminalTabs extends Store<{ tabs: TerminalTab[] }> {
   remove(key: string): void
   // Ends the shell too, like closing a kitty window.
   close(key: string): void
-  // Types a command into the newest terminal (a new one if none, or always with fresh) and returns its key.
-  run(command: string, fresh?: boolean): string
+  // Types a command into the newest terminal (a new one if none) and returns its key.
+  run(command: string): string
   // Input waiting for a terminal to connect, handed over once.
   take(key: string): string
 }
@@ -62,8 +62,8 @@ export function createTerminalTabs(api: Pick<Api, 'terminals' | 'closeTerminal'>
       if (tab?.id) api.closeTerminal(tab.id).catch(() => {})
       remove(key)
     },
-    run(command, fresh = false) {
-      const key = (fresh ? undefined : store.get().tabs.at(-1)?.key) ?? tabs.add().key
+    run(command) {
+      const key = store.get().tabs.at(-1)?.key ?? tabs.add().key
       queued.set(key, `${queued.get(key) ?? ''}${command}\r`)
       store.set((state) => ({ ...state }))
       return key
