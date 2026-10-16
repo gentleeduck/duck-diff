@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import {
   blame,
   lastMessage,
@@ -290,7 +290,12 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
             await repoList.remove(OpenRepoSchema.parse(Object.fromEntries(url.searchParams)).path)
             return new Response(null, { status: 204 })
           }
-          return Response.json((await repoList.all()).map((entry) => ({ ...entry, current: entry.path === repo })))
+          const listed = await repoList.all()
+          // Other servers can push this one out of the list; its page still shows where it is.
+          const entries = listed.some((entry) => entry.path === repo)
+            ? listed
+            : [{ path: repo, name: basename(repo) }, ...listed]
+          return Response.json(entries.map((entry) => ({ ...entry, current: entry.path === repo })))
         }
         if (url.pathname === '/api/open-repo' && request.method === 'POST') {
           const { path } = OpenRepoSchema.parse(await request.json())

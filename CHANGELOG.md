@@ -13,6 +13,8 @@
   local notes use the same card and menu instead of loose buttons. Deleting asks first.
 - Esc closes a comment being written even when its box does not have the keyboard, and Esc during a drag
   over lines lets them go instead of commenting.
+- The repo switcher drops folders that no longer exist and always lists the repo being served. The test
+  suites keep their repos out of your list and no longer leave temp folders behind.
 
 ## 0.5.2
 
