@@ -1,4 +1,5 @@
 import { VERSION } from './args'
+import { header } from './cli-ui'
 
 // Colors only for a terminal that wants them (https://no-color.org).
 const tty = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR && process.env.TERM !== 'dumb'
@@ -15,8 +16,10 @@ const rows = (entries: [string, string][]) => {
   return entries.map(([left, right]) => `  ${blue(left.padEnd(width))}${right}`).join('\n')
 }
 
-const MAIN =
-  () => `${bold('duck-diff')} ${dim(VERSION)}  ${dim('a git diff viewer and GitHub client that lives in your browser and quacks back')}
+const MAIN = () => `
+${header(VERSION, tty).join('\n')}
+
+${dim('A git diff viewer and GitHub client that lives in your browser and quacks back.')}
 
 ${head('Usage')}
 ${rows([
@@ -90,8 +93,9 @@ ${rows([
 ])}`,
   update: () => `${bold('duck-diff update')} ${dim('[<version>]')}
 
-Downloads the release for this machine from GitHub, checks its sha256 against the release's checksums,
-and puts it over this binary. A running server picks the new build up on its own and pages reload.
+Downloads the release for this machine from GitHub, showing how far along it is, checks its sha256
+against the release's checksums, and puts it over this binary. A running server picks the new build up
+on its own and pages reload.
 Private repos need a token: ${green('GITHUB_TOKEN')}, ${green('GH_TOKEN')} or a ${green('gh auth login')}.`,
   cache: () => `${bold('duck-diff cache clear')} ${dim('[--repo <path>]')}
 

@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { chmod, rename, rm, writeFile } from 'node:fs/promises'
+import { formatBytes, type Reporter, type Step } from './cli-ui'
 
 const REPO = process.env.DUCK_DIFF_REPO ?? 'gentleeduck/duck-diff'
 const OS: Record<string, string> = { linux: 'linux', darwin: 'darwin' }
@@ -23,12 +24,17 @@ function token(): string | null {
 
 interface Release {
   tag_name: string
-  assets: { name: string; url: string }[]
+  assets: { name: string; url: string; size?: number }[]
 }
 
-async function github(path: string, auth: string | null, accept = 'application/vnd.github+json'): Promise<Response> {
+async function github(
+  api: string,
+  path: string,
+  auth: string | null,
+  accept = 'application/vnd.github+json',
+): Promise<Response> {
   // Asset downloads come as full api urls; everything else is a path on the api.
-  const url = path.startsWith('http') ? path : `https://api.github.com${path}`
+  const url = path.startsWith('http') ? path : `${api}${path}`
   const response = await fetch(url, {
     headers: { accept, 'user-agent': 'duck-diff', ...(auth ? { authorization: `Bearer ${auth}` } : {}) },
   })
@@ -47,32 +53,103 @@ export function checksumFor(checksums: string, name: string): string | null {
   return null
 }
 
-// Fetches the release for this machine, checks it against the release's checksums and puts it over the
-// running binary in one rename, so a server watching its own file picks the new build up.
-export async function update(binary: string, current: string, wanted: string | null): Promise<string> {
-  const auth = token()
-  const release = (await (
-    await github(`/repos/${REPO}/releases/${wanted ? `tags/v${wanted}` : 'latest'}`, auth)
-  ).json()) as Release
-  const version = release.tag_name.replace(/^v/, '')
-  if (version === current && !wanted) return `already on ${version}, the newest one`
-  const name = assetName()
-  const asset = release.assets.find((entry) => entry.name === name)
-  const sums = release.assets.find((entry) => entry.name === 'checksums.txt')
-  if (!asset || !sums) throw new Error(`release ${release.tag_name} has no ${name}`)
-  const download = async (url: string) => github(url, auth, 'application/octet-stream')
-  const expected = checksumFor(await (await download(sums.url)).text(), name)
-  const bytes = new Uint8Array(await (await download(asset.url)).arrayBuffer())
-  const actual = new Bun.CryptoHasher('sha256').update(bytes).digest('hex')
-  if (!expected || expected !== actual) throw new Error(`the download does not match its checksum; nothing changed`)
-  const next = `${binary}.update`
-  try {
-    await writeFile(next, bytes)
-    await chmod(next, 0o755)
-    await rename(next, binary)
-  } catch (error) {
-    await rm(next, { force: true })
-    throw error
+// The body, reported as it arrives so a large download shows how far along it is.
+async function readBody(response: Response, size: number | null, step: Step): Promise<Uint8Array> {
+  const total = Number(response.headers.get('content-length')) || size
+  const reader = response.body?.getReader()
+  if (!reader) return new Uint8Array(await response.arrayBuffer())
+  const chunks: Uint8Array[] = []
+  let received = 0
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    received += value.length
+    step.progress(received, total)
   }
-  return `updated ${current} to ${version}`
+  const bytes = new Uint8Array(received)
+  let at = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, at)
+    at += chunk.length
+  }
+  return bytes
+}
+
+export interface UpdateOptions {
+  binary: string
+  current: string
+  // A release other than the latest.
+  wanted: string | null
+  report: Reporter
+  // Another API, repo or token, for tests; the token is looked up when left out.
+  api?: string
+  repo?: string
+  auth?: string | null
+}
+
+// Fetches the release for this machine, checks it against the release's checksums and puts it over the
+// running binary in one rename, so a server watching its own file picks the new build up. Each step is
+// reported as it happens; false means one failed and the binary is as it was.
+export async function update(options: UpdateOptions): Promise<boolean> {
+  const { binary, current, wanted, report } = options
+  const api = options.api ?? 'https://api.github.com'
+  const repo = options.repo ?? REPO
+  let step: Step | null = null
+  try {
+    const auth = options.auth === undefined ? token() : options.auth
+    step = report.step(wanted ? `Finding release ${wanted}` : 'Finding the latest release')
+    const path = `/repos/${repo}/releases/${wanted ? `tags/v${wanted}` : 'latest'}`
+    const release = (await (await github(api, path, auth)).json()) as Release
+    const version = release.tag_name.replace(/^v/, '')
+    if (version === current && !wanted) {
+      step.done(`Already on ${current}, the newest release`)
+      return true
+    }
+    const name = assetName()
+    const asset = release.assets.find((entry) => entry.name === name)
+    const sums = release.assets.find((entry) => entry.name === 'checksums.txt')
+    if (!asset || !sums) throw new Error(`release ${release.tag_name} has no ${name}`)
+    const same = version === current
+    step.done(
+      same ? `Found ${version}, the one you have; installing it again` : `Found ${version} (you have ${current})`,
+    )
+
+    step = report.step(`Downloading ${name}`)
+    const download = (url: string) => github(api, url, auth, 'application/octet-stream')
+    const expected = checksumFor(await (await download(sums.url)).text(), name)
+    const bytes = await readBody(await download(asset.url), asset.size ?? null, step)
+    step.done(`Downloaded ${formatBytes(bytes.length)}`)
+
+    step = report.step('Checking the sha256')
+    const actual = new Bun.CryptoHasher('sha256').update(bytes).digest('hex')
+    if (!expected || expected !== actual) throw new Error('the download does not match its checksum; nothing changed')
+    step.done('The sha256 matches')
+
+    step = report.step(`Installing ${binary}`)
+    const next = `${binary}.update`
+    try {
+      await writeFile(next, bytes)
+      await chmod(next, 0o755)
+      await rename(next, binary)
+    } catch (error) {
+      await rm(next, { force: true })
+      throw error
+    }
+    step.done(`Installed ${binary}`)
+    step = null
+    report.blank()
+    const done = same
+      ? `Reinstalled ${version}.`
+      : wanted
+        ? `Switched from ${current} to ${version}.`
+        : `Updated ${current} to ${version}.`
+    report.note(`${done} Servers already running switch to it on their own.`)
+    return true
+  } catch (error) {
+    const message = (error as Error).message
+    if (step) step.fail(message)
+    else report.fail(message)
+    return false
+  }
 }
