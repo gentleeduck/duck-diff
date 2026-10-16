@@ -66,7 +66,8 @@ async function serve(repo: TestRepo) {
   const env = {
     ...process.env,
     XDG_DATA_HOME: join(home, 'data'),
-    XDG_CACHE_HOME: join(home, 'cache'),
+    // Shared across runs: the TypeScript server writes its typings cache after the server is gone.
+    XDG_CACHE_HOME: join(tmpdir(), 'duck-diff-test-cache'),
     SHELL: '/bin/sh',
   }
   const child = spawn(BINARY, ['serve', '--repo', repo.path], { stdio: ['pipe', 'pipe', 'inherit'], env })

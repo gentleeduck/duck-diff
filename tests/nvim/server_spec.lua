@@ -51,6 +51,19 @@ return {
     eq(nil, server.get(dir))
   end,
 
+  ['keeps the repos it serves out of the user\'s own list'] = function()
+    config.setup({ binary = BINARY })
+    local dir = repo()
+    local started = await(function(cb)
+      server.ensure(dir, cb)
+    end)
+    eq(nil, started.err)
+    local list = vim.fn.readfile(vim.env.XDG_DATA_HOME .. '/duck-diff/repos.json')
+    eq(true, vim.tbl_contains(vim.json.decode(table.concat(list, '\n')), dir))
+    eq(true, vim.startswith(vim.env.XDG_DATA_HOME, vim.fn.fnamemodify(vim.fn.tempname(), ':h')))
+    server.stop_all()
+  end,
+
   ['a new build takes over the running server in place'] = function()
     -- A private copy, so replacing it stands in for installing a new build.
     local bin = vim.fn.tempname()
