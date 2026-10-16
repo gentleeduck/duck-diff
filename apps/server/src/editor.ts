@@ -45,18 +45,24 @@ export function pickOpener({
     : { how: 'system', command: 'xdg-open', args: (file) => [file] }
 }
 
-// Starts an editor or the system opener on its own, so it outlives the server.
+// Starts an editor or the system opener on its own, so it outlives the server. Rejects when it cannot start,
+// so the page never says a file opened that did not.
 export function launch(
   opener: Extract<Opener, { how: 'editor' | 'system' }>,
   repo: string,
   path: string,
   line: number,
-) {
+): Promise<void> {
   const child = spawn(opener.command, opener.args(join(repo, path), line), {
     cwd: repo,
     detached: true,
     stdio: 'ignore',
   })
-  child.on('error', () => {})
-  child.unref()
+  return new Promise((resolve, reject) => {
+    child.once('error', reject)
+    child.once('spawn', () => {
+      child.unref()
+      resolve()
+    })
+  })
 }

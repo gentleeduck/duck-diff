@@ -30,6 +30,19 @@ describe('/api/open', () => {
     expect(await (await post({ path: 'a.ts', line: 3 })).json()).toEqual({ how: 'editor', command: 'true' })
   })
 
+  it('says so when the editor cannot be started, instead of answering that it opened', async () => {
+    repo = createRepo()
+    server = await createServer({
+      repo: repo.path,
+      port: testPort(),
+      watch: false,
+      pickOpener: () => ({ how: 'system', command: 'duck-diff-no-such-opener', args: (file) => [file] }),
+    })
+    const response = await post({ path: 'a.ts', line: 1 })
+    expect(response.status).toBe(502)
+    expect(JSON.stringify(await response.json())).toContain('duck-diff-no-such-opener')
+  })
+
   it('sends the open keys to Neovim for paths inside the repo', async () => {
     repo = createRepo()
     const calls: string[][] = []

@@ -328,7 +328,9 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
             return Response.json({ how: 'nvim' })
           }
           if (opener.how === 'nvim') return Response.json({ how: 'nvim' })
-          launch(opener, repo, path, line)
+          await launch(opener, repo, path, line).catch((error: Error) => {
+            throw new HttpError(502, 'failed', `Could not start ${opener.command}: ${error.message}`)
+          })
           return Response.json({ how: opener.how, command: opener.command })
         }
         if (url.pathname === '/api/state') {
