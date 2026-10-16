@@ -1,25 +1,18 @@
-// The terminal start, in duck-cli's style: the name and version over a green rule, then where the page is.
-export function paintFor(stream: { isTTY?: boolean } = process.stdout, env = process.env): boolean {
-  return Boolean(stream.isTTY) && !env.NO_COLOR && env.TERM !== 'dumb'
-}
+import { ansi, header, paintFor } from './cli-ui'
 
-const ansi = (code: string, color: boolean) => (text: string) => (color ? `\x1b[${code}m${text}\x1b[0m` : text)
-
+// The terminal start: the header every command shares, then where the page is.
 export function startBanner(
   { version, repo, branch, url }: { version: string; repo: string; branch: string | null; url: string },
   color: boolean = paintFor(),
 ): string {
-  const white = ansi('37', color)
-  const rule = ansi('1;32', color)
+  const green = ansi('1;32', color)
   const info = ansi('36', color)
   const dim = ansi('2', color)
-  const title = ` 🦆 @gentleduck/diff ${version}`
   return [
     '',
-    white(title),
-    rule('─'.repeat(title.length)),
+    ...header(version, color),
     '',
-    `${rule('✔')} Serving ${info(repo)}${branch ? ` on ${info(branch)}` : ''}`,
+    `${green('✔')} Serving ${info(repo)}${branch ? ` on ${info(branch)}` : ''}`,
     `Open ${info(url)}`,
     dim('Ctrl-C stops it. It also stops on its own once no page has been open for a while.'),
     '',

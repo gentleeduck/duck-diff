@@ -39,18 +39,57 @@ local function sha256_cmd(path)
   return { 'shasum', '-a', '256', path }
 end
 
--- Callbacks run on the main loop so they may touch files and editor state.
-local function download(url, dest, done, headers)
-  local cmd = { 'curl', '-fsSL', '--retry', '2', '-o', dest }
+-- Shown in the command line while the binary downloads, so the first :DuckDiff of a version is not a silent
+-- wait. Replaceable, for tests.
+function M.report(message)
+  vim.api.nvim_echo({ { 'duck-diff: ' .. message, 'Comment' } }, false, {})
+end
+
+-- Callbacks run on the main loop so they may touch files and editor state. With progress, curl draws its
+-- bar on stderr and progress is told each new whole percent.
+local function download(url, dest, done, headers, progress)
+  local cmd = { 'curl', '-fSL', progress and '-#' or '-s', '--retry', '2', '-o', dest }
   for _, header in ipairs(headers or {}) do
     vim.list_extend(cmd, { '-H', header })
   end
   table.insert(cmd, url)
-  vim.system(cmd, {}, vim.schedule_wrap(function(out)
+  local said, opts = {}, {}
+  if progress then
+    local shown = -1
+    opts.stderr = function(_, data)
+      if not data then
+        return
+      end
+      local percent
+      for value in data:gmatch('(%d+)%.%d%%') do
+        percent = tonumber(value)
+      end
+      if percent and percent ~= shown then
+        shown = percent
+        vim.schedule(function()
+          progress(percent)
+        end)
+      end
+      -- The last chunks, kept whole: curl's error comes at the end and can arrive split across two.
+      table.insert(said, data)
+      if #said > 64 then
+        table.remove(said, 1)
+      end
+    end
+  end
+  vim.system(cmd, opts, vim.schedule_wrap(function(out)
     if out.code == 0 then
       return done(nil)
     end
-    done(('download failed: %s (%s)'):format(url, vim.trim(out.stderr or '')))
+    local reason = out.stderr
+    if not reason then
+      local errors = {}
+      for line in table.concat(said):gmatch('curl:[^\r\n]*') do
+        table.insert(errors, line)
+      end
+      reason = table.concat(errors, ' ')
+    end
+    done(('download failed: %s (%s)'):format(url, vim.trim(reason)))
   end))
 end
 
@@ -59,8 +98,8 @@ local function release_fetcher(callback)
   local token = not M.base_url and M.token()
   local api = token and M.api_release_url()
   if not api then
-    return callback(nil, function(name, dest, done)
-      download(release_url(name), dest, done)
+    return callback(nil, function(name, dest, done, progress)
+      download(release_url(name), dest, done, nil, progress)
     end)
   end
   local auth = 'Authorization: Bearer ' .. token
@@ -73,11 +112,11 @@ local function release_fetcher(callback)
     for _, asset in ipairs(release.assets) do
       urls[asset.name] = asset.url
     end
-    callback(nil, function(name, dest, done)
+    callback(nil, function(name, dest, done, progress)
       if not urls[name] then
         return done(('release v%s has no %s'):format(version, name))
       end
-      download(urls[name], dest, done, { auth, 'Accept: application/octet-stream' })
+      download(urls[name], dest, done, { auth, 'Accept: application/octet-stream' }, progress)
     end)
   end))
 end
@@ -137,10 +176,12 @@ function M.ensure(callback)
       vim.uv.fs_chmod(bin, tonumber('755', 8))
       vim.fn.delete(sums)
       remove_other_versions()
+      M.report(('v%s is ready'):format(version))
       done(nil, bin)
     end))
   end
 
+  M.report(('downloading v%s (%s)'):format(version, asset))
   release_fetcher(function(lookup_err, fetch)
     if lookup_err then
       return fail(lookup_err)
@@ -155,6 +196,8 @@ function M.ensure(callback)
         end
         verify()
       end)
+    end, function(percent)
+      M.report(('downloading v%s (%s) %d%%'):format(version, asset, percent))
     end)
   end)
 end
