@@ -250,6 +250,9 @@ export function useKeys(handlers: KeyHandlers) {
         region('main')?.focus()
       },
       'leave-insert': blur,
+      'close-draft': () => {
+        if (reviews.get().draft) reviews.cancelDraft()
+      },
       'focus-left': () => {
         if (!settings.get().sidebar) settings.set((prev) => ({ ...prev, sidebar: true }))
         requestAnimationFrame(() =>
