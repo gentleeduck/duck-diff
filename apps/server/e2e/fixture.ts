@@ -40,7 +40,9 @@ export const test = base.extend<Fixtures>({
     const env = {
       ...process.env,
       XDG_DATA_HOME: join(home, 'data'),
-      XDG_CACHE_HOME: join(home, 'cache'),
+      // The TypeScript server writes its typings cache after the server is gone, so it shares one folder
+      // across runs instead of leaving one behind each time.
+      XDG_CACHE_HOME: join(tmpdir(), 'duck-diff-test-cache'),
       PATH: `${join(home, 'bin')}:${process.env.PATH}`,
       // A plain shell in the page's terminals, so the user's prompt and plugins never slow a test.
       SHELL: '/bin/sh',

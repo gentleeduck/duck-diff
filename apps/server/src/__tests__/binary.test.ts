@@ -14,7 +14,12 @@ describe.skipIf(!existsSync(BINARY))('compiled binary', () => {
     const repo = createRepo()
     // A repo whose bunfig preloads a missing module must not stop the server from starting there.
     repo.write('bunfig.toml', 'preload = ["./missing-preload.ts"]\n')
-    const child = Bun.spawn([BINARY, 'serve', '--repo', repo.path], { cwd: repo.path, stdin: 'pipe', stdout: 'pipe' })
+    const child = Bun.spawn([BINARY, 'serve', '--repo', repo.path], {
+      cwd: repo.path,
+      env: process.env,
+      stdin: 'pipe',
+      stdout: 'pipe',
+    })
     const reader = child.stdout.getReader()
     const { value } = await reader.read()
     const handshake = HandshakeSchema.parse(JSON.parse(new TextDecoder().decode(value).split('\n')[0] ?? ''))
