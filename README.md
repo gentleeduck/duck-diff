@@ -99,8 +99,8 @@ From Neovim it is `:DuckDiff`, with the same targets.
   rebindable; the keyboard button on the rail lists them.
 - **Themes**: ten dark ones. There is a light button. It does not do what you think.
 
-Open on any file goes to the Neovim you started from, else runs `nvim` at the line in a terminal in the page,
-else VS Code, Cursor, Windsurf, Zed or Sublime.
+Open on any file goes to the Neovim you started duck-diff from, else to VS Code at the line (then VSCodium,
+Cursor, Windsurf, Zed or Sublime), else to the app your system opens the file with. Never a terminal in the page.
 
 ## Command line
 

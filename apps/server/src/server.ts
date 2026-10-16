@@ -27,7 +27,7 @@ import type { ServerWebSocket } from 'bun'
 import { z } from 'zod'
 import { createToken, isAuthorized, tokenCookie } from './auth'
 import { createDiskCache, dataHome } from './disk-cache'
-import { launch, pickOpener, terminalCommand } from './editor'
+import { launch, pickOpener } from './editor'
 import { errorResponse, HttpError } from './errors'
 import { createForge } from './forge'
 import type { GitHubOptions } from './github'
@@ -327,10 +327,9 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
             ])
             return Response.json({ how: 'nvim' })
           }
-          // Neovim without one attached runs in a terminal in the page, which the page opens itself.
-          if (opener.how === 'terminal') return Response.json({ how: 'terminal', command: terminalCommand(path, line) })
-          if (opener.how === 'editor' || opener.how === 'system') launch(opener, repo, path, line)
-          return Response.json({ how: opener.how, command: opener.how === 'nvim' ? null : opener.command })
+          if (opener.how === 'nvim') return Response.json({ how: 'nvim' })
+          launch(opener, repo, path, line)
+          return Response.json({ how: opener.how, command: opener.command })
         }
         if (url.pathname === '/api/state') {
           if (request.method === 'PUT') {
