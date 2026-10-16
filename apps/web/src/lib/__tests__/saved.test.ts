@@ -51,4 +51,42 @@ describe('saved storage', () => {
     const saved = createSavedStorage({ initial: { 'duck-diff:settings': 'new' }, send: async () => {}, browser })
     expect(saved.getItem('duck-diff:settings')).toBe('new')
   })
+
+  it('takes values saved elsewhere, tells who listens, and sends none of them back', async () => {
+    vi.useFakeTimers()
+    const send = vi.fn(async () => {})
+    const saved = createSavedStorage({ initial: { a: '1', b: '1' }, send, browser: null })
+    const told: string[] = []
+    saved.subscribe((key) => told.push(key))
+    saved.apply({ a: '2', b: '1', c: '3', gone: null })
+    expect([saved.getItem('a'), saved.getItem('c')]).toEqual(['2', '3'])
+    expect(told).toEqual(['a', 'c'])
+    await vi.runAllTimersAsync()
+    expect(send).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+
+  it('keeps a change of its own that it has not sent yet', async () => {
+    vi.useFakeTimers()
+    const send = vi.fn(async () => {})
+    const saved = createSavedStorage({ initial: { a: '1' }, send, browser: null })
+    saved.setItem('a', 'mine')
+    saved.apply({ a: 'theirs' })
+    expect(saved.getItem('a')).toBe('mine')
+    await vi.runAllTimersAsync()
+    expect(send).toHaveBeenCalledExactlyOnceWith({ a: 'mine' })
+    vi.useRealTimers()
+  })
+
+  it('drops what is missing from every value the server sent, unless it is still on its way', async () => {
+    vi.useFakeTimers()
+    const saved = createSavedStorage({ initial: { gone: '1', kept: '1' }, send: async () => {}, browser: null })
+    const told: string[] = []
+    saved.subscribe((key) => told.push(key))
+    saved.setItem('mine', 'x')
+    saved.apply({ kept: '1' }, true)
+    expect([saved.getItem('gone'), saved.getItem('kept'), saved.getItem('mine')]).toEqual([null, '1', 'x'])
+    expect(told).toEqual(['gone'])
+    vi.useRealTimers()
+  })
 })

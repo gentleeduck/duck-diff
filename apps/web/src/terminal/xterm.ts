@@ -37,6 +37,35 @@ function theme(): ITheme {
   }
 }
 
+// A glyph drawn before its web font arrived stays in the GPU atlas as a box. Terminals opened while the page's
+// fonts (the Nerd Font icons among them) were loading draw again together once they have, since terminals can
+// share one atlas; one opened later finds the fonts there and leaves the atlas alone.
+const ICON = '15px "Symbols Nerd Font"'
+const redraws = new Set<() => void>()
+let loading: Promise<void> | null = null
+
+function redrawOnceFontsLoad(redraw: () => void): () => void {
+  const fonts = typeof document === 'undefined' ? undefined : document.fonts
+  if (!fonts || fonts.check(ICON, '\ue5ff')) return () => {}
+  redraws.add(redraw)
+  const forget = () => {
+    redraws.delete(redraw)
+  }
+  if (loading) return forget
+  loading = fonts
+    .load(ICON, '\ue5ff')
+    .then(() => fonts.ready)
+    .then(() => {
+      for (const each of redraws) each()
+    })
+    .catch(() => {})
+    .finally(() => {
+      redraws.clear()
+      loading = null
+    })
+  return forget
+}
+
 export interface Mounted {
   terminal: Terminal
   fit(): void
@@ -90,12 +119,19 @@ export function mountTerminal(
     } catch {}
   }
   doFit()
+  const forgetRedraw = redrawOnceFontsLoad(() => {
+    terminal.clearTextureAtlas()
+    doFit()
+  })
   return {
     terminal,
     fit: doFit,
     retheme: () => {
       terminal.options.theme = theme()
     },
-    dispose: () => terminal.dispose(),
+    dispose: () => {
+      forgetRedraw()
+      terminal.dispose()
+    },
   }
 }

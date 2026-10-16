@@ -1,4 +1,4 @@
-import { saved } from '../lib/saved'
+import { onSavedElsewhere, saved } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
 import type { Overrides } from './bindings'
 import type { Mode } from './engine'
@@ -24,19 +24,24 @@ export interface KeyOverrides extends Store<Overrides> {
   bind(id: string, keys: string[] | null): void
 }
 
-export function createKeyOverrides(storage: Pick<Storage, 'getItem' | 'setItem'> | null = saved): KeyOverrides {
-  let initial: Overrides = {}
+function read(storage: Pick<Storage, 'getItem'> | null): Overrides {
+  const overrides: Overrides = {}
   try {
     const parsed = JSON.parse(storage?.getItem(KEY) ?? '{}') as unknown
     if (parsed && typeof parsed === 'object') {
       for (const [id, keys] of Object.entries(parsed)) {
-        if (Array.isArray(keys) && keys.every((key) => typeof key === 'string')) initial[id] = keys
+        if (Array.isArray(keys) && keys.every((key) => typeof key === 'string')) overrides[id] = keys
       }
     }
   } catch {
-    initial = {}
+    return {}
   }
-  const store = createStore(initial)
+  return overrides
+}
+
+export function createKeyOverrides(storage: Pick<Storage, 'getItem' | 'setItem'> | null = saved): KeyOverrides {
+  const store = createStore(read(storage))
+  onSavedElsewhere(storage, KEY, () => store.set(read(storage)))
   return {
     ...store,
     bind(id, keys) {

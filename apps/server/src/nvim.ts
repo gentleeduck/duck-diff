@@ -1,5 +1,3 @@
-import { spawn } from 'node:child_process'
-
 export type NvimRunner = (args: string[]) => Promise<void>
 
 // Characters the Ex command line treats specially in a file name.
@@ -14,29 +12,29 @@ export function tcdKeys(path: string): string {
   return `<C-\\><C-n>:tcd ${path.replace(SPECIAL, '\\$1')}<CR>`
 }
 
-export const runNvim: NvimRunner = (args) =>
-  new Promise((resolve, reject) => {
-    const child = spawn('nvim', args, { stdio: 'ignore' })
-    child.on('error', reject)
-    child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`nvim exited ${code}`))))
-  })
+// Bun.spawn, not node:child_process: in Bun that can lose a quick child's exit and output (oven-sh/bun#45483).
+export const runNvim: NvimRunner = async (args) => {
+  const code = await Bun.spawn(['nvim', ...args], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' }).exited
+  if (code !== 0) throw new Error(`nvim exited ${code}`)
+}
 
 export type NvimEval = (address: string, expr: string) => Promise<string>
 
-export const evalNvim: NvimEval = (address, expr) =>
-  new Promise((resolve, reject) => {
-    const child = spawn('nvim', ['--server', address, '--remote-expr', expr], { stdio: ['ignore', 'pipe', 'ignore'] })
-    let out = ''
-    const timer = setTimeout(() => child.kill(), 15_000)
-    child.stdout.on('data', (chunk: Buffer) => {
-      out += chunk.toString()
-    })
-    child.on('error', reject)
-    child.on('close', (code) => {
-      clearTimeout(timer)
-      code === 0 ? resolve(out) : reject(new Error(`nvim exited ${code}`))
-    })
+export const evalNvim: NvimEval = async (address, expr) => {
+  const child = Bun.spawn(['nvim', '--server', address, '--remote-expr', expr], {
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'ignore',
   })
+  const timer = setTimeout(() => child.kill(), 15_000)
+  try {
+    const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited])
+    if (code !== 0) throw new Error(`nvim exited ${code}`)
+    return out
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 // A Lua call with its argument as one Vim string, which only needs its single quotes doubled.
 export function luaCall(module: string, fn: string, argument: string): string {

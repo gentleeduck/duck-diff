@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createStateStore, openingTarget, pageDiff, pageState } from '../state'
@@ -27,6 +27,36 @@ describe('state store', () => {
     await second.update({ b: '2' })
     await first.update({ a: '1' })
     expect(await createStateStore(data, '/c').values()).toEqual({ a: '1', b: '2' })
+  })
+
+  it('reports what changed, by its own hand or by another server writing the same file', async () => {
+    const here = createStateStore(data, '/a')
+    const other = createStateStore(data, '/b')
+    await here.update({ kept: '1', dropped: '1' })
+    const seen: Record<string, string | null>[] = []
+    const stop = here.watch((changes) => seen.push(changes))
+    await here.update({ mine: '1' })
+    await other.update({ theirs: '2', dropped: null })
+    await Bun.sleep(400)
+    stop()
+    await other.update({ after: '3' })
+    await Bun.sleep(200)
+    expect(seen).toEqual([{ mine: '1' }, { theirs: '2', dropped: null }])
+  })
+
+  it('tells nothing when the file cannot be read, rather than every key gone', async () => {
+    const here = createStateStore(data, '/a')
+    await here.update({ kept: '1' })
+    const seen: Record<string, string | null>[] = []
+    const stop = here.watch((changes) => seen.push(changes))
+    await Bun.sleep(100)
+    await writeFile(join(data, 'duck-diff', 'state.json'), '{"version":1,"values":')
+    await Bun.sleep(300)
+    await createStateStore(data, '/b').update({ more: '2' })
+    await Bun.sleep(300)
+    stop()
+    // The write after it started from nothing, so kept is gone by then; while unreadable, nothing was told.
+    expect(seen).toEqual([{ more: '2', kept: null }])
   })
 
   it('keeps the query cache per repo, under its cache folder', async () => {

@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process'
 import { runGit } from '@duck-diff/git'
 import type {
   CheckRun,
@@ -59,16 +58,15 @@ export function parseGitHubRemote(url: string): string | null {
   return match ? `${match[1]}/${match[2]}` : null
 }
 
-function runGh(args: string[]): Promise<string | null> {
-  return new Promise((resolve) => {
-    const child = spawn('gh', args, { stdio: ['ignore', 'pipe', 'ignore'] })
-    let out = ''
-    child.stdout.on('data', (chunk: Buffer) => {
-      out += chunk
-    })
-    child.on('error', () => resolve(null))
-    child.on('close', (code) => resolve(code === 0 ? out.trim() : null))
-  })
+// Bun.spawn, not node:child_process: in Bun that can lose a quick child's exit and output (oven-sh/bun#45483).
+async function runGh(args: string[]): Promise<string | null> {
+  try {
+    const child = Bun.spawn(['gh', ...args], { stdin: 'ignore', stdout: 'pipe', stderr: 'ignore' })
+    const [out, code] = await Promise.all([new Response(child.stdout).text(), child.exited])
+    return code === 0 ? out.trim() : null
+  } catch {
+    return null
+  }
 }
 
 // github.com reads GH_TOKEN and gh's default login; an Enterprise host its own variables and gh login.

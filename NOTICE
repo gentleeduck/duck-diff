@@ -3,3 +3,9 @@ Copyright (c) 2026 gentleduck
 
 This product includes software from DiffsHub by The Pierre Computer Company
 (https://github.com/pierrecomputer/pierre), licensed under the Apache License 2.0.
+
+This product includes JetBrains Mono (https://github.com/JetBrains/JetBrainsMono) through Fontsource,
+licensed under the SIL Open Font License 1.1.
+
+This product includes Symbols Nerd Font from Nerd Fonts (https://github.com/ryanoasis/nerd-fonts),
+licensed under the MIT License; its icon sets keep their own licenses, listed in apps/web/src/fonts/README.md.

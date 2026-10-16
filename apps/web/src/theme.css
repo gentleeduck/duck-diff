@@ -7,10 +7,30 @@
 @import "@fontsource/jetbrains-mono/latin-700.css";
 @import "@fontsource/jetbrains-mono/latin-700-italic.css";
 
+/* Nerd Font icons for machines without a Nerd Font: only the icon code points come from here, and the one
+   upright face stands for every weight and style so icons are never slanted or thickened, as in a patched font. */
+@font-face {
+  font-family: "Symbols Nerd Font";
+  src: url("./fonts/SymbolsNerdFont-Regular.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+  unicode-range: U+23FB-23FE, U+2630, U+2665, U+26A1, U+276C-2771, U+2B58, U+E000-F8FF, U+F0000-FFFFD;
+}
+@font-face {
+  font-family: "Symbols Nerd Font";
+  src: url("./fonts/SymbolsNerdFont-Regular.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: block;
+  unicode-range: U+23FB-23FE, U+2630, U+2665, U+26A1, U+276C-2771, U+2B58, U+E000-F8FF, U+F0000-FFFFD;
+}
+
 /* The page matches the terminal: tokyonight-night colors and JetBrainsMono Nerd Font in bold italic. */
 :root,
 :root.dark {
-  --font-sans: "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", ui-monospace, monospace;
+  --font-sans:
+    "JetBrainsMono Nerd Font", "JetBrainsMono NF", "JetBrains Mono", "Symbols Nerd Font", ui-monospace, monospace;
   --font-mono: var(--font-sans);
 
   --tn-bg: #1a1b26;

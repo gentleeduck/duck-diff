@@ -57,13 +57,21 @@ export function createSiblings(start: StartServer) {
       }
       return (await existing).url
     },
+    // Waits for them to exit, so whoever stopped this server can remove what they wrote; a stuck one gets 5s.
     async stop() {
-      for (const sibling of running.values())
-        void sibling.then(
-          ({ child }) => child?.kill(),
+      const exits = [...running.values()].map((sibling) =>
+        sibling.then(
+          ({ child }) =>
+            new Promise<void>((resolve) => {
+              if (!child || child.exitCode !== null || child.signalCode !== null) return resolve()
+              child.once('exit', () => resolve())
+              child.kill()
+            }),
           () => {},
-        )
+        ),
+      )
       running.clear()
+      await Promise.race([Promise.all(exits), Bun.sleep(5000)])
     },
   }
 }

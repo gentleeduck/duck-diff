@@ -1,7 +1,14 @@
 // What the page remembers between visits (settings, keys, panel sizes, tabs, viewed files) lives on the server,
 // in duck-diff's data folder, not in the browser: clearing the browser loses nothing. The server puts the
 // values into the page, so stores read them as they are created; changes go back in batches.
-export type SavedStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+export interface SavedStorage extends Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
+  // Values saved elsewhere (another page, or a server for another repo). A key this page changed and has not
+  // sent yet keeps its own value, which is on its way to the server. With all, changes is every value there
+  // is, and a key missing from it was removed.
+  apply(changes: Changes, all?: boolean): void
+  // Told each key that apply changed, so a store can read it again.
+  subscribe(listener: (key: string) => void): () => void
+}
 
 type Changes = Record<string, string | null>
 
@@ -23,6 +30,7 @@ export function createSavedStorage({
   browser: Pick<Storage, 'getItem' | 'removeItem' | 'key' | 'length'> | null
 }): SavedStorage & { flush(): void } {
   const values = new Map(Object.entries(initial))
+  const listeners = new Set<(key: string) => void>()
   let pending: Changes = {}
   let timer: ReturnType<typeof setTimeout> | null = null
 
@@ -66,8 +74,32 @@ export function createSavedStorage({
       values.delete(key)
       queue(key, null)
     },
+    apply(changes, all = false) {
+      const next: Changes = { ...changes }
+      if (all) for (const key of values.keys()) if (!(key in changes)) next[key] = null
+      for (const [key, value] of Object.entries(next)) {
+        if (key in pending || (values.get(key) ?? null) === value) continue
+        if (value === null) values.delete(key)
+        else values.set(key, value)
+        for (const listener of listeners) listener(key)
+      }
+    },
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
     flush,
   }
+}
+
+// Runs reload whenever another page or server saved key, for a store built on a storage that can tell.
+export function onSavedElsewhere(storage: unknown, key: string, reload: () => void): void {
+  const source = storage as Partial<Pick<SavedStorage, 'subscribe'>> | null
+  source?.subscribe?.((changed) => {
+    if (changed === key) reload()
+  })
 }
 
 function pageValues(): Record<string, string> | null {
@@ -84,7 +116,16 @@ function pageValues(): Record<string, string> | null {
 function createPageStorage(): SavedStorage {
   const initial = pageValues()
   // Without the server's values (the Vite dev server, tests) the browser keeps them, as before.
-  if (!initial) return globalThis.localStorage
+  if (!initial) {
+    const local = globalThis.localStorage
+    return {
+      getItem: (key) => local.getItem(key),
+      setItem: (key, value) => local.setItem(key, value),
+      removeItem: (key) => local.removeItem(key),
+      apply: () => {},
+      subscribe: () => () => {},
+    }
+  }
   const saved = createSavedStorage({
     initial,
     send: async (changes) => {
