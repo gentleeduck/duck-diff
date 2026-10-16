@@ -44,7 +44,7 @@ describe('events', () => {
     const { socket, messages } = await open(`ws://127.0.0.1:${server.port}/api/events?token=${server.token}`)
     await waitFor(() => messages.length === 2)
     expect(messages[0]).toMatchObject({ type: 'hello', repo: { branch: 'main' } })
-    expect(messages[1]).toEqual({ type: 'state', changes: {} })
+    expect(messages[1]).toEqual({ type: 'state', changes: {}, all: true })
 
     server.notify('worktree')
     await waitFor(() => messages.length === 3)

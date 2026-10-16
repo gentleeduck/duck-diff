@@ -50,17 +50,26 @@ async function writeAtomic(file: string, text: string) {
   await rename(temp, file)
 }
 
-async function readValues(file: string): Promise<StateValues> {
+// null when the file is there but cannot be read; a missing file holds nothing.
+async function readKnown(file: string): Promise<StateValues | null> {
+  let text: string
   try {
-    const parsed = JSON.parse(await readFile(file, 'utf8')) as { version?: number; values?: unknown }
+    text = await readFile(file, 'utf8')
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? {} : null
+  }
+  try {
+    const parsed = JSON.parse(text) as { version?: number; values?: unknown }
     if (parsed.version !== VERSION || !parsed.values || typeof parsed.values !== 'object') return {}
     return Object.fromEntries(
       Object.entries(parsed.values).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
     )
   } catch {
-    return {}
+    return null
   }
 }
+
+const readValues = async (file: string): Promise<StateValues> => (await readKnown(file)) ?? {}
 
 // What the page would otherwise keep in the browser (settings, keys, panel sizes, tabs, viewed files), kept
 // in the data folder the way Neovim plugins keep theirs, so clearing the browser loses nothing. One file for
@@ -94,6 +103,12 @@ export function createStateStore(data: string, repo: string): StateStore {
       feed.listeners.add(onChange)
       // Queued before any later write, so that write is told as a change.
       if (!feed.known()) void serial(async () => feed.see(await readValues(file)))
+      // A file that cannot be read now says nothing about what was removed, so it is passed over.
+      const reload = () =>
+        serial(async () => {
+          const values = await readKnown(file)
+          if (values) feed.see(values)
+        })
       // The folder, not the file: every write renames a new file over it.
       const folder = dirname(file)
       mkdirSync(folder, { recursive: true })
@@ -102,7 +117,7 @@ export function createStateStore(data: string, repo: string): StateStore {
         if (name && name !== 'state.json') return
         timer ??= setTimeout(() => {
           timer = null
-          void serial(async () => feed.see(await readValues(file)))
+          void reload()
         }, 20)
       })
       return () => {

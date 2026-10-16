@@ -3,8 +3,9 @@
 // values into the page, so stores read them as they are created; changes go back in batches.
 export interface SavedStorage extends Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
   // Values saved elsewhere (another page, or a server for another repo). A key this page changed and has not
-  // sent yet keeps its own value, which is on its way to the server.
-  apply(changes: Changes): void
+  // sent yet keeps its own value, which is on its way to the server. With all, changes is every value there
+  // is, and a key missing from it was removed.
+  apply(changes: Changes, all?: boolean): void
   // Told each key that apply changed, so a store can read it again.
   subscribe(listener: (key: string) => void): () => void
 }
@@ -73,8 +74,10 @@ export function createSavedStorage({
       values.delete(key)
       queue(key, null)
     },
-    apply(changes) {
-      for (const [key, value] of Object.entries(changes)) {
+    apply(changes, all = false) {
+      const next: Changes = { ...changes }
+      if (all) for (const key of values.keys()) if (!(key in changes)) next[key] = null
+      for (const [key, value] of Object.entries(next)) {
         if (key in pending || (values.get(key) ?? null) === value) continue
         if (value === null) values.delete(key)
         else values.set(key, value)
