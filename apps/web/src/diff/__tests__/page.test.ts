@@ -40,6 +40,25 @@ describe('buildPage', () => {
     expect(page.rows[at + 1]).toMatchObject({ type: 'note', note: { kind: 'draft' } })
   })
 
+  it('in split view puts the notes of one line pair side by side, each in its own column', () => {
+    const left = { path: 'a.ts', side: 'deletions' as const, line: 2, lineHash: 'h' }
+    const both: NoteItem = {
+      ...base,
+      annotations: [
+        { side: 'additions', lineNumber: 2, metadata: { kind: 'draft', draft } },
+        { side: 'deletions', lineNumber: 2, metadata: { kind: 'draft', draft: left } },
+      ],
+    }
+    const page = buildPage([both], 'split', options)
+    const at = page.lines.get(`${base.id}:additions:2`) ?? -1
+    expect(page.rows[at + 1]).toMatchObject({
+      type: 'notes',
+      left: [{ kind: 'draft', draft: { side: 'deletions' } }],
+      right: [{ kind: 'draft', draft: { side: 'additions' } }],
+    })
+    expect(page.rows[at + 2]?.type).not.toBe('note')
+  })
+
   it('shows only the header for a folded file', () => {
     const page = buildPage([{ ...base, collapsed: true }], 'split', options)
     expect(page.rows.map((row) => row.type)).toEqual(['header', 'end'])

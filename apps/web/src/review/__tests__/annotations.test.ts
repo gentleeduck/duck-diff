@@ -2,7 +2,7 @@ import type { GitHubReviewComment, ReviewComment } from '@duck-diff/protocol'
 import { describe, expect, it } from 'vitest'
 import { toDiffItem } from '../../lib/items'
 import { lineHash } from '../anchor'
-import { createAnnotator } from '../annotations'
+import { createAnnotator, type Note, noteKey } from '../annotations'
 
 const PATCH = 'diff --git a/a.ts b/a.ts\nindex 1..2 100644\n--- a/a.ts\n+++ b/a.ts\n@@ -1,2 +1,2 @@\n one\n-two\n+TWO\n'
 const item = toDiffItem(PATCH)
@@ -91,5 +91,21 @@ describe('createAnnotator', () => {
     const opened = annotate([item], [], null, new Set())
     expect(opened[0]?.collapsed).toBe(false)
     expect(opened[0]?.version).not.toBe(folded[0]?.version)
+  })
+})
+
+describe('note keys', () => {
+  it('tells apart every note that can sit on one line, and stays the same across renders', () => {
+    const notes: Note[] = [
+      { kind: 'comment', comment, outdated: false },
+      { kind: 'comment', comment: { ...comment, id: 'c2' }, outdated: false },
+      { kind: 'github', thread: [github(1, null, 2)] },
+      { kind: 'draft', draft: { path: 'a.ts', side: 'additions', line: 2, lineHash: 'h' } },
+      { kind: 'pending', comment: { path: 'a.ts', line: 2, side: 'RIGHT', body: 'x' }, index: 0 },
+      { kind: 'pending', comment: { path: 'a.ts', line: 2, side: 'RIGHT', body: 'y' }, index: 1 },
+    ]
+    const keys = notes.map(noteKey)
+    expect(new Set(keys).size).toBe(notes.length)
+    expect(notes.map(noteKey)).toEqual(keys)
   })
 })
