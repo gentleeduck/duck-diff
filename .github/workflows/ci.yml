@@ -20,24 +20,18 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run ci
         if: runner.os == 'Linux'
-      # The unit and e2e suites stall on macOS runners: requests hang until the 10s socket timeout (#14).
-      # Until that is understood, macOS proves the build, the compiled binary and the Neovim plugin.
-      - run: bun run check && bun run check-types && bun run build
+      # The macOS runners have 3 cores; the web, git and server suites at once starve the web tests' timers.
+      - run: bun run check && bun run check-types && bun run build && bunx turbo run test:coverage --concurrency=1
         if: runner.os == 'macOS'
-      - name: The compiled binary starts and answers
-        if: runner.os == 'macOS'
-        run: |
-          echo | apps/server/dist/duck-diff serve --repo . | head -1 | grep '"token"'
       # Before e2e: opening a file runs nvim in a page terminal when nvim is on PATH.
       - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1
         with:
           neovim: true
           version: stable
       - run: bunx playwright install --with-deps chromium
-        if: runner.os == 'Linux'
         working-directory: apps/server
       - run: bun run test:e2e
-        if: runner.os == 'Linux'
+      # Budgets are checked on Linux only; the macOS runners are too uneven to time.
       - run: bun run bench
         if: runner.os == 'Linux'
       - run: bun run test:nvim
