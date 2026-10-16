@@ -305,10 +305,23 @@ export function themeVariables(name: ThemeName): Record<string, string> {
   vars['--diff-del-bg'] = `color-mix(in oklab, ${colors.red} 16%, ${colors.bg})`
   vars['--diff-add-word'] = `color-mix(in oklab, ${colors.green} 34%, ${colors.bg})`
   vars['--diff-del-word'] = `color-mix(in oklab, ${colors.red} 34%, ${colors.bg})`
+  // The muted git colors tokyonight gives nvim-tree, mixed the same way for every other palette.
+  vars['--tn-git-add'] = `color-mix(in oklab, ${colors.teal} 55%, ${colors.bg})`
+  vars['--tn-git-change'] = `color-mix(in oklab, ${colors.blue} 70%, ${colors.bg})`
+  vars['--tn-git-delete'] = `color-mix(in oklab, ${colors.red} 55%, ${colors.bg})`
   return { ...vars, ...syntax(colors) }
 }
 
-const ALL = [...Object.values(SLOTS), '--diff-add-bg', '--diff-del-bg', '--diff-add-word', '--diff-del-word']
+const ALL = [
+  ...Object.values(SLOTS),
+  '--diff-add-bg',
+  '--diff-del-bg',
+  '--diff-add-word',
+  '--diff-del-word',
+  '--tn-git-add',
+  '--tn-git-change',
+  '--tn-git-delete',
+]
 
 export function applyTheme(name: ThemeName, root: HTMLElement = document.documentElement) {
   for (const variable of [...ALL, ...Object.keys(syntax(THEMES[DEFAULT_THEME].colors))])
