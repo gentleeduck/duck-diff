@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { HandshakeSchema } from '@duck-diff/protocol'
@@ -50,8 +50,14 @@ export const test = base.extend<Fixtures>({
     const exited = once(child, 'exit')
     child.kill()
     await exited
-    // A shell the page started can still be writing into home for a moment after the server exits.
-    rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    // Something the server started can still be writing into home after it exits. The folder is throwaway,
+    // so one that will not go is reported with what is left in it, not failed on.
+    try {
+      rmSync(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+    } catch (error) {
+      const left = readdirSync(home, { recursive: true }).slice(0, 20).join(', ')
+      console.warn(`left ${home} behind (${(error as Error).message}): ${left}`)
+    }
   },
 })
 
