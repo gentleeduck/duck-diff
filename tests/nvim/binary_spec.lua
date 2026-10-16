@@ -32,6 +32,7 @@ end
 local function setup(release)
   config.setup({})
   binary.base_url = 'file://' .. release
+  binary.report = function() end
   binary.dir = vim.fn.tempname()
   return binary.dir
 end
@@ -46,6 +47,21 @@ return {
     binary.base_url = 'file:///nowhere'
     local second = ensure()
     eq(first.path, second.path)
+  end,
+
+  ['says what it downloads, how far along it is, and when it is ready'] = function()
+    setup(fake_release(string.rep('x', 200000)))
+    local said = {}
+    binary.report = function(message)
+      table.insert(said, message)
+    end
+    local result = ensure()
+    eq(nil, result.err)
+    eq(('downloading v%s (%s)'):format(version, platform.asset()), said[1])
+    assert(vim.iter(said):any(function(message)
+      return message:find('%d+%%') ~= nil
+    end), vim.inspect(said))
+    eq(('v%s is ready'):format(version), said[#said])
   end,
 
   ['rejects a checksum mismatch and leaves nothing behind'] = function()
