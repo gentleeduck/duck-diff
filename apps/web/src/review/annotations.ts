@@ -26,6 +26,15 @@ export type Note =
 
 export type NoteItem = CodeViewDiffItem<Note>
 
+// Which note this is among those on one line, to key it in a list.
+export function noteKey(note: Note): string {
+  if (note.kind === 'comment') return `comment:${note.comment.id}`
+  if (note.kind === 'github') return `github:${note.thread[0]?.id}`
+  if (note.kind === 'pending') return `pending:${note.index}`
+  if (note.kind === 'image') return `image:${note.file.path}`
+  return 'draft'
+}
+
 interface Cached {
   base: CodeViewDiffItem<undefined>
   key: string
