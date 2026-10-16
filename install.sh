@@ -17,14 +17,17 @@ UNINSTALL=0
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
   B="$(printf '\033[1m')" D="$(printf '\033[2m')" G="$(printf '\033[32m')" Y="$(printf '\033[33m')"
-  M="$(printf '\033[35m')" R="$(printf '\033[31m')" N="$(printf '\033[0m')"
+  C="$(printf '\033[36m')" R="$(printf '\033[31m')" N="$(printf '\033[0m')"
 else
-  B="" D="" G="" Y="" M="" R="" N=""
+  B="" D="" G="" Y="" C="" R="" N=""
 fi
 say() { printf '%s\n' "$*"; }
-step() { printf '%s>%s %s\n' "$M" "$N" "$*"; }
+# The look every duck-diff command has: the name over a green rule, a line per step, a check when it is done.
+header() { printf '\n %s\n%s%s%s\n\n' "🦆 @gentleduck/diff installer" "$G$B" "──────────────────────────────" "$N"; }
+step() { printf '%s›%s %s\n' "$C" "$N" "$*"; }
+ok() { printf '%s✔%s %s\n' "$G" "$N" "$*"; }
 die() {
-  printf '%sduck-diff install: %s%s\n' "$R" "$*" "$N" >&2
+  printf '%s✖ %s%s\n' "$R" "$*" "$N" >&2
   exit 1
 }
 
@@ -43,9 +46,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+header
+
 if [ "$UNINSTALL" = 1 ]; then
   rm -f "$DIR/duck-diff"
-  say "${G}Removed $DIR/duck-diff.${N} Your settings and comments are still in ${B}\${XDG_DATA_HOME:-~/.local/share}/duck-diff${N}; delete that folder to forget everything."
+  ok "Removed $DIR/duck-diff"
+  say "  ${D}Your settings and comments are still in \${XDG_DATA_HOME:-~/.local/share}/duck-diff; delete that folder to forget everything.${N}"
   exit 0
 fi
 
@@ -91,7 +97,7 @@ if [ -n "$VERSION" ]; then
 else
   RELEASE_URL="https://api.github.com/repos/$REPO/releases/latest"
 fi
-step "Asking GitHub for ${VERSION:+v$VERSION}${VERSION:-the latest release} of $REPO"
+step "Finding ${VERSION:+release v$VERSION}${VERSION:-the latest release} of $REPO"
 if ! api "$RELEASE_URL" >"$TMP/release.json" 2>/dev/null; then
   [ -n "$TOKEN" ] || die "could not read the release; while the repo is private, set GITHUB_TOKEN or run gh auth login"
   die "could not read the release ${VERSION:+v$VERSION }of $REPO"
@@ -109,24 +115,35 @@ BIN_URL="$(asset_url "$ASSET")"
 SUM_URL="$(asset_url checksums.txt)"
 [ -n "$BIN_URL" ] || die "$TAG has no $ASSET"
 [ -n "$SUM_URL" ] || die "$TAG has no checksums.txt"
+ok "Found $TAG"
 
-step "Downloading $ASSET $D($TAG)$N"
-api "$BIN_URL" application/octet-stream >"$TMP/$ASSET" || die "the download failed"
+# The binary is big: on a terminal curl draws its progress bar while it comes in.
+download() {
+  if [ -t 2 ]; then SHOW="-#"; else SHOW="-s"; fi
+  if [ -n "$TOKEN" ]; then
+    curl -fSL "$SHOW" -H "Authorization: Bearer $TOKEN" -H "Accept: application/octet-stream" "$1"
+  else
+    curl -fSL "$SHOW" -H "Accept: application/octet-stream" "$1"
+  fi
+}
+step "Downloading $ASSET"
+download "$BIN_URL" >"$TMP/$ASSET" || die "the download failed"
 api "$SUM_URL" application/octet-stream >"$TMP/checksums.txt" || die "could not read checksums.txt"
+ok "Downloaded $(awk -v bytes="$(wc -c <"$TMP/$ASSET")" 'BEGIN { printf "%.1f MB", bytes / 1048576 }')"
 
-step "Checking its sha256"
 EXPECTED="$(awk -v want="$ASSET" '{ name = $2; sub(/^\*/, "", name); if (name == want) print $1 }' "$TMP/checksums.txt")"
 ACTUAL="$($SHA "$TMP/$ASSET" | awk '{ print $1 }')"
 [ -n "$EXPECTED" ] && [ "$EXPECTED" = "$ACTUAL" ] || die "the download does not match its checksum; nothing was installed"
+ok "The sha256 matches"
 
 mkdir -p "$DIR"
 chmod 755 "$TMP/$ASSET"
 mv "$TMP/$ASSET" "$DIR/duck-diff"
-step "Installed ${B}$DIR/duck-diff${N} $D($TAG)$N"
+ok "Installed ${B}$DIR/duck-diff${N} $D($TAG)$N"
 
 case ":$PATH:" in
   *":$DIR:"*) ;;
-  *) say "${Y}$DIR is not on your PATH.${N} Add this to your shell's rc file: ${B}export PATH=\"$DIR:\$PATH\"${N}" ;;
+  *) printf '%s!%s %s is not on your PATH. Add this to your shell'"'"'s rc file:\n    %sexport PATH="%s:$PATH"%s\n' "$Y" "$N" "$DIR" "$B" "$DIR" "$N" ;;
 esac
 
 say ""
