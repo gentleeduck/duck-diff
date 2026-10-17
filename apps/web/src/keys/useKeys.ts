@@ -20,10 +20,12 @@ import { actionsFor, firstChange, type WriteKind } from '../viewer/actions'
 import { visibleItems } from '../viewer/visible-items'
 import { useWrites } from '../writes/WritesProvider'
 import { buildBindings } from './bindings'
+import { isBrowserShortcut } from './browser-keys'
 import { COMMANDS, PASS_THROUGH } from './commands'
 import { createDispatcher, eventKey, type Mode } from './engine'
 import { deepActive, enterList, listOf, type Motion, move as moveIn, scrollHalf } from './motions'
 import { type Move, type Position, step } from './step'
+import { type Direction, nextArea } from './windows'
 
 export interface KeyHandlers {
   palette(initial?: string): void
@@ -54,6 +56,9 @@ export function modeOf(target: EventTarget | null): Mode {
 }
 
 const region = (name: string) => document.querySelector<HTMLElement>(`[data-region="${name}"]`)
+// The panels Ctrl and a direction move between: the top bar, the side panel, the page, the symbol panel and the
+// bottom panel, whichever are on screen.
+const AREAS = ['top', 'side', 'main', 'aside', 'panel']
 const diffScroller = () => shown('[data-diff-view]')
 
 // One capture listener drives the page from the keyboard the way the user's Neovim does.
@@ -151,8 +156,38 @@ export function useKeys(handlers: KeyHandlers) {
       requestAnimationFrame(() => region('panel')?.querySelector<HTMLElement>('button, [tabindex]')?.focus())
     }
     const blur = () => (document.activeElement as HTMLElement | null)?.blur?.()
+    const focusSide = () => {
+      if (!panelShown(settings.get(), view.get())) settings.set((prev) => togglePanel(prev, view.get(), true))
+      requestAnimationFrame(() =>
+        region('side')?.querySelector<HTMLElement>('[aria-selected="true"], [role="treeitem"], button, input')?.focus(),
+      )
+    }
+    const focusArea = (name: string) => {
+      if (name === 'side') return focusSide()
+      if (name === 'panel') return focusPanel()
+      if (name === 'main') return region('main')?.focus()
+      region(name)?.querySelector<HTMLElement>('input, button, a[href], [tabindex]:not([tabindex="-1"])')?.focus()
+    }
+    // To the panel on that side, as between Neovim's windows; false when there is none, so a terminal keeps the key.
+    const moveFocus = (direction: Direction): boolean => {
+      const areas = AREAS.flatMap((name) => {
+        const element = region(name)
+        const rect = element?.getBoundingClientRect()
+        return rect && rect.width > 0 && rect.height > 0 ? [{ name, rect }] : []
+      })
+      const here = document.activeElement?.closest<HTMLElement>('[data-region]')?.dataset.region
+      const from = areas.find((area) => area.name === here) ?? areas.find((area) => area.name === 'main')
+      const next = from ? nextArea(areas, from, direction) : null
+      if (next) focusArea(next)
+      // A hidden side panel or a closed bottom panel opens on the way to it.
+      else if (direction === 'left' && here !== 'side' && !panelShown(settings.get(), view.get())) focusSide()
+      else if (direction === 'down' && here !== 'panel' && !panel.get().open) focusPanel()
+      else if (!here) focusArea('main')
+      else return false
+      return true
+    }
 
-    const commands: Record<string, () => void> = {
+    const commands: Record<string, () => unknown> = {
       top: () => {
         const scroller = diffScroller()
         if (scroller) void glide(scroller, 0)
@@ -253,17 +288,10 @@ export function useKeys(handlers: KeyHandlers) {
       'close-draft': () => {
         if (reviews.get().draft) reviews.cancelDraft()
       },
-      'focus-left': () => {
-        if (!panelShown(settings.get(), view.get())) settings.set((prev) => togglePanel(prev, view.get(), true))
-        requestAnimationFrame(() =>
-          region('side')
-            ?.querySelector<HTMLElement>('[aria-selected="true"], [role="treeitem"], button, input')
-            ?.focus(),
-        )
-      },
-      'focus-right': () => region('main')?.focus(),
-      'focus-down': focusPanel,
-      'focus-up': () => region('main')?.focus(),
+      'focus-left': () => moveFocus('left'),
+      'focus-right': () => moveFocus('right'),
+      'focus-down': () => moveFocus('down'),
+      'focus-up': () => moveFocus('up'),
       'toggle-sidebar': () => settings.set((prev) => togglePanel(prev, view.get())),
       'font-bigger': () => settings.set((prev) => resize(prev, 1)),
       'font-smaller': () => settings.set((prev) => resize(prev, -1)),
@@ -299,12 +327,13 @@ export function useKeys(handlers: KeyHandlers) {
       },
     }
     let ran: string | null = null
+    let declined = false
     const build = () =>
       createDispatcher(buildBindings(COMMANDS, keyOverrides.get(), contexts), {
         timeoutMs: 500,
         run: (id) => {
           ran = id
-          commands[id]?.()
+          declined = commands[id]?.() === false
         },
         drop: (held) => {
           const terminal = focusedTerminal()
@@ -332,8 +361,10 @@ export function useKeys(handlers: KeyHandlers) {
       const key = eventKey(event)
       if (!key) return
       ran = null
+      declined = false
       const result = dispatcher.feed(key, mode)
-      if (result === 'none' || (ran && PASS_THROUGH.has(ran))) return
+      // A command that had nothing to do (no panel on that side) leaves the key where it was going.
+      if (result === 'none' || declined || (ran && PASS_THROUGH.has(ran))) return
       event.preventDefault()
       // A shell must not see keys the page took, or the first Esc of <Esc><Esc> would reach it twice.
       if (mode === 'terminal') event.stopPropagation()
@@ -346,12 +377,20 @@ export function useKeys(handlers: KeyHandlers) {
     const onBlur = () => requestAnimationFrame(onFocus)
     // A click elsewhere abandons a half-typed chord.
     const onPointer = () => dispatcher.pending().length && dispatcher.reset()
+    // Last of all, once the page and a terminal have had the key: what is left for the browser stays unused.
+    const onLeftover = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing) return
+      if (isBrowserShortcut(event, isInputElement(event.target instanceof Element ? event.target : null)))
+        event.preventDefault()
+    }
     window.addEventListener('keydown', onKey, true)
+    window.addEventListener('keydown', onLeftover)
     document.addEventListener('focusin', onFocus)
     document.addEventListener('focusout', onBlur)
     window.addEventListener('pointerdown', onPointer, true)
     return () => {
       window.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('keydown', onLeftover)
       document.removeEventListener('focusin', onFocus)
       document.removeEventListener('focusout', onBlur)
       window.removeEventListener('pointerdown', onPointer, true)

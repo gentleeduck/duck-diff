@@ -302,6 +302,17 @@ export const WorktreeSchema = z.object({
   separate: z.boolean().default(false),
 })
 export type Worktree = z.infer<typeof WorktreeSchema>
+
+// What a checkout's card shows: its branch, the commit it is on and how many files differ from it.
+export const CheckoutInfoSchema = z.object({
+  branch: z.string().nullable(),
+  upstream: z.string().nullable(),
+  ahead: z.number().int().min(0),
+  behind: z.number().int().min(0),
+  head: z.object({ sha: z.string(), subject: z.string(), author: z.string(), committedAt: z.number() }).nullable(),
+  changes: z.number().int().min(0),
+})
+export type CheckoutInfo = z.infer<typeof CheckoutInfoSchema>
 const AbsolutePathSchema = z
   .string()
   .min(1)

@@ -63,3 +63,41 @@ test('drives the page from the keyboard the way Neovim does', async ({ page, app
   await page.keyboard.press('g')
   await expect(commits.getByRole('option').first()).toBeFocused()
 })
+
+test('moves between the panels with Ctrl and a direction, as between Neovim windows, and keeps browser keys out', async ({
+  page,
+  app,
+}) => {
+  await page.goto(app.url)
+  await expect(page.getByRole('banner')).toContainText('2 files')
+  const at = () =>
+    page.evaluate(() => document.activeElement?.closest('[data-region]')?.getAttribute('data-region') ?? null)
+  await page.locator('[data-region="main"]').focus()
+  await page.keyboard.press('Control+h')
+  await expect.poll(at).toBe('side')
+  await page.keyboard.press('Control+l')
+  await expect.poll(at).toBe('main')
+  // The bottom panel opens on the way down to it.
+  await page.keyboard.press('Control+j')
+  await expect.poll(at).toBe('panel')
+  await page.keyboard.press('Control+k')
+  await expect.poll(at).toBe('main')
+  await page.keyboard.press('Control+k')
+  await expect.poll(at).toBe('top')
+
+  // Save, print and the rest never reach the browser; reload does.
+  const prevented = (key: string) =>
+    page.evaluate(
+      (name) =>
+        new Promise<boolean>((resolve) => {
+          window.addEventListener('keydown', (event) => resolve(event.defaultPrevented), { once: true })
+          window.dispatchEvent(
+            new KeyboardEvent('keydown', { key: name, ctrlKey: true, bubbles: true, cancelable: true }),
+          )
+        }),
+      key,
+    )
+  expect(await prevented('s')).toBe(true)
+  expect(await prevented('f')).toBe(true)
+  expect(await prevented('r')).toBe(false)
+})

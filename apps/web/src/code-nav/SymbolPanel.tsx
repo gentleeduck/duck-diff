@@ -167,7 +167,10 @@ export function SymbolPanel() {
     <>
       <ResizableHandle withHandle={false} aria-label="Resize the symbol panel" onDoubleClick={side.reset} />
       <ResizablePanel id="symbol" {...side.panel} maxSize="60%" className="flex">
-        <aside aria-label={`Symbol ${current.name}`} className="flex h-full w-full min-w-0 flex-col bg-card">
+        <aside
+          data-region="aside"
+          aria-label={`Symbol ${current.name}`}
+          className="flex h-full w-full min-w-0 flex-col bg-card">
           <header className="flex h-11 shrink-0 items-center gap-2 border-border border-b ps-3 pe-1">
             <span className="text-muted-foreground">Symbol</span>
             <code className="min-w-0 flex-1 truncate text-tn-yellow">{current.name}</code>

@@ -79,6 +79,18 @@ describe('auth', () => {
     expect(named.status).toBe(200)
   })
 
+  it('describes a checkout the page lists, and no other folder', async () => {
+    await edited()
+    const base = `http://127.0.0.1:${fixture.server.port}`
+    const headers = { 'x-duck-diff-token': fixture.server.token }
+    const { root } = (await (await fetch(`${base}/api/repo`, { headers })).json()) as { root: string }
+    const own = await fetch(`${base}/api/checkout?path=${encodeURIComponent(root)}`, { headers })
+    expect(own.status).toBe(200)
+    expect(((await own.json()) as { branch: string | null }).branch).toBe('main')
+    const other = await fetch(`${base}/api/checkout?path=${encodeURIComponent('/etc')}`, { headers })
+    expect(other.status).toBe(404)
+  })
+
   it('binds to localhost only', async () => {
     await edited()
     expect(fixture.server.url.startsWith('http://127.0.0.1:')).toBe(true)
