@@ -5,6 +5,21 @@
 - The diff's from and to stay as chosen: a page that opens without them (a reload from Neovim, a new window, a
   restarted server) lands on the comparison last picked in that repo. Picking the working tree again goes back to
   opening on it.
+- Ctrl+H, Ctrl+J, Ctrl+K and Ctrl+L move between the panels the way Neovim moves between windows and tmux between
+  panes: the top bar, the side panel, the page, the symbol panel and the bottom panel, from a terminal too (where a
+  key with no panel on that side still reaches the shell). A text box keeps them; Esc first. A hidden side panel
+  or a closed bottom panel opens on the way.
+- No key does two things any more: the palette moved to Ctrl+P (Cmd+K and Cmd+P on a Mac, <leader>sg still),
+  since Ctrl+K moves up; push, pull and pull with rebase moved to <leader>gP, <leader>gl and <leader>gL, since
+  <leader>p started <leader>pv and pushed after a pause. The keymaps editor warns about a key that starts
+  another, as about two commands on one key.
+- The browser's own shortcuts (print, save, find, history, downloads, bookmarks, view source, developer tools,
+  the F keys, Alt+arrows) do nothing in duck-diff; reload still works, and text boxes keep copy, cut, paste,
+  select all, undo and redo. Chrome keeps Ctrl+W, Ctrl+T, Ctrl+N and Ctrl+Tab for itself.
+- The worktree and repository card shows the folder's name, its path with a copy button, the branch with how far
+  it is ahead of or behind its upstream, the commit it is on with author and age, and how many files differ.
+- The rebase, merge and cherry-pick banner puts its buttons on a row of their own above the message, so a narrow
+  side panel no longer squeezes the words into a column.
 
 ## 0.6.0
 

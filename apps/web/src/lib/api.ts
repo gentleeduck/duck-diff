@@ -5,6 +5,8 @@ import {
   BlameLineSchema,
   type ChangedFile,
   ChangedFileSchema,
+  type CheckoutInfo,
+  CheckoutInfoSchema,
   type CheckRun,
   CheckRunSchema,
   type Commit,
@@ -162,6 +164,8 @@ export interface Api {
   // Contributors and weekly commits over the last days, from local history.
   insights(days: number): Promise<Insights>
   worktrees(): Promise<Worktree[]>
+  // A listed checkout's branch, commit and changed files, for its card.
+  checkout(path: string): Promise<CheckoutInfo>
   submodules(): Promise<Submodule[]>
   // The commits a submodule pointer move brings in, newest first.
   submoduleLog(path: string, from: string | null, to: string): Promise<PlanCommit[]>
@@ -530,6 +534,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     bisect: () => json('/api/bisect', BisectStateSchema),
     insights: (days) => json(`/api/insights?days=${days}`, InsightsSchema),
     worktrees: () => json('/api/worktrees', z.array(WorktreeSchema)),
+    checkout: (path) => json(`/api/checkout?path=${encodeURIComponent(path)}`, CheckoutInfoSchema),
     submodules: () => json('/api/submodules', z.array(SubmoduleSchema)),
     submoduleLog(path, from, to) {
       const params = new URLSearchParams({ path, to })

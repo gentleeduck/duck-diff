@@ -1,10 +1,12 @@
 import type { Worktree } from '@duck-diff/protocol'
-import { type BadgeTone, HoverCard, HoverCardContent, HoverCardTrigger } from '@duck-diff/ui'
+import { Badge, type BadgeTone, HoverCard, HoverCardContent, HoverCardTrigger } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
-import { GitCommitHorizontal } from 'lucide-react'
+import { FolderGit2, GitBranch } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { relativeTime } from '../sidebar/relative-time'
 import { useApp } from './AppProvider'
+import { CopyTool } from './CopyTool'
+import { TextLine } from './skeletons'
 
 export type TreeTag = 'here' | 'missing' | 'separate' | 'locked'
 
@@ -28,22 +30,72 @@ const treeKind = (tree: Worktree) =>
         ? "This repo's main checkout."
         : 'A worktree of this repo.'
 
-// The commit a checkout is on; a separate copy's may not be in this repo, and then only its hash shows.
-function HeadCommit({ sha }: { sha: string | null }) {
-  const { queries } = useApp()
-  const commit = useQuery({ ...queries.git.commit(sha ?? ''), enabled: Boolean(sha), retry: false }).data
-  if (!sha) return <p className="text-muted-foreground">No commits yet.</p>
+// One labelled line of a card: what it is on the left, the value beside it.
+function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <p className="flex min-w-0 items-center gap-2">
-      <GitCommitHorizontal className="size-4 shrink-0 text-muted-foreground" />
-      <span className="shrink-0 font-mono text-tn-blue">{sha.slice(0, 7)}</span>
-      {commit ? (
-        <>
-          <span className="min-w-0 truncate">{commit.message.split('\n')[0]}</span>
-          <span className="shrink-0 text-muted-foreground">{relativeTime(commit.committedAt)}</span>
-        </>
-      ) : null}
-    </p>
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">{children}</dd>
+    </>
+  )
+}
+
+// What git says about the checkout now: its branch against its upstream, the commit it is on, and what differs.
+function CheckoutFacts({ path }: { path: string }) {
+  const { queries } = useApp()
+  const read = useQuery({ ...queries.git.checkout(path), retry: false })
+  if (read.isError) return <p className="text-muted-foreground">Git could not read this checkout.</p>
+  const info = read.data
+  if (!info)
+    return (
+      <div role="status" className="flex flex-col gap-1.5" aria-label="Reading the checkout">
+        <TextLine className="w-48" />
+        <TextLine className="w-64" />
+        <TextLine className="w-24" />
+      </div>
+    )
+  return (
+    <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
+      <Fact label="Branch">
+        <GitBranch className="size-4 shrink-0 self-center text-tn-blue" />
+        <span className="min-w-0 break-all text-foreground">{info.branch ?? 'detached'}</span>
+        {info.ahead ? (
+          <Badge variant="soft-info" size="sm" title={`${info.ahead} to push`}>
+            {info.ahead} ahead
+          </Badge>
+        ) : null}
+        {info.behind ? (
+          <Badge variant="soft-warning" size="sm" title={`${info.behind} to pull`}>
+            {info.behind} behind
+          </Badge>
+        ) : null}
+        {info.upstream ? <span className="min-w-0 break-all text-muted-foreground">on {info.upstream}</span> : null}
+      </Fact>
+      <Fact label="Commit">
+        {info.head ? (
+          <>
+            <span className="shrink-0 font-mono text-tn-blue">{info.head.sha.slice(0, 7)}</span>
+            <span className="min-w-0 text-foreground">{info.head.subject}</span>
+            <span className="text-muted-foreground">
+              {info.head.author}, {relativeTime(info.head.committedAt)}
+            </span>
+          </>
+        ) : (
+          <span className="text-muted-foreground">No commits yet</span>
+        )}
+      </Fact>
+      <Fact label="Changes">
+        {info.changes ? (
+          <Badge variant="soft-warning" size="sm">
+            {info.changes} {info.changes === 1 ? 'file' : 'files'} changed
+          </Badge>
+        ) : (
+          <Badge variant="soft-success" size="sm">
+            clean
+          </Badge>
+        )}
+      </Fact>
+    </dl>
   )
 }
 
@@ -52,19 +104,31 @@ export function CheckoutCard({
   path,
   kind,
   hint,
-  children,
+  tag = null,
 }: {
   title: string
   path: string
   kind: string
   hint: string | null
-  children?: ReactNode
+  tag?: TreeTag | null
 }) {
   return (
     <>
-      <p className="break-all text-foreground">{title}</p>
-      <p className="break-all text-muted-foreground">{path}</p>
-      {children}
+      <header className="flex items-center gap-2">
+        <FolderGit2 className="size-4 shrink-0 text-tn-blue" />
+        <span className="min-w-0 flex-1 break-all font-bold text-foreground">{title}</span>
+        {tag ? (
+          <Badge variant={TAG_TONE[tag]} size="sm">
+            {tag}
+          </Badge>
+        ) : null}
+      </header>
+      <div className="flex items-center gap-1 rounded-md border border-border bg-muted/40 ps-2">
+        <span className="min-w-0 flex-1 break-all py-1 font-mono text-muted-foreground">{path}</span>
+        <CopyTool label="Copy the path" text={path} />
+      </div>
+      {/* A folder that is gone has nothing for git to read. */}
+      {tag === 'missing' ? null : <CheckoutFacts path={path} />}
       <p className="text-muted-foreground">{kind}</p>
       {hint ? <p className="border-border border-t pt-2 text-tn-comment">{hint}</p> : null}
     </>
@@ -75,12 +139,12 @@ export function WorktreeCard({ tree }: { tree: Worktree }) {
   const openable = !tree.current && !tree.prunable
   return (
     <CheckoutCard
-      title={tree.branch ?? tree.head?.slice(0, 7) ?? 'detached'}
+      title={tree.path.split('/').pop() || tree.path}
       path={tree.path}
       kind={treeKind(tree)}
-      hint={tree.current ? 'You are here.' : openable ? 'Click to open it in its own window.' : null}>
-      <HeadCommit sha={tree.head} />
-    </CheckoutCard>
+      tag={treeTag(tree)}
+      hint={tree.current ? 'You are here.' : openable ? 'Click to open it in its own window.' : null}
+    />
   )
 }
 

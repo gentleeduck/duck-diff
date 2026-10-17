@@ -176,6 +176,7 @@ export function RepoSwitcher() {
                   title={repo.name}
                   path={repo.path}
                   kind={repo.current ? 'The repository this page shows.' : 'A repository you opened before.'}
+                  tag={repo.current ? 'here' : null}
                   hint={repo.current ? 'You are here.' : 'Click to open it in its own window.'}
                 />
               }>
