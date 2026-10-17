@@ -82,7 +82,8 @@
 - The terminal works as a desktop one: the shell owns it, so Ctrl+C stops what runs, Ctrl+Z suspends it and job
   control works (it said "no job control" and only printed ^C before). Ctrl+Shift+C, Ctrl+Insert or Ctrl+C with
   text selected copy; Ctrl+V, Ctrl+Shift+V and Shift+Insert paste. Closing a terminal hangs up what runs in it.
-  This holds for zsh too, which unlike bash never took the terminal over by itself.
+  This holds for zsh too, which unlike bash never took the terminal over by itself. On Linux for now: macOS
+  keeps the terminal as it was, without job control.
 - The test suites' shells keep no history, so their commands no longer end up in your own shell history.
 - Servers change the shared repo list one at a time, each writing it whole, so a repository one server adds while
   another drops a gone folder is never lost, and no server reads a half-written list.
