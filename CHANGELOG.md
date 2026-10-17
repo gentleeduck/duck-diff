@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The diff's from and to stay as chosen: a page that opens without them (a reload from Neovim, a new window, a
+  restarted server) lands on the comparison last picked in that repo. Picking the working tree again goes back to
+  opening on it.
+
 ## 0.6.0
 
 - Open in editor never uses a terminal in the page: a file opens in the Neovim the plugin started from, else

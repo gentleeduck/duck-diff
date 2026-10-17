@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { encodeTarget, type ResolvedRevision } from '@duck-diff/protocol'
+import { encodeTarget, lastTargetKey, type ResolvedRevision } from '@duck-diff/protocol'
 import { type Fixture, startFixture } from './helpers'
 
 let fixture: Fixture
@@ -53,6 +53,30 @@ describe('auth', () => {
     // The saved answers come back inside the page, not through a request of their own.
     const again = await (await fetch(`${base}/?token=${fixture.server.token}`)).text()
     expect(again).toContain('<script id="duck-diff-queries" type="application/json">{"q":1}</script>')
+  })
+
+  it('opens a page that names no comparison on the one last chosen in its repo, and keeps a named one', async () => {
+    await edited()
+    const base = `http://127.0.0.1:${fixture.server.port}`
+    const headers = { 'x-duck-diff-token': fixture.server.token }
+    const { root } = (await (await fetch(`${base}/api/repo`, { headers })).json()) as { root: string }
+    const range = JSON.stringify({ kind: 'range', from: 'HEAD~1', to: 'HEAD', mode: 'merge-base' })
+    await fetch(`${base}/api/state`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ changes: { [lastTargetKey(root)]: range } }),
+    })
+    const opened = await fetch(`${base}/changes?token=${fixture.server.token}`, { redirect: 'manual' })
+    expect(opened.status).toBe(302)
+    const next = new URL(opened.headers.get('location') ?? '', base)
+    expect(next.pathname).toBe('/changes')
+    expect(next.searchParams.get('target')).toBe(range)
+    expect(next.searchParams.get('token')).toBe(fixture.server.token)
+    const named = await fetch(
+      `${base}/changes?token=${fixture.server.token}&target=${encodeURIComponent('{"kind":"staged"}')}`,
+      { redirect: 'manual' },
+    )
+    expect(named.status).toBe(200)
   })
 
   it('binds to localhost only', async () => {
