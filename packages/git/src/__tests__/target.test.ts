@@ -17,6 +17,12 @@ describe('targetArgs', () => {
     expect(await targetArgs(repo.path, { kind: 'local' })).toEqual(['HEAD'])
   })
 
+  it('compares the working tree or the index with any commit when given one', async () => {
+    repo = createRepo()
+    expect(await targetArgs(repo.path, { kind: 'local', base: 'v1' })).toEqual(['v1'])
+    expect(await targetArgs(repo.path, { kind: 'staged', base: 'v1' })).toEqual(['--cached', 'v1'])
+  })
+
   it('maps ranges', async () => {
     repo = createRepo()
     expect(await targetArgs(repo.path, { kind: 'range', from: 'main', to: 'feat', mode: 'two-dot' })).toEqual([

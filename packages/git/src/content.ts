@@ -13,9 +13,9 @@ async function sideSource(repo: string, target: DiffTarget, side: Side): Promise
     case 'unstaged':
       return side === 'old' ? { from: 'index' } : { from: 'worktree' }
     case 'staged':
-      return side === 'old' ? tree('HEAD') : { from: 'index' }
+      return side === 'old' ? tree(target.base ?? 'HEAD') : { from: 'index' }
     case 'local':
-      return side === 'old' ? tree('HEAD') : { from: 'worktree' }
+      return side === 'old' ? tree(target.base ?? 'HEAD') : { from: 'worktree' }
     case 'range':
       if (side === 'new') return tree(target.to)
       if (target.mode === 'two-dot') return tree(target.from)

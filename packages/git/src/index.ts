@@ -27,6 +27,7 @@ export {
   rebasePlan,
   todoText,
 } from './history'
+export { duckHome } from './home'
 export { type Insights, readInsights, weekStart } from './insights'
 export { buildLinePatch, discardLines, type PickedLine, stageLines, unstageLines } from './line-patch'
 export {
@@ -59,6 +60,7 @@ export {
 export { getPatch, streamDiff, streamPatch } from './patch'
 export { listRefs, type Ref, type RefKind } from './refs'
 export { resolveRepo } from './repo'
+export { resolveRevision } from './revision'
 export { type OutputSink, type RunOptions, runGit, streamGit, withOutput } from './run'
 export { classify, findSymbol, SYMBOL_NAME, type SymbolHit, type SymbolKind, type SymbolResult } from './symbols'
 export {
