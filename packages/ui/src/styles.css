@@ -31,6 +31,9 @@
   --chart-5: oklch(0.677 0.188 70.08);
   --warning: oklch(0.79 0.16 75.77);
   --warning-foreground: oklch(0.205 0 0);
+  --success: oklch(0.63 0.17 149);
+  --info: oklch(0.62 0.17 255);
+  --done: oklch(0.56 0.2 300);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
   --sidebar-primary: oklch(0.21 0.006 285.885);
@@ -68,6 +71,9 @@
   --chart-5: oklch(0.645 0.246 16.439);
   --warning: oklch(0.78 0.16 75.9);
   --warning-foreground: oklch(0.205 0 0);
+  --success: oklch(0.72 0.17 149);
+  --info: oklch(0.7 0.15 255);
+  --done: oklch(0.68 0.17 300);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -108,6 +114,9 @@
   --color-chart-5: var(--chart-5);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-done: var(--done);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -155,6 +164,17 @@
   a:active,
   button:active {
     opacity: 0.8;
+  }
+}
+
+/* A control's words centre on their capitals, as the eye reads them, not on the font's line box, which rounds a
+   pixel or so high. The padding is the room descenders and accents need inside a clipped (cut-off) label.
+   :where keeps it below any class, so a span's own padding or display still wins. */
+@layer components {
+  :where([data-slot="button"], [data-slot="badge"], [data-slot="tabs-trigger"], [data-slot="toggle"])
+    > :where(span:not([data-slot], .flex, .inline-flex, .grid, .inline-grid), [data-slot="text"]) {
+    text-box: trim-both cap alphabetic;
+    padding-block: 0.3em;
   }
 }
 

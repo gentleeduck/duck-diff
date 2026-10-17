@@ -19,6 +19,8 @@ export const buttonVariants = cva(
         'icon-lg': 'size-8',
         'icon-sm': 'size-7',
         lg: 'h-8 px-3 has-[>svg]:px-2.5',
+        // No box of its own: a row, a link or a chip keeps the layout its own classes give it.
+        none: '',
         sm: 'h-7 gap-1.5 px-2.5 has-[>svg]:px-2',
       },
       variant: {
