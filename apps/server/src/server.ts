@@ -47,7 +47,16 @@ import { reviewPrompt } from './review-prompt'
 import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
 import { createSiblings, pageOpener, type StartServer, startSibling } from './siblings'
-import { createMemoryState, createStateStore, openingTarget, opensGraph, pageDiff, pageGraph, pageState } from './state'
+import {
+  createMemoryState,
+  createStateStore,
+  openingTarget,
+  opensGraph,
+  pageDiff,
+  pageGraph,
+  pageState,
+  rememberedTarget,
+} from './state'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
@@ -389,7 +398,14 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         const response = serveWeb(url.pathname)
         // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
         if (response.headers.get('content-type')?.startsWith('text/html')) {
-          let html = pageState(await response.text(), await state.values(), await state.queries())
+          const values = await state.values()
+          const remembered = rememberedTarget(url, values, repo)
+          if (remembered) {
+            const next = new URL(url)
+            next.searchParams.set('target', remembered)
+            return new Response(null, { status: 302, headers: { location: `${next.pathname}${next.search}` } })
+          }
+          let html = pageState(await response.text(), values, await state.queries())
           const opening = memo ? openingTarget(url) : null
           if (memo && opening) {
             const key = targetKey(opening)

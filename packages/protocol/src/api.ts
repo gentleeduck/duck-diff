@@ -113,6 +113,9 @@ export const UndoResultSchema = z.object({ restored: z.array(z.string()).nullabl
 export type UndoResult = z.infer<typeof UndoResultSchema>
 
 // Stable whatever order the properties arrived in, so a target read back from JSON finds its comments.
+// Where a repo's page keeps the comparison it last showed (the diff's from and to), in its saved state.
+export const lastTargetKey = (repo: string) => `duck-diff:target:${repo}`
+
 export function targetKey(target: DiffTarget): string {
   switch (target.kind) {
     case 'range':
