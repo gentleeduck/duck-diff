@@ -16,16 +16,16 @@ const INDEX = 'staged'
 function short(ref: string): string {
   const pull = /^refs\/duck-diff\/pr\/(\d+)$/.exec(ref)
   if (pull) return `PR #${pull[1]}`
-  return /^[0-9a-f]{40}$/.test(ref) ? ref.slice(0, 7) : ref
+  return ref.replace(/^[0-9a-f]{40}(?=[\^~]|$)/, (sha) => sha.slice(0, 7))
 }
 
 export function describeTarget(target: DiffTarget): TargetDescription {
   const path = target.kind === 'range' || target.kind === 'commit' ? (target.path ?? null) : null
   switch (target.kind) {
     case 'local':
-      return { from: 'HEAD', to: WORKTREE, path }
+      return { from: short(target.base ?? 'HEAD'), to: WORKTREE, path }
     case 'staged':
-      return { from: 'HEAD', to: INDEX, path }
+      return { from: short(target.base ?? 'HEAD'), to: INDEX, path }
     case 'unstaged':
       return { from: INDEX, to: WORKTREE, path }
     case 'range':
@@ -38,12 +38,11 @@ export function describeTarget(target: DiffTarget): TargetDescription {
 }
 
 function endpoints(target: DiffTarget): [Endpoint, Endpoint] {
-  const head: Endpoint = { kind: 'ref', name: 'HEAD' }
   switch (target.kind) {
     case 'local':
-      return [head, { kind: 'worktree' }]
+      return [{ kind: 'ref', name: target.base ?? 'HEAD' }, { kind: 'worktree' }]
     case 'staged':
-      return [head, { kind: 'index' }]
+      return [{ kind: 'ref', name: target.base ?? 'HEAD' }, { kind: 'index' }]
     case 'unstaged':
       return [{ kind: 'index' }, { kind: 'worktree' }]
     case 'range':
@@ -59,16 +58,31 @@ function endpoints(target: DiffTarget): [Endpoint, Endpoint] {
   }
 }
 
-// git can only compare the index or the working tree against HEAD (or the working tree against the index),
-// so choosing one of them pins the other side to whatever makes a valid comparison.
+// The text each picker opens with, to edit in place: the ref (a full hash cut to git's short length), or nothing
+// for the working tree and the index, which are no ref.
+export function sideText(target: DiffTarget): { from: string; to: string } {
+  const text = (end: Endpoint) =>
+    end.kind === 'ref' ? end.name.replace(/^[0-9a-f]{40}(?=[\^~]|$)/, (sha) => sha.slice(0, 7)) : ''
+  const [from, to] = endpoints(target)
+  return { from: text(from), to: text(to) }
+}
+
+// A branch or tag name, as opposed to a commit: a sha, or HEAD and anything counted back from it.
+const named = (ref: string) => !/^[0-9a-f]{7,40}$/.test(ref) && !/^HEAD\b/.test(ref) && !/[~^]/.test(ref)
+
+// The working tree and the index compare with any commit, and the working tree with the index.
+// Two refs compare as they are, except two branch or tag names, which compare from where they split as GitHub
+// does: done between a commit and its own ancestor, that would show nothing.
 export function withSide(target: DiffTarget, side: 'from' | 'to', endpoint: Endpoint): DiffTarget {
   const [from, to] = endpoints(target)
   const nextFrom = side === 'from' ? endpoint : from
   const nextTo = side === 'to' ? endpoint : to
-  if (nextTo.kind === 'worktree') return nextFrom.kind === 'index' ? { kind: 'unstaged' } : { kind: 'local' }
-  if (nextTo.kind === 'index') return { kind: 'staged' }
+  const base = nextFrom.kind === 'ref' && nextFrom.name !== 'HEAD' ? { base: nextFrom.name } : {}
+  if (nextTo.kind === 'worktree') return nextFrom.kind === 'index' ? { kind: 'unstaged' } : { kind: 'local', ...base }
+  if (nextTo.kind === 'index') return { kind: 'staged', ...base }
   if (nextFrom.kind !== 'ref') return { kind: 'local' }
-  const mode = target.kind === 'range' ? target.mode : 'merge-base'
+  const mode =
+    named(nextFrom.name) && named(nextTo.name) ? (target.kind === 'range' ? target.mode : 'merge-base') : 'two-dot'
   const path = describeTarget(target).path
   return { kind: 'range', from: nextFrom.name, to: nextTo.name, mode, ...(path ? { path } : {}) }
 }

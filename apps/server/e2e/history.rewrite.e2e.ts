@@ -51,6 +51,10 @@ test('shift-click picks a range to cherry-pick, and bisect finds the commit that
     .click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Bisect' }).click()
   await page.getByRole('menuitem', { name: 'Mark as bad' }).click()
+  // The pointer rests on the row it right-clicked long enough for its commit card to open over the rows below;
+  // a reader moves away first, and so does the test.
+  await page.mouse.move(0, 0)
+  await expect(page.locator('[data-slot="hover-card-content"]')).toHaveCount(0)
   await page.getByRole('option', { name: /^work in progress/ }).click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Bisect' }).click()
   await page.getByRole('menuitem', { name: 'Mark as good' }).click()

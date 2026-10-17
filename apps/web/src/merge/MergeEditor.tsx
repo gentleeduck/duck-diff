@@ -1,7 +1,15 @@
 import type { ConflictBlock, ConflictFile } from '@duck-diff/protocol'
 import { Badge, Button, Textarea } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeftToLine, ArrowRightToLine, Check, ChevronsUpDown, ExternalLink, Pencil, RotateCcw } from 'lucide-react'
+import {
+  ArrowLeftToLine,
+  ArrowRightToLine,
+  Check,
+  ChevronsUpDown,
+  Pencil,
+  RotateCcw,
+  SquareArrowOutUpRight,
+} from 'lucide-react'
 import { type ReactNode, useMemo, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { CodeRowsSkeleton } from '../app/skeletons'
@@ -63,13 +71,15 @@ function Common({ path, lines }: { path: string; lines: string[] }) {
   const head = lines.slice(0, KEEP)
   const tail = lines.slice(-KEEP)
   const expand = (
-    <button
+    <Button
+      variant="nothing"
+      size="none"
       type="button"
       onClick={() => setOpen(true)}
-      className="flex h-6 w-full cursor-pointer items-center gap-2 bg-muted/40 px-3 text-muted-foreground hover:text-foreground">
+      className="flex h-6 w-full cursor-pointer items-center gap-2 bg-muted/40 px-3 text-muted-foreground hover:text-foreground justify-start rounded-none whitespace-normal">
       <ChevronsUpDown className="size-4" />
       {lines.length - KEEP * 2} unchanged lines
-    </button>
+    </Button>
   )
   const side = (dim: boolean) => (
     <div>
@@ -245,7 +255,7 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
         <span className="min-w-0 truncate" title={file.path}>
           {file.path}
         </span>
-        <Badge variant={left ? 'outline' : 'default'} size="sm">
+        <Badge variant={left ? 'soft-warning' : 'soft-success'} size="sm">
           {left ? `${whole === null ? left : 'Markers'} of ${total} left` : 'All resolved'}
         </Badge>
         <div className="ms-auto flex items-center gap-1">
@@ -275,7 +285,7 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
             variant="ghost"
             title="Open the file at the first conflict left"
             onClick={() => void openInEditor(file.path, firstConflictLine(file, {}) ?? 1)}>
-            <ExternalLink />
+            <SquareArrowOutUpRight />
             Open
           </Button>
           <Button size="sm" disabled={left > 0} loading={busy === 'resolve-text'} onClick={() => void save()}>

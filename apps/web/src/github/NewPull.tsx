@@ -85,14 +85,14 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
         labels,
         assignees,
       })
-      toast(`Opened #${pull.number}`)
+      toast.success(`Opened #${pull.number}`, { description: pull.title })
       setOpen(false)
       setTitle('')
       setBody('')
       onCreated()
       pullSelection.set(pull.number)
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not open the pull request', { description: (error as Error).message })
     } finally {
       setSending(false)
     }

@@ -11,6 +11,9 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Tabs,
+  TabsList,
+  TabsTrigger,
 } from '@duck-diff/ui'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Check, ChevronDown, CircleDot, Copy, FileText, RefreshCw, Search, SquareArrowOutUpRight } from 'lucide-react'
@@ -18,6 +21,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { pageColumn } from '../app/page-column'
 import { ItemRowsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import type { Store } from '../lib/store'
@@ -44,7 +48,7 @@ const FILTERS: { value: ListQuery['filter']; label: string; kinds: ListQuery['ki
 ]
 async function copy(text: string, what: string) {
   await navigator.clipboard.writeText(text)
-  toast(`Copied the ${what}`)
+  toast.success(`Copied the ${what}`, { description: text })
 }
 
 export function ItemList({ kind, label, selection, row, actions, menuFor }: Props) {
@@ -98,7 +102,7 @@ export function ItemList({ kind, label, selection, row, actions, menuFor }: Prop
   const totals = { open: state === 'open' ? total : otherTotal, closed: state === 'closed' ? total : otherTotal }
   return (
     <div ref={page} className="h-full overflow-y-auto">
-      <div className="flex w-full flex-col gap-4 p-6">
+      <div {...pageColumn('gap-4')}>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex min-w-64 flex-1">
             <Popover>
@@ -110,14 +114,16 @@ export function ItemList({ kind, label, selection, row, actions, menuFor }: Prop
               </PopoverTrigger>
               <PopoverContent align="start" className="flex w-60 flex-col p-1">
                 {FILTERS.filter((entry) => entry.kinds.includes(kind)).map((entry) => (
-                  <button
+                  <Button
+                    variant="nothing"
+                    size="none"
                     key={entry.value}
                     type="button"
                     onClick={() => setFilter(entry.value)}
-                    className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-start hover:bg-accent">
+                    className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-start hover:bg-accent justify-start">
                     <span className="w-4">{filter === entry.value ? <Check className="size-4" /> : null}</span>
                     {entry.label}
-                  </button>
+                  </Button>
                 ))}
               </PopoverContent>
             </Popover>
@@ -138,22 +144,21 @@ export function ItemList({ kind, label, selection, row, actions, menuFor }: Prop
           {actions}
         </div>
         <div className="rounded-md border border-border">
-          <div
-            role="tablist"
-            aria-label="State"
-            className="flex flex-wrap items-center gap-4 border-border border-b bg-card px-4 py-2">
-            {(['open', 'closed'] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                role="tab"
-                aria-selected={state === value}
-                onClick={() => state !== value && setState(value)}
-                className="flex cursor-pointer items-center gap-1.5 text-muted-foreground aria-selected:text-foreground">
-                {value === 'open' ? <CircleDot className="size-4" /> : <Check className="size-4" />}
-                {totals[value] === null ? '' : totals[value]?.toLocaleString()} {value === 'open' ? 'Open' : 'Closed'}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-4 border-border border-b bg-card px-4 py-2">
+            <Tabs value={state} onValueChange={(next) => next !== state && setState(next as 'open' | 'closed')}>
+              <TabsList aria-label="State" className="h-auto gap-4 bg-transparent p-0">
+                {(['open', 'closed'] as const).map((value) => (
+                  <TabsTrigger
+                    key={value}
+                    value={value}
+                    className="h-auto gap-1.5 bg-transparent px-0 text-muted-foreground shadow-none hover:text-foreground aria-selected:text-foreground">
+                    {value === 'open' ? <CircleDot className="size-4" /> : <Check className="size-4" />}
+                    {totals[value] === null ? '' : totals[value]?.toLocaleString()}{' '}
+                    {value === 'open' ? 'Open' : 'Closed'}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
             <ListFilters
               kind={kind}
               query={typed}

@@ -64,7 +64,7 @@ export function Remotes() {
               onClick={() => void run('fetch-remote', { remote: remote.name, prune: true }, `Fetched ${remote.name}`)}>
               <Download />
             </IconTool>
-            <IconTool label={`Remove ${remote.name}`} onClick={() => void remove(remote.name)}>
+            <IconTool destructive label={`Remove ${remote.name}`} onClick={() => void remove(remote.name)}>
               <Trash2 />
             </IconTool>
           </span>

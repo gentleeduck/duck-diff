@@ -1,12 +1,11 @@
 import type { GitHubReviewComment, Thread, TimelineEvent } from '@duck-diff/protocol'
-import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
+import { Badge, Button } from '@duck-diff/ui'
 import {
   ArrowDown,
   Check,
   CircleCheck,
   CircleDot,
   Copy,
-  Ellipsis,
   Eye,
   FileCode,
   GitCommitHorizontal,
@@ -25,28 +24,9 @@ import type { Store } from '../lib/store'
 import { Avatar, Body } from './Conversation'
 import { CommitLink, EventParts, UserLink } from './EventParts'
 import { MarkdownEditor } from './MarkdownEditor'
+import { MoreMenu } from './MoreMenu'
 import { Reactions } from './Reactions'
 import { ago } from './time'
-
-function MenuItem({
-  onSelect,
-  children,
-  destructive,
-}: {
-  onSelect(): void
-  children: ReactNode
-  destructive?: boolean
-}) {
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      className={`w-full justify-start ${destructive ? 'text-destructive' : ''}`}
-      onClick={onSelect}>
-      {children}
-    </Button>
-  )
-}
 
 // A quote reply prefixes every line, as GitHub's does.
 const quote = (text: string) => `${text.trim().replace(/^/gm, '> ')}\n\n`
@@ -83,18 +63,13 @@ function CommentCard({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(body)
   const [saving, setSaving] = useState(false)
-  const [menu, setMenu] = useState(false)
-  const pick = (action: () => void) => {
-    setMenu(false)
-    action()
-  }
   const save = async () => {
     setSaving(true)
     try {
       await onSave(draft)
       setEditing(false)
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not save the comment', { description: (error as Error).message })
     } finally {
       setSaving(false)
     }
@@ -114,50 +89,36 @@ function CommentCard({
           {edited ? <span>· edited</span> : null}
           <span className="ms-auto" />
           {label ? (
-            <Badge variant="outline" size="sm">
+            <Badge variant="soft-info" size="sm">
               {label}
             </Badge>
           ) : null}
-          <Popover open={menu} onOpenChange={setMenu}>
-            <PopoverTrigger asChild>
-              <Button size="icon" variant="ghost" aria-label={`Actions for ${author.login}'s comment`}>
-                <Ellipsis />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="flex w-52 flex-col p-1">
-              <MenuItem onSelect={() => pick(onQuote)}>
-                <MessageSquareQuote />
-                Quote reply
-              </MenuItem>
-              {link ? (
-                <MenuItem
-                  onSelect={() =>
-                    pick(() => void navigator.clipboard.writeText(link).then(() => toast('Copied the link')))
-                  }>
-                  <Copy />
-                  Copy link
-                </MenuItem>
-              ) : null}
-              {canEdit ? (
-                <MenuItem
-                  onSelect={() =>
-                    pick(() => {
-                      setDraft(body)
-                      setEditing(true)
-                    })
-                  }>
-                  <Pencil />
-                  Edit
-                </MenuItem>
-              ) : null}
-              {canDelete && onDelete ? (
-                <MenuItem destructive onSelect={() => pick(onDelete)}>
-                  <Trash2 />
-                  Delete
-                </MenuItem>
-              ) : null}
-            </PopoverContent>
-          </Popover>
+          <MoreMenu
+            label={`Actions for ${author.login}'s comment`}
+            actions={[
+              { label: 'Quote reply', icon: <MessageSquareQuote />, run: onQuote },
+              link
+                ? {
+                    label: 'Copy link',
+                    icon: <Copy />,
+                    run: () =>
+                      void navigator.clipboard.writeText(link).then(
+                        () => toast.success('Copied the link', { description: link }),
+                        (error: Error) => toast.error('Could not copy', { description: error.message }),
+                      ),
+                  }
+                : null,
+              canEdit && {
+                label: 'Edit',
+                icon: <Pencil />,
+                run: () => {
+                  setDraft(body)
+                  setEditing(true)
+                },
+              },
+              canDelete && onDelete ? { label: 'Delete', icon: <Trash2 />, run: onDelete, destructive: true } : null,
+            ]}
+          />
         </header>
         <div className="flex flex-col gap-2 px-3 py-2">
           {editing ? (
@@ -245,10 +206,10 @@ export function ThreadView({
     if (!yes) return
     try {
       await api.github.deleteComment(event.id)
-      toast('Deleted the comment')
+      toast.success('Deleted the comment')
       onChanged()
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not delete the comment', { description: (error as Error).message })
     }
   }
 
@@ -315,14 +276,16 @@ export function ThreadView({
                   <div key={comment.id} className="relative rounded-md border border-border bg-card sm:ms-[3.25rem]">
                     <header className="flex items-center gap-2 border-border border-b px-3 py-1.5">
                       <FileCode className="size-4 shrink-0 text-muted-foreground" />
-                      <button
+                      <Button
+                        variant="nothing"
+                        size="none"
                         type="button"
                         disabled={!onOpenFile}
                         title={`Open ${comment.path} in Files changed`}
                         onClick={() => onOpenFile?.(comment.path)}
-                        className="min-w-0 cursor-pointer truncate text-tn-blue hover:underline disabled:cursor-default disabled:text-foreground disabled:no-underline">
+                        className="min-w-0 cursor-pointer truncate text-tn-blue hover:underline disabled:cursor-default disabled:text-foreground disabled:no-underline justify-start shrink rounded-none">
                         {comment.path}
-                      </button>
+                      </Button>
                       <span className="shrink-0 text-muted-foreground">
                         {comment.line === null
                           ? 'outdated'

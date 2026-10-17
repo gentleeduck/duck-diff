@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { encodeTarget } from '@duck-diff/protocol'
+import { encodeTarget, type ResolvedRevision } from '@duck-diff/protocol'
 import { type Fixture, startFixture } from './helpers'
 
 let fixture: Fixture
@@ -94,6 +94,16 @@ describe('api', () => {
     expect(commits.map((c: { subject: string }) => c.subject)).toEqual(['base'])
   })
 
+  it('says what commit a typed revision is, spaces and carets included', async () => {
+    await edited()
+    const get = async (rev: string) =>
+      (await fixture.get(`/api/resolve?${new URLSearchParams({ rev })}`)).json() as Promise<ResolvedRevision>
+    expect(await get(':/base')).toMatchObject({ kind: 'commit', subject: 'base' })
+    expect(await get('^HEAD')).toMatchObject({ kind: 'unknown' })
+    expect(await get('nope')).toEqual({ kind: 'unknown', reason: 'git knows no commit called nope here' })
+    expect((await fixture.get('/api/resolve?rev=')).status).toBe(400)
+  })
+
   it('lists the commits that touched one file and refuses paths outside the repo', async () => {
     fixture = await startFixture((repo) => {
       repo.write('a.txt', 'one\n')
@@ -104,6 +114,9 @@ describe('api', () => {
     const commits = await (await fixture.get('/api/commits?head=main&path=a.txt')).json()
     expect(commits.map((c: { subject: string }) => c.subject)).toEqual(['base'])
     expect((await fixture.get('/api/commits?head=main&path=../x')).status).toBe(400)
+    // A ref is never read as one of git's options.
+    expect((await fixture.get('/api/commits?head=--output=x')).status).toBe(400)
+    expect((await fixture.get('/api/commits?head=main&base=-p')).status).toBe(400)
   })
 
   it('streams the commit graph with parents and ref names', async () => {

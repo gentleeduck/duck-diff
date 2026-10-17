@@ -1,9 +1,8 @@
 import { Button, Separator } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
-import { Check, Copy, FileDiff, X } from 'lucide-react'
-import { useState } from 'react'
+import { FileDiff, X } from 'lucide-react'
 import { useApp } from '../app/AppProvider'
-import { IconTool } from '../app/IconTool'
+import { CopyTool } from '../app/CopyTool'
 import { LinesSkeleton } from '../app/skeletons'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
@@ -19,7 +18,6 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
   const files = useQuery(queries.git.commitFiles(sha))
   const loaded = details.data && files.data ? { details: details.data, files: files.data } : null
   const failed = (details.error ?? files.error)?.message ?? null
-  const [copied, setCopied] = useState(false)
 
   // The whole commit opens, scrolled to the file clicked, so it reads with the rest of what the commit did.
   const openChanges = (path?: string) => {
@@ -27,20 +25,13 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
     show('changes')
     if (path) diffFile.set(path)
   }
-  const copy = async () => {
-    await navigator.clipboard.writeText(sha)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1200)
-  }
 
   const [subject = '', ...body] = loaded?.details.message.split('\n') ?? []
   return (
     <aside aria-label="Commit" className="flex h-full flex-col bg-card">
       <header className="flex h-11 shrink-0 items-center gap-2 border-border border-b px-3">
         <span className="text-tn-comment">{sha.slice(0, 10)}</span>
-        <IconTool label="Copy commit sha" tip={copied ? 'Copied' : 'Copy sha'} onClick={copy}>
-          {copied ? <Check /> : <Copy />}
-        </IconTool>
+        <CopyTool label="Copy commit sha" text={sha} />
         <Button size="sm" variant="outline" className="ms-auto" onClick={() => openChanges()}>
           <FileDiff />
           Show changes

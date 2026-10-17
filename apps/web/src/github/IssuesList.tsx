@@ -29,11 +29,14 @@ export function IssuesList({ onChanged }: { onChanged(): void }) {
             const next = issue.state === 'open' ? 'closed' : 'open'
             try {
               await api.github.setIssueState(issue.number, next)
-              toast(next === 'closed' ? `Closed #${issue.number}` : `Reopened #${issue.number}`)
+              toast.success(next === 'closed' ? `Closed #${issue.number}` : `Reopened #${issue.number}`)
               reload()
               onChanged()
             } catch (error) {
-              toast.error((error as Error).message)
+              toast.error(
+                next === 'closed' ? `Could not close #${issue.number}` : `Could not reopen #${issue.number}`,
+                { description: (error as Error).message },
+              )
             }
           }}>
           {issue.state === 'open' ? <CircleCheck /> : <CircleDot />}

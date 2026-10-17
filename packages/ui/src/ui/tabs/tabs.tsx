@@ -4,6 +4,7 @@ import { cn } from '@gentleduck/libs/cn'
 import type { IDirection } from '@gentleduck/primitives/direction'
 import { useDirection } from '@gentleduck/primitives/direction'
 import * as React from 'react'
+import { labelled } from '../_internal/label'
 import { toDirection } from '../direction/direction.libs'
 
 export interface ITabsContextProps {
@@ -146,7 +147,7 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, ITabsTriggerProps>(
         {...props}
         type="button"
         data-slot="tabs-trigger">
-        {children}
+        {labelled(children)}
       </button>
     )
   },

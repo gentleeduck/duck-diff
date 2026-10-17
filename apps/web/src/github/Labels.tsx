@@ -26,9 +26,9 @@ export function Labels({ labels, max = labels.length }: { labels: Label[]; max?:
       ))}
       {hidden > 0 ? (
         <Badge
-          variant="outline"
+          variant="muted"
           size="sm"
-          className="shrink-0 text-muted-foreground"
+          className="shrink-0"
           title={labels
             .slice(max)
             .map((label) => label.name)

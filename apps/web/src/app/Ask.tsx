@@ -23,6 +23,7 @@ export interface Field {
 interface Question {
   title: string
   body?: string
+  detail?: string
   fields: Field[]
   action: string
   destructive?: boolean
@@ -33,7 +34,13 @@ const question = createStore<Question | null>(null)
 
 // One dialog for the whole page: confirm a risky action or ask for a few names. Resolves null on cancel.
 export const ask = {
-  confirm(options: { title: string; body?: string; action: string; destructive?: boolean }): Promise<boolean> {
+  confirm(options: {
+    title: string
+    body?: string
+    detail?: string
+    action: string
+    destructive?: boolean
+  }): Promise<boolean> {
     return new Promise((resolve) =>
       question.set({ ...options, fields: [], resolve: (values) => resolve(values !== null) }),
     )
@@ -66,8 +73,14 @@ function Form({ current }: { current: Question }) {
         event.preventDefault()
         if (ready) close(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value.trim()])))
       }}>
-      <DialogTitle>{current.title}</DialogTitle>
+      <DialogTitle className="pe-6">{current.title}</DialogTitle>
       {current.body ? <DialogDescription>{current.body}</DialogDescription> : null}
+      {/* What it acts on, often a path: no spaces to wrap at, so it gets a line of its own and breaks anywhere. */}
+      {current.detail ? (
+        <p className="break-all rounded-md border border-border bg-muted/40 px-2 py-1.5 font-mono text-foreground">
+          {current.detail}
+        </p>
+      ) : null}
       {current.fields.map((field, i) => {
         const Control = field.multiline ? Textarea : Input
         return (
@@ -88,7 +101,7 @@ function Form({ current }: { current: Question }) {
           </div>
         )
       })}
-      <DialogFooter>
+      <DialogFooter className="mt-1">
         <Button type="button" size="sm" variant="ghost" onClick={() => close(null)}>
           Cancel
         </Button>
@@ -110,7 +123,7 @@ export function AskDialog() {
         question.set(null)
         current.resolve(null)
       }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         {current ? <Form key={current.title} current={current} /> : null}
       </DialogContent>
     </Dialog>

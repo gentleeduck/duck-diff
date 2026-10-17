@@ -1,5 +1,7 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { HandshakeSchema } from '@duck-diff/protocol'
+import { openBrowser } from './instance'
+import { evalNvim, luaCall, type NvimEval } from './nvim'
 
 // Starts a server for another checkout (a worktree or a submodule) and returns the url it prints.
 export type StartServer = (repo: string) => Promise<{ url: string; child: ChildProcess | null }>
@@ -14,8 +16,11 @@ export function startSibling(nvim: string | null): StartServer {
     new Promise((resolve, reject) => {
       const [program = process.execPath, ...base] = selfCommand()
       const args = [...base, 'serve', '--repo', repo, ...(nvim ? ['--nvim', nvim] : [])]
-      // stdin stays open: when this server exits, the pipe closes and the sibling follows.
-      const child = spawn(program, args, { stdio: ['pipe', 'pipe', 'ignore'] })
+      // It lives as long as this process (cli.ts), whose pid stays when it restarts in place for a new build.
+      const child = spawn(program, args, {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        env: { ...process.env, DUCK_DIFF_PARENT: String(process.pid) },
+      })
       const timer = setTimeout(() => {
         child.kill()
         reject(new Error('the other server did not start'))
@@ -33,8 +38,9 @@ export function startSibling(nvim: string | null): StartServer {
     })
 }
 
-// One sibling per path, reused while it runs and stopped with this server.
-export function createSiblings(start: StartServer) {
+// One sibling per path, reused while it runs and stopped with this server. find gives the page of one still
+// running from before this server restarted in place, which serves on instead of a second.
+export function createSiblings(start: StartServer, find: (path: string) => Promise<string | null> = async () => null) {
   const running = new Map<string, Promise<{ url: string; child: ChildProcess | null }>>()
   return {
     async open(path: string): Promise<string> {
@@ -46,6 +52,8 @@ export function createSiblings(start: StartServer) {
           () => false,
         ))
       if (!existing || !alive) {
+        const kept = await find(path)
+        if (kept) return kept
         const next = start(path)
         running.set(path, next)
         next.catch(() => running.delete(path))
@@ -58,7 +66,9 @@ export function createSiblings(start: StartServer) {
       return (await existing).url
     },
     // Waits for them to exit, so whoever stopped this server can remove what they wrote; a stuck one gets 5s.
-    async stop() {
+    // keep: this server is only handing over to a new build of itself, and they serve on under it.
+    async stop({ keep = false }: { keep?: boolean } = {}) {
+      if (keep) return
       const exits = [...running.values()].map((sibling) =>
         sibling.then(
           ({ child }) =>
@@ -73,5 +83,22 @@ export function createSiblings(start: StartServer) {
       running.clear()
       await Promise.race([Promise.all(exits), Bun.sleep(5000)])
     },
+  }
+}
+
+// A sibling's page opens the way this server's own did: through the Neovim plugin, which honours its open
+// setting, or as the command line opens one (an app window). A plugin too old to answer gets the latter.
+export function pageOpener(
+  nvim: string | null,
+  { evaluate = evalNvim, browser = openBrowser }: { evaluate?: NvimEval; browser?: (url: string) => boolean } = {},
+): (url: string) => Promise<boolean> {
+  return async (url) => {
+    if (nvim) {
+      try {
+        await evaluate(nvim, luaCall('duck-diff.open', 'page', url))
+        return true
+      } catch {}
+    }
+    return browser(url)
   }
 }

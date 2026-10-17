@@ -1,4 +1,4 @@
-import type { ChangedFile } from '@duck-diff/protocol'
+import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
 import { Button, ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
@@ -12,7 +12,7 @@ import {
   useState,
 } from 'react'
 import { useRowHeight } from '../app/useSizes'
-import { CHEVRON, FOLDER, FOLDER_DIRTY, FOLDER_NEW, fileGlyph, isSpecialFile, STATUS_MARK, SUBMODULE } from './icons'
+import { CHEVRON, FOLDER, fileGlyph, fileLook, folderLook, STATUS_MARK, SUBMODULE } from './icons'
 import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
 export type { Row as TreeRow }
@@ -32,28 +32,26 @@ function TreeItem({
   row,
   file,
   marks,
+  color,
   selected,
   onClick,
   ...rest
-}: { row: Row; file: ChangedFile | undefined; marks: Mark[]; selected: boolean; onClick(): void } & Omit<
-  ComponentProps<typeof Button>,
-  'onClick'
->) {
+}: {
+  row: Row
+  file: ChangedFile | undefined
+  marks: Mark[]
+  // The folder's name color; a file's comes from its own status.
+  color: string
+  selected: boolean
+  onClick(): void
+} & Omit<ComponentProps<typeof Button>, 'onClick'>) {
   const folder = row.kind === 'directory'
   const icon = folder
     ? { glyph: row.expanded ? FOLDER.open : FOLDER.closed, color: FOLDER.color }
     : file?.submodule
       ? SUBMODULE
       : fileGlyph(row.name)
-  const special = !folder && isSpecialFile(row.name)
-  const deleted = file?.status === 'deleted'
-  const name = folder
-    ? 'text-tn-blue'
-    : special
-      ? 'text-tn-pink underline'
-      : deleted
-        ? 'text-tn-comment line-through'
-        : 'text-foreground'
+  const look = folder ? { color, underline: false } : fileLook(row.name, file?.status)
   return (
     <Button
       {...rest}
@@ -66,7 +64,7 @@ function TreeItem({
       aria-expanded={folder ? row.expanded : undefined}
       aria-current={selected || undefined}
       title={marks.length ? `${row.path} (${marks.map((mark) => mark.title).join(', ')})` : row.path}
-      className="h-7 w-full items-stretch justify-start gap-0 rounded-none p-0 ps-1 pe-3 text-start font-bold aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
+      className="h-7 w-full items-stretch justify-start gap-0 rounded-none p-0 ps-1 pe-3 text-start aria-[current=true]:bg-accent [&>span]:flex [&>span]:items-center">
       {row.ancestors.map((ancestor, column) => (
         // A folder's guide runs in the column under its icon, where its items' arrows sit; it is drawn
         // only while that folder still has items further down.
@@ -76,7 +74,7 @@ function TreeItem({
         />
       ))}
       {folder ? (
-        <span className="w-5 shrink-0 justify-center text-tn-comment">
+        <span className="w-5 shrink-0 justify-center text-tn-gutter">
           {row.expanded ? CHEVRON.open : CHEVRON.closed}
         </span>
       ) : (
@@ -91,7 +89,9 @@ function TreeItem({
           {mark.glyph}
         </span>
       ))}
-      <span className={`ms-0.5 min-w-0 truncate ${name}`}>{row.name}</span>
+      <span className={`ms-0.5 min-w-0 truncate ${look.underline ? 'underline' : ''}`} style={{ color: look.color }}>
+        {row.name}
+      </span>
     </Button>
   )
 }
@@ -145,31 +145,28 @@ export function FileTree({
     [toggled, onToggled],
   )
   const tree = useMemo(() => buildTree(paths), [paths])
-  // Every folder's marks come from the files under it: a change anywhere, a new file anywhere, or both.
-  const folderMarks = useMemo(() => {
-    const marks = new Map<string, { dirty: boolean; fresh: boolean }>()
+  // Every folder's look comes from the statuses of the files under it.
+  const folderLooks = useMemo(() => {
+    const statuses = new Map<string, FileStatus[]>()
     for (const path of paths) {
       const status = fileFor(path)?.status
       if (!status) continue
-      const fresh = status === 'added' || status === 'untracked' || status === 'copied'
       const parts = path.split('/')
       for (let i = 1; i < parts.length; i++) {
         const folder = parts.slice(0, i).join('/')
-        const entry = marks.get(folder) ?? { dirty: false, fresh: false }
-        if (fresh) entry.fresh = true
-        else entry.dirty = true
-        marks.set(folder, entry)
+        const list = statuses.get(folder) ?? []
+        list.push(status)
+        statuses.set(folder, list)
       }
     }
-    return marks
+    return new Map([...statuses].map(([folder, list]) => [folder, folderLook(list)]))
   }, [paths, fileFor])
-  const marksFor = (row: Row): Mark[] => {
+  const lookFor = (row: Row): { marks: Mark[]; color: string } => {
     if (row.kind === 'file') {
       const status = fileFor(row.path)?.status
-      return status ? [STATUS_MARK[status]] : []
+      return { marks: status ? [STATUS_MARK[status]] : [], color: '' }
     }
-    const entry = folderMarks.get(row.path)
-    return [...(entry?.dirty ? [FOLDER_DIRTY] : []), ...(entry?.fresh ? [FOLDER_NEW] : [])]
+    return folderLooks.get(row.path) ?? folderLook([])
   }
   const rows = useMemo(() => visibleRows(tree, toggled, !collapsed), [tree, toggled, collapsed])
 
@@ -241,6 +238,7 @@ export function FileTree({
         {virtualizer.getVirtualItems().map((virtual) => {
           const row = rows[virtual.index]
           if (!row) return null
+          const look = lookFor(row)
           return (
             <div
               key={virtual.key}
@@ -250,7 +248,8 @@ export function FileTree({
                 <TreeItem
                   row={row}
                   file={fileFor(row.path)}
-                  marks={marksFor(row)}
+                  marks={look.marks}
+                  color={look.color}
                   selected={row.path === selected}
                   onClick={() => open(row)}
                 />

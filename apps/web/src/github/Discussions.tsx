@@ -4,6 +4,7 @@ import { ArrowLeft, CircleCheck, MessagesSquare, Reply, SquareArrowOutUpRight } 
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { pageColumn } from '../app/page-column'
 import { ListRowsSkeleton, ThreadSkeleton } from '../app/skeletons'
 import { Avatar, Body } from './Conversation'
 import { MarkdownEditor } from './MarkdownEditor'
@@ -29,7 +30,7 @@ function DiscussionView({ number, onBack }: { number: number; onBack(): void }) 
       await load()
       return true
     } catch (error) {
-      toast.error(`Could not post: ${(error as Error).message}`)
+      toast.error('Could not post the reply', { description: (error as Error).message })
       return false
     } finally {
       setBusy(false)
@@ -40,7 +41,7 @@ function DiscussionView({ number, onBack }: { number: number; onBack(): void }) 
       await api.github.markAnswer(comment, next)
       await load()
     } catch (error) {
-      toast.error(`Could not change the answer: ${(error as Error).message}`)
+      toast.error('Could not change the answer', { description: (error as Error).message })
     }
   }
 
@@ -48,7 +49,7 @@ function DiscussionView({ number, onBack }: { number: number; onBack(): void }) 
   if (!discussion) return <ThreadSkeleton />
   return (
     <div className="h-full overflow-y-auto">
-      <article aria-label={discussion.title} className="flex w-full flex-col gap-4 p-6">
+      <article aria-label={discussion.title} {...pageColumn('gap-4')}>
         <header className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="ghost" onClick={onBack}>
             <ArrowLeft />
@@ -65,11 +66,11 @@ function DiscussionView({ number, onBack }: { number: number; onBack(): void }) 
           </Button>
         </header>
         <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
-          <Badge variant="outline" size="sm">
+          <Badge variant="soft-info" size="sm">
             {discussion.category}
           </Badge>
           {discussion.answered ? (
-            <Badge variant="outline" size="sm" className="text-tn-green">
+            <Badge variant="soft-success" size="sm">
               Answered
             </Badge>
           ) : null}
@@ -177,7 +178,7 @@ export function Discussions() {
   if (open !== null) return <DiscussionView number={open} onBack={() => setOpen(null)} />
   return (
     <div className="h-full overflow-y-auto">
-      <div className="flex w-full flex-col gap-2 p-6">
+      <div {...pageColumn('gap-2')}>
         {failed ? <p className="text-removed">{failed}</p> : null}
         {!items && !failed ? (
           <div className="rounded-md border border-border">
@@ -193,10 +194,12 @@ export function Discussions() {
           <ul aria-label="Discussions" className="divide-y divide-border rounded-md border border-border">
             {items.map((item) => (
               <li key={item.number}>
-                <button
+                <Button
+                  variant="nothing"
+                  size="none"
                   type="button"
                   onClick={() => setOpen(item.number)}
-                  className="flex w-full cursor-pointer items-center gap-3 px-4 py-2 text-start hover:bg-accent/50">
+                  className="flex w-full cursor-pointer items-center gap-3 px-4 py-2 text-start hover:bg-accent/50 justify-start rounded-none">
                   <MessagesSquare
                     className={`size-4 shrink-0 ${item.answered ? 'text-tn-green' : 'text-muted-foreground'}`}
                   />
@@ -206,9 +209,13 @@ export function Discussions() {
                       #{item.number} in {item.category} by {item.author.login}, updated {ago(item.updatedAt)}
                     </span>
                   </span>
-                  {item.answered ? <span className="text-tn-green">Answered</span> : null}
+                  {item.answered ? (
+                    <Badge variant="soft-success" size="sm">
+                      Answered
+                    </Badge>
+                  ) : null}
                   <span className="text-muted-foreground tabular-nums">{item.comments}</span>
-                </button>
+                </Button>
               </li>
             ))}
           </ul>

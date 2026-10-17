@@ -39,6 +39,8 @@ interface Options {
   flushMs?: number
 }
 
+const CLAIM_TTY = 't=$(tty) && exec 0<>"$t" 1>&0 2>&0; exec "$0" "$@"'
+
 const clampSize = (value: number, max: number) => Math.max(2, Math.min(max, Math.floor(value) || 2))
 
 function concat(chunks: Uint8Array[], total: number): Uint8Array {
@@ -106,7 +108,10 @@ export function createTerminals({
       },
     })
     const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', TERM_PROGRAM: 'duck-diff' }
-    const child = Bun.spawn([shell, ...args], { cwd, env, terminal })
+    // Its own session, with the pty as its controlling terminal, so Ctrl+C, Ctrl+Z and job control reach what runs
+    // in it as in any terminal; without one ^C only prints. bash takes the terminal on its own and zsh does not, so
+    // the session opens it by name first (which makes it the controlling one), then becomes the shell.
+    const child = Bun.spawn(['/bin/sh', '-c', CLAIM_TTY, shell, ...args], { cwd, env, terminal, detached: true })
     child.exited.then((code) => {
       if (timer) clearTimeout(timer)
       flush()
@@ -149,8 +154,17 @@ export function createTerminals({
         sessions.delete(id)
         peers.clear()
         kept = []
-        child.kill()
-        terminal.close()
+        // The hangup a closing terminal sends, which an interactive shell passes on to its jobs. The pty closes once
+        // the shell is gone: closed at the same moment, the shell can die before it has told its jobs.
+        child.kill('SIGHUP')
+        const shut = setTimeout(() => {
+          child.kill('SIGKILL')
+          terminal.close()
+        }, 2000)
+        void child.exited.then(() => {
+          clearTimeout(shut)
+          terminal.close()
+        })
       },
     }
     sessions.set(id, session)

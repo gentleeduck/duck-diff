@@ -754,6 +754,13 @@ export function createGitHub(repo: string, options: GitHubOptions = {}) {
     async deleteComment(id: number): Promise<void> {
       await call(`${await repoPath()}/issues/comments/${id}`, { method: 'DELETE' })
     },
+    // A line comment in a pull request's diff lives under pulls, not issues.
+    async editReviewComment(id: number, body: string): Promise<void> {
+      await call(`${await repoPath()}/pulls/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body }) })
+    },
+    async deleteReviewComment(id: number): Promise<void> {
+      await call(`${await repoPath()}/pulls/comments/${id}`, { method: 'DELETE' })
+    },
     // Adding a reaction you already gave returns it with 200; then it is taken back instead.
     async react(target: { issue: number } | { comment: number }, content: string): Promise<void> {
       const base = await repoPath()

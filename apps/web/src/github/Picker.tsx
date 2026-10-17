@@ -1,4 +1,4 @@
-import { Input, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
+import { Command, CommandInput, CommandItem, CommandList, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
 import { Check, Settings } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { IconTool } from '../app/IconTool'
@@ -73,41 +73,37 @@ export function Picker({
           </span>
         )}
       </PopoverTrigger>
-      <PopoverContent align="end" className="flex w-72 flex-col gap-1 p-1">
-        <p className="px-2 pt-1 text-muted-foreground">{title}</p>
-        <Input
-          autoFocus
-          aria-label={`Filter ${title.toLowerCase()}`}
-          placeholder="Filter"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-        />
-        <div role="listbox" aria-label={title} aria-multiselectable={!single} className="max-h-72 overflow-y-auto">
-          {choices === null ? <LinesSkeleton count={5} className="p-2" /> : null}
-          {choices?.length === 0 ? <p className="p-2 text-muted-foreground">Nothing to pick.</p> : null}
-          {shown.map((choice) => (
-            <div
-              key={choice.value}
-              role="option"
-              tabIndex={0}
-              aria-selected={picked.has(choice.value)}
-              onClick={() => toggle(choice.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  toggle(choice.value)
-                }
-              }}
-              className="flex min-h-7 cursor-pointer items-center gap-2 rounded-sm px-2 py-1 hover:bg-accent">
-              <span className="w-4 shrink-0">{picked.has(choice.value) ? <Check className="size-4" /> : null}</span>
-              {choice.icon}
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-foreground">{choice.label}</span>
-                {choice.detail ? <span className="truncate text-muted-foreground">{choice.detail}</span> : null}
-              </span>
-            </div>
-          ))}
-        </div>
+      <PopoverContent align="end" className="w-72 p-0">
+        {/* The list filters itself on the labels, so duck-ui's command only draws and moves through it. */}
+        <Command shouldFilter={false} className="p-1 shadow-none">
+          <p className="px-2 pt-1 text-muted-foreground">{title}</p>
+          <CommandInput
+            autoFocus
+            aria-label={`Filter ${title.toLowerCase()}`}
+            placeholder="Filter"
+            value={filter}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setFilter(event.target.value)}
+          />
+          <CommandList aria-label={title} aria-multiselectable={!single} className="max-h-72">
+            {choices === null ? <LinesSkeleton count={5} className="p-2" /> : null}
+            {choices?.length === 0 ? <p className="p-2 text-muted-foreground">Nothing to pick.</p> : null}
+            {shown.map((choice) => (
+              <CommandItem
+                key={choice.value}
+                value={choice.value}
+                aria-checked={picked.has(choice.value)}
+                onSelect={() => toggle(choice.value)}
+                className="min-h-7 py-1">
+                <span className="w-4 shrink-0">{picked.has(choice.value) ? <Check className="size-4" /> : null}</span>
+                {choice.icon}
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-foreground">{choice.label}</span>
+                  {choice.detail ? <span className="truncate text-muted-foreground">{choice.detail}</span> : null}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   )

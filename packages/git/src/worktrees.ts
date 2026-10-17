@@ -1,4 +1,4 @@
-import { existsSync, realpathSync } from 'node:fs'
+import { existsSync, readdirSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { GitError } from './errors'
 import { runGit } from './run'
@@ -13,6 +13,44 @@ export interface Worktree {
   current: boolean
   locked: boolean
   prunable: boolean
+  // A checkout kept in one of the worktree folders that git does not list as this repo's worktree: a copy synced
+  // from another machine, or a clone. It opens like one, but git cannot remove it as one.
+  separate: boolean
+}
+
+// Where worktrees are kept inside a repo: Claude Code's, and the common .worktrees.
+const FOLDERS = ['.claude/worktrees', '.worktrees']
+
+// Checkouts in those folders that git's own list leaves out.
+async function separateCheckouts(root: string, listed: Set<string>): Promise<Worktree[]> {
+  const found: Worktree[] = []
+  for (const folder of FOLDERS) {
+    let names: string[]
+    try {
+      names = readdirSync(join(root, folder))
+    } catch {
+      continue
+    }
+    for (const name of names.sort()) {
+      const path = join(root, folder, name)
+      if (!existsSync(join(path, '.git')) || listed.has(real(path))) continue
+      const top = await runGit(['rev-parse', '--show-toplevel'], { cwd: path, okExitCodes: [128] })
+      if (real(top.trim()) !== real(path)) continue
+      const head = await runGit(['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: path, okExitCodes: [1, 128] })
+      const branch = await runGit(['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: path, okExitCodes: [1, 128] })
+      found.push({
+        path,
+        head: head.trim() || null,
+        branch: branch.trim() || null,
+        main: false,
+        current: false,
+        locked: false,
+        prunable: false,
+        separate: true,
+      })
+    }
+  }
+  return found
 }
 
 const real = (path: string) => {
@@ -43,9 +81,14 @@ export async function listWorktrees(repo: string): Promise<Worktree[]> {
       current: real(path) === here,
       locked: Boolean(field('locked')),
       prunable: Boolean(field('prunable')),
+      separate: false,
     })
   }
-  return trees
+  const root = trees[0]?.path
+  if (!root) return trees
+  const separate = await separateCheckouts(root, new Set(trees.map((tree) => real(tree.path))))
+  // A separate checkout is the current one when this server runs inside it.
+  return [...trees, ...separate.map((tree) => ({ ...tree, current: real(tree.path) === here }))]
 }
 
 export async function addWorktree(

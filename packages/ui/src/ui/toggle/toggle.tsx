@@ -4,19 +4,21 @@ import { cn } from '@gentleduck/libs/cn'
 import * as TogglePrimitive from '@gentleduck/primitives/toggle'
 import type { Variants } from '@gentleduck/variants'
 import * as React from 'react'
+import { labelled } from '../_internal/label'
 import { toggleVariants } from './toggle.constants'
 
 const Toggle = React.forwardRef<
   React.ComponentRef<typeof TogglePrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof TogglePrimitive.Root> & Variants.VariantProps<typeof toggleVariants>
->(({ className, variant = 'default', size = 'default', ...props }, ref) => {
+>(({ className, variant = 'default', size = 'default', children, ...props }, ref) => {
   return (
     <TogglePrimitive.Root
       className={cn(toggleVariants({ className, size, variant }))}
       data-slot="toggle"
       ref={ref}
-      {...props}
-    />
+      {...props}>
+      {props.asChild ? children : labelled(children)}
+    </TogglePrimitive.Root>
   )
 })
 Toggle.displayName = 'Toggle'

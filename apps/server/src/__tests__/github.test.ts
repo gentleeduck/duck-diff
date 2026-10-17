@@ -116,6 +116,8 @@ function fakeGitHub(calls: Call[]) {
       ])
     }
     if (path === '/repos/o/r/issues/comments/1' && method === 'PATCH') return new Response(null, { status: 200 })
+    if (path === '/repos/o/r/pulls/comments/7' && method === 'PATCH') return new Response(null, { status: 200 })
+    if (path === '/repos/o/r/pulls/comments/7' && method === 'DELETE') return new Response(null, { status: 204 })
     if (path === '/repos/o/r/issues/comments/1/reactions' && method === 'POST') {
       return Response.json({ id: 55, content: 'heart' }, { status: 200 })
     }
@@ -610,6 +612,13 @@ describe('/api/github', () => {
     })
     expect(thread.timeline).toHaveLength(6)
     expect((await call('PATCH', '/api/github/comments/1', { body: 'edited' })).status).toBe(204)
+    // A line comment in a pull request's diff is edited and deleted where GitHub keeps those.
+    expect((await call('PATCH', '/api/github/review-comments/7', { body: 'fixed' })).status).toBe(204)
+    expect((await call('DELETE', '/api/github/review-comments/7')).status).toBe(204)
+    expect(calls.filter((entry) => entry.path === '/repos/o/r/pulls/comments/7').map((entry) => entry.method)).toEqual([
+      'PATCH',
+      'DELETE',
+    ])
     // A reaction GitHub already had (200) is taken back with a delete.
     expect((await call('POST', '/api/github/react', { target: { comment: 1 }, content: 'heart' })).status).toBe(204)
     expect(calls.some((entry) => entry.method === 'DELETE' && entry.path.endsWith('/reactions/55'))).toBe(true)

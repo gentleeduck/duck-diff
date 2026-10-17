@@ -3,10 +3,11 @@ import type { Hunk } from '@pierre/diffs'
 
 export type WriteKind = 'stage' | 'unstage' | 'discard'
 
-// Only comparisons against the index can be written back; everything else is read-only.
+// Only comparisons with the index can be written back, and staged ones only against HEAD; everything else
+// is read-only.
 export function actionsFor(target: DiffTarget): WriteKind[] {
   if (target.kind === 'unstaged') return ['stage', 'discard']
-  if (target.kind === 'staged') return ['unstage']
+  if (target.kind === 'staged' && !target.base) return ['unstage']
   return []
 }
 

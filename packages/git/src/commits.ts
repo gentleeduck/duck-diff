@@ -10,13 +10,15 @@ const FORMAT = `${['%H', '%P', '%an', '%ae', '%at', '%s'].join('%x1f')}%x1e`
 
 export async function listCommits(
   repo: string,
-  range: { base?: string; head: string; limit?: number; path?: string },
+  range: { base?: string; head: string; limit?: number; path?: string; grep?: string },
 ): Promise<Commit[]> {
   const revision = range.base ? `${range.base}..${range.head}` : range.head
   const limit = range.limit ? [`--max-count=${range.limit}`] : []
+  // A message search reads the text as typed, so a | or a . in it is not a pattern.
+  const grep = range.grep ? ['-i', '--fixed-strings', `--grep=${range.grep}`] : []
   // --follow keeps a file's history across renames; git allows it for exactly one path.
   const path = range.path ? ['--follow', '--', range.path] : ['--']
-  const out = await runGit(['log', `--format=${FORMAT}`, ...limit, revision, ...path], { cwd: repo })
+  const out = await runGit(['log', `--format=${FORMAT}`, ...limit, ...grep, revision, ...path], { cwd: repo })
   return out
     .split(RECORD)
     .map((record) => record.replace(/^\n/, ''))

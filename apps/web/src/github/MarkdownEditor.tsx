@@ -1,4 +1,14 @@
-import { Textarea } from '@duck-diff/ui'
+import {
+  Button,
+  Input,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  Textarea,
+} from '@duck-diff/ui'
 import {
   AtSign,
   Bold,
@@ -151,7 +161,9 @@ export function MarkdownEditor({
     for (const file of files) {
       const text = file.size <= MAX_ATTACH ? await file.text() : null
       if (text === null || text.includes('\u0000')) {
-        toast.error(`${file.name}: GitHub only takes images and binaries through github.com; text files work here`)
+        toast.error(`Could not attach ${file.name}`, {
+          description: 'GitHub takes images and binaries only through github.com; text files work here.',
+        })
         continue
       }
       const fence = text.includes('```') ? '~~~' : '```'
@@ -207,19 +219,18 @@ export function MarkdownEditor({
   return (
     <div className="flex flex-col rounded-md border border-border bg-card">
       <div className="flex items-end gap-1 border-border border-b px-2 pt-2">
-        <div role="tablist" aria-label="Comment mode" className="flex">
-          {(['write', 'preview'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              role="tab"
-              aria-selected={tab === mode}
-              onClick={() => setTab(mode)}
-              className="-mb-px cursor-pointer rounded-t-md border border-transparent px-3 py-1.5 text-muted-foreground hover:text-foreground aria-selected:border-border aria-selected:border-b-background aria-selected:bg-background aria-selected:text-foreground">
-              {mode === 'write' ? 'Write' : 'Preview'}
-            </button>
-          ))}
-        </div>
+        <Tabs value={tab} onValueChange={(next) => setTab(next as 'write' | 'preview')}>
+          <TabsList aria-label="Comment mode" className="h-auto gap-0 rounded-none bg-transparent p-0">
+            {(['write', 'preview'] as const).map((mode) => (
+              <TabsTrigger
+                key={mode}
+                value={mode}
+                className="-mb-px h-auto rounded-t-md rounded-b-none border border-transparent bg-transparent px-3 py-1.5 text-muted-foreground shadow-none hover:text-foreground aria-selected:border-border aria-selected:border-b-background aria-selected:bg-background aria-selected:text-foreground">
+                {mode === 'write' ? 'Write' : 'Preview'}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
         {tab === 'write' ? (
           <div className="ms-auto flex flex-wrap items-center pb-1">
             {TOOLS.map((tool, index) =>
@@ -247,84 +258,93 @@ export function MarkdownEditor({
       </div>
       {tab === 'write' ? (
         <div className="relative p-2">
-          <Textarea
-            ref={area}
-            aria-label={label}
-            placeholder={placeholder}
-            rows={fitRows(value, rows)}
-            autoFocus={autoFocus}
-            value={value}
-            onChange={(event) => {
-              onChange(event.target.value)
-              setCaret(event.target.selectionStart)
-              setDismissed(false)
-            }}
-            onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
-            onDragOver={(event) => {
-              if (event.dataTransfer.types.includes('Files')) event.preventDefault()
-            }}
-            onDrop={(event) => {
-              if (!event.dataTransfer.files.length) return
-              event.preventDefault()
-              void attach([...event.dataTransfer.files])
-            }}
-            onPaste={(event) => {
-              if (!event.clipboardData.files.length) return
-              event.preventDefault()
-              void attach([...event.clipboardData.files])
-            }}
-            onKeyDown={(event) => {
-              const shortcut =
-                (event.ctrlKey || event.metaKey) && !event.shiftKey ? SHORTCUTS[event.key.toLowerCase()] : undefined
-              if (shortcut) {
-                event.preventDefault()
-                event.stopPropagation()
-                return format(shortcut)
-              }
-              if (suggestions.length) {
-                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          <Popover open={suggestions.length > 0} onOpenChange={(open) => !open && setDismissed(true)}>
+            <PopoverAnchor asChild>
+              <Textarea
+                ref={area}
+                aria-label={label}
+                placeholder={placeholder}
+                rows={fitRows(value, rows)}
+                autoFocus={autoFocus}
+                value={value}
+                onChange={(event) => {
+                  onChange(event.target.value)
+                  setCaret(event.target.selectionStart)
+                  setDismissed(false)
+                }}
+                onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
+                onDragOver={(event) => {
+                  if (event.dataTransfer.types.includes('Files')) event.preventDefault()
+                }}
+                onDrop={(event) => {
+                  if (!event.dataTransfer.files.length) return
                   event.preventDefault()
-                  const step = event.key === 'ArrowDown' ? 1 : -1
-                  setActive((at) => (at + step + suggestions.length) % suggestions.length)
-                  return
-                }
-                if (event.key === 'Enter' || event.key === 'Tab') {
+                  void attach([...event.dataTransfer.files])
+                }}
+                onPaste={(event) => {
+                  if (!event.clipboardData.files.length) return
                   event.preventDefault()
-                  const chosen = suggestions[active]
-                  if (chosen) accept(chosen)
-                  return
-                }
-                if (event.key === 'Escape') {
-                  setDismissed(true)
-                  return
-                }
-              }
-              if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) onSubmit?.()
-            }}
-          />
-          {suggestions.length ? (
-            <div
-              role="listbox"
-              aria-label="Suggestions"
-              className="absolute inset-x-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-md border bg-popover p-1 shadow-md">
-              {suggestions.map((suggestion, i) => (
-                <div
-                  key={suggestion.key}
-                  role="option"
-                  tabIndex={-1}
-                  aria-selected={i === active}
-                  onMouseDown={(event) => {
+                  void attach([...event.clipboardData.files])
+                }}
+                onKeyDown={(event) => {
+                  const shortcut =
+                    (event.ctrlKey || event.metaKey) && !event.shiftKey ? SHORTCUTS[event.key.toLowerCase()] : undefined
+                  if (shortcut) {
                     event.preventDefault()
-                    accept(suggestion)
-                  }}
-                  className="flex h-7 cursor-pointer items-center gap-2 rounded-sm px-2 aria-selected:bg-accent">
-                  {suggestion.icon}
-                  <span className="shrink-0 text-foreground">{suggestion.label}</span>
-                  <span className="min-w-0 truncate text-muted-foreground">{suggestion.detail}</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
+                    event.stopPropagation()
+                    return format(shortcut)
+                  }
+                  if (suggestions.length) {
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                      event.preventDefault()
+                      const step = event.key === 'ArrowDown' ? 1 : -1
+                      setActive((at) => (at + step + suggestions.length) % suggestions.length)
+                      return
+                    }
+                    if (event.key === 'Enter' || event.key === 'Tab') {
+                      event.preventDefault()
+                      const chosen = suggestions[active]
+                      if (chosen) accept(chosen)
+                      return
+                    }
+                    if (event.key === 'Escape') {
+                      setDismissed(true)
+                      return
+                    }
+                  }
+                  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) onSubmit?.()
+                }}
+              />
+            </PopoverAnchor>
+            {/* The keyboard stays in the box, where arrows, Tab and Enter pick from the list. */}
+            <PopoverContent
+              side="bottom"
+              align="start"
+              onOpenAutoFocus={(event) => event.preventDefault()}
+              onCloseAutoFocus={(event) => event.preventDefault()}
+              className="w-(--gentleduck-popper-anchor-width) p-1">
+              <div role="listbox" aria-label="Suggestions" className="max-h-64 overflow-y-auto">
+                {suggestions.map((suggestion, i) => (
+                  <Button
+                    key={suggestion.key}
+                    variant="ghost"
+                    size="sm"
+                    role="option"
+                    tabIndex={-1}
+                    aria-selected={i === active}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      accept(suggestion)
+                    }}
+                    className="w-full justify-start gap-2 px-2 aria-selected:bg-accent">
+                    {suggestion.icon}
+                    <span className="shrink-0 text-foreground">{suggestion.label}</span>
+                    <span className="min-w-0 truncate text-muted-foreground">{suggestion.detail}</span>
+                  </Button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       ) : (
         <div className="m-2 min-h-24 rounded-md border border-border p-3">
@@ -343,14 +363,16 @@ export function MarkdownEditor({
           Markdown is supported
         </span>
         <span className="h-4 w-px bg-border" />
-        <button
+        <Button
+          variant="nothing"
+          size="none"
           type="button"
           onClick={() => picker.current?.click()}
-          className="flex cursor-pointer items-center gap-1.5 hover:text-foreground">
+          className="flex cursor-pointer items-center gap-1.5 hover:text-foreground justify-start rounded-none whitespace-normal">
           <ImagePlus className="size-4" />
           Paste, drop, or click to add files
-        </button>
-        <input
+        </Button>
+        <Input
           ref={picker}
           type="file"
           multiple

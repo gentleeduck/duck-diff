@@ -1,4 +1,5 @@
-import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
@@ -44,6 +45,28 @@ function freshDir(): string {
 }
 
 describe('worktrees', () => {
+  it('also finds checkouts kept in the worktree folders that git does not list, such as a synced copy', async () => {
+    const repo = repoWithCommit()
+    const copy = join(repo.path, '.claude', 'worktrees', 'copy')
+    mkdirSync(copy, { recursive: true })
+    execFileSync('git', ['init', '-q', '-b', 'copy-branch'], { cwd: copy })
+    writeFileSync(join(copy, 'b.txt'), 'b\n')
+    execFileSync('git', ['add', '.'], { cwd: copy })
+    execFileSync('git', ['commit', '-qm', 'copy'], { cwd: copy })
+    const real = join(repo.path, '.claude', 'worktrees', 'real')
+    await addWorktree(repo.path, { path: real, branch: 'real', create: true })
+    mkdirSync(join(repo.path, '.claude', 'worktrees', 'plain'))
+
+    const listed = await listWorktrees(repo.path)
+    expect(listed.map((tree) => [tree.branch, tree.separate])).toEqual([
+      ['main', false],
+      ['real', false],
+      ['copy-branch', true],
+    ])
+    expect(listed[2]).toMatchObject({ path: copy, main: false, current: false })
+    expect(listed[2]?.head).toMatch(/^[0-9a-f]{40}$/)
+  })
+
   it('adds one on a new branch, lists it, removes it and prunes', async () => {
     const repo = repoWithCommit()
     const path = freshDir()

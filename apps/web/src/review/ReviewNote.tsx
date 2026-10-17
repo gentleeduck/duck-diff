@@ -1,11 +1,14 @@
 import { Badge, Button, Textarea } from '@duck-diff/ui'
-import { CircleCheck, FilePen, GitCommitHorizontal, ListPlus, ListX } from 'lucide-react'
+import { CircleCheck, FilePen, GitCommitHorizontal, ListPlus, ListX, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
+import { CopyTool } from '../app/CopyTool'
+import { IconTool } from '../app/IconTool'
 import { Body as GitHubBody, Comment as GitHubComment } from '../github/Conversation'
 import type { PullReviewState } from '../github/pull-review'
+import { useGitHub } from '../github/SignIn'
 import { fitRows } from '../lib/fit-rows'
 import { useStore } from '../lib/store'
 import { relativeTime } from '../sidebar/relative-time'
@@ -40,9 +43,13 @@ function SuggestionActions({ id, outdated }: { id: number; outdated: boolean }) 
     setBusy(true)
     try {
       await pullReview.commitSuggestions(ids, answer.message ?? '')
-      toast(ids.length === 1 ? 'Committed the suggestion' : `Committed ${ids.length} suggestions`)
+      toast.success(ids.length === 1 ? 'Committed the suggestion' : `Committed ${ids.length} suggestions`, {
+        description: 'To the pull request branch on GitHub.',
+      })
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error(ids.length === 1 ? 'Could not commit the suggestion' : 'Could not commit the suggestions', {
+        description: (error as Error).message,
+      })
     } finally {
       setBusy(false)
     }
@@ -125,7 +132,7 @@ function Editor({
     try {
       await send(body)
     } catch (error) {
-      toast.error(`Could not save the comment: ${(error as Error).message}`)
+      toast.error('Could not save the comment', { description: (error as Error).message })
     } finally {
       setBusy(false)
     }
@@ -188,51 +195,71 @@ function Editor({
   )
 }
 
+// The user's own comment, kept on this machine, carded like a GitHub comment with its actions at the top.
 function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
-  const { reviews } = useApp()
+  const { api, reviews } = useApp()
   const [editing, setEditing] = useState(false)
   const { comment, outdated } = note
-  if (editing) {
-    return (
-      <Editor
-        initial={comment.body}
-        label="Edit comment"
-        onSave={async (body) => {
-          await reviews.edit(comment.id, body)
-          setEditing(false)
-        }}
-        onCancel={() => setEditing(false)}
-      />
-    )
+  const remove = async () => {
+    const yes = await ask.confirm({
+      title: 'Delete comment',
+      body: 'Deletes it from the comments kept on this machine.',
+      action: 'Delete',
+      destructive: true,
+    })
+    if (yes)
+      await reviews
+        .remove(comment.id)
+        .catch((error: Error) => toast.error('Could not delete the comment', { description: error.message }))
   }
   return (
-    <article className="flex flex-col gap-1">
-      <header className="flex items-center gap-2 text-muted-foreground">
-        {lines(comment.startLine, comment.line) ? <span>{lines(comment.startLine, comment.line)}</span> : null}
-        {outdated ? <span>Outdated: line {comment.line} has changed</span> : null}
+    <article className="mx-3 my-2 max-w-3xl rounded-md border border-border bg-card font-normal font-sans">
+      <header className="flex items-center gap-2 border-border border-b px-3 py-1.5 text-muted-foreground">
+        <MessageSquare className="size-4" />
+        <span className="text-foreground">Your comment</span>
         <span>{relativeTime(comment.updatedAt / 1000)}</span>
-        <span className="ml-auto flex gap-1">
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() =>
-              reviews.remove(comment.id).catch((error: Error) => toast.error(`Could not delete: ${error.message}`))
-            }>
-            Delete
-          </Button>
+        {lines(comment.startLine, comment.line) ? <span>· {lines(comment.startLine, comment.line)}</span> : null}
+        {outdated ? (
+          <Badge variant="muted" size="sm" title={`Line ${comment.line} has changed since`}>
+            Outdated
+          </Badge>
+        ) : null}
+        <span className="ms-auto" />
+        <span className="flex shrink-0">
+          <CopyTool label="Copy as prompt" text={() => api.reviewPrompt(comment.target, comment.id)} />
+          <IconTool label="Edit comment" onClick={() => setEditing(true)}>
+            <Pencil />
+          </IconTool>
+          <IconTool destructive label="Delete comment" onClick={() => void remove()}>
+            <Trash2 />
+          </IconTool>
         </span>
       </header>
-      <p className="whitespace-pre-wrap text-foreground">{comment.body}</p>
+      <div className="px-3 py-2">
+        {editing ? (
+          <Editor
+            initial={comment.body}
+            label="Edit comment"
+            saveLabel="Update comment"
+            onSave={async (body) => {
+              await reviews.edit(comment.id, body)
+              setEditing(false)
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        ) : (
+          <GitHubBody text={comment.body} />
+        )}
+      </div>
     </article>
   )
 }
 
 function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['thread'] }) {
   const { pullReview } = useApp()
+  const me = useGitHub().status?.user?.login
   const [replying, setReplying] = useState(false)
+  const [editing, setEditing] = useState<number | null>(null)
   const root = thread[0]
   const state = useStore(pullReview, (value: PullReviewState) => (root ? value.threads.get(root.id) : undefined))
   // Resolved threads fold to one line, as GitHub shows them.
@@ -241,17 +268,34 @@ function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['t
     root &&
     pullReview.resolve(root.id, resolved).then(
       () => setOpen(!resolved),
-      (error: Error) => toast.error(error.message),
+      (error: Error) =>
+        toast.error(resolved ? 'Could not resolve the conversation' : 'Could not unresolve the conversation', {
+          description: error.message,
+        }),
     )
+  const remove = async (id: number) => {
+    const yes = await ask.confirm({
+      title: 'Delete comment',
+      body: 'Deletes it from the pull request on GitHub.',
+      action: 'Delete',
+      destructive: true,
+    })
+    if (yes)
+      await pullReview
+        .remove(id)
+        .catch((error: Error) => toast.error('Could not delete the comment', { description: error.message }))
+  }
   if (state?.resolved && !open) {
     return (
-      <button
+      <Button
+        variant="nothing"
+        size="none"
         type="button"
         onClick={() => setOpen(true)}
-        className="mx-3 my-2 flex max-w-3xl cursor-pointer items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-muted-foreground font-normal font-sans">
+        className="mx-3 my-2 flex max-w-3xl cursor-pointer items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-muted-foreground font-normal font-sans justify-start whitespace-normal">
         <CircleCheck className="size-4 text-added" />
         Resolved conversation by {root?.author.login} · {thread.length} {thread.length === 1 ? 'comment' : 'comments'}
-      </button>
+      </Button>
     )
   }
   return (
@@ -261,7 +305,37 @@ function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['t
       ) : null}
       {thread.map((comment) => (
         <div key={comment.id}>
-          <GitHubComment {...comment} bare />
+          {editing === comment.id ? (
+            <div className="p-2">
+              <Editor
+                initial={comment.body}
+                label="Edit comment"
+                saveLabel="Update comment"
+                onSave={async (body) => {
+                  await pullReview.edit(comment.id, body.trim())
+                  setEditing(null)
+                }}
+                onCancel={() => setEditing(null)}
+              />
+            </div>
+          ) : (
+            <GitHubComment
+              {...comment}
+              bare
+              extra={
+                comment.author.login === me ? (
+                  <span className="flex justify-end">
+                    <IconTool label="Edit comment" onClick={() => setEditing(comment.id)}>
+                      <Pencil />
+                    </IconTool>
+                    <IconTool destructive label="Delete comment" onClick={() => void remove(comment.id)}>
+                      <Trash2 />
+                    </IconTool>
+                  </span>
+                ) : undefined
+              }
+            />
+          )}
           {HAS_SUGGESTION.test(comment.body) ? (
             <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
               <SuggestionActions id={comment.id} outdated={comment.line === null || Boolean(state?.outdated)} />
@@ -303,7 +377,7 @@ function Pending({ note }: { note: Extract<Note, { kind: 'pending' }> }) {
   return (
     <div className="mx-3 my-2 flex max-w-3xl flex-col gap-2 rounded-md border border-tn-yellow/40 bg-card p-3 font-normal font-sans">
       <header className="flex items-center gap-2">
-        <Badge variant="outline" size="sm" className="border-tn-yellow/40 text-tn-yellow">
+        <Badge variant="soft-warning" size="sm">
           Pending
         </Badge>
         <span className="text-muted-foreground">Sent with your review</span>
@@ -322,46 +396,43 @@ export function ReviewNote({ note }: { note: Note }) {
   if (note.kind === 'image') return <ImagePreview file={note.file} />
   if (note.kind === 'github') return <GitHubThread thread={note.thread} />
   if (note.kind === 'pending') return <Pending note={note} />
+  if (note.kind === 'comment') return <Comment note={note} />
   return (
     <div className="mx-3 my-2 max-w-3xl rounded-md border border-border bg-card p-3 font-normal font-sans shadow-xs">
-      {note.kind === 'draft' && pickedText(note.draft) ? (
+      {pickedText(note.draft) ? (
         <p className="mb-2 truncate text-muted-foreground">
           Commenting on{' '}
           <code className="rounded-sm bg-tn-yellow/20 px-1 text-foreground">{pickedText(note.draft)}</code>
         </p>
-      ) : note.kind === 'draft' && note.draft.startLine ? (
+      ) : note.draft.startLine ? (
         <p className="mb-2 text-muted-foreground">
           Commenting on {lines(note.draft.startLine, note.draft.line)?.toLowerCase()}
         </p>
       ) : null}
-      {note.kind === 'draft' ? (
-        <Editor
-          initial=""
-          label="New comment"
-          onSave={(body) => reviews.save(body)}
-          onCancel={() => reviews.cancelDraft()}
-          suggestFrom={pull === null ? undefined : note.draft.text}
-          onPending={
-            pull === null
-              ? undefined
-              : async (body) => {
-                  pullReview.addPending(toComment(note.draft, body))
-                  reviews.cancelDraft()
-                }
-          }
-          onPublish={
-            pull === null
-              ? undefined
-              : async (body) => {
-                  await pullReview.post(toComment(note.draft, body))
-                  reviews.cancelDraft()
-                  toast(`Commented on #${pull}`)
-                }
-          }
-        />
-      ) : (
-        <Comment note={note} />
-      )}
+      <Editor
+        initial=""
+        label="New comment"
+        onSave={(body) => reviews.save(body)}
+        onCancel={() => reviews.cancelDraft()}
+        suggestFrom={pull === null ? undefined : note.draft.text}
+        onPending={
+          pull === null
+            ? undefined
+            : async (body) => {
+                pullReview.addPending(toComment(note.draft, body))
+                reviews.cancelDraft()
+              }
+        }
+        onPublish={
+          pull === null
+            ? undefined
+            : async (body) => {
+                await pullReview.post(toComment(note.draft, body))
+                reviews.cancelDraft()
+                toast.success(`Commented on #${pull}`, { description: `${note.draft.path}, line ${note.draft.line}` })
+              }
+        }
+      />
     </div>
   )
 }

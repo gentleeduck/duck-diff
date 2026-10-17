@@ -19,7 +19,9 @@ export function blameSides(target: DiffTarget): { old: BlameAt; new: BlameAt | n
         new: { ref: target.to },
       }
     case 'staged':
-      return { old: { ref: 'HEAD' }, new: null }
+      return { old: { ref: target.base ?? 'HEAD' }, new: null }
+    case 'local':
+      return { old: { ref: target.base ?? 'HEAD' }, new: {} }
     default:
       return { old: { ref: 'HEAD' }, new: {} }
   }

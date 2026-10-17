@@ -67,12 +67,12 @@ describe('clearCaches', () => {
   it('removes one repo cache or all of them, keeping the rest of the data', async () => {
     data = mkdtempSync(join(tmpdir(), 'duck-data-'))
     for (const id of ['a1', 'b2']) {
-      mkdirSync(join(data, 'duck-diff', id, 'cache'), { recursive: true })
-      writeFileSync(join(data, 'duck-diff', id, 'reviews.json'), '[]')
+      mkdirSync(join(data, id, 'cache'), { recursive: true })
+      writeFileSync(join(data, id, 'reviews.json'), '[]')
     }
     expect(await clearCaches(data, null)).toBe(2)
-    expect(existsSync(join(data, 'duck-diff', 'a1', 'cache'))).toBe(false)
-    expect(existsSync(join(data, 'duck-diff', 'a1', 'reviews.json'))).toBe(true)
+    expect(existsSync(join(data, 'a1', 'cache'))).toBe(false)
+    expect(existsSync(join(data, 'a1', 'reviews.json'))).toBe(true)
     expect(await clearCaches(data, null)).toBe(0)
   })
 })

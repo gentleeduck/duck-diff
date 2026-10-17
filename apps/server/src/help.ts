@@ -78,7 +78,7 @@ ${rows([
 ])}
 
 A page already open for the repo is reused: the view opens there in a new tab, no second server.
-Settings, comments and caches live in ${green('$XDG_DATA_HOME/duck-diff')}. Ctrl-C stops it.`
+Settings, comments, caches and undo snapshots live in ${green('~/.duck-diff')} (or ${green('$DUCK_DIFF_HOME')}). Ctrl-C stops it.`
 
 const TOPICS: Record<string, () => string> = {
   serve: () => `${bold('duck-diff serve')} ${dim('[--repo <path>]... [--port <n>] [--nvim <address>] [--no-terminal]')}

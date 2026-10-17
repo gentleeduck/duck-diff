@@ -10,12 +10,14 @@ let repo: TestRepo
 let server: RunningServer
 let outside: string
 const opened: string[] = []
+const pages: string[] = []
 const nvimCalls: string[][] = []
 afterEach(async () => {
   await server.stop()
   repo.cleanup()
   rmSync(outside, { recursive: true, force: true })
   opened.length = 0
+  pages.length = 0
   nvimCalls.length = 0
 })
 beforeAll(() => {
@@ -44,6 +46,10 @@ async function start(nvim: string | null = null) {
       opened.push(path)
       return { url: `http://127.0.0.1:1/?token=${opened.length}`, child: null }
     },
+    openPage: async (url) => {
+      pages.push(url)
+      return true
+    },
   })
 }
 
@@ -62,7 +68,11 @@ describe('worktree routes', () => {
     const trees = await (await call('/api/worktrees')).json()
     expect(trees.map((tree: { branch: string }) => tree.branch)).toEqual(['main', 'feature'])
 
-    expect(await (await call('/api/open-repo', { path })).json()).toEqual({ url: 'http://127.0.0.1:1/?token=1' })
+    expect(await (await call('/api/open-repo', { path })).json()).toEqual({
+      url: 'http://127.0.0.1:1/?token=1',
+      opened: true,
+    })
+    expect(pages).toEqual(['http://127.0.0.1:1/?token=1'])
     expect(opened).toEqual([path])
     expect((await call('/api/open-repo', { path: outside })).status).toBe(404)
     expect((await call('/api/open-repo', { path: 'relative/path' })).status).toBe(400)

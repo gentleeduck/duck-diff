@@ -1,6 +1,5 @@
 export interface TreeRow {
   path: string
-  // A chain of single-folder directories shows as one row, "a/b/c".
   name: string
   kind: 'file' | 'directory'
   depth: number
@@ -50,17 +49,12 @@ export function visibleRows(root: Dir, toggled: ReadonlySet<string>, open = true
     const dirNames = [...dir.dirs.keys()].sort(compare)
     const lastDir = dir.files.length === 0 ? dirNames.at(-1) : undefined
     for (const name of dirNames) {
-      let child = dir.dirs.get(name) as Dir
-      let label = name
-      while (child.files.length === 0 && child.dirs.size === 1) {
-        const [[next, only]] = child.dirs as unknown as [[string, Dir]]
-        label = `${label}/${next}`
-        child = only
-      }
+      // One row per folder, never a merged a/b/c: nvim-tree draws it so without group_empty.
+      const child = dir.dirs.get(name) as Dir
       const expanded = open !== toggled.has(child.path)
       rows.push({
         path: child.path,
-        name: label,
+        name,
         kind: 'directory',
         depth: ancestors.length,
         ancestors,

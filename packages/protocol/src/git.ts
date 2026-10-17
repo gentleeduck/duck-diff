@@ -15,8 +15,9 @@ export const RepoPathSchema = z
 
 export const DiffTargetSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('unstaged') }),
-  z.object({ kind: z.literal('staged') }),
-  z.object({ kind: z.literal('local') }),
+  // base: the commit the index or working tree is compared with, HEAD when left out.
+  z.object({ kind: z.literal('staged'), base: RefNameSchema.optional() }),
+  z.object({ kind: z.literal('local'), base: RefNameSchema.optional() }),
   z.object({
     kind: z.literal('range'),
     from: RefNameSchema,
@@ -58,6 +59,29 @@ export const ChangedFileSchema = z.object({
   submodule: z.boolean().optional(),
 })
 export type ChangedFile = z.infer<typeof ChangedFileSchema>
+
+// What git makes of a revision typed in a picker: one commit, both sides of a range, or why it is neither.
+export const ResolvedCommitSchema = z.object({
+  kind: z.literal('commit'),
+  // What a diff target takes: the text as typed when it can be a ref, so HEAD~1 stays relative, else the hash.
+  ref: RefNameSchema,
+  sha: z.string(),
+  subject: z.string(),
+  // How a typed form was read, such as ^abc as the commit before abc.
+  note: z.string().nullable(),
+})
+export type ResolvedCommit = z.infer<typeof ResolvedCommitSchema>
+export const ResolvedRevisionSchema = z.discriminatedUnion('kind', [
+  ResolvedCommitSchema,
+  z.object({
+    kind: z.literal('range'),
+    from: ResolvedCommitSchema,
+    to: ResolvedCommitSchema,
+    mode: z.enum(['two-dot', 'merge-base']),
+  }),
+  z.object({ kind: z.literal('unknown'), reason: z.string() }),
+])
+export type ResolvedRevision = z.infer<typeof ResolvedRevisionSchema>
 
 export const CommitSchema = z.object({
   sha: z.string(),

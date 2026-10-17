@@ -5,6 +5,9 @@ export type PageRow =
   | { type: 'header'; key: string; item: NoteItem }
   | { type: 'row'; key: string; item: NoteItem; row: DiffRow; rowsKey: string }
   | { type: 'note'; key: string; item: NoteItem; note: Note }
+  // Split view: a line pair's notes in one row, the old side's under the left column and the new side's
+  // under the right, as GitHub lays out its split diff.
+  | { type: 'notes'; key: string; item: NoteItem; left: Note[]; right: Note[] }
   | { type: 'end'; key: string; item: NoteItem }
 
 export interface Page {
@@ -66,6 +69,16 @@ export function buildPage(
         const keys = rowLineKeys(item.id, row)
         for (const key of keys) if (!lines.has(key)) lines.set(key, rows.length)
         rows.push({ type: 'row', key: `${item.id}:${options.key}:${i}`, item, row, rowsKey: options.key })
+        if (layout === 'split') {
+          const left: Note[] = []
+          const right: Note[] = []
+          for (const key of new Set(keys)) {
+            ;(key.includes(':deletions:') ? left : right).push(...(placed.get(key) ?? []))
+            placed.delete(key)
+          }
+          if (left.length || right.length) rows.push({ type: 'notes', key: `${keys[0]}:notes`, item, left, right })
+          continue
+        }
         for (const key of new Set(keys)) {
           for (const [n, note] of (placed.get(key) ?? []).entries()) {
             rows.push({ type: 'note', key: `${key}:note:${n}`, item, note })

@@ -1,9 +1,8 @@
 import { type DiffTarget, targetKey } from '@duck-diff/protocol'
-import { Button } from '@duck-diff/ui'
+import { Badge, Button, Tabs, TabsList, TabsTrigger } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft,
-  Copy,
   Eye,
   FileDiff,
   GitCommitHorizontal,
@@ -20,8 +19,9 @@ import {
 import { type ReactNode, Suspense, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
-import { IconTool } from '../app/IconTool'
+import { CopyTool } from '../app/CopyTool'
 import { KeepAlive } from '../app/KeepAlive'
+import { pageColumn, THREAD_GRID } from '../app/page-column'
 import { DiffSkeleton, ListRowsSkeleton, ThreadSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useTarget } from '../hooks/useTarget'
@@ -64,34 +64,19 @@ function DiffBlocks({ additions, deletions }: { additions: number; deletions: nu
   )
 }
 
-function TabButton({
-  id,
-  current,
-  onSelect,
-  icon,
-  label,
-  count,
-}: {
-  id: Tab
-  current: Tab
-  onSelect(tab: Tab): void
-  icon: ReactNode
-  label: string
-  count?: number
-}) {
+function TabButton({ id, icon, label, count }: { id: Tab; icon: ReactNode; label: string; count?: number }) {
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={current === id}
-      onClick={() => onSelect(id)}
-      className="-mb-px flex cursor-pointer items-center gap-2 border-transparent border-b-2 px-3 py-2 text-muted-foreground hover:text-foreground aria-selected:border-tn-orange aria-selected:text-foreground">
+    <TabsTrigger
+      value={id}
+      className="-mb-px h-auto gap-2 rounded-none border-transparent border-b-2 bg-transparent px-3 py-2 text-muted-foreground shadow-none hover:text-foreground aria-selected:border-tn-orange aria-selected:text-foreground">
       {icon}
       {label}
       {count !== undefined ? (
-        <span className="rounded-full bg-muted px-1.5 text-muted-foreground tabular-nums">{count}</span>
+        <Badge variant="muted" size="sm" className="rounded-full tabular-nums">
+          {count}
+        </Badge>
       ) : null}
-    </button>
+    </TabsTrigger>
   )
 }
 
@@ -116,13 +101,15 @@ function Commits({ number }: { number: number }) {
               {commit.author.login !== 'ghost' ? commit.author.login : commit.authorName} committed {ago(commit.date)}
             </span>
           </span>
-          <button
+          <Button
+            variant="nothing"
+            size="none"
             type="button"
-            className="cursor-pointer text-tn-comment hover:text-tn-blue"
+            className="cursor-pointer text-tn-comment hover:text-tn-blue justify-start rounded-none whitespace-normal"
             title="Show in the commit graph"
             onClick={() => graphSelection.set(commit.sha)}>
             {commit.sha.slice(0, 7)}
-          </button>
+          </Button>
         </li>
       ))}
     </ul>
@@ -172,6 +159,16 @@ function Files({ number, head }: { number: number; head: string }) {
 
 const selectTab = (tab: PullTab) => tab
 
+// What a failed action on the pull request says, above GitHub's own reason.
+const FAILED: Record<string, string> = {
+  base: 'Could not change the base branch',
+  branch: 'Could not change the head branch',
+  comment: 'Could not post the comment',
+  draft: 'Could not change the draft state',
+  lock: 'Could not change the lock',
+  state: 'Could not close or reopen it',
+}
+
 export default function PullView({ number, onChanged }: { number: number; onChanged(): void }) {
   const { api, pullSelection, queries, queryClient } = useApp()
   const github = useGitHub()
@@ -206,12 +203,12 @@ export default function PullView({ number, onChanged }: { number: number; onChan
     setBusy(name)
     try {
       await task()
-      toast(done)
+      toast.success(done)
       await reloadThread()
       onChanged()
       return true
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error(FAILED[name] ?? 'GitHub did not take that change', { description: (error as Error).message })
       return false
     } finally {
       setBusy(null)
@@ -219,18 +216,20 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   }
 
   const back = (
-    <button
+    <Button
+      variant="nothing"
+      size="none"
       type="button"
       onClick={() => pullSelection.set(null)}
-      className="flex w-fit cursor-pointer items-center gap-1 text-tn-blue hover:underline">
+      className="flex w-fit cursor-pointer items-center gap-1 text-tn-blue hover:underline justify-start rounded-none whitespace-normal">
       <ArrowLeft className="size-4" />
       Pull requests
-    </button>
+    </Button>
   )
 
   if (failed) {
     return (
-      <div className="flex w-full flex-col gap-3 p-6">
+      <div {...pageColumn('gap-3')}>
         {back}
         <p className="text-removed">
           Could not read #{number}: {failed}
@@ -240,7 +239,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
   }
   if (!pull) {
     return (
-      <div className="flex w-full flex-col gap-3 p-6">
+      <div {...pageColumn('gap-3')}>
         {back}
         <ThreadSkeleton tabs />
       </div>
@@ -256,7 +255,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
 
   return (
     <article ref={page} aria-label={`Pull request ${number}`} className="h-full overflow-y-auto">
-      <div className="flex w-full flex-col gap-3 p-6">
+      <div {...pageColumn('gap-3')}>
         {back}
         <div className="flex items-start gap-3">
           <ThreadTitle number={pull.number} title={pull.title} />
@@ -338,60 +337,53 @@ export default function PullView({ number, onChanged }: { number: number; onChan
                   void act('base', () => api.github.setBase(number, base), `Now merging into ${base}`)
               }}
               trigger={
-                <button
+                <Button
+                  variant="nothing"
+                  size="none"
                   type="button"
                   title="Change the base branch"
-                  className="cursor-pointer rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue hover:bg-tn-blue/25">
-                  {pull.baseRef}
-                </button>
+                  className="rounded-md">
+                  <Badge variant="soft-info" size="sm" className="hover:bg-info/25">
+                    {pull.baseRef}
+                  </Badge>
+                </Button>
               }
             />
           ) : (
-            <code className="rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue">{pull.baseRef}</code>
+            <Badge variant="soft-info" size="sm">
+              {pull.baseRef}
+            </Badge>
           )}
           <span>from</span>
-          <code className="rounded-sm bg-tn-blue/15 px-1.5 text-tn-blue">{pull.headRef}</code>
-          <IconTool
-            label={`Copy ${pull.headRef}`}
-            tip="Copy branch name"
-            onClick={() =>
-              void navigator.clipboard.writeText(pull.headRef).then(() => toast('Copied the branch name'))
-            }>
-            <Copy />
-          </IconTool>
+          <Badge variant="soft-info" size="sm">
+            {pull.headRef}
+          </Badge>
+          <CopyTool label="Copy branch name" text={pull.headRef} />
         </div>
-        <div role="tablist" aria-label="Pull request" className="flex items-end border-border border-b">
-          <TabButton
-            id="conversation"
-            current={tab}
-            onSelect={setTab}
-            icon={<MessageSquare className="size-4" />}
-            label="Conversation"
-            count={thread?.timeline.filter((event) => event.kind === 'comment').length}
-          />
-          <TabButton
-            id="commits"
-            current={tab}
-            onSelect={setTab}
-            icon={<GitCommitHorizontal className="size-4" />}
-            label="Commits"
-            count={pull.commits}
-          />
-          <TabButton
-            id="checks"
-            current={tab}
-            onSelect={setTab}
-            icon={<ListChecks className="size-4" />}
-            label="Checks"
-          />
-          <TabButton
-            id="files"
-            current={tab}
-            onSelect={setTab}
-            icon={<FileDiff className="size-4" />}
-            label="Files changed"
-            count={pull.changedFiles}
-          />
+        <div className="flex items-end border-border border-b">
+          <Tabs value={tab} onValueChange={(next) => setTab(next as Tab)}>
+            <TabsList aria-label="Pull request" className="h-auto gap-0 rounded-none bg-transparent p-0">
+              <TabButton
+                id="conversation"
+                icon={<MessageSquare className="size-4" />}
+                label="Conversation"
+                count={thread?.timeline.filter((event) => event.kind === 'comment').length}
+              />
+              <TabButton
+                id="commits"
+                icon={<GitCommitHorizontal className="size-4" />}
+                label="Commits"
+                count={pull.commits}
+              />
+              <TabButton id="checks" icon={<ListChecks className="size-4" />} label="Checks" />
+              <TabButton
+                id="files"
+                icon={<FileDiff className="size-4" />}
+                label="Files changed"
+                count={pull.changedFiles}
+              />
+            </TabsList>
+          </Tabs>
           <span className="ms-auto flex items-center gap-3 pb-1.5">
             <span className="flex items-center gap-1.5 tabular-nums">
               <span className="text-added">+{pull.additions.toLocaleString()}</span>
@@ -412,7 +404,7 @@ export default function PullView({ number, onChanged }: { number: number; onChan
           <Files number={number} head={pull.headSha} />
         </KeepAlive>
         <KeepAlive active={tab === 'conversation'}>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
+          <div className={THREAD_GRID}>
             <div className="flex min-w-0 flex-col gap-4">
               {thread ? (
                 <ThreadView

@@ -42,6 +42,20 @@ test('files are hidden by pattern, tests first, and emptied folders leave the tr
   await expect(page.getByRole('list', { name: 'Hide patterns' })).not.toContainText('^nothing/')
 })
 
+test('each view keeps its own left panel shown or hidden', async ({ page, app }) => {
+  await page.goto(app.url)
+  const changes = page.getByRole('navigation', { name: 'Changed files' })
+  await changes.getByRole('button', { name: 'Hide changed files' }).click()
+  await expect(changes).toHaveCount(0)
+  // Another view's panel stays as it was.
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await expect(page.getByRole('tree', { name: 'All files' })).toBeVisible()
+  await page.getByRole('button', { name: 'Changes', exact: true }).click()
+  await expect(changes).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Show changed files' })).toBeVisible()
+})
+
 test('each view hides its own left panel, and views without one show no toggle', async ({ page, app }) => {
   await page.goto(app.url)
   const panel = page.getByRole('navigation', { name: 'Changed files' })
@@ -95,4 +109,20 @@ test('when the patterns hide every file, the tree and the diff say so and can tu
   await page.getByRole('button', { name: 'Turn the patterns off' }).first().click()
   await expect(tree.getByRole('treeitem', { name: /app\.ts/ })).toBeVisible()
   await expect(page.locator('main')).toContainText('export const answer = 42')
+})
+
+test('a full page reads in a column as wide as GitHub keeps its own, centred on a wide screen', async ({
+  page,
+  app,
+}) => {
+  await page.setViewportSize({ width: 2400, height: 900 })
+  await page.goto(`${app.url}&view=insights`)
+  const column = page.locator('[data-page-column]').first()
+  await expect(column).toBeVisible()
+  const box = await column.boundingBox()
+  const main = await page.getByRole('main').boundingBox()
+  if (!box || !main) throw new Error('no page column')
+  expect(box.width).toBeLessThanOrEqual(1280)
+  // Centred in the space the page has, not pinned to its left edge.
+  expect(Math.abs(box.x - main.x - (main.width - box.width) / 2)).toBeLessThan(2)
 })

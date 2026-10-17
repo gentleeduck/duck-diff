@@ -1,13 +1,9 @@
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { repoId } from '@duck-diff/git'
 
-export const dataHome = () => process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share')
-
 // Removes the cache of one repo, or of every repo; reviews and the repo list beside it stay.
-export async function clearCaches(data: string, repo: string | null): Promise<number> {
-  const root = join(data, 'duck-diff')
+export async function clearCaches(root: string, repo: string | null): Promise<number> {
   const ids = repo ? [repoId(repo)] : await readdir(root).catch(() => [])
   let cleared = 0
   for (const id of ids) {

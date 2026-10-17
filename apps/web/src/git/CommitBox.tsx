@@ -52,7 +52,7 @@ export function CommitBox() {
   return (
     <form
       aria-label="Commit"
-      className="flex flex-col gap-2 border-border border-t p-3"
+      className="@container flex flex-col gap-2 border-border border-t p-3"
       onSubmit={(event) => {
         event.preventDefault()
         if (ready) void commit(false)
@@ -91,18 +91,23 @@ export function CommitBox() {
           <Label htmlFor={signoffId}>Sign off</Label>
         </div>
       </div>
-      <div className="flex gap-2">
-        <Button type="submit" size="sm" className="flex-1" disabled={!ready} loading={busy === 'commit'}>
+      {/* Two equal halves; when a half is too narrow for the long label, it says the short one. */}
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+        <Button type="submit" size="sm" className="min-w-0" disabled={!ready} loading={busy === 'commit'}>
           <GitCommitHorizontal />
-          {amend ? 'Amend' : 'Commit'}
+          <span className="truncate">{amend ? 'Amend' : 'Commit'}</span>
         </Button>
         <Button
           type="button"
           size="sm"
           variant="outline"
+          className="min-w-0"
+          aria-label="Commit and push"
           disabled={!ready || !status?.branch}
           onClick={() => void commit(true)}>
-          Commit and push
+          <Upload />
+          <span className="truncate @max-[25rem]:hidden">Commit and push</span>
+          <span className="hidden truncate @max-[25rem]:inline">Push</span>
         </Button>
         <Popover open={more} onOpenChange={setMore}>
           <PopoverTrigger asChild>

@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
+  Fragment,
   forwardRef,
   type ReactNode,
   useCallback,
@@ -11,7 +12,7 @@ import {
 } from 'react'
 import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
 import { glide } from '../lib/glide'
-import type { Note, NoteItem } from '../review/annotations'
+import { type Note, type NoteItem, noteKey } from '../review/annotations'
 import { anchorId, type Page, type PageRow } from './page'
 import { LineRow, RowContext, type RowContextValue } from './RowViews'
 import { useCodeScrollX } from './useCodeScrollX'
@@ -38,7 +39,7 @@ interface DiffViewProps {
   onTopItem?(item: NoteItem | null): void
 }
 
-const ESTIMATE: Record<PageRow['type'], number> = { header: 48, row: 22, note: 120, end: 16 }
+const ESTIMATE: Record<PageRow['type'], number> = { header: 48, row: 22, note: 120, notes: 120, end: 16 }
 
 const PREFETCH_ROWS = 600
 const PREFETCH_FILES = 4
@@ -217,7 +218,7 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
   const lastRows = useMemo(() => {
     const last = new Map<string, number>()
     page.rows.forEach((row, index) => {
-      if (row.type === 'row' || row.type === 'note') last.set(row.item.id, index)
+      if (row.type === 'row' || row.type === 'note' || row.type === 'notes') last.set(row.item.id, index)
     })
     return last
   }, [page])
@@ -258,6 +259,23 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
     () => (row: PageRow) => {
       if (row.type === 'header') return renderHeader(row.item)
       if (row.type === 'note') return renderNote(row.note)
+      if (row.type === 'notes') {
+        return (
+          <div className="flex items-start">
+            <div className="min-w-0 flex-1">
+              {row.left.map((note) => (
+                <Fragment key={noteKey(note)}>{renderNote(note)}</Fragment>
+              ))}
+            </div>
+            <span className="w-px shrink-0 self-stretch bg-border" />
+            <div className="min-w-0 flex-1">
+              {row.right.map((note) => (
+                <Fragment key={noteKey(note)}>{renderNote(note)}</Fragment>
+              ))}
+            </div>
+          </div>
+        )
+      }
       if (row.type === 'end') return <div className="h-4" />
       return <LineRow item={row.item} row={row.row} />
     },

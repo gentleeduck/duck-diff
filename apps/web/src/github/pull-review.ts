@@ -1,5 +1,13 @@
-import type { DiffTarget, GitHubReviewComment, PendingComment, PullDetails, ReviewState } from '@duck-diff/protocol'
+import {
+  type DiffTarget,
+  type GitHubReviewComment,
+  type PendingComment,
+  PendingCommentSchema,
+  type PullDetails,
+  type ReviewState,
+} from '@duck-diff/protocol'
 import type { Api, ReviewEvent } from '../lib/api'
+import { saved } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
 
 const PULL_REF = /^refs\/duck-diff\/pr\/(\d+)$/
@@ -32,8 +40,12 @@ export interface PullReviewState {
 
 export interface PullReview extends Store<PullReviewState> {
   load(number: number | null): Promise<void>
+  // Pending comments are kept per repository and pull request; this says which repository once it is known.
+  restore(repo: string): void
   post(input: PendingComment): Promise<void>
   reply(inReplyTo: number, body: string): Promise<void>
+  edit(id: number, body: string): Promise<void>
+  remove(id: number): Promise<void>
   addPending(comment: PendingComment): void
   removePending(index: number): void
   submit(event: ReviewEvent, body: string): Promise<void>
@@ -66,8 +78,33 @@ export function createPullReview(
     reviewState: (number) => api.github.reviewState(number),
     changed: async () => {},
   },
+  storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null = saved,
 ): PullReview {
   const store = createStore<PullReviewState>({ number: null, ...EMPTY })
+
+  // A review not sent yet is kept on disk, so closing the page or restarting duck-diff never loses it.
+  let repo: string | null = null
+  const keyOf = (number: number) => (repo ? `duck-diff:pending-review:${repo}#${number}` : null)
+  const readPending = (number: number | null): PendingComment[] => {
+    const key = number === null ? null : keyOf(number)
+    if (!key) return []
+    try {
+      const parsed = PendingCommentSchema.array().safeParse(JSON.parse(storage?.getItem(key) ?? '[]'))
+      return parsed.success ? parsed.data : []
+    } catch {
+      return []
+    }
+  }
+  const setPending = (next: (pending: PendingComment[]) => PendingComment[]) => {
+    store.set((prev) => ({ ...prev, pending: next(prev.pending) }))
+    const { number, pending } = store.get()
+    const key = number === null ? null : keyOf(number)
+    if (!key) return
+    try {
+      if (pending.length) storage?.setItem(key, JSON.stringify(pending))
+      else storage?.removeItem(key)
+    } catch {}
+  }
 
   const read = async (number: number) => {
     const [{ reviewComments }, state] = await Promise.all([
@@ -87,16 +124,21 @@ export function createPullReview(
     ...store,
     async load(number) {
       if (number === store.get().number) return
-      store.set({ number, ...EMPTY })
+      store.set({ number, ...EMPTY, pending: readPending(number) })
       if (number !== null) await read(number)
     },
-    addPending: (comment) => store.set((prev) => ({ ...prev, pending: [...prev.pending, comment] })),
-    removePending: (index) => store.set((prev) => ({ ...prev, pending: prev.pending.filter((_, i) => i !== index) })),
+    restore(next) {
+      repo = next
+      const { number, pending } = store.get()
+      if (number !== null && pending.length === 0) store.set((prev) => ({ ...prev, pending: readPending(number) }))
+    },
+    addPending: (comment) => setPending((pending) => [...pending, comment]),
+    removePending: (index) => setPending((pending) => pending.filter((_, i) => i !== index)),
     async submit(event, body) {
       const { number, pending } = store.get()
       if (number === null) return
       await api.github.review(number, event, body, pending)
-      store.set((prev) => ({ ...prev, pending: [] }))
+      setPending(() => [])
       await reads.changed(number)
       await read(number)
     },
@@ -136,6 +178,29 @@ export function createPullReview(
       if (number === null) return
       const comment = await api.github.reviewComment(number, input)
       store.set((prev) => ({ ...prev, comments: [...prev.comments, comment] }))
+      void reads.changed(number)
+    },
+    async edit(id, body) {
+      const { number } = store.get()
+      if (number === null) return
+      await api.github.editReviewComment(id, body)
+      store.set((prev) => ({
+        ...prev,
+        comments: prev.comments.map((comment) => (comment.id === id ? { ...comment, body } : comment)),
+        // The edit may have taken the suggestion out; one that is still there is batched again by hand.
+        batch: prev.batch.filter((entry) => entry !== id),
+      }))
+      void reads.changed(number)
+    },
+    async remove(id) {
+      const { number } = store.get()
+      if (number === null) return
+      await api.github.deleteReviewComment(id)
+      store.set((prev) => ({
+        ...prev,
+        comments: prev.comments.filter((comment) => comment.id !== id),
+        batch: prev.batch.filter((entry) => entry !== id),
+      }))
       void reads.changed(number)
     },
     async reply(inReplyTo, body) {

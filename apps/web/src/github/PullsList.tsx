@@ -28,7 +28,7 @@ export function PullsList({ onChanged }: { onChanged(): void }) {
       navigate({ kind: 'range', from: refs.base, to: refs.head, mode: 'merge-base' })
       show('changes')
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error(`Could not fetch #${number}`, { description: (error as Error).message })
     }
   }
   return (

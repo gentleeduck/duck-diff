@@ -15,15 +15,16 @@ import {
   CircleDashed,
   CircleSlash,
   CircleX,
-  Loader,
+  LoaderCircle,
   RefreshCw,
-  RotateCcw,
+  RotateCw,
   SquareArrowOutUpRight,
 } from 'lucide-react'
 import { type ReactNode, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { pageColumn } from '../app/page-column'
 import { ListRowsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { Avatar } from './Conversation'
@@ -34,7 +35,7 @@ import { ago } from './time'
 export function runState(run: Pick<WorkflowRun, 'status' | 'conclusion'>): { icon: ReactNode; text: string } {
   if (run.status !== 'completed') {
     return run.status === 'in_progress'
-      ? { icon: <Loader className="size-4 animate-spin text-tn-yellow" />, text: 'In progress' }
+      ? { icon: <LoaderCircle className="size-4 animate-spin text-tn-yellow" />, text: 'In progress' }
       : { icon: <CircleDashed className="size-4 text-tn-yellow" />, text: 'Queued' }
   }
   if (run.conclusion === 'success') return { icon: <CircleCheck className="size-4 text-added" />, text: 'Succeeded' }
@@ -54,17 +55,21 @@ export function Actions() {
   const act = async (run: WorkflowRun, action: 'rerun' | 'rerun-failed' | 'cancel') => {
     try {
       await api.github.runAction(run.id, action)
-      toast(action === 'cancel' ? `Cancelling ${run.name}` : `Re-running ${run.name}`)
+      toast(action === 'cancel' ? `Cancelling ${run.name}` : `Re-running ${run.name}`, {
+        description: 'Its status here updates as GitHub reports it.',
+      })
       await refetch()
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error(action === 'cancel' ? `Could not cancel ${run.name}` : `Could not re-run ${run.name}`, {
+        description: (error as Error).message,
+      })
     }
   }
 
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see workflow runs.</p>
   return (
     <div ref={page} className="h-full overflow-y-auto">
-      <div className="flex w-full flex-col gap-4 p-6">
+      <div {...pageColumn('gap-4')}>
         <div className="rounded-md border border-border">
           <div className="flex items-center gap-2 border-border border-b bg-card px-4 py-1">
             <span className="flex-1">{items ? `${items.length} workflow runs` : 'Workflow runs'}</span>
@@ -108,7 +113,7 @@ export function Actions() {
                           label={`Re-run ${run.name}`}
                           tip="Re-run all jobs"
                           onClick={() => void act(run, 'rerun')}>
-                          <RotateCcw />
+                          <RotateCw />
                         </IconTool>
                       ) : (
                         <IconTool label={`Cancel ${run.name}`} tip="Cancel run" onClick={() => void act(run, 'cancel')}>
@@ -127,13 +132,13 @@ export function Actions() {
                     {done ? (
                       <>
                         <ContextMenuItem onSelect={() => void act(run, 'rerun')}>
-                          <RotateCcw />
+                          <RotateCw />
                           Re-run all jobs
                         </ContextMenuItem>
                         <ContextMenuItem
                           disabled={run.conclusion === 'success'}
                           onSelect={() => void act(run, 'rerun-failed')}>
-                          <RotateCcw />
+                          <RotateCw />
                           Re-run failed jobs
                         </ContextMenuItem>
                       </>

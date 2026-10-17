@@ -1,8 +1,9 @@
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRepo } from '@duck-diff/testing'
-import { expect, test } from './fixture'
+import { expect, openedPage, test } from './fixture'
 
 test('a moved submodule reads as old to new commit with the commits between', async ({ page, app, repo }) => {
   const lib = createRepo()
@@ -34,7 +35,7 @@ test('a moved submodule reads as old to new commit with the commits between', as
   }
 })
 
-test('a worktree is added from the sidebar, opens in its own tab, and is removed', async ({ page, app, repo }) => {
+test('a worktree is added from the sidebar, opens on its own page, and is removed', async ({ page, app, repo }) => {
   const outside = realpathSync(mkdtempSync(join(tmpdir(), 'duck-diff-e2e-wt-')))
   try {
     repo.commit('work in progress')
@@ -49,10 +50,8 @@ test('a worktree is added from the sidebar, opens in its own tab, and is removed
     expect(repo.git('worktree', 'list')).toContain('[next]')
 
     await trees.getByText(folder).hover()
-    const [tab] = await Promise.all([
-      page.context().waitForEvent('page'),
-      trees.getByRole('button', { name: `Open ${folder} in a new tab` }).click(),
-    ])
+    await trees.getByRole('button', { name: `Open ${folder}`, exact: true }).click()
+    const tab = await openedPage(page.context(), app.browsed)
     // The new server took the token into its cookie and dropped it from the url.
     await expect(tab).toHaveURL(/\/changes/)
     await expect(tab).not.toHaveURL(/token=/)
@@ -68,7 +67,40 @@ test('a worktree is added from the sidebar, opens in its own tab, and is removed
   }
 })
 
-test('the repo switcher adds another repository and opens it in its own tab', async ({ page, app }) => {
+test('a separate checkout kept in .claude/worktrees is listed as one and opens from its row', async ({
+  page,
+  app,
+  repo,
+}) => {
+  const copy = join(repo.path, '.claude', 'worktrees', 'copy')
+  mkdirSync(copy, { recursive: true })
+  const git = (...args: string[]) =>
+    execFileSync('git', args, {
+      cwd: copy,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: 'D',
+        GIT_AUTHOR_EMAIL: 'd@d',
+        GIT_COMMITTER_NAME: 'D',
+        GIT_COMMITTER_EMAIL: 'd@d',
+      },
+    })
+  git('init', '-q', '-b', 'synced')
+  writeFileSync(join(copy, 'c.txt'), 'c\n')
+  git('add', '.')
+  git('commit', '-qm', 'synced copy')
+
+  await page.goto(`${app.url}&view=graph`)
+  const trees = page.getByRole('region', { name: 'Worktrees' })
+  await expect(trees).toContainText('synced')
+  await expect(trees).toContainText('separate')
+  await trees.getByRole('button', { name: `Open ${copy}`, exact: true }).click()
+  const tab = await openedPage(page.context(), app.browsed)
+  await expect(tab.getByRole('banner')).toContainText('synced')
+  await tab.close()
+})
+
+test('the repo switcher adds another repository and opens it on its own page', async ({ page, app }) => {
   const other = createRepo()
   try {
     other.write('other.txt', 'other\n')
@@ -82,7 +114,8 @@ test('the repo switcher adds another repository and opens it in its own tab', as
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     const entry = list.getByRole('button', { name: new RegExp(other.path.split('/').pop() ?? '') })
     await expect(entry.first()).toBeVisible()
-    const [tab] = await Promise.all([page.context().waitForEvent('page'), entry.first().click()])
+    await entry.first().click()
+    const tab = await openedPage(page.context(), app.browsed)
     await expect(tab.getByRole('banner')).toContainText('elsewhere')
     await tab.close()
   } finally {

@@ -7,7 +7,8 @@ const UNSTAGED = `&target=${encodeURIComponent(JSON.stringify({ kind: 'unstaged'
 test('drives the page from the keyboard the way Neovim does', async ({ page, app, repo }) => {
   await page.goto(app.url + UNSTAGED)
   await expect(page.locator('main')).toContainText('export const answer = 42')
-  const mode = page.getByTitle('Key mode')
+  // Its title becomes the page's tooltip once hovered, so it is found either way.
+  const mode = page.locator('[title="Key mode"], [data-tip="Key mode"]')
   await expect(mode).toHaveText('NORMAL')
 
   // The leader waits, shows what can follow, then runs the chord.

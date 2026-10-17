@@ -212,6 +212,20 @@ describe('GitHub views', () => {
     )
   })
 
+  it('reads a pull request in the capped page column, details beside the conversation', async () => {
+    render(<App api={fakeApi({ github: githubApi({}) })} />)
+    fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
+    const article = await screen.findByRole('article', { name: 'Pull request 7' })
+    const column = await waitFor(() => {
+      const found = article.querySelector('[data-page-column]')
+      if (!found) throw new Error('no page column')
+      return found as HTMLElement
+    })
+    expect(column.className).toContain('max-w-[1280px]')
+    expect(within(column).getByText('Add things')).toBeTruthy()
+    expect(within(column).getByRole('complementary', { name: 'Details' })).toBeTruthy()
+  })
+
   it('shows the timeline, quotes a comment into the box, and reacts', async () => {
     const react = vi.fn(async () => {})
     render(<App api={fakeApi({ github: githubApi({ react }) })} />)

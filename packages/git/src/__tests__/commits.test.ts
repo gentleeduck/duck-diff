@@ -31,6 +31,19 @@ describe('listCommits', () => {
     expect((await listCommits(repo.path, { head: 'feat', limit: 1 })).length).toBe(1)
   })
 
+  it('finds commits by their message, whatever the case, reading the text as it is', async () => {
+    history()
+    const found = await listCommits(repo.path, { head: 'feat', grep: 'THIRD | with' })
+    expect(found.map((c) => c.subject)).toEqual(['feat: third | with a pipe'])
+    expect(await listCommits(repo.path, { head: 'feat', grep: 'nothing like it' })).toEqual([])
+  })
+
+  it('resolves any ref git understands, such as a parent', async () => {
+    history()
+    const [parent] = await listCommits(repo.path, { head: 'feat^', limit: 1 })
+    expect(parent?.subject).toBe('feat: second')
+  })
+
   it('returns an empty list when head has nothing new', async () => {
     history()
     expect(await listCommits(repo.path, { base: 'feat', head: 'main' })).toEqual([])

@@ -10,6 +10,8 @@ export type ViewedState = Record<string, string[]>
 
 export interface Viewed extends Store<ViewedState> {
   toggle(target: DiffTarget, file: ChangedFile): void
+  // Moves to the repository's own marks once the page knows which one it shows.
+  restore(repo: string): void
 }
 
 function mark(file: ChangedFile): string {
@@ -21,43 +23,58 @@ export function viewedPaths(state: ViewedState, target: DiffTarget, files: reado
   return new Set(files.filter((file) => marks.has(mark(file))).map((file) => file.path))
 }
 
-function load(storage: Pick<Storage, 'getItem'> | null): ViewedState {
+function load(storage: Pick<Storage, 'getItem'> | null, key: string): ViewedState | null {
   try {
-    const parsed = z.record(z.string(), z.array(z.string())).safeParse(JSON.parse(storage?.getItem(KEY) ?? '{}'))
-    return parsed.success ? parsed.data : {}
+    const text = storage?.getItem(key)
+    if (text == null) return null
+    const parsed = z.record(z.string(), z.array(z.string())).safeParse(JSON.parse(text))
+    return parsed.success ? parsed.data : null
   } catch {
-    return {}
+    return null
   }
 }
 
 export function createViewedStore(storage: Pick<Storage, 'getItem' | 'setItem'> | null = saved): Viewed {
-  const store = createStore(load(storage))
+  // Until the repository is known the marks are the list every repository shared before they were kept apart.
+  let key = KEY
+  const store = createStore(load(storage, key) ?? {})
   let fromElsewhere = false
-  onSavedElsewhere(storage, KEY, () => {
-    fromElsewhere = true
-    try {
-      store.set(load(storage))
-    } finally {
-      fromElsewhere = false
-    }
-  })
+  const listen = (watched: string) =>
+    onSavedElsewhere(storage, watched, () => {
+      if (watched !== key) return
+      fromElsewhere = true
+      try {
+        store.set(load(storage, key) ?? {})
+      } finally {
+        fromElsewhere = false
+      }
+    })
+  listen(KEY)
   store.subscribe(() => {
     if (fromElsewhere) return
     try {
-      storage?.setItem(KEY, JSON.stringify(store.get()))
+      storage?.setItem(key, JSON.stringify(store.get()))
     } catch {
       // Private windows and full quotas refuse writes; viewed marks still work for this session.
     }
   })
   return {
     ...store,
+    restore(repo) {
+      key = `${KEY}:${repo}`
+      listen(key)
+      // A repository with no marks of its own yet starts from the shared list, so nothing marked is lost.
+      const own = load(storage, key)
+      if (own) store.set(own)
+      else storage?.setItem(key, JSON.stringify(store.get()))
+    },
     toggle(target, file) {
-      const key = targetKey(target)
+      const diff = targetKey(target)
       const own = mark(file)
       store.set((prev) => {
-        const marks = (prev[key] ?? []).filter((entry) => !entry.startsWith(`${file.path}@`))
-        const wasViewed = prev[key]?.includes(own) ?? false
-        return { ...prev, [key]: wasViewed ? marks : [...marks, own] }
+        const marks = (prev[diff] ?? []).filter((entry) => !entry.startsWith(`${file.path}@`))
+        const wasViewed = prev[diff]?.includes(own) ?? false
+        return { ...prev, [diff]: wasViewed ? marks : [...marks, own] }
       })
     },
   }

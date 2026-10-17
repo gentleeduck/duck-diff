@@ -3,6 +3,7 @@ import { cn } from '@gentleduck/libs/cn'
 import { Slot, Slottable } from '@gentleduck/primitives/slot'
 import { Loader } from 'lucide-react'
 import * as React from 'react'
+import { labelled } from '../_internal/label'
 import { buttonVariants } from './button.constants'
 import type { AnimationIconProps, ButtonProps } from './button.types'
 
@@ -50,7 +51,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         type={type}>
         {loading ? <Loader aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> : icon}
-        <Slottable>{!isCollapsed && children}</Slottable>
+        <Slottable>{!isCollapsed && labelled(children)}</Slottable>
         {!isCollapsed && secondIcon && secondIcon}
       </button>
     )

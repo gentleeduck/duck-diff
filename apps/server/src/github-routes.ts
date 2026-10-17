@@ -145,6 +145,17 @@ export async function handleGitHub(
       return new Response(null, { status: 204 })
     }
   }
+  if (area === 'review-comments' && id !== undefined) {
+    if (!Number.isInteger(number)) throw new HttpError(400, 'bad-request', 'bad comment id')
+    if (request.method === 'PATCH') {
+      await github.editReviewComment(number, PostCommentSchema.parse(await body()).body)
+      return new Response(null, { status: 204 })
+    }
+    if (request.method === 'DELETE') {
+      await github.deleteReviewComment(number)
+      return new Response(null, { status: 204 })
+    }
+  }
   if (area === 'threads' && id !== undefined) {
     if (!Number.isInteger(number)) throw new HttpError(400, 'bad-request', 'bad number')
     if (request.method === 'PATCH') {

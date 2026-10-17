@@ -94,7 +94,7 @@ export function SettingsPopover() {
   const setNotices = async (next: boolean) => {
     if (next && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
       if ((await Notification.requestPermission()) !== 'granted') {
-        toast.error('The browser did not allow notifications for this page.')
+        toast.error('Notifications are blocked', { description: 'The browser did not allow them for this page.' })
         return
       }
     }
@@ -214,8 +214,11 @@ export function SettingsPopover() {
             size="sm"
             onClick={() =>
               api.clearCache().then(
-                () => toast('Cleared the saved GitHub answers, commits and graph'),
-                (error: Error) => toast.error(error.message),
+                () =>
+                  toast.success('Cleared the saved answers', {
+                    description: 'GitHub answers, commits and the graph are read again when next shown.',
+                  }),
+                (error: Error) => toast.error('Could not clear the saved answers', { description: error.message }),
               )
             }>
             Clear cache

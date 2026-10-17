@@ -1,15 +1,15 @@
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
-import { Badge, Button } from '@duck-diff/ui'
+import { Badge, type BadgeTone, Button } from '@duck-diff/ui'
 import { ChevronRight, GitMerge } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useView } from '../hooks/useView'
 import { openMerge } from '../merge/open-merge'
 
-const ADDED = 'border-added/40 bg-added/15 text-added'
-const CHANGED = 'border-warning/40 bg-warning/15 text-warning'
-const REMOVED = 'border-destructive/40 bg-destructive/15 text-destructive'
-const MOVED = 'border-tn-magenta/40 bg-tn-magenta/15 text-tn-magenta'
+const ADDED = 'soft-success'
+const CHANGED = 'soft-warning'
+const REMOVED = 'soft-destructive'
+const MOVED = 'soft-done'
 
 function ResolveButton({ path }: { path: string }) {
   const app = useApp()
@@ -23,7 +23,7 @@ function ResolveButton({ path }: { path: string }) {
 }
 
 // Soft fills in the status color, so the badge reads at a glance without shouting over the code.
-const STATUS: Record<FileStatus, { label: string; tone: string }> = {
+const STATUS: Record<FileStatus, { label: string; tone: BadgeTone }> = {
   added: { label: 'Added', tone: ADDED },
   untracked: { label: 'New', tone: ADDED },
   copied: { label: 'Copied', tone: ADDED },
@@ -62,7 +62,7 @@ export function FileHeader({
         <ChevronRight className={`size-4 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
       </Button>
       {file ? (
-        <Badge variant="outline" size="sm" className={STATUS[file.status].tone}>
+        <Badge variant={STATUS[file.status].tone} size="sm">
           {STATUS[file.status].label}
         </Badge>
       ) : null}
@@ -70,9 +70,14 @@ export function FileHeader({
       <span className="min-w-0 truncate" title={onOpen ? `Open ${path} in Files` : path}>
         {file?.oldPath ? <span className="text-muted-foreground">{file.oldPath} to </span> : null}
         {onOpen ? (
-          <button type="button" onClick={onOpen} className="cursor-pointer hover:text-tn-blue hover:underline">
+          <Button
+            variant="nothing"
+            size="none"
+            type="button"
+            onClick={onOpen}
+            className="inline rounded-none hover:text-tn-blue hover:underline">
             {path}
-          </button>
+          </Button>
         ) : (
           path
         )}

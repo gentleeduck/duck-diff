@@ -92,6 +92,7 @@ export const COMMANDS: CommandSpec[] = [
   },
   { id: 'leave-terminal', title: 'Leave the terminal', group: 'Windows', keys: ['<Esc><Esc>'], modes: ['terminal'] },
   { id: 'leave-insert', title: 'Leave the text box', group: 'Windows', keys: ['<Esc>'], modes: ['insert'] },
+  { id: 'close-draft', title: 'Close the comment being written', group: 'Windows', keys: ['<Esc>'] },
   { id: 'focus-left', title: 'Focus the side panel', group: 'Windows', keys: ['<C-h>', '<leader>l'] },
   { id: 'focus-right', title: 'Focus the diff', group: 'Windows', keys: ['<C-l>'] },
   { id: 'focus-down', title: 'Focus the bottom panel', group: 'Windows', keys: ['<C-j>'] },
@@ -140,4 +141,4 @@ export const PREFIXES: Record<string, string> = {
 }
 
 // Keys commands run with when they are not chords; the event goes on to the page as well.
-export const PASS_THROUGH = new Set(['leave-insert'])
+export const PASS_THROUGH = new Set(['leave-insert', 'close-draft'])

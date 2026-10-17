@@ -17,9 +17,9 @@ export async function targetArgs(repo: string, target: DiffTarget): Promise<stri
     case 'unstaged':
       return []
     case 'staged':
-      return ['--cached']
+      return target.base ? ['--cached', target.base] : ['--cached']
     case 'local':
-      return [await headOrEmpty(repo)]
+      return [target.base ?? (await headOrEmpty(repo))]
     case 'range':
       return target.mode === 'merge-base' ? [`${target.from}...${target.to}`] : [target.from, target.to]
     case 'commit': {

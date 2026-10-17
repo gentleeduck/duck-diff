@@ -3,6 +3,8 @@
 local root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h:h')
 vim.opt.runtimepath:prepend(root)
 package.path = root .. '/lua/?.lua;' .. root .. '/lua/?/init.lua;' .. package.path
+-- Servers the specs start remember their repos; that goes under this run's temp folder, not the user's list.
+vim.env.XDG_DATA_HOME = vim.fn.tempname()
 
 _G.eq = function(expected, actual)
   if not vim.deep_equal(expected, actual) then
@@ -27,4 +29,6 @@ for _, file in ipairs(files) do
   end
 end
 io.stdout:write(('%d passed, %d failed\n'):format(passed, failed))
+-- os.exit skips Neovim's own cleanup, which would leave this run's repos and binary copies in /tmp.
+vim.fn.delete(vim.fn.fnamemodify(vim.fn.tempname(), ':h'), 'rf')
 os.exit(failed == 0 and 0 or 1)

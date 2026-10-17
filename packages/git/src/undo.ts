@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { copyFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { duckHome } from './home'
 
 const KEEP = 20
 
@@ -10,17 +10,13 @@ interface Entry {
   existed: boolean
 }
 
-function defaultCache(): string {
-  return process.env.XDG_CACHE_HOME ?? join(homedir(), '.cache')
-}
-
 // Per-repo state lives outside the repo, one folder per repo, so it never shows up in git status.
 export function repoId(repo: string): string {
   return createHash('sha1').update(repo).digest('hex').slice(0, 16)
 }
 
-function storeFor(repo: string, cache: string): string {
-  return join(cache, 'duck-diff', repoId(repo), 'undo')
+function storeFor(repo: string, home: string): string {
+  return join(home, repoId(repo), 'undo')
 }
 
 async function snapshots(store: string): Promise<string[]> {
@@ -28,8 +24,8 @@ async function snapshots(store: string): Promise<string[]> {
   return names.sort()
 }
 
-export async function snapshot(repo: string, paths: string[], cache = defaultCache()): Promise<void> {
-  const store = storeFor(repo, cache)
+export async function snapshot(repo: string, paths: string[], home = duckHome()): Promise<void> {
+  const store = storeFor(repo, home)
   const existing = await snapshots(store)
   const sequence = String((Number(existing.at(-1)?.split('-')[0] ?? 0) || 0) + 1).padStart(10, '0')
   const dir = join(store, `${sequence}-${Date.now()}`)
@@ -50,8 +46,8 @@ export async function snapshot(repo: string, paths: string[], cache = defaultCac
     await rm(join(store, old), { recursive: true, force: true })
 }
 
-export async function restoreLatest(repo: string, cache = defaultCache()): Promise<string[] | null> {
-  const store = storeFor(repo, cache)
+export async function restoreLatest(repo: string, home = duckHome()): Promise<string[] | null> {
+  const store = storeFor(repo, home)
   const latest = (await snapshots(store)).at(-1)
   if (!latest) return null
   const dir = join(store, latest)

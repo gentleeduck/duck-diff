@@ -1,4 +1,5 @@
 import {
+  Button,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -233,14 +234,16 @@ export function CommitHover({
           )}
         </div>
         <div className="flex items-center gap-3 border-border border-t px-3 py-2">
-          <button
+          <Button
+            variant="nothing"
+            size="none"
             type="button"
-            className="flex cursor-pointer items-center gap-1 text-tn-blue"
+            className="flex cursor-pointer items-center gap-1 text-tn-blue justify-start rounded-none whitespace-normal"
             onClick={() => void copy(entry.sha, 'sha')}>
             <GitCommitHorizontal className="size-4" />
             {entry.sha.slice(0, 7)}
             <Copy className="size-3.5 text-muted-foreground" />
-          </button>
+          </Button>
           {github.status?.repo ? (
             <a
               href={`https://github.com/${github.status.repo}/commit/${entry.sha}`}

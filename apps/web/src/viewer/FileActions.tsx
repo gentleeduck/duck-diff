@@ -1,6 +1,7 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
-import { Check, Copy, History, SquareArrowOutUpRight, UserRound } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { Check, History, SquareArrowOutUpRight, UserRound } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { CopyTool } from '../app/CopyTool'
 import { IconTool } from '../app/IconTool'
 
 // duck-ui draws an empty box in the border color, which vanishes on the header; a lighter edge keeps it visible.
@@ -26,12 +27,6 @@ export function FileActions({
   // Who changed each line, on both sides of the diff.
   blame?: { on: boolean; toggle(): void }
 }) {
-  const [copied, setCopied] = useState(false)
-  const copy = async () => {
-    await navigator.clipboard.writeText(path)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1200)
-  }
   return (
     <span className="flex items-center gap-1">
       {note ? <span className="mr-2 text-muted-foreground">{note}</span> : null}
@@ -51,9 +46,7 @@ export function FileActions({
       <IconTool label="File history" onClick={onHistory}>
         <History />
       </IconTool>
-      <IconTool label="Copy path" tip={copied ? 'Copied' : 'Copy path'} onClick={copy}>
-        {copied ? <Check /> : <Copy />}
-      </IconTool>
+      <CopyTool label="Copy path" text={path} />
       <Tooltip>
         <TooltipTrigger asChild>
           <Button

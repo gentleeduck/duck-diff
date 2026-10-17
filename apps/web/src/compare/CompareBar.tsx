@@ -1,3 +1,4 @@
+import type { DiffTarget } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
 import { GitPullRequest, X } from 'lucide-react'
 import { useApp } from '../app/AppProvider'
@@ -9,7 +10,7 @@ import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
 import type { SessionState } from '../state/session'
-import { describeTarget, withoutPath, withSide } from './model'
+import { describeTarget, sideText, withoutPath, withSide } from './model'
 import { RefPicker } from './RefPicker'
 
 const selectStats = (state: SessionState) => {
@@ -27,17 +28,34 @@ export function CompareBar() {
   const refs = useRefs()
   const [files = '0', additions = '0', deletions = '0'] = useSession(selectStats).split(':')
   const { from, to, path } = describeTarget(target)
+  const text = sideText(target)
   const pull = pullOf(target)
   const { pullSelection } = useApp()
   const { show } = useView()
+  // A typed range keeps the one file the diff is narrowed to, as picking either side does.
+  const range = (next: DiffTarget) => navigate(path && next.kind === 'range' ? { ...next, path } : next)
 
   return (
     // Clipped at its edge: whatever cannot fold must not slide under the search box beside it.
     <div className="@container flex min-w-0 flex-1 items-center gap-4 overflow-hidden py-2">
       <h1 className="flex min-w-0 items-center gap-2">
-        <RefPicker label={from} side="from" refs={refs} onPick={(end) => navigate(withSide(target, 'from', end))} />
+        <RefPicker
+          label={from}
+          value={text.from}
+          side="from"
+          refs={refs}
+          onPick={(end) => navigate(withSide(target, 'from', end))}
+          onRange={range}
+        />
         <span className="px-1 text-muted-foreground">to</span>
-        <RefPicker label={to} side="to" refs={refs} onPick={(end) => navigate(withSide(target, 'to', end))} />
+        <RefPicker
+          label={to}
+          value={text.to}
+          side="to"
+          refs={refs}
+          onPick={(end) => navigate(withSide(target, 'to', end))}
+          onRange={range}
+        />
       </h1>
       {path ? (
         <span className="flex min-w-0 items-center gap-1 font-mono text-muted-foreground">

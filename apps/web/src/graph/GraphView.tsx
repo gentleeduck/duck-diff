@@ -75,7 +75,7 @@ function RefBadges({ refs, color }: { refs: RefLabel[]; color: string }) {
       {hidden.length ? (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="outline" size="sm" className="shrink-0 text-muted-foreground">
+            <Badge variant="muted" size="sm" className="shrink-0">
               +{hidden.length}
             </Badge>
           </TooltipTrigger>

@@ -1,3 +1,4 @@
+import { Input } from '@duck-diff/ui'
 import { useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
@@ -99,7 +100,7 @@ export function CommandLine() {
         if (option === 'split' || option === 'unified') settings.set((prev) => ({ ...prev, diffStyle: option }))
         else if (option === 'wrap' || option === 'nowrap')
           settings.set((prev) => ({ ...prev, overflow: option === 'wrap' ? 'wrap' : 'scroll' }))
-        else toast.error(`Unknown option: ${option}`)
+        else toast.error(`Unknown option ${option}`, { description: 'Try :set with one of the options :help lists.' })
         return
       }
       case 'keymaps':
@@ -113,7 +114,7 @@ export function CommandLine() {
         return
       }
       case 'unknown':
-        toast.error(`Not an editor command: ${command.text}`)
+        toast.error('Not an editor command', { description: `:${command.text}` })
         return
       case 'none':
         return
@@ -140,8 +141,8 @@ export function CommandLine() {
         </ul>
       ) : null}
       <span className="text-tn-yellow">:</span>
-      <input
-        // biome-ignore lint/a11y/noAutofocus: the command line exists to be typed into
+      <Input
+        // The command line exists to be typed into.
         autoFocus
         aria-label="Command line"
         spellCheck={false}
@@ -171,7 +172,8 @@ export function CommandLine() {
             type(history.current[at.current] ?? '')
           }
         }}
-        className="h-full min-w-0 flex-1 bg-transparent text-foreground caret-tn-yellow outline-none"
+        // Drawn as Vim's command line: no box of its own, the yellow caret after the colon.
+        className="h-full flex-1 rounded-none border-0 bg-transparent px-0 py-0 text-foreground caret-tn-yellow shadow-none focus-visible:ring-0 dark:bg-transparent"
       />
     </div>
   )

@@ -1,5 +1,5 @@
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
-import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@duck-diff/ui'
+import { Button, ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@duck-diff/ui'
 import {
   ArrowLeftToLine,
   ArrowRightToLine,
@@ -121,6 +121,7 @@ function Row({
             ) : null}
             {kinds.includes('discard') ? (
               <IconTool
+                destructive
                 label={`Discard ${file.path}`}
                 tip="Discard changes"
                 onClick={() => void writes.perform('discard', file)}>
@@ -180,14 +181,16 @@ function Section({
   return (
     <section aria-label={title} className="flex flex-col">
       <div className="group flex h-7 items-center gap-1 pe-1">
-        <button
+        <Button
+          variant="nothing"
+          size="none"
           type="button"
           aria-expanded={open}
           onClick={() => setOpen(!open)}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 text-start text-tn-comment">
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 text-start text-tn-comment justify-start shrink rounded-none">
           {open ? <ChevronDown className="size-4 shrink-0" /> : <ChevronRight className="size-4 shrink-0" />}
           <span className="truncate">{title}</span>
-        </button>
+        </Button>
         {files.length ? <span className="flex">{actions}</span> : null}
         <span className="min-w-6 rounded-sm bg-muted px-1.5 text-center text-muted-foreground tabular-nums">
           {files.length}
@@ -248,6 +251,7 @@ export function StagePanel() {
         actions={
           <>
             <IconTool
+              destructive
               label="Discard all changes"
               onClick={() => void writes.performAll('discard', changes, `all ${changes.length} changed files`)}>
               <Undo2 />

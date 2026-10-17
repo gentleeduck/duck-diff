@@ -63,12 +63,45 @@ test('a terminal behind another panel tab keeps its size, so the shell does not 
   expect(new Set(sizes)).toEqual(new Set([shown]))
 })
 
-test('with no Neovim attached, Open runs Neovim at the line in a terminal in the page', async ({ page, app }) => {
+test('works as a desktop terminal: Ctrl+C interrupts, Ctrl+Z suspends, and the clipboard keys copy and paste', async ({
+  page,
+  app,
+  repo,
+}) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.goto(app.url)
-  await expect(page.locator('main')).toContainText('export const answer = 42')
-  const answer = page.waitForResponse((response) => response.url().endsWith('/api/open'))
-  await page.locator('[data-diff-view]').getByRole('button', { name: 'Open', exact: true }).first().click()
-  // This machine has nvim and no Neovim is attached, so the page is asked to run it at the change.
-  expect(await (await answer).json()).toEqual({ how: 'terminal', command: "nvim +1 -- 'src/app.ts'" })
-  await expect(page.getByRole('region', { name: 'Terminal 1' }).locator('.xterm')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Output' })).toBeVisible()
+  await page.keyboard.press('Control+`')
+  await page.getByRole('button', { name: 'New terminal' }).click()
+  const pane = page.getByRole('region', { name: 'Terminal 1' })
+  await pane.locator('.xterm').click()
+
+  // The shell owns the terminal, so Ctrl+C stops what runs and Ctrl+Z suspends it.
+  await page.keyboard.type('sleep 30; touch not-interrupted\n')
+  await page.waitForTimeout(500)
+  await page.keyboard.press('Control+c')
+  await page.keyboard.type('echo $? > interrupted.txt\n')
+  expect(await waitForFile(join(repo.path, 'interrupted.txt'))).toBe('130')
+  expect(existsSync(join(repo.path, 'not-interrupted'))).toBe(false)
+  await page.keyboard.type('sleep 30\n')
+  await page.waitForTimeout(500)
+  await page.keyboard.press('Control+z')
+  await page.keyboard.type('jobs > jobs.txt; kill -9 %1\n')
+  expect(await waitForFile(join(repo.path, 'jobs.txt'))).toContain('Stopped')
+
+  await page.evaluate(() => navigator.clipboard.writeText('echo pasted > pasted.txt'))
+  await page.keyboard.press('Control+v')
+  await page.keyboard.press('Enter')
+  expect(await waitForFile(join(repo.path, 'pasted.txt'))).toBe('pasted')
+
+  await page.keyboard.type('clear; echo copy-me\n')
+  await page.waitForTimeout(500)
+  const screen = await pane.locator('.xterm-screen').boundingBox()
+  if (!screen) throw new Error('no terminal on screen')
+  await page.mouse.move(screen.x + 2, screen.y + 2)
+  await page.mouse.down()
+  await page.mouse.move(screen.x + screen.width - 4, screen.y + 60, { steps: 6 })
+  await page.mouse.up()
+  await page.keyboard.press('Control+Shift+c')
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('copy-me')
 })

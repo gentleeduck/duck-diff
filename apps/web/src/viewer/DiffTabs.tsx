@@ -1,4 +1,5 @@
 import type { DiffTarget } from '@duck-diff/protocol'
+import { Button } from '@duck-diff/ui'
 import { useQueries } from '@tanstack/react-query'
 import { FileDiff, GitCommitHorizontal, GitCompareArrows, GitPullRequest, X } from 'lucide-react'
 import { memo, useCallback, useRef, useState } from 'react'
@@ -11,15 +12,15 @@ import { type DiffTab, ROOT, type TabsState } from '../state/tabs'
 const selectTabs = (state: TabsState) => state.tabs
 const selectActive = (state: TabsState) => state.active
 
-const short = (ref: string) => (/^[0-9a-f]{12,}$/.test(ref) ? ref.slice(0, 7) : ref)
+const short = (ref: string) => ref.replace(/^[0-9a-f]{12,40}(?=[\^~]|$)/, (sha) => sha.slice(0, 7))
 const PULL = /^refs\/duck-diff\/pr\/(\d+)$/
 
 export function tabLabel(target: DiffTarget, subject?: string): string {
   switch (target.kind) {
     case 'local':
-      return 'Working tree'
+      return target.base ? `${short(target.base)}..working tree` : 'Working tree'
     case 'staged':
-      return 'Staged'
+      return target.base ? `${short(target.base)}..staged` : 'Staged'
     case 'unstaged':
       return 'Unstaged'
     case 'commit': {
@@ -104,7 +105,9 @@ const Tab = memo(function Tab({
       <TabIcon target={tab.target} />
       <span className="min-w-0 truncate pe-0.5">{label}</span>
       {root ? null : (
-        <button
+        <Button
+          variant="nothing"
+          size="none"
           type="button"
           aria-label={`Close ${label}`}
           onClick={(event) => {
@@ -113,9 +116,9 @@ const Tab = memo(function Tab({
           }}
           className={`flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm hover:bg-accent ${
             selected ? '' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
-          }`}>
+          } whitespace-normal`}>
           <X className="size-3.5" />
-        </button>
+        </Button>
       )}
     </div>
   )

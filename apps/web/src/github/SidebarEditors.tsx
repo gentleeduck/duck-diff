@@ -35,10 +35,11 @@ export function sidebarActions({
   const apply = (task: Promise<unknown>, done: string) =>
     task.then(
       () => {
-        toast(done)
+        toast.success(done)
         reload()
       },
-      (error: Error) => toast.error(error.message),
+      (error: Error) =>
+        toast.error(done.replace(/^(Updated|Set|Cleared)/, 'Could not change'), { description: error.message }),
     )
   return {
     reviewers: reviewers ? (

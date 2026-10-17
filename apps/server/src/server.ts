@@ -1,6 +1,7 @@
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import {
   blame,
+  duckHome,
   lastMessage,
   listRemotes,
   listSubmodules,
@@ -26,8 +27,8 @@ import {
 import type { ServerWebSocket } from 'bun'
 import { z } from 'zod'
 import { createToken, isAuthorized, tokenCookie } from './auth'
-import { createDiskCache, dataHome } from './disk-cache'
-import { launch, pickOpener, terminalCommand } from './editor'
+import { createDiskCache } from './disk-cache'
+import { launch, pickOpener } from './editor'
 import { errorResponse, HttpError } from './errors'
 import { createForge } from './forge'
 import type { GitHubOptions } from './github'
@@ -35,15 +36,17 @@ import { handleGitHub } from './github-routes'
 import { createGitHubWatch } from './github-watch'
 import type { GitLabOptions } from './gitlab'
 import { Hub } from './hub'
+import { instanceFile, liveInstance, pageUrl } from './instance'
 import { createJobs, jobTitle } from './jobs'
 import { createNavigator, type NavigatorOptions } from './lsp/navigator'
 import { createRepoMemo } from './memo'
 import { type NvimRunner, openKeys, runNvim, tcdKeys } from './nvim'
 import { createTerminals, type TerminalPeer } from './pty'
 import { createRepoList } from './repos'
+import { reviewPrompt } from './review-prompt'
 import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
-import { createSiblings, type StartServer, startSibling } from './siblings'
+import { createSiblings, pageOpener, type StartServer, startSibling } from './siblings'
 import { createMemoryState, createStateStore, openingTarget, opensGraph, pageDiff, pageGraph, pageState } from './state'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
@@ -62,17 +65,17 @@ export interface ServerOptions {
   runNvim?: NvimRunner
   // Tests choose where files open; by default the best on this machine (editor.ts).
   pickOpener?: typeof pickOpener
-  // Where discard snapshots go; tests point it at a temp folder.
-  undoCache?: string
-  // Where review comments are kept; tests point it at a temp folder.
+  // Where discard snapshots go, and where everything else saved goes (~/.duck-diff); tests use temp folders.
+  undoHome?: string
   dataDir?: string
   // GitHub and GitLab access; tests swap in a fake fetch and token.
   github?: GitHubOptions
   gitlab?: GitLabOptions
   // Language servers; tests swap in a fake one.
   lsp?: NavigatorOptions
-  // How a worktree or submodule gets its own server; tests swap in a fake.
+  // How a worktree or submodule gets its own server, and how its page opens; tests swap in fakes.
   startSibling?: StartServer
+  openPage?: (url: string) => Promise<boolean>
   // The build this server runs; pages reload when it changes under them.
   build?: string
   // More repositories for the switcher, from repeated --repo; given means remember this one too.
@@ -92,7 +95,9 @@ export interface RunningServer {
   token: string
   url: string
   repo: string
-  stop(): Promise<void>
+  // handOver: a new build of this server takes over in place, and the servers it started for other checkouts
+  // stay up under it.
+  stop(options?: { handOver?: boolean }): Promise<void>
   notify(reason: ChangeReason): void
 }
 
@@ -133,16 +138,14 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   }
   const stopWatching = options.watch === false ? () => {} : watchRepo(repo, notify)
   const enqueue = createWriteQueue()
-  const cache = options.persist
-    ? createDiskCache(join(options.dataDir ?? dataHome(), 'duck-diff', repoId(repo)))
-    : undefined
+  const cache = options.persist ? createDiskCache(join(options.dataDir ?? duckHome(), repoId(repo))) : undefined
   const jobs = createJobs((event) => hub.broadcast(event), { cache })
   const terminals =
     options.terminal === false
       ? null
       : createTerminals({ cwd: repo, ...(typeof options.terminal === 'object' ? options.terminal : {}) })
   const reviews = createReviewStore(repo, options.dataDir)
-  const state = options.persist ? createStateStore(options.dataDir ?? dataHome(), repo) : createMemoryState()
+  const state = options.persist ? createStateStore(options.dataDir ?? duckHome(), repo) : createMemoryState()
   const stopStateWatch = state.watch((changes) => hub.broadcast({ type: 'state', changes }))
   const github = createForge(repo, { github: { ...options.github, cache }, gitlab: options.gitlab })
   const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
@@ -153,7 +156,10 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     for (const extra of [...options.repos].reverse()) await repoList.add(extra).catch(() => {})
     await repoList.add(repo).catch(() => {})
   }
-  const siblings = createSiblings(options.startSibling ?? startSibling(options.nvim ?? null))
+  const siblings = createSiblings(options.startSibling ?? startSibling(options.nvim ?? null), async (path) => {
+    const kept = await liveInstance(instanceFile(options.dataDir ?? duckHome(), path))
+    return kept ? pageUrl(kept, '/') : null
+  })
   const watch = createGitHubWatch<ServerWebSocket<SocketData>>(
     github,
     (socket, topic) => socket.send(JSON.stringify({ type: 'github', topic })),
@@ -247,12 +253,12 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         }
         if (url.pathname === '/api/write' && request.method === 'POST') {
           const write = WriteRequestSchema.parse(await request.json())
-          await enqueue(() => jobs.run(jobTitle(write.action), () => applyWrite(repo, write, options.undoCache)))
+          await enqueue(() => jobs.run(jobTitle(write.action), () => applyWrite(repo, write, options.undoHome)))
           notify('index')
           return new Response(null, { status: 204 })
         }
         if (url.pathname === '/api/undo' && request.method === 'POST') {
-          const restored = await enqueue(() => jobs.run('Undo', () => undoLatest(repo, options.undoCache)))
+          const restored = await enqueue(() => jobs.run('Undo', () => undoLatest(repo, options.undoHome)))
           if (restored) notify('worktree')
           return Response.json({ restored })
         }
@@ -266,6 +272,18 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           const raw = url.searchParams.get('target')
           if (!raw) throw new HttpError(400, 'bad-request', 'missing target')
           return Response.json(await reviews.list(decodeTarget(raw)))
+        }
+        if (url.pathname === '/api/reviews/prompt') {
+          const raw = url.searchParams.get('target')
+          if (!raw) throw new HttpError(400, 'bad-request', 'missing target')
+          const target = decodeTarget(raw)
+          const id = url.searchParams.get('id')
+          const listed = await reviews.list(target)
+          const picked = id ? listed.filter((comment) => comment.id === id) : listed
+          if (id && !picked.length) throw new HttpError(404, 'not-found', 'no such comment')
+          return new Response(await reviewPrompt(repo, target, picked), {
+            headers: { 'content-type': 'text/plain; charset=utf-8' },
+          })
         }
         if (url.pathname.startsWith('/api/reviews/')) {
           const id = decodeURIComponent(url.pathname.slice('/api/reviews/'.length))
@@ -290,7 +308,12 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
             await repoList.remove(OpenRepoSchema.parse(Object.fromEntries(url.searchParams)).path)
             return new Response(null, { status: 204 })
           }
-          return Response.json((await repoList.all()).map((entry) => ({ ...entry, current: entry.path === repo })))
+          const listed = await repoList.all()
+          // Other servers can push this one out of the list; its page still shows where it is.
+          const entries = listed.some((entry) => entry.path === repo)
+            ? listed
+            : [{ path: repo, name: basename(repo) }, ...listed]
+          return Response.json(entries.map((entry) => ({ ...entry, current: entry.path === repo })))
         }
         if (url.pathname === '/api/open-repo' && request.method === 'POST') {
           const { path } = OpenRepoSchema.parse(await request.json())
@@ -307,7 +330,9 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           ]
           if (!known.includes(path))
             throw new HttpError(404, 'not-found', `${path} is not a worktree or submodule here`)
-          return Response.json({ url: await siblings.open(path) })
+          const sibling = await siblings.open(path)
+          const opened = await (options.openPage ?? pageOpener(options.nvim ?? null))(sibling)
+          return Response.json({ url: sibling, opened })
         }
         if (url.pathname === '/api/nvim/tcd' && request.method === 'POST') {
           if (!options.nvim) throw new HttpError(409, 'bad-request', 'no Neovim attached to this server')
@@ -327,10 +352,11 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
             ])
             return Response.json({ how: 'nvim' })
           }
-          // Neovim without one attached runs in a terminal in the page, which the page opens itself.
-          if (opener.how === 'terminal') return Response.json({ how: 'terminal', command: terminalCommand(path, line) })
-          if (opener.how === 'editor' || opener.how === 'system') launch(opener, repo, path, line)
-          return Response.json({ how: opener.how, command: opener.how === 'nvim' ? null : opener.command })
+          if (opener.how === 'nvim') return Response.json({ how: 'nvim' })
+          await launch(opener, repo, path, line).catch((error: Error) => {
+            throw new HttpError(502, 'failed', `Could not start ${opener.command}: ${error.message}`)
+          })
+          return Response.json({ how: opener.how, command: opener.command })
         }
         if (url.pathname === '/api/state') {
           if (request.method === 'PUT') {
@@ -442,7 +468,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     repo,
     url: `http://${HOST}:${port}/?token=${token}`,
     notify,
-    async stop() {
+    async stop({ handOver = false } = {}) {
       stopWatching()
       clearInterval(watching)
       stopStateWatch()
@@ -450,7 +476,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
       terminals?.dispose()
       await cache?.flush()
       await navigator.stop()
-      await siblings.stop()
+      await siblings.stop({ keep: handOver })
       await server.stop(true)
     },
   }

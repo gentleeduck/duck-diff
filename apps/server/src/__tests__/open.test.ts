@@ -19,20 +19,6 @@ function post(body: unknown) {
 }
 
 describe('/api/open', () => {
-  it('without a Neovim attached, asks the page to open Neovim in a terminal at the line', async () => {
-    repo = createRepo()
-    server = await createServer({
-      repo: repo.path,
-      port: testPort(),
-      watch: false,
-      pickOpener: () => ({ how: 'terminal' }),
-    })
-    expect(await (await post({ path: "it's.ts", line: 3 })).json()).toEqual({
-      how: 'terminal',
-      command: "nvim +3 -- 'it'\\''s.ts'",
-    })
-  })
-
   it('starts a code editor when there is no Neovim', async () => {
     repo = createRepo()
     server = await createServer({
@@ -42,6 +28,19 @@ describe('/api/open', () => {
       pickOpener: () => ({ how: 'editor', command: 'true', args: (file, line) => [`${file}:${line}`] }),
     })
     expect(await (await post({ path: 'a.ts', line: 3 })).json()).toEqual({ how: 'editor', command: 'true' })
+  })
+
+  it('says so when the editor cannot be started, instead of answering that it opened', async () => {
+    repo = createRepo()
+    server = await createServer({
+      repo: repo.path,
+      port: testPort(),
+      watch: false,
+      pickOpener: () => ({ how: 'system', command: 'duck-diff-no-such-opener', args: (file) => [file] }),
+    })
+    const response = await post({ path: 'a.ts', line: 1 })
+    expect(response.status).toBe(502)
+    expect(JSON.stringify(await response.json())).toContain('duck-diff-no-such-opener')
   })
 
   it('sends the open keys to Neovim for paths inside the repo', async () => {

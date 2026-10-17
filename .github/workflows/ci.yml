@@ -23,11 +23,6 @@ jobs:
       # The macOS runners have 3 cores; the web, git and server suites at once starve the web tests' timers.
       - run: bun run check && bun run check-types && bun run build && bunx turbo run test:coverage --concurrency=1
         if: runner.os == 'macOS'
-      # Before e2e: opening a file runs nvim in a page terminal when nvim is on PATH.
-      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1
-        with:
-          neovim: true
-          version: stable
       - run: bunx playwright install --with-deps chromium
         working-directory: apps/server
       - run: bun run test:e2e
@@ -39,4 +34,8 @@ jobs:
       # Budgets are checked on Linux only; the macOS runners are too uneven to time.
       - run: bun run bench
         if: runner.os == 'Linux'
+      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1
+        with:
+          neovim: true
+          version: stable
       - run: bun run test:nvim

@@ -1,4 +1,4 @@
-import { Badge } from '@duck-diff/ui'
+import { Badge, type BadgeTone } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
@@ -64,6 +64,14 @@ function FilePreview({ path }: { path: string }) {
   )
 }
 
+// As StatePill colours it: open green, merged or a done issue purple, a closed pull request red, a draft grey.
+function stateTone(item: IndexedItem): BadgeTone {
+  if (item.merged) return 'soft-done'
+  if (item.draft) return 'muted'
+  if (item.state === 'open') return 'soft-success'
+  return item.kind === 'issue' ? 'soft-done' : 'soft-destructive'
+}
+
 function ItemPreview({ item }: { item: IndexedItem }) {
   const { queries } = useApp()
   const issue = useQuery({ ...queries.gh.issue(item.number), enabled: useSettled(item.number, 120) === item.number })
@@ -79,7 +87,7 @@ function ItemPreview({ item }: { item: IndexedItem }) {
         </span>
       </p>
       <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
-        <Badge variant="outline" size="sm">
+        <Badge variant={stateTone(item)} size="sm">
           {item.merged ? 'Merged' : item.draft ? 'Draft' : item.state === 'open' ? 'Open' : 'Closed'}
         </Badge>
         {item.author} · updated {ago(item.updatedAt)}

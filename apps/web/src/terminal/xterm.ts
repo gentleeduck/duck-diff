@@ -74,6 +74,19 @@ export interface Mounted {
   dispose(): void
 }
 
+// The clipboard keys of a desktop terminal: Ctrl+Shift+C, Ctrl+Insert, or Ctrl+C with text selected copy;
+// Ctrl+V, Ctrl+Shift+V and Shift+Insert paste. Without a selection Ctrl+C stays the shell's interrupt. A Mac
+// keeps Cmd for these and Ctrl for the shell, which the terminal already does.
+export function clipboardKey(event: KeyboardEvent, selected: boolean): 'copy' | 'paste' | null {
+  if (/Mac/.test(navigator.platform) || event.altKey || event.metaKey) return null
+  const key = event.key.toLowerCase()
+  if (event.ctrlKey && key === 'c' && (event.shiftKey || selected)) return 'copy'
+  if (event.ctrlKey && !event.shiftKey && key === 'insert') return 'copy'
+  if (event.ctrlKey && key === 'v') return 'paste'
+  if (event.shiftKey && !event.ctrlKey && key === 'insert') return 'paste'
+  return null
+}
+
 export function mountTerminal(
   element: HTMLElement,
   options: { fontSize: number; fontWeight: number; readOnly: boolean },
@@ -101,8 +114,20 @@ export function mountTerminal(
   terminal.loadAddon(unicode)
   terminal.unicode.activeVersion = '11'
   terminal.loadAddon(new WebLinksAddon((_event, uri) => window.open(uri, '_blank', 'noopener')))
-  // Ctrl+` belongs to the page (it hides the panel), not the shell.
-  terminal.attachCustomKeyEventHandler((event) => !(event.ctrlKey && event.key === '`'))
+  terminal.attachCustomKeyEventHandler((event) => {
+    // Ctrl+` belongs to the page (it hides the panel), not the shell.
+    if (event.ctrlKey && event.key === '`') return false
+    const action = clipboardKey(event, terminal.hasSelection())
+    if (!action) return true
+    if (action === 'copy' && event.type === 'keydown') {
+      event.preventDefault()
+      void navigator.clipboard?.writeText(terminal.getSelection()).catch(() => {})
+      // After a plain Ctrl+C copy the next Ctrl+C interrupts again, as in Windows Terminal; Ctrl+Shift+C keeps it.
+      if (!event.shiftKey && event.key.toLowerCase() === 'c') terminal.clearSelection()
+    }
+    // A paste is left to the browser, whose paste event the terminal reads: no clipboard permission is asked.
+    return false
+  })
   terminal.open(element)
   // The GPU renderer keeps a flood of output cheap; the DOM one takes over if WebGL is missing or lost.
   try {

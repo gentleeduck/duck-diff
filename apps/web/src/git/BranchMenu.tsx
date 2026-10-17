@@ -1,4 +1,5 @@
 import {
+  Badge,
   Button,
   Command,
   CommandEmpty,
@@ -66,7 +67,11 @@ export function BranchMenu() {
                 <CommandItem key={ref.name} value={ref.name} onSelect={() => void choose(ref.name, false)}>
                   <GitBranch className={ref.current ? 'text-tn-green' : 'text-tn-blue'} />
                   <span className="min-w-0 flex-1 truncate">{ref.name}</span>
-                  {ref.current ? <span className="text-tn-green">current</span> : null}
+                  {ref.current ? (
+                    <Badge variant="soft-success" size="sm">
+                      current
+                    </Badge>
+                  ) : null}
                 </CommandItem>
               ))}
             </CommandGroup>

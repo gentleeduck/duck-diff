@@ -1,4 +1,4 @@
-import { Button, Popover, PopoverContent, PopoverTrigger, Textarea } from '@duck-diff/ui'
+import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Textarea } from '@duck-diff/ui'
 import { Check, MessageSquare, ScanEye, X } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -33,11 +33,13 @@ export function ReviewChanges({ fit = false }: { fit?: boolean }) {
     setBusy(event)
     try {
       await pullReview.submit(event, body)
-      toast(event === 'APPROVE' ? 'Approved' : event === 'REQUEST_CHANGES' ? 'Requested changes' : 'Review sent')
+      toast.success(
+        event === 'APPROVE' ? 'Approved' : event === 'REQUEST_CHANGES' ? 'Requested changes' : 'Review sent',
+      )
       setBody('')
       setOpen(false)
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not send the review', { description: (error as Error).message })
     } finally {
       setBusy(null)
     }
@@ -54,9 +56,9 @@ export function ReviewChanges({ fit = false }: { fit?: boolean }) {
           <ScanEye />
           <span className={fit ? COMPARE.label : undefined}>Review changes</span>
           {pending ? (
-            <span className={`rounded-full bg-background/30 px-1.5 tabular-nums ${fit ? COMPARE.count : ''}`}>
+            <Badge variant="secondary" size="sm" className={`rounded-full tabular-nums ${fit ? COMPARE.count : ''}`}>
               {pending}
-            </span>
+            </Badge>
           ) : null}
         </Button>
       </PopoverTrigger>

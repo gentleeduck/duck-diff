@@ -1,4 +1,5 @@
 import type { ListQuery } from '@duck-diff/protocol'
+import { Button } from '@duck-diff/ui'
 import { ChevronDown, Milestone, UserX } from 'lucide-react'
 import { forwardRef, type ReactNode } from 'react'
 import { useApp } from '../app/AppProvider'
@@ -33,14 +34,16 @@ const MenuButton = forwardRef<HTMLButtonElement, { label: string; active: boolea
   ref,
 ) {
   return (
-    <button
+    <Button
+      variant="nothing"
+      size="none"
       ref={ref}
       type="button"
       {...props}
-      className={`flex cursor-pointer items-center gap-1 hover:text-foreground ${active ? 'text-tn-blue' : 'text-muted-foreground'}`}>
+      className={`flex cursor-pointer items-center gap-1 hover:text-foreground ${active ? 'text-tn-blue' : 'text-muted-foreground'} justify-start rounded-none whitespace-normal`}>
       {label}
       <ChevronDown className="size-4" />
-    </button>
+    </Button>
   )
 })
 
