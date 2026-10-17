@@ -1,11 +1,12 @@
 import type { Notification } from '@duck-diff/protocol'
-import { Badge, Button } from '@duck-diff/ui'
+import { Badge, type BadgeTone, Button, Tabs, TabsList, TabsTrigger } from '@duck-diff/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCheck, CircleDot, GitPullRequest, MailCheck, RefreshCw, Rocket, Workflow } from 'lucide-react'
 import { type ReactNode, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { pageColumn } from '../app/page-column'
 import { ListRowsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useView } from '../hooks/useView'
@@ -34,6 +35,15 @@ const REASONS: Record<string, string> = {
   manual: 'Subscribed',
 }
 
+// Asked of you first, then about you, then the rest.
+const REASON_TONE: Record<string, BadgeTone> = {
+  review_requested: 'soft-warning',
+  assign: 'soft-info',
+  mention: 'soft-info',
+  team_mention: 'soft-info',
+  ci_activity: 'soft-done',
+}
+
 // The unread count for the rail badge, asked for less often than the inbox page polls.
 export function useUnread(): number {
   const { queries } = useApp()
@@ -60,9 +70,9 @@ export function Inbox() {
       client.setQueriesData<Notification[]>({ queryKey: ['github', 'notifications'] }, (prev) =>
         prev?.map((entry) => (id === null || entry.id === id ? { ...entry, unread: false } : entry)),
       )
-      if (id === null) toast('Marked everything as read')
+      if (id === null) toast.success('Marked everything as read')
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not mark it as read', { description: (error as Error).message })
     }
   }
 
@@ -83,21 +93,14 @@ export function Inbox() {
   const unread = items?.filter((entry) => entry.unread).length ?? 0
   return (
     <div ref={page} className="h-full overflow-y-auto">
-      <div className="flex w-full flex-col gap-4 p-6">
+      <div {...pageColumn('gap-4')}>
         <div className="flex flex-wrap items-center gap-2">
-          <div role="tablist" aria-label="Show" className="flex items-center gap-1">
-            {([false, true] as const).map((value) => (
-              <Button
-                key={String(value)}
-                size="sm"
-                variant={all === value ? 'secondary' : 'ghost'}
-                role="tab"
-                aria-selected={all === value}
-                onClick={() => setAll(value)}>
-                {value ? 'All' : 'Unread'}
-              </Button>
-            ))}
-          </div>
+          <Tabs value={all ? 'all' : 'unread'} onValueChange={(next) => setAll(next === 'all')}>
+            <TabsList aria-label="Show">
+              <TabsTrigger value="unread">Unread</TabsTrigger>
+              <TabsTrigger value="all">All</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <span className="flex-1" />
           <Button size="sm" variant="outline" disabled={!unread} onClick={() => void markRead(null)}>
             <CheckCheck />
@@ -126,18 +129,20 @@ export function Inbox() {
                 className="flex items-center gap-3 border-border border-b px-4 py-2 last:border-b-0 hover:bg-accent/40">
                 <span className={`size-2 shrink-0 rounded-full ${entry.unread ? 'bg-tn-blue' : ''}`} />
                 {ICONS[entry.type] ?? <Bell className="size-4 text-muted-foreground" />}
-                <button
+                <Button
+                  variant="nothing"
+                  size="none"
                   type="button"
                   disabled={entry.number === null}
                   onClick={() => jump(entry)}
-                  className="flex min-w-0 flex-1 cursor-pointer flex-col items-start text-start disabled:cursor-default">
+                  className="flex min-w-0 flex-1 cursor-pointer flex-col items-start text-start disabled:cursor-default justify-start shrink rounded-none">
                   <span className={entry.unread ? 'text-foreground' : 'text-muted-foreground'}>
                     {entry.title}
                     {entry.number === null ? null : <span className="text-muted-foreground"> #{entry.number}</span>}
                   </span>
                   <span className="text-muted-foreground">updated {ago(entry.updatedAt)}</span>
-                </button>
-                <Badge variant="outline" size="sm">
+                </Button>
+                <Badge variant={REASON_TONE[entry.reason] ?? 'muted'} size="sm">
                   {REASONS[entry.reason] ?? entry.reason}
                 </Badge>
                 {entry.unread ? (

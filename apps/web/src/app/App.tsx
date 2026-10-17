@@ -1,7 +1,7 @@
 import { Button, Kbd, Toaster, TooltipProvider } from '@duck-diff/ui'
 import { RouterProvider } from '@tanstack/react-router'
-import { SearchIcon } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { Search } from 'lucide-react'
+import { type ReactNode, useCallback, useState } from 'react'
 import { SymbolPanel } from '../code-nav/SymbolPanel'
 import { CompareBar } from '../compare/CompareBar'
 import { FilesSidebar } from '../files/FilesSidebar'
@@ -31,7 +31,7 @@ import type { Place, View } from '../router/place'
 import { createAppRouter } from '../router/router'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
-import type { Settings } from '../state/settings'
+import { panelShown, type Settings, togglePanel } from '../state/settings'
 import { WritesProvider } from '../writes/WritesProvider'
 import { ActivityRail } from './ActivityRail'
 import { AppProvider, useApp } from './AppProvider'
@@ -59,7 +59,6 @@ const SHIPPED: View[] = [
 ]
 
 const selectCommitCount = (state: GraphState) => state.entries.length
-const selectPanel = (state: Settings) => state.sidebar
 const selectNumber = (place: Place) => place.number
 
 function GraphTitle() {
@@ -115,7 +114,7 @@ function Screen() {
       aria-label="Search files and actions"
       title="Search files and actions (Ctrl K)"
       onClick={() => openPalette()}>
-      <SearchIcon />
+      <Search />
       <span className="hidden min-w-0 flex-1 truncate text-start @6xl/top:inline">Search or jump to...</span>
       <Kbd className="ms-auto hidden h-[1.125rem] px-1 text-[0.8em] leading-none @6xl/top:inline-flex">Ctrl K</Kbd>
     </Button>
@@ -266,10 +265,10 @@ function Screen() {
     },
   }
   const screen = screens[view]
-  const panel = useSettings(selectPanel)
+  const panel = useSettings(useCallback((state: Settings) => panelShown(state, view), [view]))
   const unread = useUnread()
   const { settings } = useApp()
-  const togglePanel = () => settings.set((prev) => ({ ...prev, sidebar: !prev.sidebar }))
+  const flipPanel = () => settings.set((prev) => togglePanel(prev, view))
   return (
     <>
       <Shell
@@ -278,7 +277,7 @@ function Screen() {
         sidebar={screen.side}
         sidebarLabel={screen.label}
         panelShown={panel}
-        onTogglePanel={togglePanel}
+        onTogglePanel={flipPanel}
         viewer={<ViewStack view={view} item={item} />}
         // The symbol panel belongs to the code views; other pages never show it.
         aside={view === 'changes' || view === 'files' ? <SymbolPanel /> : null}
@@ -310,7 +309,8 @@ export function App({ api, persist = false }: { api?: Api; persist?: boolean }) 
           <GitProvider>
             <Routed />
             <AskDialog />
-            <Toaster position="bottom-right" style={{ '--width': '28rem' } as React.CSSProperties} />
+            {/* Every theme is dark; sonner would otherwise follow the system's light or dark. */}
+            <Toaster position="bottom-right" theme="dark" style={{ '--width': '28rem' } as React.CSSProperties} />
           </GitProvider>
         </WritesProvider>
       </TooltipProvider>

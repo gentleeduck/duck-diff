@@ -12,9 +12,9 @@ export function useOpenFile(): (path: string, line?: number) => Promise<void> {
         const result = await api.open(path, line)
         const where =
           result.how === 'nvim' ? 'Neovim' : result.how === 'system' ? 'its default app' : editorName(result.command)
-        toast(`Opened ${path} in ${where}`)
+        toast.success(`Opened in ${where}`, { description: `${path}, line ${line}` })
       } catch (error) {
-        toast.error((error as Error).message)
+        toast.error(`Could not open ${path}`, { description: (error as Error).message })
       }
     },
     [api],

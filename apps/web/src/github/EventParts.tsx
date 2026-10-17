@@ -1,4 +1,5 @@
 import type { EventPart } from '@duck-diff/protocol'
+import { Button } from '@duck-diff/ui'
 import type { ReactNode } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useTarget } from '../hooks/useTarget'
@@ -30,16 +31,18 @@ export function CommitLink({
   const { navigate } = useTarget()
   const { show } = useView()
   return (
-    <button
+    <Button
+      variant="nothing"
+      size="none"
       type="button"
       title={`Show commit ${sha.slice(0, 7)}`}
-      className={`${className} text-start`}
+      className={`${className} text-start justify-start rounded-none`}
       onClick={() => {
         navigate({ kind: 'commit', sha })
         show('changes')
       }}>
       {children}
-    </button>
+    </Button>
   )
 }
 
@@ -60,12 +63,14 @@ function ItemLink({ part }: { part: Extract<EventPart, { kind: 'item' }> }) {
       </a>
     )
   return (
-    <button
+    <Button
+      variant="nothing"
+      size="none"
       type="button"
-      className={`${LINK} text-start`}
+      className={`${LINK} text-start justify-start rounded-none`}
       onClick={() => (part.pull ? pullSelection : issueSelection).set(part.number)}>
       {label}
-    </button>
+    </Button>
   )
 }
 

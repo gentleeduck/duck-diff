@@ -1,5 +1,5 @@
 import type { ChangedFile, DiffTarget } from '@duck-diff/protocol'
-import { Progress } from '@duck-diff/ui'
+import { Button, Progress } from '@duck-diff/ui'
 import { ArrowDownToLine, CircleCheck } from 'lucide-react'
 import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
@@ -24,12 +24,14 @@ export function ViewedProgress({ files, target }: { files: readonly ChangedFile[
   if (!total) return null
   const finished = done === total
   return (
-    <button
+    <Button
+      variant="nothing"
+      size="none"
       type="button"
       disabled={finished}
       onClick={() => next && diffFile.set(next)}
       title={finished ? 'Every file is viewed' : `Go to ${next}, the next file not viewed`}
-      className="flex w-full cursor-pointer flex-col gap-1 rounded-sm text-start text-muted-foreground hover:text-foreground disabled:cursor-default">
+      className="flex w-full cursor-pointer flex-col gap-1 rounded-sm text-start text-muted-foreground hover:text-foreground disabled:cursor-default disabled:opacity-100 justify-start">
       <span className="flex w-full items-center gap-1.5">
         {finished ? <CircleCheck className="size-4 text-tn-green" /> : null}
         <span className="tabular-nums">
@@ -42,6 +44,6 @@ export function ViewedProgress({ files, target }: { files: readonly ChangedFile[
         aria-label={`${done} of ${total} files viewed`}
         className={`h-1 ${finished ? '[&>*]:bg-tn-green' : ''}`}
       />
-    </button>
+    </Button>
   )
 }

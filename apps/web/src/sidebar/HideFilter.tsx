@@ -124,9 +124,11 @@ export function HideFilter({ hiddenCount }: { hiddenCount: number }) {
               className={`relative shrink-0 ${on ? 'border-tn-yellow/60 text-tn-yellow' : ''}`}>
               <ListFilter />
               {on ? (
-                <span className="absolute -end-1.5 -top-1.5 rounded-full bg-tn-yellow px-1 text-[0.7em] text-background leading-[1.4]">
+                <Badge
+                  variant="warning"
+                  className="absolute -end-1.5 -top-1.5 h-auto rounded-full py-0 ps-1 pe-1 text-[0.7em] leading-[1.4]">
                   {on}
-                </span>
+                </Badge>
               ) : null}
             </Button>
           </PopoverTrigger>
@@ -137,7 +139,7 @@ export function HideFilter({ hiddenCount }: { hiddenCount: number }) {
         <div className="flex items-center justify-between">
           <span>Hide files</span>
           {hiddenCount ? (
-            <Badge variant="outline" size="sm">
+            <Badge variant="muted" size="sm">
               {hiddenCount} hidden
             </Badge>
           ) : null}

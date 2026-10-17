@@ -1,4 +1,4 @@
-import { Badge, Button } from '@duck-diff/ui'
+import { Badge, type BadgeTone, Button } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowRightLeft, Bell, BellOff, Pin, PinOff } from 'lucide-react'
 import { useState } from 'react'
@@ -12,6 +12,14 @@ import { Section } from './ItemSidebar'
 import { PullIcon } from './PullsList'
 
 // The lower half of GitHub's sidebar: linked work, projects, notifications, and the issue-only actions.
+// Project boards name their columns freely; the usual words get the usual colours.
+function statusTone(status: string): BadgeTone {
+  if (/done|complete|shipped|closed/i.test(status)) return 'soft-done'
+  if (/block/i.test(status)) return 'soft-destructive'
+  if (/progress|review|doing/i.test(status)) return 'soft-info'
+  return 'muted'
+}
+
 export function ItemExtras({ number }: { number: number }) {
   const { api, pullSelection, issueSelection, queries } = useApp()
   const { show } = useView()
@@ -21,14 +29,14 @@ export function ItemExtras({ number }: { number: number }) {
 
   if (!extras) return null
 
-  const change = async (task: Promise<unknown>, done: string) => {
+  const change = async (task: Promise<unknown>, done: string, failed: string) => {
     setBusy(true)
     try {
       await task
-      toast(done)
+      toast.success(done)
       await refresh(`item:${number}`)
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error(failed, { description: (error as Error).message })
     } finally {
       setBusy(false)
     }
@@ -53,10 +61,12 @@ export function ItemExtras({ number }: { number: number }) {
     setBusy(true)
     try {
       const moved = await api.github.transfer(number, answer.repo ?? '')
-      toast(`Moved to ${answer.repo}#${moved.number}`)
+      toast.success(`Moved to ${answer.repo}#${moved.number}`, {
+        description: 'Its comments and history went with it.',
+      })
       issueSelection.set(null)
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not transfer the issue', { description: (error as Error).message })
     } finally {
       setBusy(false)
     }
@@ -70,10 +80,12 @@ export function ItemExtras({ number }: { number: number }) {
           <ul className="flex flex-col gap-1.5">
             {extras.linked.map((item) => (
               <li key={item.number}>
-                <button
+                <Button
+                  variant="nothing"
+                  size="none"
                   type="button"
                   onClick={() => open(item.pull, item.number)}
-                  className="flex w-full cursor-pointer items-start gap-2 text-start text-foreground hover:text-tn-blue">
+                  className="flex w-full cursor-pointer items-start gap-2 text-start text-foreground hover:text-tn-blue justify-start rounded-none">
                   <span className="pt-0.5">
                     {item.pull ? (
                       <PullIcon
@@ -90,7 +102,7 @@ export function ItemExtras({ number }: { number: number }) {
                   <span className="min-w-0 flex-1">
                     {item.title} <span className="text-muted-foreground">#{item.number}</span>
                   </span>
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -113,7 +125,7 @@ export function ItemExtras({ number }: { number: number }) {
                   {project.title}
                 </a>
                 {project.status ? (
-                  <Badge variant="outline" size="sm">
+                  <Badge variant={statusTone(project.status)} size="sm">
                     {project.status}
                   </Badge>
                 ) : null}
@@ -130,7 +142,11 @@ export function ItemExtras({ number }: { number: number }) {
           variant="outline"
           loading={busy}
           onClick={() =>
-            void change(api.github.setSubscribed(number, !subscribed), subscribed ? 'Unsubscribed' : 'Subscribed')
+            void change(
+              api.github.setSubscribed(number, !subscribed),
+              subscribed ? 'Unsubscribed' : 'Subscribed',
+              'Could not change the subscription',
+            )
           }>
           {subscribed ? <BellOff /> : <Bell />}
           {subscribed ? 'Unsubscribe' : 'Subscribe'}
@@ -154,6 +170,7 @@ export function ItemExtras({ number }: { number: number }) {
               void change(
                 api.github.setPinned(number, !extras.pinned),
                 extras.pinned ? 'Unpinned' : 'Pinned to the repository',
+                extras.pinned ? 'Could not unpin it' : 'Could not pin it',
               )
             }>
             {extras.pinned ? <PinOff /> : <Pin />}

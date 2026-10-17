@@ -1,11 +1,11 @@
 import type { SymbolHit } from '@duck-diff/protocol'
-import { Input, Skeleton } from '@duck-diff/ui'
+import { Button, Input, ResizableHandle, ResizablePanel, Skeleton } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
-import { ResizeHandle, useStoredWidth } from '../app/ResizeHandle'
+import { useSidePanel } from '../app/side-panel'
 import { openFile } from '../files/open-file'
 import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
@@ -84,14 +84,14 @@ function Snippet({ text, name, column }: { text: string; name: string; column: n
 }
 
 // GitHub's symbol pane: where the clicked name is defined, imported and used, each opening at its line.
-const PANEL = { key: 'duck-diff:symbol-panel-width', initial: 384, min: 280, maxShare: 0.6 }
+const PANEL = { key: 'duck-diff:symbol-panel-width', initial: 384, min: 280 }
 
 export function SymbolPanel() {
   const app = useApp()
   const { symbol, queries } = app
   const current = useStore(symbol, selectSymbol)
   const { show } = useView()
-  const [width, setWidth] = useStoredWidth(PANEL)
+  const side = useSidePanel(PANEL)
   const [filter, setFilter] = useState('')
   useHighlight(current?.name ?? null)
   const found = useQuery({ ...queries.git.symbol(current ?? { name: '', ref: null }), enabled: current !== null })
@@ -146,14 +146,16 @@ export function SymbolPanel() {
                 <span className="min-w-0 truncate">{path}</span>
               </p>
               {hits.map((hit) => (
-                <button
+                <Button
+                  variant="nothing"
+                  size="none"
                   key={`${hit.line}:${hit.column}`}
                   type="button"
                   onClick={() => go(hit)}
-                  className="flex w-full cursor-pointer items-baseline gap-2 px-3 py-0.5 text-start text-muted-foreground hover:bg-accent/50 hover:text-foreground">
+                  className="flex w-full cursor-pointer items-baseline gap-2 px-3 py-0.5 text-start text-muted-foreground hover:bg-accent/50 hover:text-foreground justify-start rounded-none">
                   <span className="w-10 shrink-0 text-end text-tn-gutter tabular-nums">{hit.line}</span>
                   <Snippet text={hit.text} name={current.name} column={hit.column} />
-                </button>
+                </Button>
               ))}
             </div>
           )
@@ -163,47 +165,43 @@ export function SymbolPanel() {
 
   return (
     <>
-      <ResizeHandle
-        label="Resize the symbol panel"
-        width={width}
-        initial={PANEL.initial}
-        side="right"
-        onResize={setWidth}
-      />
-      <aside aria-label={`Symbol ${current.name}`} style={{ width }} className="flex h-full shrink-0 flex-col bg-card">
-        <header className="flex h-11 shrink-0 items-center gap-2 border-border border-b ps-3 pe-1">
-          <span className="text-muted-foreground">Symbol</span>
-          <code className="min-w-0 flex-1 truncate text-tn-yellow">{current.name}</code>
-          {result ? (
-            <span
-              className={`shrink-0 ${result.source === 'text' ? 'text-muted-foreground' : 'text-tn-green'}`}
-              title={
-                result.source === 'text'
-                  ? 'Every place the name appears as text; same-named symbols mix'
-                  : 'Exact answers from a language server'
-              }>
-              {sourceLabel(result)}
-            </span>
+      <ResizableHandle withHandle={false} aria-label="Resize the symbol panel" onDoubleClick={side.reset} />
+      <ResizablePanel id="symbol" {...side.panel} maxSize="60%" className="flex">
+        <aside aria-label={`Symbol ${current.name}`} className="flex h-full w-full min-w-0 flex-col bg-card">
+          <header className="flex h-11 shrink-0 items-center gap-2 border-border border-b ps-3 pe-1">
+            <span className="text-muted-foreground">Symbol</span>
+            <code className="min-w-0 flex-1 truncate text-tn-yellow">{current.name}</code>
+            {result ? (
+              <span
+                className={`shrink-0 ${result.source === 'text' ? 'text-muted-foreground' : 'text-tn-green'}`}
+                title={
+                  result.source === 'text'
+                    ? 'Every place the name appears as text; same-named symbols mix'
+                    : 'Exact answers from a language server'
+                }>
+                {sourceLabel(result)}
+              </span>
+            ) : null}
+            <IconTool label="Close the symbol panel" tip="Close (Esc)" onClick={() => symbol.set(null)}>
+              <X />
+            </IconTool>
+          </header>
+          <div className="shrink-0 border-border border-b p-2">
+            <Input
+              aria-label="Filter by file"
+              placeholder="Filter by file"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+            />
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
+          {result?.truncated ? (
+            <p className="shrink-0 border-border border-t px-3 py-1.5 text-muted-foreground">
+              Showing the first {result.hits.length} matches.
+            </p>
           ) : null}
-          <IconTool label="Close the symbol panel" tip="Close (Esc)" onClick={() => symbol.set(null)}>
-            <X />
-          </IconTool>
-        </header>
-        <div className="shrink-0 border-border border-b p-2">
-          <Input
-            aria-label="Filter by file"
-            placeholder="Filter by file"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-          />
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
-        {result?.truncated ? (
-          <p className="shrink-0 border-border border-t px-3 py-1.5 text-muted-foreground">
-            Showing the first {result.hits.length} matches.
-          </p>
-        ) : null}
-      </aside>
+        </aside>
+      </ResizablePanel>
     </>
   )
 }

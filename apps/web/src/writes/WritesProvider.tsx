@@ -1,9 +1,9 @@
 import type { ChangedFile } from '@duck-diff/protocol'
-import { Button, Dialog, DialogContent, DialogDescription, DialogTitle } from '@duck-diff/ui'
 import type { Hunk } from '@pierre/diffs'
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { createContext, type ReactNode, useCallback, useContext, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { ask } from '../app/Ask'
 import { ApiError } from '../lib/api'
 import { useRefresh } from '../query/useRefresh'
 import { type WriteKind, writeRequest } from '../viewer/actions'
@@ -22,6 +22,22 @@ const WritesContext = createContext<Writes | null>(null)
 
 const DONE: Record<WriteKind, string> = { stage: 'Staged', unstage: 'Unstaged', discard: 'Discarded' }
 
+const confirmDiscard = (what: string, path?: string) =>
+  ask.confirm({
+    title: 'Discard changes',
+    body: `Discard ${what}? You can undo it right after.`,
+    detail: path,
+    action: 'Discard',
+    destructive: true,
+  })
+
+function failedWrite(kind: string, what: string, path: string, error: unknown) {
+  // A stale page means the file moved underneath it; the reload after this shows the current state.
+  if (error instanceof ApiError && error.code === 'stale')
+    toast.warning(`${path} changed on disk`, { description: 'Nothing was written. Showing the latest version.' })
+  else toast.error(`Could not ${kind} ${what}`, { description: `${path}: ${(error as Error).message}` })
+}
+
 export function WritesProvider({ children }: { children: ReactNode }) {
   const { api, session } = useApp()
   const topics = useRefresh()
@@ -30,55 +46,39 @@ export function WritesProvider({ children }: { children: ReactNode }) {
     void session.reload()
     void topics('index', 'worktree')
   }, [session, topics])
-  const [question, setQuestion] = useState<string | null>(null)
-  const answer = useRef<(yes: boolean) => void>(() => {})
-
-  const confirm = useCallback(
-    (text: string) =>
-      new Promise<boolean>((resolve) => {
-        answer.current = resolve
-        setQuestion(text)
-      }),
-    [],
-  )
-  const close = (yes: boolean) => {
-    setQuestion(null)
-    answer.current(yes)
-  }
 
   const undo = useCallback(async () => {
     const { restored } = await api.undo()
-    toast(restored ? `Restored ${restored.join(', ')}` : 'Nothing left to undo')
+    if (restored) toast.success('Restored', { description: restored.join(', ') })
+    else toast('Nothing left to undo')
     reload()
   }, [api, reload])
 
   const perform = useCallback<Writes['perform']>(
     async (kind, file, hunk) => {
-      const what = hunk ? `this change in ${file.path}` : file.path
-      if (kind === 'discard' && !(await confirm(`Discard ${what}? You can undo it right after.`))) return
+      if (kind === 'discard' && !(await confirmDiscard(hunk ? 'this change' : 'this file', file.path))) return
       try {
         await api.write(writeRequest(kind, file, hunk))
-        const label = `${DONE[kind]} ${hunk ? `a change in ${file.path}` : file.path}`
+        const label = `${DONE[kind]} ${hunk ? 'a change' : 'the file'}`
         if (kind === 'discard')
-          toast(label, { duration: 10_000, action: { label: 'Undo', onClick: () => void undo() } })
-        else toast(label)
+          toast.success(label, {
+            description: file.path,
+            duration: 10_000,
+            action: { label: 'Undo', onClick: () => void undo() },
+          })
+        else toast.success(label, { description: file.path })
       } catch (error) {
-        // A stale page means the file moved underneath it; the reload below shows the current state.
-        toast.error(
-          error instanceof ApiError && error.code === 'stale'
-            ? `${file.path} changed on disk, so nothing was written. Showing the latest version.`
-            : `Could not ${kind} ${file.path}: ${(error as Error).message}`,
-        )
+        failedWrite(kind, hunk ? 'the change' : 'the file', file.path, error)
       }
       reload()
     },
-    [api, confirm, undo, reload],
+    [api, undo, reload],
   )
 
   const performAll = useCallback<Writes['performAll']>(
     async (kind, files, what) => {
       if (files.length === 0) return
-      if (kind === 'discard' && !(await confirm(`Discard ${what}? You can undo it right after.`))) return
+      if (kind === 'discard' && !(await confirmDiscard(what))) return
       let failed = 0
       // One at a time: every write takes the index lock.
       for (const file of files) {
@@ -89,73 +89,54 @@ export function WritesProvider({ children }: { children: ReactNode }) {
         }
       }
       const label = `${DONE[kind]} ${what}`
-      if (failed) toast.error(`${label}, but ${failed} of ${files.length} could not be written`)
+      if (failed) toast.error(`${failed} of ${files.length} files could not be written`, { description: label })
       else if (kind === 'discard') {
         // Each discarded file left its own snapshot, newest first, so undo takes them all back.
         const restoreAll = async () => {
           const restored: string[] = []
           for (let i = 0; i < files.length - failed; i++) restored.push(...((await api.undo()).restored ?? []))
-          toast(
-            restored.length
-              ? `Restored ${restored.length} ${restored.length === 1 ? 'file' : 'files'}`
-              : 'Nothing left to undo',
-          )
+          if (restored.length)
+            toast.success(`Restored ${restored.length} ${restored.length === 1 ? 'file' : 'files'}`, {
+              description: restored.join(', '),
+            })
+          else toast('Nothing left to undo')
           reload()
         }
-        toast(label, { duration: 10_000, action: { label: 'Undo', onClick: () => void restoreAll() } })
-      } else toast(label)
+        toast.success(label, { duration: 10_000, action: { label: 'Undo', onClick: () => void restoreAll() } })
+      } else toast.success(label)
       reload()
     },
-    [api, confirm, reload],
+    [api, reload],
   )
 
   const performLines = useCallback<Writes['performLines']>(
     async (kind, file, lines) => {
       const count = `${lines.length} ${lines.length === 1 ? 'line' : 'lines'}`
-      if (kind === 'discard' && !(await confirm(`Discard ${count} in ${file.path}? You can undo it right after.`)))
-        return
+      if (kind === 'discard' && !(await confirmDiscard(count, file.path))) return
       try {
         await api.write({
           action: `${kind}-lines`,
           file: { path: file.path, oldPath: file.oldPath, status: file.status, newSha: file.newSha },
           lines,
         })
-        const label = `${DONE[kind]} ${count} in ${file.path}`
+        const label = `${DONE[kind]} ${count}`
         if (kind === 'discard')
-          toast(label, { duration: 10_000, action: { label: 'Undo', onClick: () => void undo() } })
-        else toast(label)
+          toast.success(label, {
+            description: file.path,
+            duration: 10_000,
+            action: { label: 'Undo', onClick: () => void undo() },
+          })
+        else toast.success(label, { description: file.path })
       } catch (error) {
-        toast.error(
-          error instanceof ApiError && error.code === 'stale'
-            ? `${file.path} changed on disk, so nothing was written. Showing the latest version.`
-            : `Could not ${kind} lines in ${file.path}: ${(error as Error).message}`,
-        )
+        failedWrite(kind, count, file.path, error)
       }
       reload()
     },
-    [api, confirm, undo, reload],
+    [api, undo, reload],
   )
 
   const value = useMemo(() => ({ perform, performAll, undo, performLines }), [perform, performAll, undo, performLines])
-  return (
-    <WritesContext.Provider value={value}>
-      {children}
-      <Dialog open={question !== null} onOpenChange={(open) => !open && close(false)}>
-        <DialogContent className="max-w-sm">
-          <DialogTitle>Discard changes</DialogTitle>
-          <DialogDescription>{question}</DialogDescription>
-          <div className="mt-4 flex justify-end gap-2">
-            <Button size="sm" variant="outline" onClick={() => close(false)}>
-              Keep
-            </Button>
-            <Button size="sm" variant="destructive" onClick={() => close(true)}>
-              Discard
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </WritesContext.Provider>
-  )
+  return <WritesContext.Provider value={value}>{children}</WritesContext.Provider>
 }
 
 export function useWrites(): Writes {

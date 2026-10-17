@@ -150,10 +150,15 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
     })
   }, [value])
 
-  // Tabs are saved per repository, so they come back once the page knows which one it shows.
+  // Tabs, viewed marks and unsent reviews are kept per repository, so they come back once the page knows which
+  // one it shows.
   useEffect(() => {
     value.queryClient.fetchQuery(value.queries.git.repo()).then(
-      (info) => value.tabs.restore(info.root),
+      (info) => {
+        value.tabs.restore(info.root)
+        value.viewed.restore(info.root)
+        value.pullReview.restore(info.root)
+      },
       () => {},
     )
   }, [value])

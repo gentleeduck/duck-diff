@@ -1,9 +1,20 @@
 import type { Ref } from '@duck-diff/protocol'
-import { Button, Label, Popover, PopoverContent, PopoverTrigger, Switch } from '@duck-diff/ui'
+import {
+  Badge,
+  Button,
+  Label,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Switch,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@duck-diff/ui'
 import { ArchiveRestore, ArrowRightLeft, FileDiff, GitMerge, PackageOpen, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useApp } from '../app/AppProvider'
-import { IconTool } from '../app/IconTool'
+import { DANGER, IconTool } from '../app/IconTool'
 import { TreeSkeleton } from '../app/skeletons'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
@@ -42,11 +53,16 @@ function StashActions({ name, sha }: { name: string; sha: string }) {
         <PackageOpen />
       </IconTool>
       <Popover>
-        <PopoverTrigger asChild>
-          <Button size="icon" variant="ghost" aria-label={`Drop ${name}`}>
-            <Trash2 />
-          </Button>
-        </PopoverTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <PopoverTrigger asChild>
+              <Button size="icon" variant="ghost" className={DANGER} aria-label={`Drop ${name}`}>
+                <Trash2 />
+              </Button>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Drop {name}</TooltipContent>
+        </Tooltip>
         <PopoverContent className="flex w-72 flex-col gap-2">
           <p>Drop {name}? Its changes are gone after this.</p>
           <Button
@@ -83,11 +99,16 @@ function BranchActions({ name, local }: { name: string; local: boolean }) {
       ) : null}
       {local ? (
         <Popover>
-          <PopoverTrigger asChild>
-            <Button size="icon" variant="ghost" aria-label={`Delete ${name}`}>
-              <Trash2 />
-            </Button>
-          </PopoverTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PopoverTrigger asChild>
+                <Button size="icon" variant="ghost" className={DANGER} aria-label={`Delete ${name}`}>
+                  <Trash2 />
+                </Button>
+              </PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Delete {name}</TooltipContent>
+          </Tooltip>
           <PopoverContent className="flex w-72 flex-col gap-2">
             <p>Delete the branch {name}? Its commits stay reachable only if another branch has them.</p>
             <div className="flex justify-end gap-2">
@@ -154,7 +175,11 @@ export function GraphSidebar() {
                       <span className="min-w-0 flex-1 truncate text-start">
                         {kind === 'stash' ? (ref.subject ?? ref.name) : ref.name}
                       </span>
-                      {ref.current ? <span className="text-tn-green">current</span> : null}
+                      {ref.current ? (
+                        <Badge variant="soft-success" size="sm" className="shrink-0">
+                          current
+                        </Badge>
+                      ) : null}
                     </Button>
                     {kind === 'stash' ? <StashActions name={ref.name} sha={ref.sha} /> : null}
                     {(kind === 'branch' || kind === 'remote') && !ref.current ? (

@@ -32,6 +32,8 @@ describe('actionsFor', () => {
     expect(actionsFor({ kind: 'staged' })).toEqual(['unstage'])
     expect(actionsFor({ kind: 'local' })).toEqual([])
     expect(actionsFor({ kind: 'commit', sha: 'abc' })).toEqual([])
+    // Hunks against another commit are not what the index holds, so they cannot be unstaged as they are.
+    expect(actionsFor({ kind: 'staged', base: 'v1' })).toEqual([])
   })
 })
 

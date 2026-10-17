@@ -28,8 +28,8 @@ export interface Settings {
   tests: 'show' | 'fold' | 'hide'
   // Files left out of the tree and the diff, by path; the tests pattern comes first.
   hidePatterns: HidePattern[]
-  // The left panel (tree, branches, files), hidden for a wider diff.
-  sidebar: boolean
+  // Views whose left panel (tree, branches, files) is hidden for a wider page; each view keeps its own.
+  hiddenPanels: string[]
   // Browser notifications for review requests and failed runs of mine; off until asked for.
   desktopNotices: boolean
 }
@@ -51,8 +51,16 @@ export const DEFAULT_SETTINGS: Settings = {
   tabSize: 2,
   tests: 'show',
   hidePatterns: DEFAULT_HIDE,
-  sidebar: true,
+  hiddenPanels: [],
   desktopNotices: false,
+}
+
+export const panelShown = (settings: Settings, view: string) => !settings.hiddenPanels.includes(view)
+
+// One view's left panel shown or hidden (flipped when shown is left out); the other views keep theirs.
+export function togglePanel(settings: Settings, view: string, shown = !panelShown(settings, view)): Settings {
+  const others = settings.hiddenPanels.filter((entry) => entry !== view)
+  return { ...settings, hiddenPanels: shown ? others : [...others, view] }
 }
 
 const KEY = 'duck-diff:settings'
@@ -77,7 +85,7 @@ const FIELDS = {
   hidePatterns: z
     .array(z.object({ id: z.string(), label: z.string(), pattern: z.string(), enabled: z.boolean() }))
     .max(50),
-  sidebar: z.boolean(),
+  hiddenPanels: z.array(z.string()).max(30),
   desktopNotices: z.boolean(),
 } satisfies { [K in keyof Settings]: z.ZodType<Settings[K]> }
 

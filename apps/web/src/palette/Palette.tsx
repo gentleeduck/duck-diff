@@ -1,4 +1,12 @@
-import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@duck-diff/ui'
+import {
+  Button,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
@@ -19,7 +27,7 @@ import { useView } from '../hooks/useView'
 import type { View } from '../router/place'
 import { fileGlyph } from '../sidebar/icons'
 import type { SessionState } from '../state/session'
-import type { Settings } from '../state/settings'
+import { type Settings, togglePanel } from '../state/settings'
 import { useWrites } from '../writes/WritesProvider'
 import { type RankedPath, rankPaths } from './fuzzy'
 import { Preview, type PreviewTarget } from './Preview'
@@ -30,7 +38,7 @@ const selectFiles = (state: SessionState) => state.files
 const NO_ITEMS: IndexedItem[] = []
 const NO_PATHS: string[] = []
 
-type Toggle = { label: string; apply(prev: Settings): Settings }
+type Toggle = { label: string; apply(prev: Settings, view: View): Settings }
 
 const TOGGLES: Toggle[] = [
   { label: 'Split view', apply: (prev) => ({ ...prev, diffStyle: 'split' }) },
@@ -42,7 +50,7 @@ const TOGGLES: Toggle[] = [
   { label: 'Toggle line numbers', apply: (prev) => ({ ...prev, lineNumbers: !prev.lineNumbers }) },
   { label: 'Toggle line backgrounds', apply: (prev) => ({ ...prev, backgrounds: !prev.backgrounds }) },
   { label: 'Toggle unchanged lines', apply: (prev) => ({ ...prev, expandUnchanged: !prev.expandUnchanged }) },
-  { label: 'Toggle the left panel', apply: (prev) => ({ ...prev, sidebar: !prev.sidebar }) },
+  { label: 'Toggle the left panel', apply: (prev, view) => togglePanel(prev, view) },
   {
     label: 'Show test files',
     apply: (prev) => ({
@@ -213,7 +221,7 @@ export function Palette({
         id: `view ${toggle.label}`,
         label: toggle.label,
         preview: null,
-        run: close(() => settings.set(toggle.apply)),
+        run: close(() => settings.set((prev) => toggle.apply(prev, app.view.get()))),
       })),
     ]
     const itemEntry = (item: IndexedItem): Entry => ({
@@ -356,14 +364,16 @@ export function Palette({
       <footer className="flex shrink-0 flex-wrap items-center gap-2 border-border border-t px-3 py-1.5 text-muted-foreground">
         Narrow with
         {SCOPES.map((entry) => (
-          <button
+          <Button
+            variant="nothing"
+            size="none"
             key={entry.prefix}
             type="button"
             onClick={() => setInput(`${entry.prefix}${entry.prefix.endsWith(':') ? ' ' : ''}${term}`)}
-            className="cursor-pointer rounded-sm border border-border px-1.5 hover:text-foreground"
+            className="cursor-pointer rounded-sm border border-border px-1.5 hover:text-foreground justify-start whitespace-normal"
             title={entry.label}>
             <code>{entry.prefix}</code>
-          </button>
+          </Button>
         ))}
       </footer>
     </CommandDialog>

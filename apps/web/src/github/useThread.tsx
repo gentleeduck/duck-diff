@@ -44,7 +44,7 @@ export function EditTitleButton({ number, title, onChanged }: { number: number; 
       await api.github.editThread(number, { title: values.title })
       onChanged()
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not rename it', { description: (error as Error).message })
     }
   }
   return (

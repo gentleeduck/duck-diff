@@ -1,35 +1,21 @@
 import type { Submodule, Worktree } from '@duck-diff/protocol'
+import { Badge, Button } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
-import { ExternalLink, FolderInput, Plus, RefreshCw, Scissors, Trash2 } from 'lucide-react'
+import { FolderInput, Plus, RefreshCw, Scissors, SquareArrowOutUpRight, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
+import { CheckoutHover, TAG_TONE, treeTag, WorktreeCard } from '../app/CheckoutCard'
 import { IconTool } from '../app/IconTool'
 import { useGit } from '../git/GitProvider'
 import { useNeovim } from '../hooks/useNeovim'
+import { useOpenRepo } from '../hooks/useOpenRepo'
 import { useRefs } from '../hooks/useRefs'
 
 const short = (sha: string | null) => (sha ? sha.slice(0, 7) : 'none')
 const leaf = (path: string) => path.split('/').filter(Boolean).pop() ?? path
 const NO_TREES: Worktree[] = []
 const NO_MODULES: Submodule[] = []
-
-// Another checkout opens in its own tab, served by a server started for it.
-function useOpenRepo() {
-  const { api } = useApp()
-  return async (path: string) => {
-    // Opened before the request so the browser treats it as the click's own tab.
-    const tab = window.open('about:blank', '_blank')
-    try {
-      const url = await api.openRepo(path)
-      if (tab) tab.location.href = url
-      else window.open(url, '_blank')
-    } catch (error) {
-      tab?.close()
-      toast.error(`Could not open ${path}: ${(error as Error).message}`)
-    }
-  }
-}
 
 export function Worktrees() {
   const { api, queries } = useApp()
@@ -61,8 +47,9 @@ export function Worktrees() {
   }
   const remove = async (tree: Worktree) => {
     const yes = await ask.confirm({
-      title: `Remove the worktree at ${leaf(tree.path)}`,
+      title: 'Remove this worktree',
       body: 'Deletes the folder. Its branch and commits stay. Uncommitted changes there stop the removal.',
+      detail: tree.path,
       action: 'Remove',
       destructive: true,
     })
@@ -82,40 +69,61 @@ export function Worktrees() {
           <Plus />
         </IconTool>
       </div>
-      {trees.map((tree) => (
-        <div
-          key={tree.path}
-          className="group flex h-7 items-center gap-2 rounded-sm ps-2 hover:bg-accent/60"
-          title={tree.path}>
-          <span className={`w-5 shrink-0 text-center ${tree.current ? 'text-tn-green' : 'text-tn-blue'}`}>
-            {'\uf401'}
-          </span>
-          <span className="shrink-0">{tree.branch ?? short(tree.head)}</span>
-          <span className="min-w-0 flex-1 truncate text-muted-foreground">{tree.path}</span>
-          {tree.current ? <span className="pe-2 text-tn-green">here</span> : null}
-          {tree.prunable ? <span className="pe-2 text-warning">missing</span> : null}
-          {!tree.current ? (
-            <span className="hidden group-focus-within:flex group-hover:flex">
-              <IconTool label={`Open ${tree.path} in a new tab`} onClick={() => void open(tree.path)}>
-                <ExternalLink />
-              </IconTool>
-              {neovim ? (
-                <IconTool
-                  label={`Switch Neovim's tab to ${tree.path}`}
-                  tip="Neovim :tcd here"
-                  onClick={() => void api.tcd(tree.path).then(() => toast(`Neovim now works in ${leaf(tree.path)}`))}>
-                  <FolderInput />
-                </IconTool>
+      {trees.map((tree) => {
+        const tag = treeTag(tree)
+        return (
+          // The card hangs off the whole row, so it opens past the row's own buttons instead of over them.
+          <CheckoutHover key={tree.path} card={<WorktreeCard tree={tree} />}>
+            <div className="group flex h-7 items-center gap-2 rounded-sm ps-2 hover:bg-accent/60">
+              {/* The row opens the checkout in its own window, as the page it is in was opened. */}
+              <Button
+                variant="nothing"
+                size="none"
+                type="button"
+                aria-label={tree.current ? `${tree.path}, open here` : `Open ${tree.path}`}
+                aria-disabled={tree.current || tree.prunable || undefined}
+                onClick={() => !tree.current && !tree.prunable && void open(tree.path)}
+                className="flex h-full min-w-0 flex-1 shrink cursor-pointer items-center justify-start gap-2 rounded-none text-start aria-disabled:cursor-default">
+                <span className={`w-5 shrink-0 text-center ${tree.current ? 'text-tn-green' : 'text-tn-blue'}`}>
+                  {'\uf401'}
+                </span>
+                <span className="shrink-0">{tree.branch ?? short(tree.head)}</span>
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">{tree.path}</span>
+              </Button>
+              {tag ? (
+                <Badge variant={TAG_TONE[tag]} size="sm" className="me-1 shrink-0">
+                  {tag}
+                </Badge>
               ) : null}
-              {!tree.main ? (
-                <IconTool label={`Remove the worktree at ${tree.path}`} onClick={() => void remove(tree)}>
-                  <Trash2 />
-                </IconTool>
+              {!tree.current ? (
+                <span className="hidden group-focus-within:flex group-hover:flex">
+                  {neovim ? (
+                    <IconTool
+                      label={`Switch Neovim's tab to ${tree.path}`}
+                      tip="Neovim :tcd here"
+                      onClick={() =>
+                        void api.tcd(tree.path).then(
+                          () => toast.success(`Neovim now works in ${leaf(tree.path)}`, { description: tree.path }),
+                          (error: Error) => toast.error('Could not switch Neovim', { description: error.message }),
+                        )
+                      }>
+                      <FolderInput />
+                    </IconTool>
+                  ) : null}
+                  {!tree.main && !tree.separate ? (
+                    <IconTool
+                      destructive
+                      label={`Remove the worktree at ${tree.path}`}
+                      onClick={() => void remove(tree)}>
+                      <Trash2 />
+                    </IconTool>
+                  ) : null}
+                </span>
               ) : null}
-            </span>
-          ) : null}
-        </div>
-      ))}
+            </div>
+          </CheckoutHover>
+        )
+      })}
     </section>
   )
 }
@@ -168,9 +176,9 @@ export function Submodules() {
               </IconTool>
               {module.initialized ? (
                 <IconTool
-                  label={`Open ${module.path} in a new tab`}
+                  label={`Open ${module.path} on its own page`}
                   onClick={() => void open(`${root}/${module.path}`)}>
-                  <ExternalLink />
+                  <SquareArrowOutUpRight />
                 </IconTool>
               ) : null}
             </span>

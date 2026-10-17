@@ -1,7 +1,7 @@
-import { Button, Kbd } from '@duck-diff/ui'
+import { Button, Kbd, Popover, PopoverAnchor, PopoverContent } from '@duck-diff/ui'
 import { MessageSquarePlus, Minus, Plus, Undo2 } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect } from 'react'
+import { DANGER } from '../app/IconTool'
 import type { WriteKind } from './actions'
 
 // What can be done with the lines a drag picked: comment on them, or stage, unstage or discard just them.
@@ -46,44 +46,52 @@ export function SelectionBar({
       document.removeEventListener('scroll', onScroll, { capture: true })
     }
   }, [main, onWrite, onComment, onClose])
-  const box = useRef<HTMLDivElement>(null)
-  const [width, setWidth] = useState(0)
-  useLayoutEffect(() => setWidth(box.current?.offsetWidth ?? 0), [])
-  const top = Math.min(rect.bottom + 6, window.innerHeight - 48)
-  const left = Math.max(16, Math.min(rect.left, window.innerWidth - width - 16))
   const lines = `${count} ${count === 1 ? 'line' : 'lines'}`
-  return createPortal(
-    <div
-      ref={box}
-      data-selection-bar
-      role="toolbar"
-      aria-label={`Selected ${lines}`}
-      className="fixed z-50 flex items-center gap-1 whitespace-nowrap rounded-md border border-border bg-popover p-1 shadow-lg"
-      style={{ top, left }}>
-      <span className="px-2 text-muted-foreground">{lines}</span>
-      {main === 'stage' ? (
-        <Button size="sm" onClick={() => onWrite('stage')}>
-          <Plus />
-          Stage lines <Kbd>s</Kbd>
+  // duck-ui's popover, anchored to a still box at the start of the picked lines.
+  return (
+    <Popover key={`${rect.left},${rect.top},${rect.height}`} open onOpenChange={(open) => !open && onClose()}>
+      <PopoverAnchor asChild>
+        <span
+          aria-hidden
+          className="pointer-events-none fixed"
+          style={{ left: rect.left, top: rect.top, width: Math.min(rect.width, 48), height: rect.height }}
+        />
+      </PopoverAnchor>
+      <PopoverContent
+        data-selection-bar
+        role="toolbar"
+        aria-label={`Selected ${lines}`}
+        side="bottom"
+        align="start"
+        sideOffset={6}
+        // The keyboard stays in the diff, where s and c act on the lines.
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => event.preventDefault()}
+        className="flex w-auto items-center gap-1 whitespace-nowrap p-1">
+        <span className="px-2 text-muted-foreground">{lines}</span>
+        {main === 'stage' ? (
+          <Button size="sm" onClick={() => onWrite('stage')}>
+            <Plus />
+            Stage lines <Kbd>s</Kbd>
+          </Button>
+        ) : null}
+        {main === 'unstage' ? (
+          <Button size="sm" onClick={() => onWrite('unstage')}>
+            <Minus />
+            Unstage lines <Kbd>s</Kbd>
+          </Button>
+        ) : null}
+        {kinds.includes('discard') ? (
+          <Button size="sm" variant="ghost" className={DANGER} onClick={() => onWrite('discard')}>
+            <Undo2 />
+            Discard lines
+          </Button>
+        ) : null}
+        <Button size="sm" variant="ghost" onClick={onComment}>
+          <MessageSquarePlus />
+          Comment <Kbd>c</Kbd>
         </Button>
-      ) : null}
-      {main === 'unstage' ? (
-        <Button size="sm" onClick={() => onWrite('unstage')}>
-          <Minus />
-          Unstage lines <Kbd>s</Kbd>
-        </Button>
-      ) : null}
-      {kinds.includes('discard') ? (
-        <Button size="sm" variant="ghost" onClick={() => onWrite('discard')}>
-          <Undo2 />
-          Discard lines
-        </Button>
-      ) : null}
-      <Button size="sm" variant="ghost" onClick={onComment}>
-        <MessageSquarePlus />
-        Comment <Kbd>c</Kbd>
-      </Button>
-    </div>,
-    document.body,
+      </PopoverContent>
+    </Popover>
   )
 }

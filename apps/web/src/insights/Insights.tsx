@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from 'recharts'
 import { useApp } from '../app/AppProvider'
+import { pageColumn } from '../app/page-column'
 
 const CHART = {
   commits: { label: 'Commits', color: 'var(--tn-blue)' },
@@ -31,7 +32,7 @@ export default function Insights() {
   const weeks = data?.weeks.map((week) => ({ ...week, week: `Week of ${day(week.start)}` })) ?? []
   return (
     <div className="h-full overflow-y-auto">
-      <div className="flex w-full flex-col gap-6 p-6">
+      <div {...pageColumn('gap-6')}>
         <div className="flex items-center gap-3">
           <p className="flex-1 text-muted-foreground">
             {data

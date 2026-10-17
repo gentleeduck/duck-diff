@@ -2,9 +2,10 @@ import type { BlameLine } from '@duck-diff/protocol'
 import { Badge, Button } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Check, Code2, Copy, Eye, FileDiff, History, SquareArrowOutUpRight, UserSearch } from 'lucide-react'
+import { Code2, Eye, FileDiff, History, SquareArrowOutUpRight, UserSearch } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
+import { CopyTool } from '../app/CopyTool'
 import { IconTool } from '../app/IconTool'
 import { CodeRowsSkeleton } from '../app/skeletons'
 import { BlameCell } from '../blame/BlameCell'
@@ -58,7 +59,6 @@ export default function FileView() {
   const settings = useSettings(selectSettings)
   const { navigate } = useTarget()
   const { show } = useView()
-  const [copied, setCopied] = useState(false)
   const openInEditor = useOpenFile()
   const [preview, setPreview] = useState(true)
   const [blaming, setBlaming] = useState(false)
@@ -116,11 +116,6 @@ export default function FileView() {
   const status = changed.find((file) => file.path === path)
   const markdown = MARKDOWN.test(path)
   const icon = fileGlyph(path.split('/').pop() ?? path)
-  const copy = async () => {
-    await navigator.clipboard.writeText(path)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1200)
-  }
 
   return (
     <section aria-label={path} className="flex h-full flex-col">
@@ -135,7 +130,7 @@ export default function FileView() {
         ) : null}
         {at ? (
           <>
-            <Badge variant="outline" size="sm" className="shrink-0 text-tn-blue">
+            <Badge variant="soft-info" size="sm" className="shrink-0">
               at {/^[0-9a-f]{40}$/.test(at) ? at.slice(0, 7) : at}
             </Badge>
             <Button size="sm" variant="ghost" onClick={() => openFile(app, path)}>
@@ -144,7 +139,7 @@ export default function FileView() {
           </>
         ) : null}
         {status ? (
-          <Badge variant="outline" size="sm" className="border-warning/40 bg-warning/15 text-warning">
+          <Badge variant="soft-warning" size="sm">
             Changed
           </Badge>
         ) : null}
@@ -187,9 +182,7 @@ export default function FileView() {
               {preview ? <Code2 /> : <Eye />}
             </IconTool>
           ) : null}
-          <IconTool label={copied ? 'Copied' : 'Copy path'} onClick={copy}>
-            {copied ? <Check /> : <Copy />}
-          </IconTool>
+          <CopyTool label="Copy path" text={path} />
         </span>
       </header>
       {failed ? (
@@ -206,7 +199,8 @@ export default function FileView() {
       ) : null}
       {contents?.text && markdown && preview ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <article className="w-full p-6">
+          {/* Prose reads in GitHub's Markdown width, centred however wide the window. */}
+          <article className="mx-auto w-full max-w-[980px] p-6">
             <Markdown
               text={contents.text}
               onLocalLink={(href) => openFile(app, resolveLink(path, href))}

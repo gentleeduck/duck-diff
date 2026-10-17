@@ -6,6 +6,7 @@ import { useApp } from '../app/AppProvider'
 import { useFirstDiff } from '../hooks/useFirstDiff'
 import type { GitAction } from '../lib/api'
 import { useRefresh } from '../query/useRefresh'
+import { failureReason } from './failure-reason'
 
 interface Git {
   status: SyncStatus | null
@@ -88,9 +89,13 @@ export function GitProvider({ children }: { children: ReactNode }) {
       try {
         const result = await api.git(action, body)
         // A stop on conflicts is not a failure: the files wait in the changes view for resolving.
-        if (result.conflicts) toast.warning(`${DOING[action]} stopped on conflicts. Resolve them, then continue.`)
-        else if (result.stopped) toast(`${DOING[action]} stopped to let you edit a commit. Continue when ready.`)
-        else toast(done ?? `${DOING[action]} done`, { action: showOutput })
+        if (result.conflicts)
+          toast.warning(`${DOING[action]} stopped on conflicts`, {
+            description: 'Resolve them in Changes, then continue.',
+          })
+        else if (result.stopped)
+          toast(`${DOING[action]} paused`, { description: 'It stopped to let you edit a commit. Continue when ready.' })
+        else toast.success(done ?? `${DOING[action]} done`, { action: showOutput })
         refresh()
         void session.reload()
         void refs.reload()
@@ -99,7 +104,10 @@ export function GitProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         // A failure opens what git and the hooks printed, which usually says why.
         panel.show('output', null)
-        toast.error(`${DOING[action]} failed: ${(error as Error).message}`)
+        toast.error(`${DOING[action]} failed`, {
+          description: failureReason((error as Error).message),
+          action: showOutput,
+        })
         return false
       } finally {
         setBusy(null)

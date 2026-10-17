@@ -74,6 +74,9 @@
   --destructive-foreground: var(--tn-bg);
   --warning: var(--tn-yellow);
   --warning-foreground: var(--tn-bg);
+  --success: var(--tn-green);
+  --info: var(--tn-blue);
+  --done: var(--tn-magenta);
   --border: var(--tn-bg-highlight);
   --input: var(--tn-gutter);
   --ring: var(--tn-blue);
@@ -466,6 +469,40 @@ html body [data-sonner-toaster] [data-sonner-toast][data-styled] * {
   font-size: 0.9375rem;
   font-weight: var(--dd-weight);
   font-style: var(--dd-style);
+}
+
+/* A toast reads as title, then detail: the description quieter, its button one of the page's own. */
+html body [data-sonner-toaster] [data-sonner-toast][data-styled] [data-description] {
+  color: var(--muted-foreground);
+  /* A toast is a glance: a long reason stops at three lines, and the whole of it is in Output. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+html body [data-sonner-toaster] [data-sonner-toast][data-styled] [data-button] {
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+html body [data-sonner-toaster] [data-sonner-toast][data-styled] [data-button]:hover {
+  background: color-mix(in oklab, var(--primary) 85%, transparent);
+}
+
+/* A toast's icon takes its kind's colour from the theme. */
+html body [data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-icon] {
+  color: var(--tn-red);
+}
+html body [data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] {
+  color: var(--tn-green);
+}
+html body [data-sonner-toaster] [data-sonner-toast][data-type="warning"] [data-icon] {
+  color: var(--tn-yellow);
+}
+html body [data-sonner-toaster] [data-sonner-toast][data-type="info"] [data-icon] {
+  color: var(--tn-blue);
 }
 
 /* A hover float, as Neovim draws one: the signature flush and wrapped, the doc comment close under it. */

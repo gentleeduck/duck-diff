@@ -1,6 +1,7 @@
 import { Skeleton } from '@duck-diff/ui'
 import { useSettings } from '../hooks/useSettings'
 import type { Settings } from '../state/settings'
+import { pageColumn, THREAD_GRID } from './page-column'
 
 const selectSplit = (settings: Settings) => settings.diffStyle === 'split'
 
@@ -94,7 +95,7 @@ export function CommentSkeleton({ lines = 3 }: { lines?: number }) {
 // The pull request and issue list page (ItemList): the filter bar, then the box with its Open / Closed header.
 export function ItemListSkeleton() {
   return (
-    <div className="flex w-full flex-col gap-4 p-6" aria-busy="true">
+    <div {...pageColumn('gap-4')} aria-busy="true">
       <div className="flex flex-wrap items-center gap-2">
         <Skeleton className="h-7 w-24 rounded-md" />
         <Skeleton className="h-7 min-w-0 flex-1 rounded-md" />
@@ -138,7 +139,7 @@ function SidebarSkeleton() {
 // A pull request or issue page: back link, title, the state line, tabs, then the conversation and sidebar.
 export function ThreadSkeleton({ tabs = false }: { tabs?: boolean }) {
   return (
-    <div className="flex w-full flex-col gap-3 p-6" aria-busy="true">
+    <div {...pageColumn('gap-3')} aria-busy="true">
       <TextLine className="w-20" />
       <div className="flex items-start gap-3">
         <span className="flex min-w-0 flex-1 text-[1.75em] leading-tight">
@@ -156,7 +157,7 @@ export function ThreadSkeleton({ tabs = false }: { tabs?: boolean }) {
           ))}
         </div>
       ) : null}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
+      <div className={THREAD_GRID}>
         <div className="flex min-w-0 flex-col gap-4">
           <CommentSkeleton lines={4} />
           <CommentSkeleton lines={2} />
@@ -339,7 +340,7 @@ export function ViewSkeleton({ view, item = false }: { view: string; item?: bool
   if (view === 'files' || view === 'merge') return <CodeRowsSkeleton count={30} />
   if (view === 'prs' || view === 'issues' || view === 'inbox' || view === 'actions')
     return (
-      <div className="flex w-full flex-col gap-4 p-6" aria-busy="true">
+      <div {...pageColumn('gap-4')} aria-busy="true">
         <TextLine className="w-72" />
         <div className="rounded-md border border-border">
           <ItemRowsSkeleton />
@@ -347,7 +348,7 @@ export function ViewSkeleton({ view, item = false }: { view: string; item?: bool
       </div>
     )
   return (
-    <div className="flex w-full flex-col gap-4 p-6" aria-busy="true">
+    <div {...pageColumn('gap-4')} aria-busy="true">
       <CardsSkeleton />
     </div>
   )

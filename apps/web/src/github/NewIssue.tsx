@@ -152,12 +152,12 @@ export function NewIssue({ onCreated }: { onCreated(): void }) {
         labels: template?.labels ?? [],
         assignees: template?.assignees ?? [],
       })
-      toast(`Opened #${issue.number}`)
+      toast.success(`Opened #${issue.number}`, { description: issue.title })
       setOpen(false)
       onCreated()
       issueSelection.set(issue.number)
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not open the issue', { description: (error as Error).message })
     } finally {
       setSending(false)
     }
@@ -207,13 +207,15 @@ export function NewIssue({ onCreated }: { onCreated(): void }) {
                 if (title.trim() && !missing) void create()
               }}>
               {templates?.length ? (
-                <button
+                <Button
+                  variant="nothing"
+                  size="none"
                   type="button"
                   onClick={() => setChosen(null)}
-                  className="flex w-fit cursor-pointer items-center gap-1 text-tn-blue hover:underline">
+                  className="flex w-fit cursor-pointer items-center gap-1 text-tn-blue hover:underline justify-start rounded-none whitespace-normal">
                   <ArrowLeft className="size-4" />
                   Choose a different template
-                </button>
+                </Button>
               ) : null}
               <Input
                 aria-label="Title"
@@ -237,12 +239,12 @@ export function NewIssue({ onCreated }: { onCreated(): void }) {
                 <p className="flex flex-wrap items-center gap-1 text-muted-foreground">
                   Will be opened with
                   {template.labels.map((label) => (
-                    <Badge key={label} variant="outline" size="sm">
+                    <Badge key={label} variant="muted" size="sm">
                       {label}
                     </Badge>
                   ))}
                   {template.assignees.map((login) => (
-                    <Badge key={login} variant="outline" size="sm">
+                    <Badge key={login} variant="soft-info" size="sm">
                       @{login}
                     </Badge>
                   ))}

@@ -14,6 +14,7 @@ import {
 import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { pageColumn, THREAD_GRID } from '../app/page-column'
 import { ThreadSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { Comment, Composer } from './Conversation'
@@ -72,18 +73,20 @@ function CloseIssue({ busy, onClose }: { busy: boolean; onClose(reason: 'complet
         </PopoverTrigger>
         <PopoverContent align="end" className="flex w-72 flex-col p-1">
           {CLOSE_REASONS.map((entry) => (
-            <button
+            <Button
+              variant="nothing"
+              size="none"
               key={entry.reason}
               type="button"
               onClick={() => setReason(entry.reason)}
-              className="flex cursor-pointer gap-2 rounded-sm p-2 text-start hover:bg-accent">
+              className="flex cursor-pointer gap-2 rounded-sm p-2 text-start hover:bg-accent justify-start">
               <span className="w-4 pt-0.5">{entry.reason === reason ? <Check className="size-4" /> : null}</span>
               <entry.icon className="mt-0.5 size-4 shrink-0" />
               <span className="flex min-w-0 flex-col">
                 <span className="text-foreground">{entry.label}</span>
                 <span className="text-muted-foreground">{entry.detail}</span>
               </span>
-            </button>
+            </Button>
           ))}
         </PopoverContent>
       </Popover>
@@ -102,18 +105,20 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
   useScrollMemory(page, issue && thread ? `issue:${number}` : null)
 
   const back = (
-    <button
+    <Button
+      variant="nothing"
+      size="none"
       type="button"
       onClick={() => issueSelection.set(null)}
-      className="flex w-fit cursor-pointer items-center gap-1 text-tn-blue hover:underline">
+      className="flex w-fit cursor-pointer items-center gap-1 text-tn-blue hover:underline justify-start rounded-none whitespace-normal">
       <ArrowLeft className="size-4" />
       Issues
-    </button>
+    </Button>
   )
 
   if (failed || !issue) {
     return (
-      <div className="flex w-full flex-col gap-3 p-6">
+      <div {...pageColumn('gap-3')}>
         {back}
         {failed ? (
           <p className="text-removed">
@@ -135,10 +140,14 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
     setBusy(true)
     try {
       await api.github.setIssueState(number, open ? 'closed' : 'open', reason)
-      toast(open ? `Closed #${number}${reason === 'not_planned' ? ' as not planned' : ''}` : `Reopened #${number}`)
+      toast.success(
+        open ? `Closed #${number}${reason === 'not_planned' ? ' as not planned' : ''}` : `Reopened #${number}`,
+      )
       await refresh()
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error(open ? `Could not close #${number}` : `Could not reopen #${number}`, {
+        description: (error as Error).message,
+      })
     } finally {
       setBusy(false)
     }
@@ -146,10 +155,10 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
   const comment = async (body: string) => {
     try {
       await api.github.comment(number, body)
-      toast('Commented')
+      toast.success('Commented', { description: `On #${number}` })
       await refresh()
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not post the comment', { description: (error as Error).message })
       throw error
     }
   }
@@ -157,7 +166,7 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
 
   return (
     <article ref={page} aria-label={`Issue ${number}`} className="h-full overflow-y-auto">
-      <div className="flex w-full flex-col gap-3 p-6">
+      <div {...pageColumn('gap-3')}>
         {back}
         <div className="flex items-start gap-3">
           <ThreadTitle number={issue.number} title={issue.title} />
@@ -180,7 +189,8 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
                       run: () =>
                         void api.github.setLocked(number, false).then(
                           () => refresh(),
-                          (error: Error) => toast.error(error.message),
+                          (error: Error) =>
+                            toast.error('Could not unlock the conversation', { description: error.message }),
                         ),
                     }
                   : {
@@ -189,7 +199,8 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
                       run: () =>
                         void api.github.setLocked(number, true).then(
                           () => refresh(),
-                          (error: Error) => toast.error(error.message),
+                          (error: Error) =>
+                            toast.error('Could not lock the conversation', { description: error.message }),
                         ),
                     },
               ]}
@@ -203,7 +214,7 @@ export default function IssueView({ number, onChanged }: { number: number; onCha
             opened this issue {ago(issue.createdAt)} · {comments} {comments === 1 ? 'comment' : 'comments'}
           </span>
         </div>
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
+        <div className={THREAD_GRID}>
           <div className="flex min-w-0 flex-col gap-4">
             {thread ? (
               <ThreadView thread={thread} draft={draft} onChanged={() => void reloadThread()} />

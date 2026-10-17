@@ -1,6 +1,7 @@
 import type { SecurityAlert } from '@duck-diff/protocol'
 import {
   Badge,
+  type BadgeTone,
   Button,
   Popover,
   PopoverContent,
@@ -16,20 +17,21 @@ import { ShieldAlert, SquareArrowOutUpRight } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { pageColumn } from '../app/page-column'
 import { CardsSkeleton } from '../app/skeletons'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
 
-const TONE: Record<string, string> = {
-  critical: 'text-removed border-removed/40',
-  high: 'text-removed border-removed/40',
-  error: 'text-removed border-removed/40',
-  medium: 'text-warning border-warning/40',
-  moderate: 'text-warning border-warning/40',
-  warning: 'text-warning border-warning/40',
-  low: 'text-muted-foreground',
-  note: 'text-muted-foreground',
+const TONE: Record<string, BadgeTone> = {
+  critical: 'soft-destructive',
+  high: 'soft-destructive',
+  error: 'soft-destructive',
+  medium: 'soft-warning',
+  moderate: 'soft-warning',
+  warning: 'soft-warning',
+  low: 'muted',
+  note: 'muted',
 }
 
 // GitHub names the dismissal reasons differently for each kind of alert.
@@ -56,10 +58,10 @@ function Dismiss({ alert, onDone }: { alert: SecurityAlert; onDone(): void }) {
     setBusy(true)
     try {
       await api.github.dismissAlert({ kind: alert.kind, number: alert.number, reason })
-      toast(`Dismissed alert ${alert.number}`)
+      toast.success(`Dismissed alert ${alert.number}`)
       onDone()
     } catch (error) {
-      toast.error(`Could not dismiss it: ${(error as Error).message}`)
+      toast.error(`Could not dismiss alert ${alert.number}`, { description: (error as Error).message })
     } finally {
       setBusy(false)
     }
@@ -103,7 +105,7 @@ export function Security() {
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see security alerts.</p>
   return (
     <div className="h-full overflow-y-auto">
-      <div className="flex w-full flex-col gap-3 p-6">
+      <div {...pageColumn('gap-3')}>
         {failed ? <p className="text-removed">{failed}</p> : null}
         {!found && !failed ? <CardsSkeleton /> : null}
         {found?.unavailable.map((entry) => (
@@ -128,7 +130,7 @@ export function Security() {
                     {alert.path ? ` in ${alert.path}` : ''}, opened {ago(alert.createdAt)}
                   </span>
                 </span>
-                <Badge variant="outline" size="sm" className={TONE[alert.severity] ?? ''}>
+                <Badge variant={TONE[alert.severity] ?? 'muted'} size="sm">
                   {alert.severity}
                 </Badge>
                 <Button size="sm" variant="ghost" asChild>

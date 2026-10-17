@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { pageColumn } from '../app/page-column'
 import { CardsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { VISIBLE_BOX } from '../viewer/FileActions'
@@ -23,12 +24,12 @@ function ReleaseCard({ release }: { release: Release }) {
       <header className="flex flex-wrap items-center gap-2">
         <h2 className="text-foreground">{release.name || release.tag}</h2>
         {release.draft ? (
-          <Badge variant="outline" size="sm">
+          <Badge variant="muted" size="sm">
             Draft
           </Badge>
         ) : null}
         {release.prerelease ? (
-          <Badge variant="outline" size="sm" className="text-tn-yellow">
+          <Badge variant="soft-warning" size="sm">
             Pre-release
           </Badge>
         ) : null}
@@ -86,11 +87,13 @@ function NewRelease({ onCreated }: { onCreated(): void }) {
         prerelease,
         generateNotes,
       })
-      toast(draft ? `Saved draft ${release.tag}` : `Published ${release.tag}`)
+      toast.success(draft ? `Saved draft ${release.tag}` : `Published ${release.tag}`)
       setOpen(false)
       onCreated()
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error(draft ? 'Could not save the draft' : 'Could not publish the release', {
+        description: (error as Error).message,
+      })
     } finally {
       setSending(false)
     }
@@ -192,7 +195,7 @@ export function Releases() {
   if (!ready) return <p className="p-6 text-muted-foreground">Sign in to see releases.</p>
   return (
     <div ref={page} className="h-full overflow-y-auto">
-      <div className="flex w-full flex-col gap-4 p-6">
+      <div {...pageColumn('gap-4')}>
         <div className="flex items-center gap-2">
           <span className="flex-1 text-muted-foreground">
             {items ? `${items.length} ${items.length === 1 ? 'release' : 'releases'}` : null}

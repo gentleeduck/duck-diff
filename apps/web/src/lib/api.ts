@@ -81,6 +81,8 @@ import {
   RemoteSchema,
   type RepoInfo,
   RepoInfoSchema,
+  type ResolvedRevision,
+  ResolvedRevisionSchema,
   type ReviewComment,
   ReviewCommentSchema,
   type ReviewState,
@@ -132,7 +134,10 @@ export interface Api {
   repo(): Promise<RepoInfo>
   refs(): Promise<Ref[]>
   files(target: DiffTarget, signal?: AbortSignal): Promise<ChangedFile[]>
-  commits(query: { head: string; base?: string; limit?: number; path?: string }): Promise<Commit[]>
+  // What git makes of a typed revision: one commit, a range, or why it is neither.
+  resolve(rev: string): Promise<ResolvedRevision>
+  // grep finds commits by message, case aside.
+  commits(query: { head: string; base?: string; limit?: number; path?: string; grep?: string }): Promise<Commit[]>
   diff(target: DiffTarget, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   content(target: DiffTarget, side: 'old' | 'new', file: Pick<ChangedFile, 'path' | 'oldPath'>): Promise<string | null>
   // Opens a file at a line in the best editor around; Neovim with none attached is left to the page to run.
@@ -140,6 +145,8 @@ export interface Api {
   write(request: WriteRequest): Promise<void>
   undo(): Promise<UndoResult>
   reviews(target: DiffTarget): Promise<ReviewComment[]>
+  // One comment (by id) or all of them, with the files, lines and code they are on, as text to give an AI.
+  reviewPrompt(target: DiffTarget, id?: string): Promise<string>
   createReview(input: CreateReview): Promise<ReviewComment>
   updateReview(id: string, body: string): Promise<ReviewComment>
   deleteReview(id: string): Promise<void>
@@ -162,8 +169,9 @@ export interface Api {
   repos(): Promise<RepoEntry[]>
   addRepo(path: string): Promise<string>
   removeRepo(path: string): Promise<void>
-  // Starts a server for a worktree or submodule and gives its page url.
-  openRepo(path: string): Promise<string>
+  // Starts a server for a worktree or submodule and opens its page the way this one was opened; opened is
+  // false when the server could not, and the page opens the url itself.
+  openRepo(path: string): Promise<{ url: string; opened: boolean }>
   // Points Neovim's current tab at another checkout.
   tcd(path: string): Promise<void>
   bisect(): Promise<BisectState>
@@ -482,11 +490,13 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     repo: () => json('/api/repo', RepoInfoSchema),
     refs: () => json('/api/refs', z.array(RefSchema)),
     files: (target, signal) => json(`/api/files?target=${encodeTarget(target)}`, z.array(ChangedFileSchema), signal),
+    resolve: (rev) => json(`/api/resolve?${new URLSearchParams({ rev })}`, ResolvedRevisionSchema),
     commits(query) {
       const params = new URLSearchParams({ head: query.head })
       if (query.base) params.set('base', query.base)
       if (query.limit) params.set('limit', String(query.limit))
       if (query.path) params.set('path', query.path)
+      if (query.grep) params.set('grep', query.grep)
       return json(`/api/commits?${params}`, z.array(CommitSchema))
     },
     async diff(target, signal) {
@@ -531,9 +541,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       return (await send('POST', '/api/repos', { path }, z.object({ path: z.string() }))).path
     },
     removeRepo: (path) => sendEmpty('DELETE', `/api/repos?${new URLSearchParams({ path })}`),
-    async openRepo(path) {
-      return (await send('POST', '/api/open-repo', { path }, z.object({ url: z.string() }))).url
-    },
+    openRepo: (path) =>
+      send('POST', '/api/open-repo', { path }, z.object({ url: z.string(), opened: z.boolean().default(false) })),
     async tcd(path) {
       await sendEmpty('POST', '/api/nvim/tcd', { path })
     },
@@ -579,6 +588,10 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     commit: (sha) => json(`/api/commit?sha=${encodeURIComponent(sha)}`, CommitDetailsSchema),
     commitStat: (sha) => json(`/api/commit-stat?sha=${encodeURIComponent(sha)}`, CommitStatSchema),
     reviews: (target) => json(`/api/reviews?target=${encodeTarget(target)}`, z.array(ReviewCommentSchema)),
+    reviewPrompt: async (target, id) =>
+      (
+        await request(`/api/reviews/prompt?target=${encodeTarget(target)}${id ? `&id=${encodeURIComponent(id)}` : ''}`)
+      ).text(),
     createReview: (input) => send('POST', '/api/reviews', input, ReviewCommentSchema),
     updateReview: (id, body) => send('PATCH', `/api/reviews/${encodeURIComponent(id)}`, { body }, ReviewCommentSchema),
     async deleteReview(id) {
