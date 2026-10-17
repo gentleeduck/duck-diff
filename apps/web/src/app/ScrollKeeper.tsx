@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { readKept, writeKept } from '../lib/kept'
 
 // Scrolling areas that remember their place themselves (the diff, the graph, GitHub pages) carry this.
 export const OWN_MEMORY = 'data-scroll-memory'
@@ -7,8 +8,14 @@ const RETRY_MS = 1500
 
 // Every other scrolling area keeps its place across pages: side panels, trees, lists, previews. Each is
 // named by the view and its label (the nearest aria-label), saved as it scrolls and put back the first
-// time it shows again, retrying while its content is still arriving.
-const places = new Map<string, number>()
+// time it shows again, retrying while its content is still arriving. A reload keeps them.
+const KEPT = 'scroll-areas'
+const places = new Map<string, number>(readKept<[string, number][]>(KEPT, []))
+let saving: ReturnType<typeof setTimeout> | undefined
+const save = () => {
+  clearTimeout(saving)
+  saving = setTimeout(() => writeKept(KEPT, [...places]), 300)
+}
 
 function nameOf(view: string, element: HTMLElement): string | null {
   const label = element.closest('[aria-label]')?.getAttribute('aria-label')
@@ -23,7 +30,9 @@ export function ScrollKeeper({ view }: { view: string }) {
       const element = event.target
       if (!(element instanceof HTMLElement) || restoring.has(element) || element.closest(`[${OWN_MEMORY}]`)) return
       const name = nameOf(view, element)
-      if (name) places.set(name, element.scrollTop)
+      if (!name) return
+      places.set(name, element.scrollTop)
+      save()
     }
     const restore = (element: HTMLElement, top: number) => {
       restoring.add(element)

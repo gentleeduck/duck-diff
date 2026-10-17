@@ -21,6 +21,7 @@ import { type GitHubQueries, githubQueries } from '../query/github'
 import { QueryProvider } from '../query/QueryProvider'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createPlaceStores, type PlaceStores } from '../router/stores'
+import { keepPage } from '../state/keep-page'
 import { rememberTarget } from '../state/last-target'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, readSeed, type Session } from '../state/session'
@@ -91,7 +92,7 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
     if (seed?.tokens) highlighter.prime(seed.tokens)
     const session = createSession(client, target, seed)
     const queries = { gh: githubQueries(client), git: gitQueries(client) }
-    return {
+    const value = {
       api: client,
       session,
       refs: createRefs(client, session, {
@@ -124,6 +125,8 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
       panel: createPanel(),
       terminalTabs: createTerminalTabs(client),
     }
+    keepPage(value)
+    return value
   }, [api, queryClient])
 
   useEffect(() => {

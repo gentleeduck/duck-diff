@@ -28,10 +28,9 @@ test('runs a real shell in the repo that survives a reload', async ({ page, app,
   await page.keyboard.type('echo sj > keys.txt\n')
   expect(await waitForFile(join(repo.path, 'keys.txt'))).toBe('sj')
 
+  // The panel comes back open on the same terminal.
   await page.reload()
-  await expect(page.getByRole('button', { name: 'Output' })).toBeVisible()
-  await page.keyboard.press('Control+`')
-  await page.getByRole('tab', { name: 'Terminal 1' }).click()
+  await expect(page.getByRole('tab', { name: 'Terminal 1' })).toHaveAttribute('aria-selected', 'true')
   await page.getByRole('region', { name: 'Terminal 1' }).locator('.xterm').click()
   await page.keyboard.type('echo again > after-reload.txt\n')
   expect(await waitForFile(join(repo.path, 'after-reload.txt'))).toBe('again')

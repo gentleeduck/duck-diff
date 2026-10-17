@@ -1,17 +1,9 @@
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
 import { Button, ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@duck-diff/ui'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  type ComponentProps,
-  type ReactElement,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { type ComponentProps, type ReactElement, type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useRowHeight } from '../app/useSizes'
+import { useKept } from '../lib/kept'
 import { CHEVRON, FOLDER, fileGlyph, fileLook, folderLook, STATUS_MARK, SUBMODULE } from './icons'
 import { buildTree, type TreeRow as Row, visibleRows } from './tree-model'
 
@@ -120,6 +112,8 @@ interface FileTreeProps {
   // Folders flipped from their starting state, when the caller keeps them (to fold the diff along).
   toggled?: ReadonlySet<string>
   onToggled?(next: ReadonlySet<string>): void
+  // Otherwise the tree keeps them itself, across a reload under this name.
+  keep?: string
 }
 
 export function FileTree({
@@ -132,17 +126,19 @@ export function FileTree({
   menuFor,
   toggled: controlled,
   onToggled,
+  keep,
 }: FileTreeProps) {
-  const [own, setOwn] = useState<ReadonlySet<string>>(new Set())
+  const [ownList, setOwnList] = useKept<string[]>(keep ? `tree:${keep}` : null, [])
+  const own = useMemo(() => new Set(ownList), [ownList])
   const toggled = controlled ?? own
   const setToggled = useCallback(
     (update: (prev: ReadonlySet<string>) => ReadonlySet<string>) => {
       const next = update(toggled)
       if (next === toggled) return
       if (onToggled) onToggled(next)
-      else setOwn(next)
+      else setOwnList([...next])
     },
-    [toggled, onToggled],
+    [toggled, onToggled, setOwnList],
   )
   const tree = useMemo(() => buildTree(paths), [paths])
   // Every folder's look comes from the statuses of the files under it.

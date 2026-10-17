@@ -12,6 +12,8 @@ test('keeps a line comment across reloads and follows its line when code above m
   }).toPass()
   await page.getByRole('textbox', { name: 'New comment' }).fill('Is duck the right default?')
   await page.getByRole('button', { name: 'Save comment' }).click()
+  // Saved once the box closes; a reload before that keeps the comment still being written.
+  await expect(page.getByRole('textbox', { name: 'New comment' })).toBeHidden()
   await expect(page.getByText('Is duck the right default?')).toBeVisible()
 
   await page.reload()
