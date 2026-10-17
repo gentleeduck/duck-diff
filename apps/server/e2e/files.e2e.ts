@@ -36,3 +36,19 @@ test('an empty file says so, in the diff and in Files', async ({ page, app, repo
   await page.goto(`${app.url}&view=files&file=cat`)
   await expect(page.getByRole('region', { name: 'cat', exact: true })).toContainText('This file is empty.')
 })
+
+test('a README reads in a column of its own width, centred, however wide the window', async ({ page, app }) => {
+  await page.setViewportSize({ width: 2400, height: 900 })
+  await page.goto(`${app.url}&view=files`)
+  await page
+    .getByRole('tree', { name: 'All files' })
+    .getByRole('treeitem', { name: /README\.md/ })
+    .click()
+  const prose = page.getByRole('region', { name: 'README.md' }).getByRole('article')
+  await expect(prose).toContainText('demo')
+  const box = await prose.boundingBox()
+  const pane = await page.getByRole('region', { name: 'README.md' }).boundingBox()
+  if (!box || !pane) throw new Error('no preview')
+  expect(box.width).toBeLessThanOrEqual(980)
+  expect(Math.abs(box.x - pane.x - (pane.width - box.width) / 2)).toBeLessThan(8)
+})

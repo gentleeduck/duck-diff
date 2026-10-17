@@ -24,7 +24,7 @@ async function start() {
   repo.write('a.txt', 'ONE\n')
   repo.write('b.txt', 'TWO\n')
   cache = mkdtempSync(join(tmpdir(), 'duck-diff-cache-'))
-  server = await createServer({ repo: repo.path, port: testPort(), watch: false, undoCache: cache })
+  server = await createServer({ repo: repo.path, port: testPort(), watch: false, undoHome: cache })
 }
 
 function post(path: string, body?: unknown) {

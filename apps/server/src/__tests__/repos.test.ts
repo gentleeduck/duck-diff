@@ -45,16 +45,35 @@ describe('repo list', () => {
     await list.add(gone.path)
     gone.cleanup()
     expect((await list.all()).map((entry) => entry.path)).toEqual([kept.path])
-    expect(JSON.parse(readFileSync(join(data, 'duck-diff', 'repos.json'), 'utf8'))).toEqual([kept.path])
+    expect(JSON.parse(readFileSync(join(data, 'repos.json'), 'utf8'))).toEqual([kept.path])
+  })
+
+  it('keeps every repository other servers add while one drops gone folders, all at once', async () => {
+    data = mkdtempSync(join(tmpdir(), 'duck-diff-data-'))
+    const gone = repo()
+    await createRepoList(data).add(gone.path)
+    gone.cleanup()
+    const added = Array.from({ length: 8 }, () => repo())
+    // Each list stands for its own server; they share only the file.
+    await Promise.all([
+      createRepoList(data).all(),
+      ...added.map((entry) => createRepoList(data).add(entry.path)),
+      createRepoList(data).all(),
+    ])
+    const listed = JSON.parse(readFileSync(join(data, 'repos.json'), 'utf8')) as string[]
+    expect(listed.sort()).toEqual(added.map((entry) => entry.path).sort())
   })
 
   it("keeps test servers out of the user's own list", () => {
-    expect(process.env.XDG_DATA_HOME?.startsWith(tmpdir())).toBe(true)
+    expect(process.env.DUCK_DIFF_HOME?.startsWith(tmpdir())).toBe(true)
   })
 
   it('refuses a folder that is not a repository', async () => {
     data = mkdtempSync(join(tmpdir(), 'duck-diff-data-'))
     await expect(createRepoList(data).add(data)).rejects.toThrow()
+    await expect(createRepoList(data).add(join(data, 'no-such-folder'))).rejects.toThrow(
+      `No folder at ${join(data, 'no-such-folder')}`,
+    )
   })
 })
 
@@ -69,6 +88,7 @@ describe('/api/repos', () => {
     data = mkdtempSync(join(tmpdir(), 'duck-diff-data-'))
     const [here, other, third] = [repo(), repo(), repo()]
     const opened: string[] = []
+    const pages: string[] = []
     server = await createServer({
       repo: here.path,
       port: testPort(),
@@ -78,6 +98,10 @@ describe('/api/repos', () => {
       startSibling: async (path) => {
         opened.push(path)
         return { url: 'http://127.0.0.1:1/', child: null }
+      },
+      openPage: async (url) => {
+        pages.push(url)
+        return true
       },
     })
     const call = (method: string, path: string, body?: unknown) =>
@@ -92,8 +116,12 @@ describe('/api/repos', () => {
       [other.path, false],
     ])
     expect((await call('POST', '/api/repos', { path: third.path })).status).toBe(200)
-    expect((await call('POST', '/api/open-repo', { path: third.path })).status).toBe(200)
+    expect(await (await call('POST', '/api/open-repo', { path: third.path })).json()).toEqual({
+      url: 'http://127.0.0.1:1/',
+      opened: true,
+    })
     expect(opened).toEqual([third.path])
+    expect(pages).toEqual(['http://127.0.0.1:1/'])
     expect((await call('POST', '/api/repos', { path: data })).status).toBeGreaterThanOrEqual(400)
   })
 

@@ -75,8 +75,8 @@ const readValues = async (file: string): Promise<StateValues> => (await readKnow
 // in the data folder the way Neovim plugins keep theirs, so clearing the browser loses nothing. One file for
 // the user, shared by every repo's server; the query cache is per repo, beside the other caches.
 export function createStateStore(data: string, repo: string): StateStore {
-  const file = join(data, 'duck-diff', 'state.json')
-  const queriesFile = join(data, 'duck-diff', repoId(repo), 'cache', 'queries.json')
+  const file = join(data, 'state.json')
+  const queriesFile = join(data, repoId(repo), 'cache', 'queries.json')
   // Writes go one after another, each merged into what the file has now, so two servers never drop each
   // other's keys.
   let queue: Promise<unknown> = Promise.resolve()

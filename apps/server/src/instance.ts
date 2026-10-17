@@ -12,7 +12,7 @@ export interface Instance {
   token: string
 }
 
-export const instanceFile = (data: string, repo: string) => join(data, 'duck-diff', repoId(repo), 'server.json')
+export const instanceFile = (data: string, repo: string) => join(data, repoId(repo), 'server.json')
 
 export async function writeInstance(file: string, instance: Instance) {
   await mkdir(dirname(file), { recursive: true })
@@ -38,7 +38,7 @@ async function readInstance(file: string): Promise<Instance | null> {
   }
 }
 
-const alive = (pid: number) => {
+export const alive = (pid: number) => {
   try {
     process.kill(pid, 0)
     return true

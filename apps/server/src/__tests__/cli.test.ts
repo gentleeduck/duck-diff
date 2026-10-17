@@ -7,7 +7,10 @@ import { createRepo, type TestRepo } from '@duck-diff/testing'
 
 const CLI = new URL('../cli.ts', import.meta.url).pathname
 // Each run keeps its state in a folder of its own, never the real data folder.
-const env = () => ({ ...process.env, XDG_DATA_HOME: mkdtempSync(join(tmpdir(), 'duck-cli-')), BROWSER: 'true' })
+const env = () => {
+  const data = mkdtempSync(join(tmpdir(), 'duck-cli-'))
+  return { ...process.env, XDG_DATA_HOME: data, DUCK_DIFF_HOME: join(data, 'duck-diff'), BROWSER: 'true' }
+}
 
 let repo: TestRepo | null = null
 let child: Bun.Subprocess<'pipe', 'pipe', 'pipe'> | null = null
@@ -36,7 +39,7 @@ function serve(path: string) {
 
 describe('cli', () => {
   it('prints the version', () => {
-    const result = Bun.spawnSync(['bun', CLI, '--version'])
+    const result = Bun.spawnSync(['bun', CLI, '--version'], { env: env() })
     expect(result.exitCode).toBe(0)
     expect(result.stdout.toString().trim()).toMatch(/^\d+\.\d+\.\d+$/)
   })
@@ -49,6 +52,28 @@ describe('cli', () => {
       headers: { 'x-duck-diff-token': handshake.token },
     })
     expect(response.status).toBe(200)
+  })
+
+  it('started for another checkout, lives as long as the server that started it, not its stdin', async () => {
+    repo = createRepo()
+    const parent = Bun.spawn(['sleep', '60'])
+    const sibling = Bun.spawn(['bun', CLI, 'serve', '--repo', repo.path], {
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: { ...env(), DUCK_DIFF_PARENT: String(parent.pid) },
+    })
+    try {
+      await firstLine(sibling.stdout)
+      // That server restarting in place keeps its pid, so nothing here may end with its pipe.
+      await Bun.sleep(1500)
+      expect(sibling.exitCode).toBeNull()
+      parent.kill()
+      expect(await sibling.exited).toBe(0)
+    } finally {
+      parent.kill()
+      sibling.kill()
+    }
   })
 
   it('exits when stdin closes', async () => {
@@ -66,12 +91,12 @@ describe('cli', () => {
   })
 
   it('prints a help page with every command, and one for a command', () => {
-    const page = Bun.spawnSync(['bun', CLI, '--help']).stdout.toString()
+    const page = Bun.spawnSync(['bun', CLI, '--help'], { env: env() }).stdout.toString()
     for (const part of ['Usage', 'Targets', 'Views', 'Commands', 'Options', 'Examples', 'prs [<number>]', 'update'])
       expect(page).toContain(part)
     // Not a terminal here, so no colors.
     expect(page).not.toContain('\x1b[')
-    expect(Bun.spawnSync(['bun', CLI, 'help', 'serve']).stdout.toString()).toContain('--nvim <address>')
+    expect(Bun.spawnSync(['bun', CLI, 'help', 'serve'], { env: env() }).stdout.toString()).toContain('--nvim <address>')
   })
 
   it('opens a view, and a second run reuses the server already running for the repo', async () => {

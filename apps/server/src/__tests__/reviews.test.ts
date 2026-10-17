@@ -47,6 +47,22 @@ const draft = {
 }
 
 describe('/api/reviews', () => {
+  it('gives one comment, or every comment on the comparison, as a prompt to paste into an AI', async () => {
+    await setup()
+    const first = await (await call('POST', '/api/reviews', draft)).json()
+    await call('POST', '/api/reviews', { ...draft, body: 'and a second one' })
+    const one = await call('GET', `/api/reviews/prompt?target=${UNSTAGED}&id=${first.id}`)
+    expect(one.headers.get('content-type')).toContain('text/plain')
+    const text = await one.text()
+    expect(text).toContain('## a.txt, line 1 (new)')
+    expect(text).toContain('needs a test')
+    expect(text).not.toContain('and a second one')
+    const all = await (await call('GET', `/api/reviews/prompt?target=${UNSTAGED}`)).text()
+    expect(all).toContain('needs a test')
+    expect(all).toContain('and a second one')
+    expect((await call('GET', `/api/reviews/prompt?target=${UNSTAGED}&id=nope`)).status).toBe(404)
+  })
+
   it('creates a comment and lists it for its target only', async () => {
     await setup()
     const created = await call('POST', '/api/reviews', draft)

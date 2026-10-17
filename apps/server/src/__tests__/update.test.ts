@@ -135,10 +135,11 @@ describe('opening the page', () => {
     (name: string) =>
       names.includes(name) ? `/usr/bin/${name}` : null
   it('opens an app window in a Chromium browser, like the Neovim plugin, and the default browser otherwise', () => {
-    expect(
-      browserCommand('http://x', { which: has('chromium', 'brave'), platform: 'linux', browser: undefined }),
-    ).toEqual(['chromium', '--app=http://x'])
-    expect(browserCommand('http://x', { which: has(), platform: 'linux', browser: undefined })).toEqual([
+    expect(browserCommand('http://x', { which: has('chromium', 'brave'), platform: 'linux', browser: '' })).toEqual([
+      'chromium',
+      '--app=http://x',
+    ])
+    expect(browserCommand('http://x', { which: has(), platform: 'linux', browser: '' })).toEqual([
       'xdg-open',
       'http://x',
     ])

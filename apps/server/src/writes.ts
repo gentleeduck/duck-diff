@@ -106,7 +106,7 @@ export function createWriteQueue() {
   }
 }
 
-export async function applyWrite(repo: string, request: WriteRequest, undoCache?: string): Promise<void> {
+export async function applyWrite(repo: string, request: WriteRequest, undoHome?: string): Promise<void> {
   const { file } = request
   // Checked against git rather than the page, which may not know the file is conflicted yet.
   if ((await unmergedPaths(repo, { kind: 'unstaged' })).includes(file.path)) {
@@ -118,27 +118,27 @@ export async function applyWrite(repo: string, request: WriteRequest, undoCache?
     case 'unstage-hunk':
       return unstageHunk(repo, file, request.hunkIndex, request.hunkHeader)
     case 'discard-hunk':
-      await snapshot(repo, [file.path], undoCache)
+      await snapshot(repo, [file.path], undoHome)
       return discardHunk(repo, file, request.hunkIndex, request.hunkHeader)
     case 'stage-file':
       return stageFile(repo, file)
     case 'unstage-file':
       return unstageFile(repo, file)
     case 'discard-file':
-      await snapshot(repo, [file.path], undoCache)
+      await snapshot(repo, [file.path], undoHome)
       return discardFile(repo, file)
     case 'stage-lines':
       return stageLines(repo, file, request.lines)
     case 'unstage-lines':
       return unstageLines(repo, file, request.lines)
     case 'discard-lines':
-      await snapshot(repo, [file.path], undoCache)
+      await snapshot(repo, [file.path], undoHome)
       return discardLines(repo, file, request.lines)
   }
 }
 
-export function undoLatest(repo: string, undoCache?: string) {
-  return restoreLatest(repo, undoCache)
+export function undoLatest(repo: string, undoHome?: string) {
+  return restoreLatest(repo, undoHome)
 }
 
 // Commit, sync and branch commands; the reason tells open pages what to reload.
