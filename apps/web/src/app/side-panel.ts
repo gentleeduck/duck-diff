@@ -1,5 +1,5 @@
 import type { ResizablePanelHandle } from '@duck-diff/ui'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { saved } from '../lib/saved'
 
 export interface Sizing {
@@ -21,21 +21,27 @@ export function useSidePanel(sizing: Sizing) {
       return sizing.initial
     }
   })
-  return {
-    panel: {
-      panelRef,
-      defaultSize,
-      minSize: sizing.min,
-      // A window resize goes to the page, not the panel.
-      groupResizeBehavior: 'preserve-pixel-size' as const,
-      // The first report is the panel settling in, not a drag.
-      onResize: (size: { inPixels: number }, _id: string | number | undefined, previous: unknown) => {
-        if (previous === undefined) return
-        try {
-          saved.setItem(sizing.key, String(Math.round(size.inPixels)))
-        } catch {}
+  const { key, min, initial } = sizing
+  // Made once: a panel whose props change registers with its group again, and the group then measures every
+  // panel, which restyles the whole page.
+  return useMemo(
+    () => ({
+      panel: {
+        panelRef,
+        defaultSize,
+        minSize: min,
+        // A window resize goes to the page, not the panel.
+        groupResizeBehavior: 'preserve-pixel-size' as const,
+        // The first report is the panel settling in, not a drag.
+        onResize: (size: { inPixels: number }, _id: string | number | undefined, previous: unknown) => {
+          if (previous === undefined) return
+          try {
+            saved.setItem(key, String(Math.round(size.inPixels)))
+          } catch {}
+        },
       },
-    },
-    reset: () => panelRef.current?.resize(sizing.initial),
-  }
+      reset: () => panelRef.current?.resize(initial),
+    }),
+    [defaultSize, key, min, initial],
+  )
 }

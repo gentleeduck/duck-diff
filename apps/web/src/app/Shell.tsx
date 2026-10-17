@@ -1,6 +1,6 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@duck-diff/ui'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { type ReactNode, useLayoutEffect, useState } from 'react'
 import { IconTool } from './IconTool'
 import { NavButtons } from './NavButtons'
 import { useSidePanel } from './side-panel'
@@ -38,6 +38,11 @@ export function Shell({
 }: ShellProps) {
   const shown = sidebar !== null && panelShown
   const side = useSidePanel(SIDEBAR)
+  // The panel groups measure their panels when they mount, which restyles the whole page; done before the side
+  // panel and the page are in it, that costs nothing instead of delaying the first diff. They follow at once,
+  // in the same frame.
+  const [measured, setMeasured] = useState(false)
+  useLayoutEffect(() => setMeasured(true), [])
   return (
     <div className="flex h-full flex-col">
       <header className="@container/top flex h-12 shrink-0 items-center gap-2 border-border border-b bg-card px-3 @6xl/top:gap-4 @6xl/top:px-4">
@@ -68,7 +73,7 @@ export function Shell({
                     <PanelLeftClose />
                   </IconTool>
                 </div>
-                {sidebar}
+                {measured ? sidebar : null}
               </nav>
             </ResizablePanel>
           ) : null}
@@ -79,7 +84,7 @@ export function Shell({
             <ResizablePanelGroup orientation="vertical" className="h-full">
               <ResizablePanel id="viewer" minSize="20%">
                 <main data-region="main" tabIndex={-1} className="h-full w-full outline-none">
-                  {viewer}
+                  {measured ? viewer : null}
                 </main>
               </ResizablePanel>
               {bottom}
