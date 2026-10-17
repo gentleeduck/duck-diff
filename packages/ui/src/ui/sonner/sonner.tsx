@@ -16,7 +16,7 @@ function mirrorPosition(position: NonNullable<ToasterProps['position']>, dir: 'l
 }
 
 const Toaster = React.forwardRef<React.ComponentRef<typeof Sonner>, ToasterProps>(
-  ({ dir, className, position, ...props }, ref) => {
+  ({ dir, className, position, style, ...props }, ref) => {
     const { theme = 'system' } = useTheme()
     const direction = useDirection(toDirection(dir))
 
@@ -26,11 +26,13 @@ const Toaster = React.forwardRef<React.ComponentRef<typeof Sonner>, ToasterProps
         className={cn('toaster group [&_li>div]:w-full', className)}
         dir={direction}
         position={mirrorPosition(position ?? 'bottom-right', direction)}
+        // Merged, so a caller's own style (a width) keeps the theme's colours instead of replacing them.
         style={
           {
             '--normal-bg': 'var(--popover)',
             '--normal-border': 'var(--border)',
             '--normal-text': 'var(--popover-foreground)',
+            ...style,
           } as React.CSSProperties
         }
         theme={theme as ToasterProps['theme']}
