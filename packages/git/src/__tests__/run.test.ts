@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process'
+import { chmodSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GitError, runGit, streamGit, withOutput } from '../index'
@@ -40,6 +42,36 @@ describe('runGit', () => {
       (e: unknown) => e,
     )
     expect((error as GitError).code).toBe('timeout')
+  })
+
+  it('waits as long as git keeps printing, however long that takes', async () => {
+    repo = createRepo()
+    const ticks = 'for i in 1 2 3 4 5 6; do echo tick; sleep 0.05; done'
+    const out = await runGit(['-c', `alias.ticks=!${ticks}`, 'ticks'], { cwd: repo.path, timeoutMs: 150 })
+    expect(out.trim().split('\n')).toHaveLength(6)
+  })
+
+  it('gives a command that runs hooks minutes of quiet', async () => {
+    repo = createRepo()
+    const hook = join(repo.path, '.git', 'hooks', 'pre-commit')
+    writeFileSync(hook, '#!/bin/sh\nsleep 0.3\n')
+    chmodSync(hook, 0o755)
+    repo.write('a.txt', 'a\n')
+    repo.git('add', 'a.txt')
+    await runGit(['commit', '-q', '-m', 'quiet hook'], { cwd: repo.path, timeoutMs: 100 })
+    expect(repo.git('log', '-1', '--format=%s').trim()).toBe('quiet hook')
+  })
+
+  it('stops a silent command with everything it started, at once', async () => {
+    repo = createRepo()
+    const started = Date.now()
+    const error = await runGit(['-c', 'alias.hang=!sleep 30', 'hang'], { cwd: repo.path, timeoutMs: 100 }).catch(
+      (e: unknown) => e,
+    )
+    expect((error as GitError).code).toBe('timeout')
+    expect((error as GitError).message).toContain('git hang printed nothing')
+    // The sleep held git's pipes; left running, the failure would wait for it.
+    expect(Date.now() - started).toBeLessThan(5000)
   })
 })
 
