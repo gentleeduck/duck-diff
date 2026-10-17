@@ -13,6 +13,10 @@
   keymaps editor. A few plain keys do one thing each: Ctrl+P (Cmd+P on a Mac) searches, j and k step through
   changes, J and K through files, s, u and x stage, unstage and discard, c comments, v marks viewed, o opens in
   your editor, t flips the layout, / filters, and arrows, Home and End walk any list. `?` lists them.
+- A reload brings the page back as it was: the bottom panel open on the same terminal or output, terminals in
+  their order with their names, the side panel's tab, where every list and the diff were scrolled, folded files
+  and folders, opened context, filters and sorts, blame, the symbol panel, and anything half typed (the commit
+  message, comments, replies, merge picks, new pull request, issue and release forms).
 - A push, pull, commit or any other git action still running shows as running after a reload and in every
   other tab, and its toast comes when it ends there too. A new build installed meanwhile waits for it instead of
   cutting it off; one cut off by a restart says so.

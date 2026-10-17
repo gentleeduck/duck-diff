@@ -19,6 +19,7 @@ import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { BoxSkeleton } from '../app/skeletons'
 import type { MergeMethod } from '../lib/api'
+import { useKept } from '../lib/kept'
 import { useRefresh } from '../query/useRefresh'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { LOOK, outcome } from './Checks'
@@ -196,21 +197,23 @@ export function MergeBox({
   const runs = useQuery(queries.gh.checks(number)).data ?? NO_RUNS
   const queue = useQuery(queries.gh.mergeQueue(number)).data ?? null
   const refresh = useRefresh()
-  const [method, setMethod] = useState<MergeMethod | null>(null)
-  const [confirming, setConfirming] = useState(false)
-  const [title, setTitle] = useState('')
-  const [message, setMessage] = useState('')
-  const [bypass, setBypass] = useState(false)
-  const [deleteAfter, setDeleteAfter] = useState(false)
+  const [method, setMethod] = useKept<MergeMethod | null>(`merge:${number}:method`, null)
+  const [confirming, setConfirming] = useKept(`merge:${number}:confirming`, false)
+  const [title, setTitle] = useKept(`merge:${number}:title`, '')
+  const [message, setMessage] = useKept(`merge:${number}:message`, '')
+  const [bypass, setBypass] = useKept(`merge:${number}:bypass`, false)
+  const [deleteAfter, setDeleteAfter] = useKept(`merge:${number}:delete`, false)
   const [busy, setBusy] = useState<string | null>(null)
   const [showChecks, setShowChecks] = useState(false)
   const [showReviews, setShowReviews] = useState(false)
   const [showCli, setShowCli] = useState(false)
 
+  // The repo's defaults start the box; what was picked since (kept across a reload) stays.
   useEffect(() => {
-    if (info && method === null) setMethod(info.defaultMethod)
-    if (info) setDeleteAfter(info.deleteBranchOnMerge)
-  }, [info, method])
+    if (!info || method !== null) return
+    setMethod(info.defaultMethod)
+    setDeleteAfter(info.deleteBranchOnMerge)
+  }, [info, method, setMethod, setDeleteAfter])
 
   if (!info || !method) {
     return (

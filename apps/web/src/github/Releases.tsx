@@ -9,6 +9,7 @@ import { IconTool } from '../app/IconTool'
 import { pageColumn } from '../app/page-column'
 import { CardsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
+import { useKept } from '../lib/kept'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { Avatar, Body } from './Conversation'
 import { MarkdownEditor } from './MarkdownEditor'
@@ -55,14 +56,14 @@ function ReleaseCard({ release }: { release: Release }) {
 
 function NewRelease({ onCreated }: { onCreated(): void }) {
   const { api } = useApp()
-  const [open, setOpen] = useState(false)
-  const [tag, setTag] = useState('')
-  const [target, setTarget] = useState('')
-  const [name, setName] = useState('')
-  const [body, setBody] = useState('')
-  const [draft, setDraft] = useState(false)
-  const [prerelease, setPrerelease] = useState(false)
-  const [generateNotes, setGenerateNotes] = useState(true)
+  const [open, setOpen] = useKept('new-release:open', false)
+  const [tag, setTag] = useKept('new-release:tag', '')
+  const [target, setTarget] = useKept('new-release:target', '')
+  const [name, setName] = useKept('new-release:name', '')
+  const [body, setBody] = useKept('new-release:body', '')
+  const [draft, setDraft] = useKept('new-release:draft', false)
+  const [prerelease, setPrerelease] = useKept('new-release:prerelease', false)
+  const [generateNotes, setGenerateNotes] = useKept('new-release:notes', true)
   const [sending, setSending] = useState(false)
 
   const start = () => {

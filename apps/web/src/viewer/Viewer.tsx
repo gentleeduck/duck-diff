@@ -22,6 +22,7 @@ import { useView } from '../hooks/useView'
 import { compileHidden } from '../lib/hide'
 import { isPopping } from '../lib/history'
 import { itemId } from '../lib/items'
+import { readKept, writeKept } from '../lib/kept'
 import { createStore, useStore } from '../lib/store'
 import { isTestFile } from '../lib/tests'
 import { lineHash } from '../review/anchor'
@@ -112,18 +113,43 @@ const selectPending = (state: PullReviewState) => state.pending
 const selectGitHubViewed = (state: PullReviewState) => state.viewed
 const selectViewed = (state: ViewedState) => state
 
-// State that belongs to one comparison and starts over when the comparison changes.
-function usePerTarget<T>(key: string, initial: () => T): [T, (update: (prev: T) => T) => void] {
-  const [state, setState] = useState(() => ({ key, value: initial() }))
-  const value = state.key === key ? state.value : initial()
+interface Keep<T> {
+  name: string
+  save(value: T): unknown
+  load(kept: never): T
+}
+
+// State that belongs to one comparison and starts over when the comparison changes; with keep, a reload keeps it.
+function usePerTarget<T>(key: string, initial: () => T, keep?: Keep<T>): [T, (update: (prev: T) => T) => void] {
+  const start = useCallback(() => {
+    const kept = keep ? readKept<unknown>(`${keep.name}:${key}`, null) : null
+    return keep && kept !== null ? keep.load(kept as never) : initial()
+  }, [key, initial, keep])
+  const [state, setState] = useState(() => ({ key, value: start() }))
+  const value = state.key === key ? state.value : start()
   const update = useCallback(
-    (fn: (prev: T) => T) => setState((prev) => ({ key, value: fn(prev.key === key ? prev.value : initial()) })),
-    [key, initial],
+    (fn: (prev: T) => T) =>
+      setState((prev) => {
+        const next = fn(prev.key === key ? prev.value : start())
+        if (keep) writeKept(`${keep.name}:${key}`, keep.save(next))
+        return { key, value: next }
+      }),
+    [key, start, keep],
   )
   return [value, update]
 }
 
 const emptyToggles = () => new Map<string, boolean>() as ReadonlyMap<string, boolean>
+const KEEP_TOGGLES: Keep<ReadonlyMap<string, boolean>> = {
+  name: 'diff-folds',
+  save: (toggles) => [...toggles],
+  load: (kept: [string, boolean][]) => new Map(kept),
+}
+const KEEP_EXPANDED: Keep<ReadonlyMap<string, ReadonlySet<number>>> = {
+  name: 'diff-gaps',
+  save: (expanded) => [...expanded].map(([id, gaps]) => [id, [...gaps]]),
+  load: (kept: [string, number[]][]) => new Map(kept.map(([id, gaps]) => [id, new Set(gaps)])),
+}
 const emptyBlames = () =>
   new Map<string, readonly BlameLine[] | null>() as ReadonlyMap<string, readonly BlameLine[] | null>
 const selectBlamed = (paths: ReadonlySet<string>) => paths
@@ -177,7 +203,7 @@ export default function Viewer() {
   const byPath = useMemo(() => new Map(files.map((file) => [file.path, file])), [files])
 
   // Paths the header chevron folded (true) or opened (false), on top of the viewed marks.
-  const [toggled, setToggled] = usePerTarget(shownKey, emptyToggles)
+  const [toggled, setToggled] = usePerTarget(shownKey, emptyToggles, KEEP_TOGGLES)
   const foldedFolders = useStore(changesFolders, selectFolders)
   // The Viewed box shows only the viewed mark; folding by the chevron is not the same thing.
   const viewedSet = useMemo(() => viewedPaths(viewedState, target, files), [viewedState, target, files])
@@ -202,14 +228,19 @@ export default function Viewer() {
   )
 
   // Unchanged lines are read from the full file the first time someone opens a gap.
-  const [expanded, setExpanded] = usePerTarget(shownKey, emptyExpanded)
+  const [expanded, setExpanded] = usePerTarget(shownKey, emptyExpanded, KEEP_EXPANDED)
   const [contents, setContents] = usePerTarget(shownKey, emptyContents)
 
   // Blame, read once per file while it is on.
   const blamed = useStore(blameFiles, selectBlamed)
   const [blames, setBlames] = usePerTarget(shownKey, emptyBlames)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the comparison's key is the trigger
-  useEffect(() => blameFiles.set(new Set()), [shownKey])
+  // Another comparison starts without blame; the first one shown keeps what a reload brought back.
+  const blamedKey = useRef(shownKey)
+  useEffect(() => {
+    if (blamedKey.current === shownKey) return
+    blamedKey.current = shownKey
+    blameFiles.set(new Set())
+  }, [shownKey, blameFiles])
   // Both sides: the old one at what it was compared with (under its old name), the new one at the commit or
   // the working file. A side the file does not have, an added file's old one, has nothing to blame.
   useEffect(() => {
@@ -303,6 +334,18 @@ export default function Viewer() {
     },
     [settings.expandUnchanged, contents, byPath, api, target, setContents],
   )
+  // Gaps opened before a reload need their file's text read again.
+  useEffect(() => {
+    for (const item of shown) {
+      const path = item.fileDiff.name
+      if (!expanded.has(item.id) || contents.has(path) || asked.current.has(path)) continue
+      asked.current.add(path)
+      api.content(target, 'new', { path, oldPath: byPath.get(path)?.oldPath ?? null }).then(
+        (text) => setContents((prev) => new Map(prev).set(path, (text ?? '').split('\n'))),
+        () => asked.current.delete(path),
+      )
+    }
+  }, [shown, expanded, contents, byPath, api, target, setContents])
 
   // A file asked for by the tree, the palette or back and forward is scrolled to once it is on the page.
   const wanted = useRef<string | null>(hasScrollMemory(`diff:${shownKey}`, isPopping()) ? null : diffFile.get())

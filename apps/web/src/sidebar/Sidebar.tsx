@@ -1,10 +1,11 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@duck-diff/ui'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useApp } from '../app/AppProvider'
 import { describeTarget } from '../compare/model'
 import { CommitBox } from '../git/CommitBox'
 import { StagePanel } from '../git/StagePanel'
 import { useTarget } from '../hooks/useTarget'
+import { useKept } from '../lib/kept'
 import { ChangesTree } from './ChangesTree'
 import { HistoryList } from './HistoryList'
 
@@ -12,11 +13,11 @@ import { HistoryList } from './HistoryList'
 export function Sidebar() {
   const { fileHistory } = useApp()
   const { target } = useTarget()
-  const [tab, setTab] = useState('changes')
+  const [tab, setTab] = useKept('sidebar-tab', 'changes')
   const targetPath = describeTarget(target).path
 
   // Asking for a file's history, or opening a link to one file, shows that file's log.
-  useEffect(() => fileHistory.subscribe(() => fileHistory.get() && setTab('history')), [fileHistory])
+  useEffect(() => fileHistory.subscribe(() => fileHistory.get() && setTab('history')), [fileHistory, setTab])
   useEffect(() => {
     if (targetPath && fileHistory.get() !== targetPath) fileHistory.set(targetPath)
   }, [targetPath, fileHistory])
