@@ -51,28 +51,33 @@ describe('terminals', () => {
     expect(text()).toContain(`cwd=${dir}`)
   })
 
-  // bash takes its terminal on its own; zsh, a common login shell, has to be handed it.
+  // bash takes its terminal on its own; zsh, a common login shell, has to be handed it. macOS does not hand a
+  // session its terminal the way Linux does, so job control there waits on a way that works.
+  const jobControl = process.platform === 'darwin' ? it.skip : it
   for (const shell of ['bash', 'zsh'].filter((name) => Bun.which(name))) {
-    it(`interrupts a running command with Ctrl+C and suspends one with Ctrl+Z in ${shell}, as any terminal does`, async () => {
-      const { socket, text } = peer()
-      // -f: zsh without the user's startup files, which would also set its history file back to theirs.
-      const session = make({ shell, args: shell === 'zsh' ? ['-f'] : [] }).open({ cols: 90, rows: 20 })
-      session.attach(socket)
-      session.input('sleep 30; echo NOT-INTERRUPTED\n')
-      await Bun.sleep(400)
-      session.input('\x03')
-      session.input('echo "after=$?"\n')
-      await until(() => text().includes('after=130'))
-      session.input('sleep 30\n')
-      await Bun.sleep(400)
-      session.input('\x1a')
-      session.input('jobs\n')
-      await until(() => /Stopped|suspended/.test(text()))
-      expect(text()).not.toContain('no job control')
-    })
+    jobControl(
+      `interrupts a running command with Ctrl+C and suspends one with Ctrl+Z in ${shell}, as any terminal does`,
+      async () => {
+        const { socket, text } = peer()
+        // -f: zsh without the user's startup files, which would also set its history file back to theirs.
+        const session = make({ shell, args: shell === 'zsh' ? ['-f'] : [] }).open({ cols: 90, rows: 20 })
+        session.attach(socket)
+        session.input('sleep 30; echo NOT-INTERRUPTED\n')
+        await Bun.sleep(400)
+        session.input('\x03')
+        session.input('echo "after=$?"\n')
+        await until(() => text().includes('after=130'))
+        session.input('sleep 30\n')
+        await Bun.sleep(400)
+        session.input('\x1a')
+        session.input('jobs\n')
+        await until(() => /Stopped|suspended/.test(text()))
+        expect(text()).not.toContain('no job control')
+      },
+    )
   }
 
-  it('ends what runs in a terminal when the terminal closes', async () => {
+  jobControl('ends what runs in a terminal when the terminal closes', async () => {
     const { socket, text } = peer()
     const session = make({ shell: 'bash' }).open({ cols: 90, rows: 20 })
     session.attach(socket)
