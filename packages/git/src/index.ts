@@ -1,3 +1,4 @@
+export { type CheckoutInfo, readCheckout } from './checkout'
 export { type Commit, type CommitDetails, type CommitStat, listCommits, readCommit, readCommitStat } from './commits'
 export {
   type ConflictFile,

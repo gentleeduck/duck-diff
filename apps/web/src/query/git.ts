@@ -119,6 +119,8 @@ export function gitQueries(api: Api) {
         queryFn: () => api.submoduleLog(path, from, to),
       }),
     repos: () => queryOptions({ queryKey: ['git', 'repos'], queryFn: () => api.repos(), staleTime: 0 }),
+    checkout: (path: string) =>
+      queryOptions({ queryKey: ['git', 'checkout', path], queryFn: () => api.checkout(path), staleTime: 5_000 }),
     bisect: () =>
       queryOptions({ queryKey: ['git', 'bisect'], queryFn: () => api.bisect(), meta: { topics: ['refs'] } }),
     conflict: (path: string) =>

@@ -3,7 +3,7 @@ import { expect, test } from './fixture'
 test('file: searches every file, previews the highlighted one, and opens it', async ({ page, app }) => {
   await page.goto(app.url)
   await expect(page.getByRole('banner')).toContainText('2 files')
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('Control+p')
   const dialog = page.getByRole('dialog')
   await dialog.getByRole('combobox').fill('file: readme')
   const result = dialog.getByRole('option', { name: /README\.md/ })
@@ -18,7 +18,7 @@ test('file: searches every file, previews the highlighted one, and opens it', as
 test('> narrows to commands and the scope chips fill the prefix in', async ({ page, app }) => {
   await page.goto(app.url)
   await expect(page.getByRole('banner')).toContainText('2 files')
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('Control+p')
   const dialog = page.getByRole('dialog')
   await dialog.getByRole('button', { name: '>' }).click()
   await expect(dialog.getByRole('combobox')).toHaveValue('>')
@@ -30,7 +30,7 @@ test('> narrows to commands and the scope chips fill the prefix in', async ({ pa
 test('file: takes a path, piece by piece', async ({ page, app }) => {
   await page.goto(app.url)
   await expect(page.getByRole('banner')).toContainText('2 files')
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('Control+p')
   const dialog = page.getByRole('dialog')
   await dialog.getByRole('combobox').fill('file:src/app')
   await expect(dialog.getByRole('option').first()).toContainText('src/app.ts')

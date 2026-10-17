@@ -2,7 +2,7 @@ import { mkdirSync, watch as watchFiles } from 'node:fs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { repoId } from '@duck-diff/git'
-import { type DiffTarget, DiffTargetSchema } from '@duck-diff/protocol'
+import { type DiffTarget, DiffTargetSchema, lastTargetKey } from '@duck-diff/protocol'
 
 // Bumped when the file's shape changes, so an older one is ignored rather than misread.
 const VERSION = 1
@@ -190,6 +190,19 @@ export function pageDiff(
 }
 
 // The comparison a page url opens on, when it opens on the diff: /changes, or / as older links have it.
+// A page opened without a comparison goes to the one last chosen in its repo, so a reload, a new window or
+// Neovim lands on the same from and to. The page keeps it (web AppProvider); null when the url names one.
+export function rememberedTarget(url: URL, values: StateValues, repo: string): string | null {
+  if (url.searchParams.has('target')) return null
+  const raw = values[lastTargetKey(repo)]
+  if (!raw) return null
+  try {
+    return DiffTargetSchema.safeParse(JSON.parse(raw)).success ? raw : null
+  } catch {
+    return null
+  }
+}
+
 export function openingTarget(url: URL): DiffTarget | null {
   const view = url.searchParams.get('view')
   if (!(url.pathname === '/changes' || (url.pathname === '/' && (!view || view === 'changes')))) return null

@@ -20,7 +20,7 @@ test('a file picked in search is marked and opened in the files tree', async ({ 
   await page.goto(`${app.url}&view=files`)
   const tree = page.getByRole('tree', { name: 'All files' })
   await expect(tree.getByRole('treeitem', { name: /README\.md/ })).toBeVisible()
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('Control+p')
   await page.getByRole('dialog').getByRole('combobox').fill('file:src/app')
   await expect(page.getByRole('dialog').getByRole('option').first()).toContainText('src/app.ts')
   await page.keyboard.press('Enter')

@@ -49,6 +49,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     commitStat: async () => ({ files: 0, additions: 0, deletions: 0 }),
     insights: async () => ({ total: 0, contributors: [], weeks: [] }),
     worktrees: async () => [],
+    checkout: async () => ({ branch: 'main', upstream: null, ahead: 0, behind: 0, head: null, changes: 0 }),
     submodules: async () => [],
     submoduleLog: async () => [],
     openRepo: async () => ({ url: 'http://127.0.0.1:1/', opened: true }),

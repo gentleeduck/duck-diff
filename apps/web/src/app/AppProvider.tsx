@@ -22,6 +22,7 @@ import { type GitHubQueries, githubQueries } from '../query/github'
 import { QueryProvider } from '../query/QueryProvider'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createPlaceStores, type PlaceStores } from '../router/stores'
+import { rememberTarget } from '../state/last-target'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, readSeed, type Session } from '../state/session'
 import { createSettingsStore, type Settings } from '../state/settings'
@@ -150,17 +151,26 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
     })
   }, [value])
 
-  // Tabs, viewed marks and unsent reviews are kept per repository, so they come back once the page knows which
-  // one it shows.
+  // Tabs, viewed marks, unsent reviews and the chosen comparison are kept per repository, so they come back once
+  // the page knows which one it shows.
   useEffect(() => {
+    let forget = () => {}
+    let gone = false
     value.queryClient.fetchQuery(value.queries.git.repo()).then(
       (info) => {
+        if (gone) return
         value.tabs.restore(info.root)
         value.viewed.restore(info.root)
         value.pullReview.restore(info.root)
+        // The from and to chosen last come back on the next page this repo opens, reloaded or new.
+        forget = rememberTarget(info.root, value.place)
       },
       () => {},
     )
+    return () => {
+      gone = true
+      forget()
+    }
   }, [value])
 
   useEffect(() => (api || !onServer ? undefined : saveTokens(value.session)), [api, value])

@@ -112,11 +112,11 @@ function Screen() {
       variant="outline"
       className="size-7 shrink-0 justify-start gap-2 px-0! text-muted-foreground @max-6xl/top:justify-center @6xl/top:w-48 @6xl/top:ps-2! @6xl/top:pe-1! @7xl/top:w-80"
       aria-label="Search files and actions"
-      title="Search files and actions (Ctrl K)"
+      title="Search files and actions (Ctrl P)"
       onClick={() => openPalette()}>
       <Search />
       <span className="hidden min-w-0 flex-1 truncate text-start @6xl/top:inline">Search or jump to...</span>
-      <Kbd className="ms-auto hidden h-[1.125rem] px-1 text-[0.8em] leading-none @6xl/top:inline-flex">Ctrl K</Kbd>
+      <Kbd className="ms-auto hidden h-[1.125rem] px-1 text-[0.8em] leading-none @6xl/top:inline-flex">Ctrl P</Kbd>
     </Button>
   )
   const screens: Record<View, { top: ReactNode; side: ReactNode | null; label: string }> = {

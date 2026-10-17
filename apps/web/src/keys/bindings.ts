@@ -38,24 +38,34 @@ export function buildBindings(
   )
 }
 
-// Two commands on the same keys, in a shared mode and the same place, where only the first could ever run.
-// The diff is part of the page; the panel and lists are places of their own whose keys shadow the page's.
+// Two commands on the same keys, in a shared mode and the same place, where only the first could ever run; or
+// keys that are the start of other keys in a place where both apply, which run only after a pause, so the longer
+// one is easy to miss into the shorter. The diff is part of the page; the panel and lists are places of their own
+// whose keys shadow the page's.
 export function conflicts(commands: CommandSpec[], overrides: Overrides): { keys: string; commands: string[] }[] {
-  const seen = new Map<string, Set<string>>()
-  for (const { spec, keys, modes } of entries(commands, overrides)) {
-    for (const mode of modes) {
-      const place = spec.when === 'panel' || spec.when === 'list' ? spec.when : 'page'
-      const slot = `${mode}|${place}|${keys.join(' ')}`
-      const ids = seen.get(slot) ?? new Set()
-      ids.add(spec.id)
-      seen.set(slot, ids)
+  const bound = entries(commands, overrides).flatMap(({ spec, keys, modes }) =>
+    modes.map((mode) => ({
+      id: spec.id,
+      keys,
+      mode,
+      place: spec.when === 'panel' || spec.when === 'list' ? spec.when : 'page',
+    })),
+  )
+  const found = new Map<string, { keys: string; commands: string[] }>()
+  const add = (keys: string[], ids: string[]) => {
+    const sorted = [...new Set(ids)].sort()
+    if (sorted.length > 1)
+      found.set(`${keys.join(' ')}|${sorted.join(',')}`, { keys: keys.join(' '), commands: sorted })
+  }
+  for (const a of bound) {
+    for (const b of bound) {
+      if (a === b || a.mode !== b.mode || a.keys.length > b.keys.length) continue
+      const same = a.keys.length === b.keys.length
+      // The same keys clash in the same place; a start clashes wherever both apply, which the page's keys do.
+      const shared = same ? a.place === b.place : a.place === b.place || a.place === 'page' || b.place === 'page'
+      if (!shared || a.keys.some((key, i) => key !== b.keys[i])) continue
+      add(a.keys, [a.id, b.id])
     }
   }
-  const found = new Map<string, string[]>()
-  for (const [slot, ids] of seen) {
-    if (ids.size < 2) continue
-    const keys = slot.split('|')[2] as string
-    found.set(`${keys}|${[...ids].sort().join(',')}`, [...ids].sort())
-  }
-  return [...found.entries()].map(([key, ids]) => ({ keys: key.split('|')[0] as string, commands: ids }))
+  return [...found.values()]
 }

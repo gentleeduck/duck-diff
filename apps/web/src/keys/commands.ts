@@ -58,17 +58,18 @@ export const COMMANDS: CommandSpec[] = [
   { id: 'view-actions', title: 'Actions', group: 'Views', keys: ['8', '<leader>ga'] },
 
   { id: 'commit', title: 'Write the commit message', group: 'Git', keys: ['<leader>gc'] },
-  { id: 'push', title: 'Push', group: 'Git', keys: ['<leader>p'] },
-  { id: 'pull', title: 'Pull', group: 'Git', keys: ['<leader>P'] },
-  { id: 'pull-rebase', title: 'Pull with rebase', group: 'Git', keys: ['<leader>Pr'] },
+  // Not <leader>p and <leader>P: those start <leader>pv, and a key that is also the start of another runs only after
+  // a pause, which for a push is one keystroke too easy.
+  { id: 'push', title: 'Push', group: 'Git', keys: ['<leader>gP'] },
+  { id: 'pull', title: 'Pull', group: 'Git', keys: ['<leader>gl'] },
+  { id: 'pull-rebase', title: 'Pull with rebase', group: 'Git', keys: ['<leader>gL'] },
   { id: 'fetch', title: 'Fetch every remote', group: 'Git', keys: ['<leader>gF'] },
 
-  { id: 'focus-up', title: 'Back up from the panel', group: 'Windows', keys: ['<C-k>'], when: 'panel' },
   {
     id: 'palette',
     title: 'Search everything',
     group: 'Search',
-    keys: ['<C-k>', '<D-k>', '<leader>sg'],
+    keys: ['<C-p>', '<D-k>', '<D-p>', '<leader>sg'],
     modes: ['normal', 'insert'],
   },
   { id: 'search-files', title: 'Files', group: 'Search', keys: ['<leader>sf'] },
@@ -93,9 +94,19 @@ export const COMMANDS: CommandSpec[] = [
   { id: 'leave-terminal', title: 'Leave the terminal', group: 'Windows', keys: ['<Esc><Esc>'], modes: ['terminal'] },
   { id: 'leave-insert', title: 'Leave the text box', group: 'Windows', keys: ['<Esc>'], modes: ['insert'] },
   { id: 'close-draft', title: 'Close the comment being written', group: 'Windows', keys: ['<Esc>'] },
-  { id: 'focus-left', title: 'Focus the side panel', group: 'Windows', keys: ['<C-h>', '<leader>l'] },
-  { id: 'focus-right', title: 'Focus the diff', group: 'Windows', keys: ['<C-l>'] },
-  { id: 'focus-down', title: 'Focus the bottom panel', group: 'Windows', keys: ['<C-j>'] },
+  // Ctrl and a direction move between the panels as between Neovim's windows or tmux's panes, a terminal's too;
+  // with no panel on that side a terminal keeps the key (Ctrl+L still clears it at the edge). A text box keeps
+  // them, as Neovim's insert mode does (Ctrl+K adds a link in a comment): Esc first.
+  {
+    id: 'focus-left',
+    title: 'Panel to the left',
+    group: 'Windows',
+    keys: ['<C-h>', '<leader>l'],
+    modes: ['normal', 'terminal'],
+  },
+  { id: 'focus-down', title: 'Panel below', group: 'Windows', keys: ['<C-j>'], modes: ['normal', 'terminal'] },
+  { id: 'focus-up', title: 'Panel above', group: 'Windows', keys: ['<C-k>'], modes: ['normal', 'terminal'] },
+  { id: 'focus-right', title: 'Panel to the right', group: 'Windows', keys: ['<C-l>'], modes: ['normal', 'terminal'] },
   {
     id: 'toggle-sidebar',
     title: 'Hide or show the side panel',
@@ -133,8 +144,7 @@ export const PREFIXES: Record<string, string> = {
   'space g': 'git and views',
   'space h': 'hunks',
   'space t': 'tabs and terminals',
-  'space p': 'push',
-  'space P': 'pull',
+  'space p': 'project',
   ']': 'next',
   '[': 'previous',
   g: 'go',

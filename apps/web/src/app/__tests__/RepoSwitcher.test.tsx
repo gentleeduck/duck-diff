@@ -73,31 +73,39 @@ describe('repo switcher', () => {
     ).toEqual(['other/other', 'Forget /other'])
   })
 
-  it('shows a card on hover with the path, what the checkout is and the commit it is on', async () => {
+  it('shows a card on hover: the path to copy, the branch, the commit it is on and what differs', async () => {
     const worktrees = async () => [
       tree('/r', 'main', { main: true, current: true }),
       tree('/r/.claude/worktrees/copy', 'synced', { separate: true, head: 'c'.repeat(40) }),
     ]
-    const commit = async () => ({
-      sha: 'c'.repeat(40),
-      parents: [],
-      authorName: 'Duck',
-      authorEmail: 'd@d',
-      authoredAt: 0,
-      committerName: 'Duck',
-      committedAt: Math.floor(Date.now() / 1000) - 3600,
-      message: 'Sync the copy\n\nbody',
-    })
-    render(<App api={fakeApi({ worktrees, commit })} />)
+    const checkout = vi.fn(async () => ({
+      branch: 'synced',
+      upstream: 'origin/synced',
+      ahead: 2,
+      behind: 0,
+      head: {
+        sha: 'c'.repeat(40),
+        subject: 'Sync the copy',
+        author: 'Duck',
+        committedAt: Math.floor(Date.now() / 1000) - 3600,
+      },
+      changes: 3,
+    }))
+    render(<App api={fakeApi({ worktrees, checkout })} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Repositories' }))
     const row = within(await screen.findByRole('list', { name: 'Worktrees' })).getByRole('button', { name: /synced/ })
     expect(row.textContent).toContain('separate')
     fireEvent.pointerEnter(row)
     fireEvent.focus(row)
     expect(await screen.findByText('/r/.claude/worktrees/copy', {}, { timeout: 3000 })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Copy the path' })).toBeTruthy()
     expect(screen.getByText(/separate copy: git does not list it/)).toBeTruthy()
     expect(await screen.findByText('Sync the copy')).toBeTruthy()
     expect(screen.getByText('ccccccc')).toBeTruthy()
+    expect(screen.getByText('on origin/synced')).toBeTruthy()
+    expect(screen.getByText('2 ahead')).toBeTruthy()
+    expect(screen.getByText('3 files changed')).toBeTruthy()
+    expect(checkout).toHaveBeenCalledWith('/r/.claude/worktrees/copy')
   })
 
   it('shows the lists loading, and says so when there is no other repository', async () => {

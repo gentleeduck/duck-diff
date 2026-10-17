@@ -113,6 +113,9 @@ export const UndoResultSchema = z.object({ restored: z.array(z.string()).nullabl
 export type UndoResult = z.infer<typeof UndoResultSchema>
 
 // Stable whatever order the properties arrived in, so a target read back from JSON finds its comments.
+// Where a repo's page keeps the comparison it last showed (the diff's from and to), in its saved state.
+export const lastTargetKey = (repo: string) => `duck-diff:target:${repo}`
+
 export function targetKey(target: DiffTarget): string {
   switch (target.kind) {
     case 'range':
@@ -299,6 +302,17 @@ export const WorktreeSchema = z.object({
   separate: z.boolean().default(false),
 })
 export type Worktree = z.infer<typeof WorktreeSchema>
+
+// What a checkout's card shows: its branch, the commit it is on and how many files differ from it.
+export const CheckoutInfoSchema = z.object({
+  branch: z.string().nullable(),
+  upstream: z.string().nullable(),
+  ahead: z.number().int().min(0),
+  behind: z.number().int().min(0),
+  head: z.object({ sha: z.string(), subject: z.string(), author: z.string(), committedAt: z.number() }).nullable(),
+  changes: z.number().int().min(0),
+})
+export type CheckoutInfo = z.infer<typeof CheckoutInfoSchema>
 const AbsolutePathSchema = z
   .string()
   .min(1)

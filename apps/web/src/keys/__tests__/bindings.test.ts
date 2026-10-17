@@ -26,9 +26,17 @@ describe('bindings', () => {
     expect(conflicts(COMMANDS, { push: ['j'] })).toEqual([{ keys: 'j', commands: ['next-hunk', 'push'] }])
   })
 
+  it('gives no key two commands, and makes no key the start of another, out of the box', () => {
+    expect(conflicts(COMMANDS, {})).toEqual([])
+    // A start is a clash too: <leader>p would push only after a pause meant for <leader>pv.
+    expect(
+      conflicts([...COMMANDS, { id: 'push', title: 'Push', group: 'Git', keys: ['<leader>p'] }], {}),
+    ).toContainEqual({ keys: 'space p', commands: ['push', 'toggle-sidebar'] })
+  })
+
   it('puts place-bound keys first so they win where they apply', () => {
     const bindings = buildBindings(COMMANDS, {}, always)
-    const ctrlK = bindings.filter((binding) => binding.keys.join(' ') === 'ctrl+k').map((binding) => binding.command)
-    expect(ctrlK).toEqual(['focus-up', 'palette'])
+    const ctrlD = bindings.filter((binding) => binding.keys.join(' ') === 'ctrl+d').map((binding) => binding.command)
+    expect(ctrlD).toEqual(['list-half-down', 'half-down'])
   })
 })

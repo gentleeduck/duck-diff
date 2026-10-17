@@ -6,6 +6,7 @@ import {
   listRemotes,
   listSubmodules,
   listWorktrees,
+  readCheckout,
   readSyncStatus,
   repoId,
   resolveRepo,
@@ -47,7 +48,16 @@ import { reviewPrompt } from './review-prompt'
 import { createReviewStore } from './reviews'
 import { handleApi, repoInfo } from './routes'
 import { createSiblings, pageOpener, type StartServer, startSibling } from './siblings'
-import { createMemoryState, createStateStore, openingTarget, opensGraph, pageDiff, pageGraph, pageState } from './state'
+import {
+  createMemoryState,
+  createStateStore,
+  openingTarget,
+  opensGraph,
+  pageDiff,
+  pageGraph,
+  pageState,
+  rememberedTarget,
+} from './state'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
@@ -150,6 +160,15 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const github = createForge(repo, { github: { ...options.github, cache }, gitlab: options.gitlab })
   const navigator = createNavigator(repo, { nvim: options.nvim, ...options.lsp })
   const repoList = createRepoList(options.dataDir)
+  // Only checkouts this page knows: worktrees, submodules, and repositories in the switcher.
+  const knownCheckouts = async () => {
+    const [trees, modules, listed] = await Promise.all([listWorktrees(repo), listSubmodules(repo), repoList.all()])
+    return [
+      ...trees.map((tree) => tree.path),
+      ...modules.map((module) => join(repo, module.path)),
+      ...listed.map((entry) => entry.path),
+    ]
+  }
   // Started from the command line (which always passes repos), this repo goes to the top of the switcher
   // with the extra ones after it; a server made in a test leaves the shared list alone.
   if (options.repos) {
@@ -315,20 +334,15 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
             : [{ path: repo, name: basename(repo) }, ...listed]
           return Response.json(entries.map((entry) => ({ ...entry, current: entry.path === repo })))
         }
+        if (url.pathname === '/api/checkout') {
+          const { path } = OpenRepoSchema.parse(Object.fromEntries(url.searchParams))
+          if (path !== repo && !(await knownCheckouts()).includes(path))
+            throw new HttpError(404, 'not-found', `${path} is not a checkout this page lists`)
+          return Response.json(await readCheckout(path))
+        }
         if (url.pathname === '/api/open-repo' && request.method === 'POST') {
           const { path } = OpenRepoSchema.parse(await request.json())
-          // Only checkouts this page knows: worktrees, submodules, and repositories in the switcher.
-          const [trees, modules, listed] = await Promise.all([
-            listWorktrees(repo),
-            listSubmodules(repo),
-            repoList.all(),
-          ])
-          const known = [
-            ...trees.map((tree) => tree.path),
-            ...modules.map((module) => join(repo, module.path)),
-            ...listed.map((entry) => entry.path),
-          ]
-          if (!known.includes(path))
+          if (!(await knownCheckouts()).includes(path))
             throw new HttpError(404, 'not-found', `${path} is not a worktree or submodule here`)
           const sibling = await siblings.open(path)
           const opened = await (options.openPage ?? pageOpener(options.nvim ?? null))(sibling)
@@ -389,7 +403,14 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         const response = serveWeb(url.pathname)
         // The page is opened with ?token once; the cookie carries it to assets, the api and the socket.
         if (response.headers.get('content-type')?.startsWith('text/html')) {
-          let html = pageState(await response.text(), await state.values(), await state.queries())
+          const values = await state.values()
+          const remembered = rememberedTarget(url, values, repo)
+          if (remembered) {
+            const next = new URL(url)
+            next.searchParams.set('target', remembered)
+            return new Response(null, { status: 302, headers: { location: `${next.pathname}${next.search}` } })
+          }
+          let html = pageState(await response.text(), values, await state.queries())
           const opening = memo ? openingTarget(url) : null
           if (memo && opening) {
             const key = targetKey(opening)

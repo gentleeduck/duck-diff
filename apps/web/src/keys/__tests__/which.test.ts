@@ -10,7 +10,7 @@ describe('which-key', () => {
     const next = continuations(buildBindings(COMMANDS, {}, contexts), ['space'], 'normal')
     expect(next.find((entry) => entry.key === 's')).toEqual({ key: 's', label: 'search', group: true })
     expect(next.find((entry) => entry.key === 'y')).toEqual({ key: 'y', label: 'Copy the file path', group: false })
-    expect(next.find((entry) => entry.key === 'p')).toEqual({ key: 'p', label: 'Push', group: true })
+    expect(next.find((entry) => entry.key === 'p')).toEqual({ key: 'p', label: 'project', group: true })
   })
 
   it('writes keys back in vim notation', () => {

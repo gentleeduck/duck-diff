@@ -45,7 +45,9 @@ export function Shell({
   useLayoutEffect(() => setMeasured(true), [])
   return (
     <div className="flex h-full flex-col">
-      <header className="@container/top flex h-12 shrink-0 items-center gap-2 border-border border-b bg-card px-3 @6xl/top:gap-4 @6xl/top:px-4">
+      <header
+        data-region="top"
+        className="@container/top flex h-12 shrink-0 items-center gap-2 border-border border-b bg-card px-3 @6xl/top:gap-4 @6xl/top:px-4">
         <NavButtons />
         {sidebar !== null && !panelShown ? (
           <IconTool

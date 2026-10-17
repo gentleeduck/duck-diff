@@ -143,7 +143,7 @@ test('t switches between split and stacked', async ({ page, app }) => {
 test('the palette jumps to a file', async ({ page, app }) => {
   await page.goto(app.url)
   await expect(page.locator('main')).toContainText('export const answer = 42')
-  await page.keyboard.press('Control+k')
+  await page.keyboard.press('Control+p')
   await page.getByRole('dialog').getByRole('combobox').fill('notes')
   await page.keyboard.press('Enter')
   await expect(page.locator('main')).toContainText('fresh file')
