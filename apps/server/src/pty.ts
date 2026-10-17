@@ -40,7 +40,6 @@ interface Options {
 }
 
 const CLAIM_TTY = 't=$(tty) && exec 0<>"$t" 1>&0 2>&0; exec "$0" "$@"'
-const MAC = process.platform === 'darwin'
 
 const clampSize = (value: number, max: number) => Math.max(2, Math.min(max, Math.floor(value) || 2))
 
@@ -111,12 +110,8 @@ export function createTerminals({
     const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', TERM_PROGRAM: 'duck-diff' }
     // Its own session, with the pty as its controlling terminal, so Ctrl+C, Ctrl+Z and job control reach what runs
     // in it as in any terminal; without one ^C only prints. bash takes the terminal on its own and zsh does not, so
-    // on Linux the session opens it by name first (which makes it the controlling one), then becomes the shell.
-    // macOS never hands over a terminal that way; script(1) runs the shell on a pty it sets up as it should.
-    const command = MAC
-      ? ['/usr/bin/script', '-q', '/dev/null', shell, ...args]
-      : ['/bin/sh', '-c', CLAIM_TTY, shell, ...args]
-    const child = Bun.spawn(command, { cwd, env, terminal, detached: true })
+    // the session opens it by name first (which makes it the controlling one), then becomes the shell.
+    const child = Bun.spawn(['/bin/sh', '-c', CLAIM_TTY, shell, ...args], { cwd, env, terminal, detached: true })
     child.exited.then((code) => {
       if (timer) clearTimeout(timer)
       flush()
@@ -149,10 +144,7 @@ export function createTerminals({
         if (!closed) terminal.write(data)
       },
       resize(nextCols, nextRows) {
-        if (closed) return
-        terminal.resize(clampSize(nextCols, 1000), clampSize(nextRows, 500))
-        // script(1) passes a new size on when told, and nothing tells it but this.
-        if (MAC) child.kill('SIGWINCH')
+        if (!closed) terminal.resize(clampSize(nextCols, 1000), clampSize(nextRows, 500))
       },
       close() {
         if (closed) return
