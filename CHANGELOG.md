@@ -85,6 +85,7 @@
   This holds for zsh too, which unlike bash never took the terminal over by itself. On Linux for now: macOS
   keeps the terminal as it was, without job control.
 - The test suites' shells keep no history, so their commands no longer end up in your own shell history.
+- In the commit graph, a commit's card no longer opens over the right-click menu it belongs to.
 - Servers change the shared repo list one at a time, each writing it whole, so a repository one server adds while
   another drops a gone folder is never lost, and no server reads a half-written list.
 - Every tooltip, hover card, popover, tab strip and picker is duck-ui's: the page-wide tooltip for titles and
