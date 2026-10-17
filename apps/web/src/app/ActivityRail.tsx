@@ -1,4 +1,4 @@
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
+import { Badge, Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import {
   Bell,
   ChartColumn,
@@ -59,9 +59,9 @@ export function ActivityRail({
               className="relative aria-[current=page]:bg-accent aria-[current=page]:text-tn-blue">
               <Icon />
               {badges[id] ? (
-                <span className="absolute end-0.5 top-0.5 min-w-3.5 rounded-full bg-tn-blue px-1 text-[0.625rem] text-background leading-3.5">
+                <Badge className="absolute end-0.5 top-0.5 h-3.5 min-w-3.5 rounded-full py-0 ps-1 pe-1 text-[0.625rem] leading-3.5">
                   {badges[id] > 99 ? '99+' : badges[id]}
-                </span>
+                </Badge>
               ) : null}
             </Button>
           </TooltipTrigger>

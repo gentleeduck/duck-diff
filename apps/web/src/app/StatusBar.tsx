@@ -1,3 +1,4 @@
+import { Button } from '@duck-diff/ui'
 import { LoaderCircle, ScrollText } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSession } from '../hooks/useSession'
@@ -77,18 +78,20 @@ export function StatusBar({ live }: { live: LiveState }) {
           {live.repo.head && <span className="ml-1.5 opacity-70">{live.repo.head.slice(0, 7)}</span>}
         </span>
       )}
-      <button
+      <Button
+        variant="nothing"
+        size="none"
         type="button"
         onClick={panel.toggle}
         title="Commands and output (Ctrl `)"
-        className="flex cursor-pointer items-center gap-1.5 hover:text-foreground">
+        className="flex cursor-pointer items-center gap-1.5 hover:text-foreground justify-start rounded-none whitespace-normal">
         {running ? (
           <LoaderCircle className="size-3.5 animate-spin text-tn-blue" />
         ) : (
           <ScrollText className="size-3.5" />
         )}
         {running ? `Running ${running}` : 'Output'}
-      </button>
+      </Button>
       {pending ? <span className="text-foreground">{showKeys(pending.split(' '))}</span> : null}
       <span className="ml-auto" aria-live="polite">
         {status === 'loading' && 'Loading changes'}

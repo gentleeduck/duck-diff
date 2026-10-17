@@ -2,6 +2,7 @@ import type { BlameLine } from '@duck-diff/protocol'
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { ChevronsUpDown, MessageSquarePlus, Minus, Plus, Undo2 } from 'lucide-react'
 import { createContext, memo, useContext, useMemo, useSyncExternalStore } from 'react'
+import { DANGER } from '../app/IconTool'
 import { BlameCell } from '../blame/BlameCell'
 import type { NoteItem } from '../review/annotations'
 import type { Settings } from '../state/settings'
@@ -63,6 +64,11 @@ const BAR: Record<DiffLine['kind'], string> = {
   context: 'border-transparent',
 }
 const SIGN: Record<DiffLine['kind'], string> = { addition: '+', deletion: '-', context: ' ' }
+// Lines picked for a comment, as GitHub marks them: a tint layered over the line's own diff colour (an image over
+// its background colour, so added and deleted lines still read as such), a bar and lit line numbers.
+const PICKED =
+  'bg-[linear-gradient(color-mix(in_oklab,var(--tn-yellow)_14%,transparent),color-mix(in_oklab,var(--tn-yellow)_14%,transparent))] shadow-[inset_3px_0_0_var(--tn-yellow)]'
+const PICKED_NUMBERS = 'bg-tn-yellow/20 text-tn-yellow'
 
 function Toolbar({ item, line, side }: { item: NoteItem; line: DiffLine; side: 'additions' | 'deletions' }) {
   const { kinds, comment, startSelect, write } = useRow()
@@ -97,7 +103,7 @@ function Toolbar({ item, line, side }: { item: NoteItem; line: DiffLine; side: '
               <Button
                 variant="ghost"
                 size="icon"
-                className={kind === 'discard' ? 'text-destructive hover:text-destructive' : undefined}
+                className={kind === 'discard' ? DANGER : undefined}
                 aria-label={label}
                 onClick={() => write(kind, item, line.hunk)}>
                 <Icon />
@@ -163,7 +169,7 @@ function Cell({
       onPointerEnter={() => dragOver(item, line, side)}
       className={`group/line relative flex min-w-0 flex-1 ${settings.backgrounds ? BG[line.kind] : ''} ${MARK[line.kind]} ${
         markKind === 'draft'
-          ? 'bg-tn-yellow/20! shadow-[inset_3px_0_0_var(--tn-yellow)]'
+          ? PICKED
           : markKind === 'comment'
             ? 'shadow-[inset_3px_0_0_color-mix(in_oklab,var(--tn-yellow)_55%,transparent)]'
             : ''
@@ -173,7 +179,8 @@ function Cell({
         <BlameCell blame={blameLines} index={blameNo === null ? -1 : blameNo - 1} className="w-56" everyLine />
       ) : null}
       {settings.lineNumbers ? (
-        <span className="relative flex shrink-0 select-none text-tn-gutter tabular-nums">
+        <span
+          className={`relative flex shrink-0 select-none tabular-nums ${markKind === 'draft' ? PICKED_NUMBERS : 'text-tn-gutter'}`}>
           {numbers === 'both' || side === 'deletions' ? (
             <span className="w-12 pe-2 text-end">{line.oldNo ?? ''}</span>
           ) : null}

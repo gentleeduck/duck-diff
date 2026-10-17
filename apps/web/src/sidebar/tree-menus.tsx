@@ -5,7 +5,7 @@ import type { WriteKind } from '../viewer/actions'
 
 async function copy(text: string, what: string) {
   await navigator.clipboard.writeText(text)
-  toast(`Copied the ${what}`)
+  toast.success(`Copied the ${what}`, { description: text })
 }
 
 export function CopyItems({ path }: { path: string }) {

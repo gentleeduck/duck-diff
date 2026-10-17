@@ -169,6 +169,17 @@ function defaultCommit(
   return { title, message }
 }
 
+// What a failed action on the merge box says, above GitHub's own reason.
+const FAILED: Record<string, string> = {
+  merge: 'Could not merge',
+  auto: 'Could not change auto-merge',
+  queue: 'Could not change the merge queue',
+  ready: 'Could not mark it ready for review',
+  branch: 'Could not change the head branch',
+  update: 'Could not update the branch',
+  draft: 'Could not change the draft state',
+}
+
 export function MergeBox({
   pull,
   repo,
@@ -213,11 +224,11 @@ export function MergeBox({
     setBusy(name)
     try {
       await task()
-      toast(done)
+      toast.success(done)
       await Promise.all([refresh(`item:${number}`), onChanged()])
       return true
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error(FAILED[name] ?? 'GitHub did not take that change', { description: (error as Error).message })
       return false
     } finally {
       setBusy(null)
@@ -500,17 +511,19 @@ export function MergeBox({
                     </PopoverTrigger>
                     <PopoverContent align="start" className="flex w-96 flex-col p-1">
                       {info.methods.map((value) => (
-                        <button
+                        <Button
+                          variant="nothing"
+                          size="none"
                           key={value}
                           type="button"
                           onClick={() => setMethod(value)}
-                          className="flex cursor-pointer gap-2 rounded-sm p-2 text-start hover:bg-accent">
+                          className="flex cursor-pointer gap-2 rounded-sm p-2 text-start hover:bg-accent justify-start">
                           <span className="w-4 pt-0.5">{value === method ? <Check className="size-4" /> : null}</span>
                           <span className="flex min-w-0 flex-1 flex-col">
                             <span className="text-foreground">{METHODS[value].label}</span>
                             <span className="text-muted-foreground">{METHODS[value].detail}</span>
                           </span>
-                        </button>
+                        </Button>
                       ))}
                     </PopoverContent>
                   </Popover>
@@ -528,12 +541,14 @@ export function MergeBox({
                 ) : null}
                 <span className="text-muted-foreground">
                   You can also merge this with the command line.{' '}
-                  <button
+                  <Button
+                    variant="nothing"
+                    size="none"
                     type="button"
                     onClick={() => setShowCli(!showCli)}
-                    className="cursor-pointer text-tn-blue underline-offset-2 hover:underline">
+                    className="inline whitespace-normal rounded-none text-tn-blue underline-offset-2 hover:underline">
                     {showCli ? 'Hide command line instructions.' : 'View command line instructions.'}
-                  </button>
+                  </Button>
                 </span>
               </div>
             )}
@@ -557,13 +572,15 @@ export function MergeBox({
       {pull.draft ? null : (
         <p className="text-end text-muted-foreground">
           Still in progress?{' '}
-          <button
+          <Button
+            variant="nothing"
+            size="none"
             type="button"
             disabled={busy === 'draft'}
             onClick={() => void act('draft', () => api.github.setDraft(number, true), 'Converted to draft')}
-            className="cursor-pointer text-foreground underline underline-offset-2 hover:text-tn-blue">
+            className="cursor-pointer text-foreground underline underline-offset-2 hover:text-tn-blue justify-start rounded-none whitespace-normal">
             Convert to draft
-          </button>
+          </Button>
         </p>
       )}
     </section>
@@ -632,8 +649,8 @@ function CheckLine({ run }: { run: CheckRun }) {
               className="justify-start"
               onClick={() =>
                 api.github.rerunFailed(run.runId as number).then(
-                  () => toast('Re-running the failed jobs'),
-                  (error: Error) => toast.error(error.message),
+                  () => toast('Re-running the failed jobs', { description: 'The checks above update as they finish.' }),
+                  (error: Error) => toast.error('Could not re-run the failed jobs', { description: error.message }),
                 )
               }>
               <RotateCw />
@@ -663,22 +680,26 @@ function UpdateButton({ busy, onUpdate }: { busy: boolean; onUpdate(how: 'merge'
           </Button>
         </PopoverTrigger>
         <PopoverContent align="end" className="flex w-80 flex-col p-1">
-          <button
+          <Button
+            variant="nothing"
+            size="none"
             type="button"
             onClick={() => onUpdate('merge')}
-            className="flex cursor-pointer flex-col rounded-sm p-2 text-start hover:bg-accent">
+            className="flex cursor-pointer flex-col rounded-sm p-2 text-start hover:bg-accent justify-start">
             <span className="text-foreground">Update with merge commit</span>
             <span className="text-muted-foreground">Merge the base branch into this one.</span>
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="nothing"
+            size="none"
             type="button"
             onClick={() => onUpdate('rebase')}
-            className="flex cursor-pointer flex-col rounded-sm p-2 text-start hover:bg-accent">
+            className="flex cursor-pointer flex-col rounded-sm p-2 text-start hover:bg-accent justify-start">
             <span className="text-foreground">Update with rebase</span>
             <span className="text-muted-foreground">
               Replay this branch's commits on top of the base. Rewrites history.
             </span>
-          </button>
+          </Button>
         </PopoverContent>
       </Popover>
     </div>

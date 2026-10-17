@@ -32,6 +32,23 @@ describe('viewed files', () => {
     expect(viewedPaths(viewed.get(), UNSTAGED, [file('a.ts')])).toEqual(new Set())
   })
 
+  it('keeps each repository its own marks, starting from the list they all shared before', () => {
+    const storage = memory()
+    storage.setItem('duck-diff:viewed', JSON.stringify({ unstaged: ['a.ts@n1'] }))
+    const first = createViewedStore(storage)
+    first.restore('/one')
+    expect(viewedPaths(first.get(), UNSTAGED, [file('a.ts')])).toEqual(new Set(['a.ts']))
+    first.toggle(UNSTAGED, file('b.ts'))
+    const second = createViewedStore(storage)
+    second.restore('/two')
+    second.toggle(UNSTAGED, file('a.ts'))
+    expect(viewedPaths(second.get(), UNSTAGED, [file('a.ts'), file('b.ts')])).toEqual(new Set())
+    // Back in the first repository after a restart, its marks are as they were left.
+    const again = createViewedStore(storage)
+    again.restore('/one')
+    expect(viewedPaths(again.get(), UNSTAGED, [file('a.ts'), file('b.ts')])).toEqual(new Set(['a.ts', 'b.ts']))
+  })
+
   it('forgets a file once its content changes', () => {
     const viewed = createViewedStore(memory())
     viewed.toggle(UNSTAGED, file('a.ts', 'n1'))

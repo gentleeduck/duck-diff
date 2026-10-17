@@ -12,7 +12,7 @@ import { back, forward } from '../lib/history'
 import { lineHash, lineText } from '../review/anchor'
 import type { View } from '../router/place'
 import { resize } from '../settings/resize'
-import { BASE_FONT } from '../state/settings'
+import { BASE_FONT, panelShown, togglePanel } from '../state/settings'
 import { ROOT } from '../state/tabs'
 import { viewedPaths } from '../state/viewed'
 import { focusedTerminal, focusTerminal, sendToTerminal } from '../terminal/input'
@@ -206,7 +206,7 @@ export function useKeys(handlers: KeyHandlers) {
         const at = current()
         if (!at) return
         navigator.clipboard.writeText(at.path).then(
-          () => toast(`Copied ${at.path}`),
+          () => toast.success('Copied the path', { description: at.path }),
           () => {},
         )
       },
@@ -254,7 +254,7 @@ export function useKeys(handlers: KeyHandlers) {
         if (reviews.get().draft) reviews.cancelDraft()
       },
       'focus-left': () => {
-        if (!settings.get().sidebar) settings.set((prev) => ({ ...prev, sidebar: true }))
+        if (!panelShown(settings.get(), view.get())) settings.set((prev) => togglePanel(prev, view.get(), true))
         requestAnimationFrame(() =>
           region('side')
             ?.querySelector<HTMLElement>('[aria-selected="true"], [role="treeitem"], button, input')
@@ -264,7 +264,7 @@ export function useKeys(handlers: KeyHandlers) {
       'focus-right': () => region('main')?.focus(),
       'focus-down': focusPanel,
       'focus-up': () => region('main')?.focus(),
-      'toggle-sidebar': () => settings.set((prev) => ({ ...prev, sidebar: !prev.sidebar })),
+      'toggle-sidebar': () => settings.set((prev) => togglePanel(prev, view.get())),
       'font-bigger': () => settings.set((prev) => resize(prev, 1)),
       'font-smaller': () => settings.set((prev) => resize(prev, -1)),
       'font-reset': () => settings.set((prev) => ({ ...prev, fontSize: BASE_FONT, uiFontSize: BASE_FONT })),

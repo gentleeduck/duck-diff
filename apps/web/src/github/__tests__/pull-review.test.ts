@@ -39,6 +39,35 @@ describe('pull review', () => {
     expect(store.get().pending).toEqual([])
   })
 
+  it('keeps a review not sent yet across a restart, per repository and pull request, until it is sent', async () => {
+    const data = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => void data.set(key, value),
+      removeItem: (key: string) => void data.delete(key),
+    }
+    const before = createPullReview(api({}), undefined, storage)
+    before.restore('/repo')
+    await before.load(7)
+    before.addPending({ path: 'a.ts', line: 3, side: 'RIGHT', body: 'nit' })
+
+    const after = createPullReview(api({}), undefined, storage)
+    after.restore('/repo')
+    await after.load(7)
+    expect(after.get().pending).toEqual([{ path: 'a.ts', line: 3, side: 'RIGHT', body: 'nit' }])
+    // Another pull request, or the same number in another repository, starts empty.
+    await after.load(8)
+    expect(after.get().pending).toEqual([])
+    const elsewhere = createPullReview(api({}), undefined, storage)
+    elsewhere.restore('/other')
+    await elsewhere.load(7)
+    expect(elsewhere.get().pending).toEqual([])
+
+    await after.load(7)
+    await after.submit('COMMENT', '')
+    expect(data.size).toBe(0)
+  })
+
   it('resolves a thread by its first comment', async () => {
     const resolveThread = vi.fn(async () => {})
     const store = createPullReview(api({ resolveThread }))

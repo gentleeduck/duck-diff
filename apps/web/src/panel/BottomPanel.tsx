@@ -1,5 +1,6 @@
+import { Button, ResizableHandle, ResizablePanel, type ResizablePanelHandle } from '@duck-diff/ui'
 import { Plus, ScrollText, SquareTerminal, X } from 'lucide-react'
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useStore } from '../lib/store'
@@ -13,31 +14,6 @@ const selectTab = (state: PanelState) => state.tab
 const selectHeight = (state: PanelState) => state.height
 const selectTabs = (state: { tabs: TerminalTab[] }) => state.tabs
 const MIN_HEIGHT = 120
-const clamp = (height: number) => Math.round(Math.max(MIN_HEIGHT, Math.min(window.innerHeight * 0.8, height)))
-
-// Dragging the top edge resizes the panel, as in an editor.
-function ResizeEdge({ height, onResize }: { height: number; onResize(height: number): void }) {
-  return (
-    <hr
-      aria-orientation="horizontal"
-      aria-label="Resize the bottom panel"
-      onPointerDown={(event) => {
-        event.preventDefault()
-        const startY = event.clientY
-        const move = (moved: PointerEvent) => onResize(clamp(height + startY - moved.clientY))
-        const up = () => {
-          window.removeEventListener('pointermove', move)
-          window.removeEventListener('pointerup', up)
-          document.body.style.removeProperty('cursor')
-        }
-        document.body.style.cursor = 'row-resize'
-        window.addEventListener('pointermove', move)
-        window.addEventListener('pointerup', up)
-      }}
-      className="relative m-0 h-px w-full shrink-0 cursor-row-resize border-0 bg-border after:absolute after:inset-x-0 after:-inset-y-1.5 hover:bg-tn-blue"
-    />
-  )
-}
 
 function PanelTab({
   selected,
@@ -75,7 +51,9 @@ function PanelTab({
       {icon}
       <span className="min-w-0 truncate pe-0.5">{label}</span>
       {onClose ? (
-        <button
+        <Button
+          variant="nothing"
+          size="none"
           type="button"
           aria-label={`Close ${name}`}
           onClick={(event) => {
@@ -84,9 +62,9 @@ function PanelTab({
           }}
           className={`flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm hover:bg-accent ${
             selected ? '' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
-          }`}>
+          } whitespace-normal`}>
           <X className="size-3.5" />
-        </button>
+        </Button>
       ) : null}
     </div>
   )
@@ -111,53 +89,84 @@ export function BottomPanel() {
     }
   }, [current, terminals, panel])
 
+  // Hidden, the panel folds to nothing instead of leaving, so its shells keep running.
+  const fold = useRef<ResizablePanelHandle | null>(null)
+  useEffect(() => {
+    // A frame later: a panel that has just mounted is not in its group's layout until then.
+    const frame = requestAnimationFrame(() => {
+      const handle = fold.current
+      if (!handle || open !== handle.isCollapsed()) return
+      if (open) handle.expand()
+      else handle.collapse()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [open])
+
   if (!seen && !open) return null
   const newTerminal = () => panel.show(terminalTabs.add().key)
 
   return (
-    <div className={open ? 'contents' : 'hidden'}>
-      <ResizeEdge height={height} onResize={panel.resize} />
-      <section
-        data-region="panel"
-        aria-label="Bottom panel"
-        style={{ height }}
-        className="flex shrink-0 flex-col bg-background">
-        <div className="flex h-9 shrink-0 items-stretch border-border border-b bg-card">
-          <div role="tablist" aria-label="Panel" className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
-            <PanelTab
-              selected={current === 'output'}
-              label="Output"
-              icon={<ScrollText className="size-4 shrink-0" />}
-              onSelect={() => panel.show('output')}
-            />
-            {terminals.map((tab) => (
+    <>
+      <ResizableHandle
+        withHandle={false}
+        aria-label="Resize the bottom panel"
+        disabled={!open}
+        className={open ? undefined : 'hidden'}
+      />
+      <ResizablePanel
+        id="bottom"
+        panelRef={fold}
+        collapsible
+        collapsedSize={0}
+        defaultSize={height}
+        minSize={MIN_HEIGHT}
+        maxSize="80%"
+        groupResizeBehavior="preserve-pixel-size"
+        onResize={(size, _id, previous) => {
+          if (previous === undefined) return
+          // Dragged shut, it closes as the hide button would; otherwise its height is kept.
+          if (size.inPixels === 0) {
+            if (panel.get().open) panel.toggle()
+          } else if (size.inPixels >= MIN_HEIGHT) panel.resize(Math.round(size.inPixels))
+        }}>
+        <section data-region="panel" aria-label="Bottom panel" className="flex h-full flex-col bg-background">
+          <div className="flex h-9 shrink-0 items-stretch border-border border-b bg-card">
+            <div role="tablist" aria-label="Panel" className="flex min-w-0 flex-1 items-stretch overflow-x-auto">
               <PanelTab
-                key={tab.key}
-                selected={current === tab.key}
-                label={tab.title}
-                name={tab.name}
-                icon={<SquareTerminal className="size-4 shrink-0" />}
-                onSelect={() => panel.show(tab.key)}
-                onClose={() => terminalTabs.close(tab.key)}
+                selected={current === 'output'}
+                label="Output"
+                icon={<ScrollText className="size-4 shrink-0" />}
+                onSelect={() => panel.show('output')}
               />
+              {terminals.map((tab) => (
+                <PanelTab
+                  key={tab.key}
+                  selected={current === tab.key}
+                  label={tab.title}
+                  name={tab.name}
+                  icon={<SquareTerminal className="size-4 shrink-0" />}
+                  onSelect={() => panel.show(tab.key)}
+                  onClose={() => terminalTabs.close(tab.key)}
+                />
+              ))}
+            </div>
+            <div className="flex items-center gap-1 px-1">
+              <IconTool label="New terminal" onClick={newTerminal}>
+                <Plus />
+              </IconTool>
+              <IconTool label="Hide the panel" tip="Hide the panel (Ctrl `)" onClick={panel.toggle}>
+                <X />
+              </IconTool>
+            </div>
+          </div>
+          <div className="relative min-h-0 flex-1">
+            {current === 'output' ? <OutputView /> : null}
+            {terminals.map((tab) => (
+              <TerminalPane key={tab.key} tab={tab} active={open && current === tab.key} />
             ))}
           </div>
-          <div className="flex items-center gap-1 px-1">
-            <IconTool label="New terminal" onClick={newTerminal}>
-              <Plus />
-            </IconTool>
-            <IconTool label="Hide the panel" tip="Hide the panel (Ctrl `)" onClick={panel.toggle}>
-              <X />
-            </IconTool>
-          </div>
-        </div>
-        <div className="relative min-h-0 flex-1">
-          {current === 'output' ? <OutputView /> : null}
-          {terminals.map((tab) => (
-            <TerminalPane key={tab.key} tab={tab} active={open && current === tab.key} />
-          ))}
-        </div>
-      </section>
-    </div>
+        </section>
+      </ResizablePanel>
+    </>
   )
 }

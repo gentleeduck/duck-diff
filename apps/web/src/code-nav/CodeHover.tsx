@@ -1,6 +1,6 @@
 import type { LspHover, LspLocation } from '@duck-diff/protocol'
+import { Button, Popover, PopoverAnchor, PopoverContent, Toggle } from '@duck-diff/ui'
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useApp } from '../app/AppProvider'
 import { LinesSkeleton } from '../app/skeletons'
 import { openFile } from '../files/open-file'
@@ -45,10 +45,12 @@ function Peek({ target, onOpen }: { target: Shown['target']; onOpen(location: Ls
         const icon = fileGlyph(location.path.split('/').pop() ?? location.path)
         return (
           <li key={`${location.path}:${location.line}:${location.column}`}>
-            <button
+            <Button
+              variant="nothing"
+              size="none"
               type="button"
               onClick={() => onOpen(location)}
-              className="flex w-full cursor-pointer items-baseline gap-2 px-3 py-0.5 text-start text-muted-foreground hover:bg-accent/50 hover:text-foreground">
+              className="flex w-full cursor-pointer items-baseline gap-2 px-3 py-0.5 text-start text-muted-foreground hover:bg-accent/50 hover:text-foreground justify-start rounded-none">
               <span className="flex w-56 shrink-0 items-baseline gap-1.5 truncate" title={location.path}>
                 <span style={{ color: icon.color }}>{icon.glyph}</span>
                 <span className="truncate">
@@ -56,7 +58,7 @@ function Peek({ target, onOpen }: { target: Shown['target']; onOpen(location: Ls
                 </span>
               </span>
               <span className="min-w-0 truncate whitespace-pre text-foreground">{location.text.trim()}</span>
-            </button>
+            </Button>
           </li>
         )
       })}
@@ -181,9 +183,6 @@ export function CodeHover({ root, locate }: { root: () => HTMLElement | null; lo
   if (!shown) return null
   const { target, rect, hover } = shown
   const width = Math.min(WIDTH, window.innerWidth - 32)
-  const left = Math.max(16, Math.min(rect.left, window.innerWidth - width - 16))
-  // Below the name when there is room, otherwise above it.
-  const below = window.innerHeight - rect.bottom > 260 || rect.top < 260
   const close = () => {
     setShown(null)
     setPeeking(false)
@@ -204,28 +203,27 @@ export function CodeHover({ root, locate }: { root: () => HTMLElement | null; lo
     app.symbol.set(target)
   }
   actions.current = { definition, references, uses }
-  // The arrow points at the middle of the name, kept inside the card's corners.
-  const GAP = 8
-  const arrowX = Math.max(left + 10, Math.min(rect.left + rect.width / 2 - 5, left + width - 20))
-  return createPortal(
-    <>
-      <span
-        aria-hidden
-        className={`pointer-events-none fixed z-[51] size-2.5 rotate-45 border-tn-cyan/60 bg-popover ${
-          below ? 'border-s border-t' : 'border-e border-b'
-        }`}
-        style={{ left: arrowX, ...(below ? { top: rect.bottom + GAP - 5 } : { top: rect.top - GAP - 5 }) }}
-      />
-      <div
+  // duck-ui's popover, anchored to a still box over the name: it flips above when there is no room below,
+  // and its arrow points at the name.
+  return (
+    <Popover key={spot(target)} open onOpenChange={(next) => !next && close()}>
+      <PopoverAnchor asChild>
+        <span
+          aria-hidden
+          className="pointer-events-none fixed"
+          style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+        />
+      </PopoverAnchor>
+      <PopoverContent
         ref={card}
-        role="dialog"
         aria-label={`About ${target.name}`}
-        className="fixed z-50 flex flex-col overflow-hidden rounded-sm border border-tn-cyan/60 bg-popover text-popover-foreground shadow-lg"
-        style={{
-          left,
-          width,
-          ...(below ? { top: rect.bottom + GAP } : { bottom: window.innerHeight - rect.top + GAP }),
-        }}>
+        side="bottom"
+        align="start"
+        // A hover card leaves the keyboard where it was.
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        onCloseAutoFocus={(event) => event.preventDefault()}
+        className="flex flex-col p-0"
+        style={{ width }}>
         {/* A slim line of actions on top, then the signature and its doc comment, as Neovim's hover float. */}
         <div className="flex h-7 shrink-0 items-center border-border border-b px-1 text-muted-foreground">
           <HoverAction keys="gd" label="Definition" onClick={definition} />
@@ -245,9 +243,8 @@ export function CodeHover({ root, locate }: { root: () => HTMLElement | null; lo
             <Peek target={target} onOpen={open} />
           </div>
         ) : null}
-      </div>
-    </>,
-    document.body,
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -262,16 +259,21 @@ function HoverAction({
   pressed?: boolean
   onClick(): void
 }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={`flex h-6 cursor-pointer items-center gap-1.5 rounded-sm px-1.5 hover:bg-accent hover:text-foreground ${
-        pressed ? 'bg-accent text-foreground' : ''
-      }`}>
+  const inner = (
+    <>
       <span className="text-tn-blue">{keys}</span>
       {label}
-    </button>
+    </>
+  )
+  if (pressed === undefined)
+    return (
+      <Button variant="ghost" size="none" type="button" onClick={onClick} className="h-6 gap-1.5 rounded-sm px-1.5">
+        {inner}
+      </Button>
+    )
+  return (
+    <Toggle size="sm" pressed={pressed} onPressedChange={onClick} className="h-6 min-w-0 gap-1.5 rounded-sm px-1.5">
+      {inner}
+    </Toggle>
   )
 }

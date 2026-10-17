@@ -1,5 +1,5 @@
 import type { CheckRun } from '@duck-diff/protocol'
-import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
+import { Badge, type BadgeTone, Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { CircleCheck, CircleDashed, CircleMinus, CircleX, RotateCw } from 'lucide-react'
 import { useState } from 'react'
@@ -18,11 +18,11 @@ export function outcome(run: CheckRun): Outcome {
   return 'failed'
 }
 
-export const LOOK: Record<Outcome, { icon: typeof CircleCheck; className: string }> = {
-  passed: { icon: CircleCheck, className: 'text-added' },
-  failed: { icon: CircleX, className: 'text-removed' },
-  running: { icon: CircleDashed, className: 'text-tn-yellow' },
-  skipped: { icon: CircleMinus, className: 'text-muted-foreground' },
+export const LOOK: Record<Outcome, { icon: typeof CircleCheck; className: string; tone: BadgeTone }> = {
+  passed: { icon: CircleCheck, className: 'text-added', tone: 'soft-success' },
+  failed: { icon: CircleX, className: 'text-removed', tone: 'soft-destructive' },
+  running: { icon: CircleDashed, className: 'text-tn-yellow', tone: 'soft-warning' },
+  skipped: { icon: CircleMinus, className: 'text-muted-foreground', tone: 'muted' },
 }
 
 // The badge shows the worst state: one failure outweighs any number of passes.
@@ -42,16 +42,21 @@ export function Checks({ number }: { number: number }) {
 
   if (!runs?.length) return null
   const { look, text } = summary(runs)
-  const { icon: Icon, className } = LOOK[look]
+  const { icon: Icon, tone } = LOOK[look]
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" aria-label={`Checks: ${text}`} className="cursor-pointer">
-          <Badge variant="outline" size="sm" className={className}>
+        <Button
+          variant="nothing"
+          size="none"
+          type="button"
+          aria-label={`Checks: ${text}`}
+          className="cursor-pointer justify-start rounded-none whitespace-normal">
+          <Badge variant={tone} size="sm">
             <Icon className="size-3.5" />
             {text}
           </Badge>
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-1">
         <ul>
@@ -59,15 +64,15 @@ export function Checks({ number }: { number: number }) {
             const state = LOOK[outcome(run)]
             return (
               <li key={`${run.name}:${run.url}`}>
-                <a
-                  href={run.url || undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-2 rounded-sm px-2 py-1 hover:bg-accent">
-                  <state.icon className={`size-4 shrink-0 ${state.className}`} />
-                  <span className="min-w-0 flex-1 truncate">{run.name}</span>
-                  <span className="text-muted-foreground">{outcome(run)}</span>
-                </a>
+                <Button asChild variant="ghost" size="sm" className="w-full justify-start">
+                  <a href={run.url || undefined} target="_blank" rel="noreferrer">
+                    <state.icon className={`size-4 shrink-0 ${state.className}`} />
+                    <span className="min-w-0 flex-1 truncate text-start">{run.name}</span>
+                    <Badge variant={state.tone} size="sm">
+                      {outcome(run)}
+                    </Badge>
+                  </a>
+                </Button>
               </li>
             )
           })}
@@ -131,8 +136,8 @@ function CheckRow({ run }: { run: CheckRun }) {
             variant="outline"
             onClick={() =>
               api.github.rerunFailed(run.runId as number).then(
-                () => toast('Re-running the failed jobs'),
-                (error: Error) => toast.error(error.message),
+                () => toast('Re-running the failed jobs', { description: 'This list updates as they finish.' }),
+                (error: Error) => toast.error('Could not re-run the failed jobs', { description: error.message }),
               )
             }>
             <RotateCw />

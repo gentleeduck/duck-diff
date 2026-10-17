@@ -1,5 +1,5 @@
 import type { BlameLine } from '@duck-diff/protocol'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
+import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { useApp } from '../app/AppProvider'
 import { useView } from '../hooks/useView'
 import { shortAge } from '../sidebar/relative-time'
@@ -31,7 +31,9 @@ export function BlameCell({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
+        <Button
+          variant="nothing"
+          size="none"
           type="button"
           data-own-tooltip
           onClick={() => {
@@ -41,7 +43,7 @@ export function BlameCell({
           }}
           className={`${className} flex shrink-0 cursor-pointer gap-2 border-border border-e px-2 text-start text-muted-foreground hover:bg-accent/60 ${
             everyLine && !first ? 'opacity-40' : ''
-          }`}>
+          } justify-start rounded-none`}>
           {named ? (
             <>
               <span className="min-w-0 flex-1 truncate pe-0.5">{uncommitted ? 'Uncommitted' : line.author}</span>
@@ -50,7 +52,7 @@ export function BlameCell({
               )}
             </>
           ) : null}
-        </button>
+        </Button>
       </TooltipTrigger>
       <TooltipContent side="left" className="max-w-md">
         {uncommitted ? (

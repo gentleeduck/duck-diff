@@ -1,30 +1,19 @@
 import type { PullDetails } from '@duck-diff/protocol'
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@duck-diff/ui'
-import { Check, ChevronDown, Code, Copy, GitBranch } from 'lucide-react'
+import { ChevronDown, Code2, GitBranch } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { CopyTool } from '../app/CopyTool'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 
 function CommandLine({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
   return (
     <div className="flex items-center gap-1 rounded-md border border-border bg-background ps-2">
       <code className="min-w-0 flex-1 truncate text-foreground" title={text}>
         {text}
       </code>
-      <Button
-        size="icon"
-        variant="ghost"
-        aria-label={`Copy ${text}`}
-        onClick={() =>
-          void navigator.clipboard.writeText(text).then(() => {
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1200)
-          })
-        }>
-        {copied ? <Check /> : <Copy />}
-      </Button>
+      <CopyTool label={`Copy ${text}`} text={text} />
     </div>
   )
 }
@@ -43,7 +32,7 @@ export function CodeMenu({ pull }: { pull: PullDetails }) {
       if (local) await run('switch', { branch: pull.headRef, create: false }, `Switched to ${pull.headRef}`)
       else await run('track', { ref: `origin/${pull.headRef}` }, `Checked out ${pull.headRef}`)
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error(`Could not check out ${pull.headRef}`, { description: (error as Error).message })
     } finally {
       setBusy(false)
     }
@@ -52,7 +41,7 @@ export function CodeMenu({ pull }: { pull: PullDetails }) {
     <Popover>
       <PopoverTrigger asChild>
         <Button size="sm">
-          <Code />
+          <Code2 />
           Code
           <ChevronDown />
         </Button>

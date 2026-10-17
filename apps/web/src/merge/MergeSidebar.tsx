@@ -1,3 +1,4 @@
+import { Button } from '@duck-diff/ui'
 import { useApp } from '../app/AppProvider'
 import { useStore } from '../lib/store'
 import { fileGlyph } from '../sidebar/icons'
@@ -19,16 +20,18 @@ export function MergeSidebar() {
         const icon = fileGlyph(path.split('/').pop() ?? path)
         return (
           <li key={path}>
-            <button
+            <Button
+              variant="nothing"
+              size="none"
               type="button"
               aria-current={path === active}
               title={path}
               onClick={() => mergeFile.set(path)}
-              className="flex h-7 w-full cursor-pointer items-center gap-2 rounded-sm px-2 text-start hover:bg-accent/60 aria-[current=true]:bg-accent">
+              className="flex h-7 w-full cursor-pointer items-center gap-2 rounded-sm px-2 text-start hover:bg-accent/60 aria-[current=true]:bg-accent justify-start">
               <span className="text-removed">!</span>
               <span style={{ color: icon.color }}>{icon.glyph}</span>
               <span className="min-w-0 truncate">{path}</span>
-            </button>
+            </Button>
           </li>
         )
       })}

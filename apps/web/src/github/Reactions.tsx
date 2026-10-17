@@ -34,7 +34,7 @@ export function Reactions({
       await api.github.react(target, content)
       onChanged()
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not react', { description: (error as Error).message })
     }
   }
   const given = REACTIONS.filter((reaction) => counts[reaction])

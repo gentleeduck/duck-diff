@@ -1,11 +1,12 @@
 import { Badge, Button, Textarea } from '@duck-diff/ui'
-import { CircleCheck, FilePen, GitCommitHorizontal, ListPlus, ListX, NotebookPen, Pencil, Trash2 } from 'lucide-react'
+import { CircleCheck, FilePen, GitCommitHorizontal, ListPlus, ListX, MessageSquare, Pencil, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
+import { CopyTool } from '../app/CopyTool'
+import { IconTool } from '../app/IconTool'
 import { Body as GitHubBody, Comment as GitHubComment } from '../github/Conversation'
-import { MoreMenu } from '../github/MoreMenu'
 import type { PullReviewState } from '../github/pull-review'
 import { useGitHub } from '../github/SignIn'
 import { fitRows } from '../lib/fit-rows'
@@ -42,9 +43,13 @@ function SuggestionActions({ id, outdated }: { id: number; outdated: boolean }) 
     setBusy(true)
     try {
       await pullReview.commitSuggestions(ids, answer.message ?? '')
-      toast(ids.length === 1 ? 'Committed the suggestion' : `Committed ${ids.length} suggestions`)
+      toast.success(ids.length === 1 ? 'Committed the suggestion' : `Committed ${ids.length} suggestions`, {
+        description: 'To the pull request branch on GitHub.',
+      })
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error(ids.length === 1 ? 'Could not commit the suggestion' : 'Could not commit the suggestions', {
+        description: (error as Error).message,
+      })
     } finally {
       setBusy(false)
     }
@@ -127,7 +132,7 @@ function Editor({
     try {
       await send(body)
     } catch (error) {
-      toast.error(`Could not save the comment: ${(error as Error).message}`)
+      toast.error('Could not save the comment', { description: (error as Error).message })
     } finally {
       setBusy(false)
     }
@@ -190,40 +195,45 @@ function Editor({
   )
 }
 
-// The user's own note, carded like a GitHub comment with the same menu.
+// The user's own comment, kept on this machine, carded like a GitHub comment with its actions at the top.
 function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
-  const { reviews } = useApp()
+  const { api, reviews } = useApp()
   const [editing, setEditing] = useState(false)
   const { comment, outdated } = note
   const remove = async () => {
     const yes = await ask.confirm({
       title: 'Delete comment',
-      body: 'Deletes this note from the review kept here.',
+      body: 'Deletes it from the comments kept on this machine.',
       action: 'Delete',
       destructive: true,
     })
-    if (yes) await reviews.remove(comment.id).catch((error: Error) => toast.error(`Could not delete: ${error.message}`))
+    if (yes)
+      await reviews
+        .remove(comment.id)
+        .catch((error: Error) => toast.error('Could not delete the comment', { description: error.message }))
   }
   return (
     <article className="mx-3 my-2 max-w-3xl rounded-md border border-border bg-card font-normal font-sans">
       <header className="flex items-center gap-2 border-border border-b px-3 py-1.5 text-muted-foreground">
-        <NotebookPen className="size-4" />
-        <span className="text-foreground">Your note</span>
+        <MessageSquare className="size-4" />
+        <span className="text-foreground">Your comment</span>
         <span>{relativeTime(comment.updatedAt / 1000)}</span>
         {lines(comment.startLine, comment.line) ? <span>· {lines(comment.startLine, comment.line)}</span> : null}
         {outdated ? (
-          <Badge variant="outline" size="sm" title={`Line ${comment.line} has changed since`}>
+          <Badge variant="muted" size="sm" title={`Line ${comment.line} has changed since`}>
             Outdated
           </Badge>
         ) : null}
         <span className="ms-auto" />
-        <MoreMenu
-          label="Actions for your comment"
-          actions={[
-            { label: 'Edit', icon: <Pencil />, run: () => setEditing(true) },
-            { label: 'Delete', icon: <Trash2 />, run: () => void remove(), destructive: true },
-          ]}
-        />
+        <span className="flex shrink-0">
+          <CopyTool label="Copy as prompt" text={() => api.reviewPrompt(comment.target, comment.id)} />
+          <IconTool label="Edit comment" onClick={() => setEditing(true)}>
+            <Pencil />
+          </IconTool>
+          <IconTool destructive label="Delete comment" onClick={() => void remove()}>
+            <Trash2 />
+          </IconTool>
+        </span>
       </header>
       <div className="px-3 py-2">
         {editing ? (
@@ -258,7 +268,10 @@ function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['t
     root &&
     pullReview.resolve(root.id, resolved).then(
       () => setOpen(!resolved),
-      (error: Error) => toast.error(error.message),
+      (error: Error) =>
+        toast.error(resolved ? 'Could not resolve the conversation' : 'Could not unresolve the conversation', {
+          description: error.message,
+        }),
     )
   const remove = async (id: number) => {
     const yes = await ask.confirm({
@@ -267,17 +280,22 @@ function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['t
       action: 'Delete',
       destructive: true,
     })
-    if (yes) await pullReview.remove(id).catch((error: Error) => toast.error(`Could not delete: ${error.message}`))
+    if (yes)
+      await pullReview
+        .remove(id)
+        .catch((error: Error) => toast.error('Could not delete the comment', { description: error.message }))
   }
   if (state?.resolved && !open) {
     return (
-      <button
+      <Button
+        variant="nothing"
+        size="none"
         type="button"
         onClick={() => setOpen(true)}
-        className="mx-3 my-2 flex max-w-3xl cursor-pointer items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-muted-foreground font-normal font-sans">
+        className="mx-3 my-2 flex max-w-3xl cursor-pointer items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-muted-foreground font-normal font-sans justify-start whitespace-normal">
         <CircleCheck className="size-4 text-added" />
         Resolved conversation by {root?.author.login} · {thread.length} {thread.length === 1 ? 'comment' : 'comments'}
-      </button>
+      </Button>
     )
   }
   return (
@@ -306,13 +324,14 @@ function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['t
               bare
               extra={
                 comment.author.login === me ? (
-                  <MoreMenu
-                    label={`Actions for ${comment.author.login}'s comment`}
-                    actions={[
-                      { label: 'Edit', icon: <Pencil />, run: () => setEditing(comment.id) },
-                      { label: 'Delete', icon: <Trash2 />, run: () => void remove(comment.id), destructive: true },
-                    ]}
-                  />
+                  <span className="flex justify-end">
+                    <IconTool label="Edit comment" onClick={() => setEditing(comment.id)}>
+                      <Pencil />
+                    </IconTool>
+                    <IconTool destructive label="Delete comment" onClick={() => void remove(comment.id)}>
+                      <Trash2 />
+                    </IconTool>
+                  </span>
                 ) : undefined
               }
             />
@@ -358,7 +377,7 @@ function Pending({ note }: { note: Extract<Note, { kind: 'pending' }> }) {
   return (
     <div className="mx-3 my-2 flex max-w-3xl flex-col gap-2 rounded-md border border-tn-yellow/40 bg-card p-3 font-normal font-sans">
       <header className="flex items-center gap-2">
-        <Badge variant="outline" size="sm" className="border-tn-yellow/40 text-tn-yellow">
+        <Badge variant="soft-warning" size="sm">
           Pending
         </Badge>
         <span className="text-muted-foreground">Sent with your review</span>
@@ -410,7 +429,7 @@ export function ReviewNote({ note }: { note: Note }) {
             : async (body) => {
                 await pullReview.post(toComment(note.draft, body))
                 reviews.cancelDraft()
-                toast(`Commented on #${pull}`)
+                toast.success(`Commented on #${pull}`, { description: `${note.draft.path}, line ${note.draft.line}` })
               }
         }
       />

@@ -54,7 +54,7 @@ export function useCommitActions() {
     cherryPickRange: (shas: string[]) => run('cherry-pick-range', { shas }, `Cherry-picked ${shas.length} commits`),
     async copy(text: string, what: string) {
       await navigator.clipboard.writeText(text)
-      toast(`Copied the ${what}`)
+      toast.success(`Copied the ${what}`, { description: text })
     },
   }
 }

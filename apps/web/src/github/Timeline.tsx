@@ -69,7 +69,7 @@ function CommentCard({
       await onSave(draft)
       setEditing(false)
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not save the comment', { description: (error as Error).message })
     } finally {
       setSaving(false)
     }
@@ -89,7 +89,7 @@ function CommentCard({
           {edited ? <span>· edited</span> : null}
           <span className="ms-auto" />
           {label ? (
-            <Badge variant="outline" size="sm">
+            <Badge variant="soft-info" size="sm">
               {label}
             </Badge>
           ) : null}
@@ -101,7 +101,11 @@ function CommentCard({
                 ? {
                     label: 'Copy link',
                     icon: <Copy />,
-                    run: () => void navigator.clipboard.writeText(link).then(() => toast('Copied the link')),
+                    run: () =>
+                      void navigator.clipboard.writeText(link).then(
+                        () => toast.success('Copied the link', { description: link }),
+                        (error: Error) => toast.error('Could not copy', { description: error.message }),
+                      ),
                   }
                 : null,
               canEdit && {
@@ -202,10 +206,10 @@ export function ThreadView({
     if (!yes) return
     try {
       await api.github.deleteComment(event.id)
-      toast('Deleted the comment')
+      toast.success('Deleted the comment')
       onChanged()
     } catch (error) {
-      toast.error((error as Error).message)
+      toast.error('Could not delete the comment', { description: (error as Error).message })
     }
   }
 
@@ -272,14 +276,16 @@ export function ThreadView({
                   <div key={comment.id} className="relative rounded-md border border-border bg-card sm:ms-[3.25rem]">
                     <header className="flex items-center gap-2 border-border border-b px-3 py-1.5">
                       <FileCode className="size-4 shrink-0 text-muted-foreground" />
-                      <button
+                      <Button
+                        variant="nothing"
+                        size="none"
                         type="button"
                         disabled={!onOpenFile}
                         title={`Open ${comment.path} in Files changed`}
                         onClick={() => onOpenFile?.(comment.path)}
-                        className="min-w-0 cursor-pointer truncate text-tn-blue hover:underline disabled:cursor-default disabled:text-foreground disabled:no-underline">
+                        className="min-w-0 cursor-pointer truncate text-tn-blue hover:underline disabled:cursor-default disabled:text-foreground disabled:no-underline justify-start shrink rounded-none">
                         {comment.path}
-                      </button>
+                      </Button>
                       <span className="shrink-0 text-muted-foreground">
                         {comment.line === null
                           ? 'outdated'

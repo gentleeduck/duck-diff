@@ -1,3 +1,4 @@
+import { Badge } from '@duck-diff/ui'
 import {
   CircleCheck,
   CircleDot,
@@ -22,19 +23,19 @@ export function StatePill({
   const look =
     kind === 'issue'
       ? state === 'open'
-        ? { icon: CircleDot, text: 'Open', className: 'bg-added' }
-        : { icon: CircleCheck, text: 'Closed', className: 'bg-tn-magenta' }
+        ? { icon: CircleDot, text: 'Open', variant: 'success' as const }
+        : { icon: CircleCheck, text: 'Closed', variant: 'done' as const }
       : merged
-        ? { icon: GitMerge, text: 'Merged', className: 'bg-tn-magenta' }
+        ? { icon: GitMerge, text: 'Merged', variant: 'done' as const }
         : state === 'closed'
-          ? { icon: GitPullRequestClosed, text: 'Closed', className: 'bg-removed' }
+          ? { icon: GitPullRequestClosed, text: 'Closed', variant: 'destructive' as const }
           : draft
-            ? { icon: GitPullRequestDraft, text: 'Draft', className: 'bg-tn-dark5' }
-            : { icon: GitPullRequest, text: 'Open', className: 'bg-added' }
+            ? { icon: GitPullRequestDraft, text: 'Draft', variant: 'secondary' as const }
+            : { icon: GitPullRequest, text: 'Open', variant: 'success' as const }
   return (
-    <span className={`flex h-7 items-center gap-1.5 rounded-full px-3 text-[var(--background)] ${look.className}`}>
+    <Badge variant={look.variant} size="lg" className="h-7 gap-1.5 rounded-full">
       <look.icon className="size-4" />
       {look.text}
-    </span>
+    </Badge>
   )
 }

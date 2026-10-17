@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { AppProvider } from '../../app/AppProvider'
+import { AskDialog } from '../../app/Ask'
 import { ApiError } from '../../lib/api'
 import { FILES, fakeApi } from '../../test/fake-api'
 import { useWrites, WritesProvider } from '../WritesProvider'
@@ -17,6 +18,7 @@ function mount(api = fakeApi()) {
       <WritesProvider>
         <Probe />
       </WritesProvider>
+      <AskDialog />
     </AppProvider>,
   )
   return api
@@ -37,8 +39,9 @@ describe('WritesProvider', () => {
     act(() => {
       done = writes.perform('discard', file)
     })
-    expect(await screen.findByText(/Discard a.ts\?/)).toBeTruthy()
-    fireEvent.click(screen.getByText('Keep'))
+    expect(await screen.findByText(/Discard this file\?/)).toBeTruthy()
+    expect(screen.getByText('a.ts')).toBeTruthy()
+    fireEvent.click(screen.getByText('Cancel'))
     await act(() => done)
     expect(api.write).not.toHaveBeenCalled()
   })

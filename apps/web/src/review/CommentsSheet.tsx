@@ -8,10 +8,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@duck-diff/ui'
-import { MessageSquare } from 'lucide-react'
+import { Check, Copy, MessageSquare } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useApp } from '../app/AppProvider'
-import { ICON_ONLY, LABEL } from '../app/fit'
+import { COPIED, useCopy } from '../app/CopyTool'
+import { COUNT, ICON_ONLY, LABEL } from '../app/fit'
 import { useSession } from '../hooks/useSession'
 import { itemId } from '../lib/items'
 import { useStore } from '../lib/store'
@@ -21,11 +22,14 @@ import type { ReviewsState } from './reviews'
 
 const selectItems = (state: SessionState) => state.items
 const selectComments = (state: ReviewsState) => state.comments
+const selectTarget = (state: ReviewsState) => state.target
 
 export function CommentsSheet() {
-  const { reviews, viewer } = useApp()
+  const { api, reviews, viewer } = useApp()
   const items = useSession(selectItems)
   const comments = useStore(reviews, selectComments)
+  const target = useStore(reviews, selectTarget)
+  const { copied, copy } = useCopy()
   const [open, setOpen] = useState(false)
 
   // Files missing from the current diff keep their comments listed, as outdated.
@@ -63,7 +67,11 @@ export function CommentsSheet() {
           className={`shrink-0 ${ICON_ONLY.wide}`}>
           <MessageSquare />
           <span className={LABEL.wide}>Comments</span>
-          {comments.length > 0 ? <Badge size="sm">{comments.length}</Badge> : null}
+          {comments.length > 0 ? (
+            <Badge variant="soft-info" size="sm" className={`rounded-full tabular-nums ${COUNT.wide}`}>
+              {comments.length}
+            </Badge>
+          ) : null}
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="flex w-[420px] flex-col gap-4 bg-card">
@@ -74,6 +82,16 @@ export function CommentsSheet() {
               ? 'No comments on this comparison. Hover a line and choose Comment to add one.'
               : 'Kept on this machine, outside the repo.'}
           </SheetDescription>
+          {comments.length > 0 && target ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className={`self-start ${copied ? COPIED : ''}`}
+              onClick={() => void copy(() => api.reviewPrompt(target))}>
+              {copied ? <Check /> : <Copy />}
+              {copied ? 'Copied every comment' : 'Copy all as prompt'}
+            </Button>
+          ) : null}
         </SheetHeader>
         <div className="-mx-2 flex-1 overflow-y-auto">
           {groups.map(([path, entries]) => (

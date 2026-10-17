@@ -1,4 +1,4 @@
-import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
+import { Badge, Button, Tooltip, TooltipContent, TooltipTrigger } from '@duck-diff/ui'
 import { ArrowDown, ArrowUp, RefreshCw } from 'lucide-react'
 import { COUNT, ICON_ONLY, LABEL } from '../app/fit'
 import { useGit } from './GitProvider'
@@ -33,7 +33,11 @@ export function SyncButtons() {
         onClick={() => void run('pull', undefined, 'Pulled')}>
         <ArrowDown />
         <span className={LABEL.mid}>Pull</span>
-        {status?.behind ? <span className={`text-tn-yellow ${COUNT.mid}`}>{status.behind}</span> : null}
+        {status?.behind ? (
+          <Badge variant="soft-warning" size="sm" className={`rounded-full tabular-nums ${COUNT.mid}`}>
+            {status.behind}
+          </Badge>
+        ) : null}
       </Button>
       <Button
         size="sm"
@@ -46,7 +50,11 @@ export function SyncButtons() {
         onClick={() => void run('push', undefined, publish ? `Published ${status?.branch}` : 'Pushed')}>
         <ArrowUp />
         <span className={LABEL.mid}>{publish ? 'Publish' : 'Push'}</span>
-        {status?.ahead ? <span className={COUNT.mid}>{status.ahead}</span> : null}
+        {status?.ahead ? (
+          <Badge variant="secondary" size="sm" className={`rounded-full tabular-nums ${COUNT.mid}`}>
+            {status.ahead}
+          </Badge>
+        ) : null}
       </Button>
     </span>
   )
