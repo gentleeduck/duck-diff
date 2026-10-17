@@ -119,6 +119,9 @@ export function targetKey(target: DiffTarget): string {
       return `range:${target.mode}:${target.from}:${target.to}${target.path ? `:${target.path}` : ''}`
     case 'commit':
       return `commit:${target.sha}${target.path ? `:${target.path}` : ''}`
+    case 'local':
+    case 'staged':
+      return target.base ? `${target.kind}:${target.base}` : target.kind
     default:
       return target.kind
   }
@@ -292,6 +295,8 @@ export const WorktreeSchema = z.object({
   current: z.boolean(),
   locked: z.boolean(),
   prunable: z.boolean(),
+  // Found in a worktree folder but not one of git's worktrees for this repo (a synced copy, a clone).
+  separate: z.boolean().default(false),
 })
 export type Worktree = z.infer<typeof WorktreeSchema>
 const AbsolutePathSchema = z

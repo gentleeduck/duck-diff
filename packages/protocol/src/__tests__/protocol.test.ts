@@ -94,6 +94,9 @@ describe('reviews', () => {
       targetKey({ mode: 'two-dot', to: 'b', from: 'a', kind: 'range' } as DiffTarget),
     )
     expect(targetKey({ kind: 'staged' })).not.toBe(targetKey({ kind: 'unstaged' }))
+    // A working-tree diff against another commit is a different diff, cached apart.
+    expect(targetKey({ kind: 'local', base: 'v1' })).not.toBe(targetKey({ kind: 'local' }))
+    expect(targetKey({ kind: 'staged', base: 'v1' })).not.toBe(targetKey({ kind: 'local', base: 'v1' }))
   })
 })
 

@@ -29,6 +29,18 @@ describe('readSide', () => {
     expect(await readSide(repo.path, { kind: 'local' }, 'new', 'a.txt')).toBe('v3\n')
   })
 
+  it('reads the given commit as the old side of local and staged', async () => {
+    repo = createRepo()
+    repo.write('a.txt', 'one\n')
+    const first = repo.commit('first')
+    repo.write('a.txt', 'two\n')
+    repo.commit('second')
+    repo.write('a.txt', 'three\n')
+    expect(await readSide(repo.path, { kind: 'local', base: first }, 'old', 'a.txt')).toBe('one\n')
+    expect(await readSide(repo.path, { kind: 'local', base: first }, 'new', 'a.txt')).toBe('three\n')
+    expect(await readSide(repo.path, { kind: 'staged', base: first }, 'old', 'a.txt')).toBe('one\n')
+  })
+
   it('reads commit parent and commit, and ranges', async () => {
     repo = createRepo()
     repo.write('a.txt', 'v1\n')
