@@ -51,6 +51,45 @@ describe('terminals', () => {
     expect(text()).toContain(`cwd=${dir}`)
   })
 
+  // bash takes its terminal on its own; zsh, a common login shell, has to be handed it.
+  for (const shell of ['bash', 'zsh'].filter((name) => Bun.which(name))) {
+    it(`interrupts a running command with Ctrl+C and suspends one with Ctrl+Z in ${shell}, as any terminal does`, async () => {
+      const { socket, text } = peer()
+      // -f: zsh without the user's startup files, which would also set its history file back to theirs.
+      const session = make({ shell, args: shell === 'zsh' ? ['-f'] : [] }).open({ cols: 90, rows: 20 })
+      session.attach(socket)
+      session.input('sleep 30; echo NOT-INTERRUPTED\n')
+      await Bun.sleep(400)
+      session.input('\x03')
+      session.input('echo "after=$?"\n')
+      await until(() => text().includes('after=130'))
+      session.input('sleep 30\n')
+      await Bun.sleep(400)
+      session.input('\x1a')
+      session.input('jobs\n')
+      await until(() => /Stopped|suspended/.test(text()))
+      expect(text()).not.toContain('no job control')
+    })
+  }
+
+  it('ends what runs in a terminal when the terminal closes', async () => {
+    const { socket, text } = peer()
+    const session = make({ shell: 'bash' }).open({ cols: 90, rows: 20 })
+    session.attach(socket)
+    session.input('sleep 300 & echo "pid=$!"\n')
+    await until(() => /pid=\d+/.test(text()))
+    const pid = Number(/pid=(\d+)/.exec(text())?.[1])
+    session.close()
+    // Gone, or a zombie its new parent has not collected yet: either way it no longer runs.
+    const running = () =>
+      /^[^Z]/.test(
+        Bun.spawnSync(['ps', '-o', 'stat=', '-p', String(pid)])
+          .stdout.toString()
+          .trim(),
+      )
+    await until(() => !running())
+  })
+
   it('passes a resize through to programs that ask the size', async () => {
     const { socket, text } = peer()
     const session = make().open({ cols: 80, rows: 24 })

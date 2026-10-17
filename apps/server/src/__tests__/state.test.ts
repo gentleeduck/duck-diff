@@ -15,7 +15,7 @@ describe('state store', () => {
     const store = createStateStore(data, '/repo')
     await store.update({ 'duck-diff:settings': '{"fontSize":15}', 'duck-diff:panel': 'x' })
     await store.update({ 'duck-diff:panel': null })
-    const file = JSON.parse(await readFile(join(data, 'duck-diff', 'state.json'), 'utf8'))
+    const file = JSON.parse(await readFile(join(data, 'state.json'), 'utf8'))
     expect(file).toEqual({ version: 1, values: { 'duck-diff:settings': '{"fontSize":15}' } })
     expect(await createStateStore(data, '/repo').values()).toEqual({ 'duck-diff:settings': '{"fontSize":15}' })
   })
@@ -50,7 +50,7 @@ describe('state store', () => {
     const seen: Record<string, string | null>[] = []
     const stop = here.watch((changes) => seen.push(changes))
     await Bun.sleep(100)
-    await writeFile(join(data, 'duck-diff', 'state.json'), '{"version":1,"values":')
+    await writeFile(join(data, 'state.json'), '{"version":1,"values":')
     await Bun.sleep(300)
     await createStateStore(data, '/b').update({ more: '2' })
     await Bun.sleep(300)
@@ -70,7 +70,7 @@ describe('state store', () => {
   it('ignores a corrupt file', async () => {
     const store = createStateStore(data, '/repo')
     await store.update({ a: '1' })
-    await Bun.write(join(data, 'duck-diff', 'state.json'), '{nope')
+    await Bun.write(join(data, 'state.json'), '{nope')
     expect(await createStateStore(data, '/repo').values()).toEqual({})
   })
 

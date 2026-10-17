@@ -1,12 +1,13 @@
 #!/usr/bin/env bun
-import { resolveRepo, runGit } from '@duck-diff/git'
+import { duckHome, resolveRepo, runGit } from '@duck-diff/git'
 import type { Handshake } from '@duck-diff/protocol'
 import { type Command, parseArgs, VERSION } from './args'
 import { startBanner } from './banner'
 import { ansi, createReporter, header, paintFor } from './cli-ui'
-import { clearCaches, dataHome } from './disk-cache'
+import { clearCaches } from './disk-cache'
 import { help } from './help'
-import { instanceFile, liveInstance, openBrowser, pageUrl, removeInstance, writeInstance } from './instance'
+import { alive, instanceFile, liveInstance, openBrowser, pageUrl, removeInstance, writeInstance } from './instance'
+import { moveOldData } from './move-home'
 import { buildStamp, watchBinary } from './self-update'
 import { createServer } from './server'
 import { update } from './update'
@@ -41,9 +42,19 @@ async function main(): Promise<number> {
     console.info(VERSION)
     return 0
   }
+
+  // A home chosen by DUCK_DIFF_HOME (tests, a second profile) never takes the user's own data.
+  if (!process.env.DUCK_DIFF_HOME) {
+    try {
+      moveOldData(duckHome())
+    } catch (error) {
+      // Not worth refusing to start over: what did not move is still where it was.
+      console.warn(`could not move old data into ${duckHome()}: ${(error as Error).message}`)
+    }
+  }
   if (command.name === 'cache-clear') {
     showHeader()
-    const cleared = await clearCaches(dataHome(), command.repo)
+    const cleared = await clearCaches(duckHome(), command.repo)
     report.ok(cleared ? `Cleared ${cleared} cache${cleared === 1 ? '' : 's'}` : 'Nothing was cached')
     if (cleared) report.note('GitHub answers and commits are read again the next time they are needed.')
     return 0
@@ -64,7 +75,7 @@ async function main(): Promise<number> {
     fail(`${command.repo} is not a git repository, or inside one`)
     return 1
   }
-  const record = instanceFile(dataHome(), repo)
+  const record = instanceFile(duckHome(), repo)
 
   // One server per repo: a second `duck-diff` opens its page on the one already running.
   if (command.name === 'open') {
@@ -89,6 +100,9 @@ async function main(): Promise<number> {
   const takeover = { port: Number(process.env.DUCK_DIFF_PORT) || 0, token: process.env.DUCK_DIFF_TOKEN || undefined }
   delete process.env.DUCK_DIFF_PORT
   delete process.env.DUCK_DIFF_TOKEN
+  // Started for another checkout by a server (siblings.ts): it lives as long as that one does.
+  const parent = Number(process.env.DUCK_DIFF_PARENT) || 0
+  delete process.env.DUCK_DIFF_PARENT
   const server = await createServer({
     repo,
     // After replacing itself the server comes back on the same port with the same token, so open pages
@@ -112,9 +126,15 @@ async function main(): Promise<number> {
   if (command.name === 'serve') {
     const handshake: Handshake = { port: server.port, token: server.token, url: server.url }
     process.stdout.write(`${JSON.stringify(handshake)}\n`)
-    // The plugin keeps stdin open; when the editor dies the pipe closes and the server follows.
-    process.stdin.on('end', () => finish(0))
-    process.stdin.resume()
+    if (parent) {
+      // Its pid stays when it restarts in place for a new build; a pipe from it would close there.
+      const check = setInterval(() => !alive(parent) && finish(0), 1000)
+      check.unref()
+    } else {
+      // The plugin keeps stdin open; when the editor dies the pipe closes and the server follows.
+      process.stdin.on('end', () => finish(0))
+      process.stdin.resume()
+    }
   } else if (!takeover.port) {
     const url = pageUrl(server, command.path)
     const branch = (
@@ -130,8 +150,13 @@ async function main(): Promise<number> {
   const stopWatching =
     binary && execve
       ? watchBinary(binary, () => {
-          const env = { ...process.env, DUCK_DIFF_PORT: String(server.port), DUCK_DIFF_TOKEN: server.token }
-          void server.stop().then(() => execve(binary, [binary, ...process.argv.slice(2)], env))
+          const env = {
+            ...process.env,
+            DUCK_DIFF_PORT: String(server.port),
+            DUCK_DIFF_TOKEN: server.token,
+            ...(parent ? { DUCK_DIFF_PARENT: String(parent) } : {}),
+          }
+          void server.stop({ handOver: true }).then(() => execve(binary, [binary, ...process.argv.slice(2)], env))
         })
       : () => {}
 

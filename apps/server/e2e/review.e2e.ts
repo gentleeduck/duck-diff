@@ -106,3 +106,23 @@ test('dragging across lines selects them whole and opens a comment on release', 
   await expect(page.getByText('Commenting on lines 1 to 2')).toBeVisible()
   await expect(page.locator('[data-pick]')).toHaveCount(0)
 })
+
+test('a line picked for a comment keeps its diff colour, the selection tinted over it', async ({ page, app }) => {
+  await page.goto(app.url)
+  const added = page.locator('[data-side="additions"][data-line]').filter({ hasText: 'answer = 42' }).first()
+  await expect(added).toBeVisible()
+  const before = await added.evaluate((row) => getComputedStyle(row).backgroundColor)
+  const button = page.getByRole('button', { name: 'Comment on line' })
+  await expect(async () => {
+    await page.mouse.move(0, 0)
+    await added.hover()
+    await button.click({ timeout: 1000 })
+  }).toPass()
+  await expect(page.getByRole('textbox', { name: 'New comment' })).toBeVisible()
+  const picked = await added.evaluate((row) => {
+    const style = getComputedStyle(row)
+    return { color: style.backgroundColor, image: style.backgroundImage }
+  })
+  expect(picked.color).toBe(before)
+  expect(picked.image).toContain('linear-gradient')
+})

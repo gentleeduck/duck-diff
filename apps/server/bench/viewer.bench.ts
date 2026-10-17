@@ -66,6 +66,8 @@ async function serve(repo: TestRepo) {
   const env = {
     ...process.env,
     XDG_DATA_HOME: join(home, 'data'),
+    DUCK_DIFF_HOME: join(home, 'duck-diff'),
+    HISTFILE: '/dev/null',
     // Shared across runs: the TypeScript server writes its typings cache after the server is gone.
     XDG_CACHE_HOME: join(tmpdir(), 'duck-diff-test-cache'),
     SHELL: '/bin/sh',

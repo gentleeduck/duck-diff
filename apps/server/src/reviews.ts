@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { repoId } from '@duck-diff/git'
+import { duckHome, repoId } from '@duck-diff/git'
 import {
   type CreateReview,
   type DiffTarget,
@@ -12,13 +11,9 @@ import {
 } from '@duck-diff/protocol'
 import { HttpError } from './errors'
 
-function defaultData(): string {
-  return process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share')
-}
-
 // Callers serialize writes through the server's queue, so read-modify-write here never interleaves.
-export function createReviewStore(repo: string, dataDir = defaultData()) {
-  const file = join(dataDir, 'duck-diff', repoId(repo), 'reviews.json')
+export function createReviewStore(repo: string, dataDir = duckHome()) {
+  const file = join(dataDir, repoId(repo), 'reviews.json')
 
   async function load(): Promise<ReviewComment[]> {
     const text = await readFile(file, 'utf8').catch(() => '[]')

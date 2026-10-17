@@ -17,6 +17,7 @@ import {
   readTreeBytes,
   readTreeFile,
   rebasePlan,
+  resolveRevision,
   runGit,
   streamDiff,
   streamGraph,
@@ -59,8 +60,9 @@ const ContentQuery = z.object({
 })
 
 const CommitsQuery = z.object({
-  head: z.string().min(1),
-  base: z.string().min(1).optional(),
+  head: RefNameSchema,
+  base: RefNameSchema.optional(),
+  grep: z.string().min(1).max(200).optional(),
   limit: z.coerce.number().int().positive().max(5000).optional(),
   path: RepoPathSchema.optional(),
 })
@@ -161,6 +163,19 @@ export async function handleApi(
       const text = JSON.stringify(await listFiles(repo, target))
       memo?.set(key, text, stamp)
       return new Response(text, { headers: { 'content-type': 'application/json' } })
+    }
+    case '/api/resolve': {
+      // Spaces are allowed (:/a message, main@{2 days ago}); git is told where its options end.
+      const { rev } = z
+        .object({
+          rev: z
+            .string()
+            .min(1)
+            .max(256)
+            .refine((text) => !/[\0\n]/.test(text), 'invalid revision'),
+        })
+        .parse(Object.fromEntries(url.searchParams))
+      return Response.json(await resolveRevision(repo, rev))
     }
     case '/api/commits': {
       const query = CommitsQuery.parse(Object.fromEntries(url.searchParams))

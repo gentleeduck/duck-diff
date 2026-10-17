@@ -19,6 +19,111 @@ test('switching to staged shows only staged changes', async ({ page, app, repo }
   await expect(page.getByRole('banner')).toContainText('0 files')
 })
 
+test('a commit picked on either side compares as it is, with the working tree or with HEAD', async ({
+  page,
+  app,
+  repo,
+}) => {
+  repo.commit('second')
+  repo.write('README.md', '# demo\nmore\n')
+  await page.goto(app.url)
+  const banner = page.getByRole('banner')
+  await expect(banner).toContainText('1 file')
+
+  // The base commit against the working tree: what second committed and the edit since.
+  await page.getByRole('button', { name: /Compare from HEAD/ }).click()
+  await page.getByRole('option', { name: /base/ }).click()
+  await expect(banner).toContainText('working tree')
+  await expect(banner).toContainText('3 files')
+
+  // HEAD against its own parent, which three dots would have shown as nothing.
+  await page.getByRole('button', { name: /Compare from/ }).click()
+  await page.getByRole('option', { name: 'HEAD', exact: true }).click()
+  await expect(page.getByRole('option')).toHaveCount(0)
+  await page.getByRole('button', { name: /Compare to working tree/ }).click()
+  await page.getByRole('option', { name: /base/ }).click()
+  await expect(banner).toContainText('2 files')
+})
+
+test('any revision can be typed in the picker, such as one commit and its parent', async ({ page, app, repo }) => {
+  const second = repo.commit('second')
+  await page.goto(app.url)
+  const banner = page.getByRole('banner')
+  await page.getByRole('button', { name: /Compare from HEAD/ }).click()
+  await page.getByPlaceholder(/Branch, tag/).fill(`${second}^`)
+  // git names the commit that was typed before it is picked.
+  await expect(page.locator('[data-ref-check]')).toContainText('base')
+  await page.keyboard.press('Enter')
+  await expect(banner).toContainText(`${second.slice(0, 7)}^`)
+  await expect(page.getByPlaceholder(/Branch, tag/)).toHaveCount(0)
+
+  await page.getByRole('button', { name: /Compare to working tree/ }).click()
+  await page.getByPlaceholder(/Branch, tag/).fill(second)
+  await expect(page.getByRole('option', { name: /second/ }).first()).toBeVisible()
+  await page.keyboard.press('Enter')
+  // Exactly what the second commit changed: the edited file and the new one.
+  await expect(banner).toContainText('2 files')
+  await expect(banner).not.toContainText('working tree')
+})
+
+test('a caret before a hash, a bad hash and a whole range are all read the way git reads them', async ({
+  page,
+  app,
+  repo,
+}) => {
+  const second = repo.commit('second')
+  const short = second.slice(0, 9)
+  await page.goto(app.url)
+  const banner = page.getByRole('banner')
+  const input = page.getByPlaceholder(/Branch, tag/)
+
+  // ^abc is the commit before abc, said as much before it is picked.
+  await page.getByRole('button', { name: /Compare from HEAD/ }).click()
+  await input.fill(`^${short}`)
+  await expect(page.locator('[data-ref-check]')).toContainText(`before ${second.slice(0, 7)}`)
+  await expect(page.locator('[data-ref-check]')).toContainText('base')
+  await page.keyboard.press('Enter')
+  await expect(banner).toContainText(`${short}^`)
+  await expect(input).toHaveCount(0)
+
+  // A hash that is not here is said to be so, and Enter leaves the comparison alone.
+  await page.getByRole('button', { name: /Compare from/ }).click()
+  await input.fill('1eb597840')
+  await expect(page.getByRole('alert').filter({ hasText: 'no commit starts with 1eb597840 here' })).toBeVisible()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Escape')
+  await expect(banner).toContainText(`${short}^`)
+  await expect(input).toHaveCount(0)
+
+  // A range sets both sides at once.
+  await page.getByRole('button', { name: /Compare to working tree/ }).click()
+  await input.fill(`${short}^..${short}`)
+  await page.keyboard.press('Enter')
+  await expect(banner).toContainText('2 files')
+  await expect(banner).not.toContainText('working tree')
+})
+
+test('a side opens with its ref to edit in place, as in an address bar', async ({ page, app, repo }) => {
+  repo.commit('second')
+  await page.goto(app.url)
+  const banner = page.getByRole('banner')
+  await page.getByRole('button', { name: /Compare from HEAD/ }).click()
+  const input = page.getByPlaceholder(/Branch, tag/)
+  await expect(input).toHaveValue('HEAD')
+  await page.keyboard.press('End')
+  await page.keyboard.type('^')
+  await page.keyboard.press('Enter')
+  await expect(banner).toContainText('HEAD^')
+  await expect(input).toHaveCount(0)
+
+  // Typing straight away replaces the whole value.
+  await page.getByRole('button', { name: /Compare from HEAD\^/ }).click()
+  await expect(input).toHaveValue('HEAD^')
+  await page.keyboard.type('HEAD')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('button', { name: 'Compare from HEAD', exact: true })).toBeVisible()
+})
+
 test('edits on disk appear without reloading', async ({ page, app, repo }) => {
   await page.goto(app.url)
   await expect(page.getByRole('banner')).toContainText('2 files')
