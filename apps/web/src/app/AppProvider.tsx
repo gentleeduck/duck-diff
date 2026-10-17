@@ -7,7 +7,6 @@ import type { DiffViewHandle } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
 import { createPullReview, type PullReview } from '../github/pull-review'
 import { createGraph, type Graph } from '../graph/store'
-import { createKeyOverrides, createKeyState, type KeyOverrides, type KeyState } from '../keys/state'
 import { type Api, createApi } from '../lib/api'
 import { createPageHistory } from '../lib/history'
 import { whenIdle } from '../lib/idle'
@@ -67,9 +66,6 @@ export interface AppContextValue extends PlaceStores {
   panel: Panel
   // The shells open in the bottom panel.
   terminalTabs: TerminalTabs
-  // Vim-style keys: the mode, keys typed so far, and the user's own bindings.
-  keys: Store<KeyState>
-  keyOverrides: KeyOverrides
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -127,8 +123,6 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
       jobs: createJobs(client),
       panel: createPanel(),
       terminalTabs: createTerminalTabs(client),
-      keys: createKeyState(),
-      keyOverrides: createKeyOverrides(),
     }
   }, [api, queryClient])
 
