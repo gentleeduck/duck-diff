@@ -68,6 +68,8 @@ test('works as a desktop terminal: Ctrl+C interrupts, Ctrl+Z suspends, and the c
   app,
   repo,
 }) => {
+  // Job control is Linux only for now; macOS keeps the terminal as it was.
+  test.skip(process.platform === 'darwin', 'no job control on macOS yet')
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.goto(app.url)
   await expect(page.getByRole('button', { name: 'Output' })).toBeVisible()
