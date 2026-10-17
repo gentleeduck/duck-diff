@@ -10,5 +10,7 @@ export const JobSchema = z.object({
   endedAt: z.number().nullable(),
   status: z.enum(['running', 'ok', 'failed']),
   error: z.string().nullable(),
+  // The git action it runs (push, commit), so every page shows it busy, a reloaded one too.
+  action: z.string().optional(),
 })
 export type Job = z.infer<typeof JobSchema>

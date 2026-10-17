@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process'
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { TestRepo } from '@duck-diff/testing'
 import { expect, test } from './fixture'
 
@@ -74,4 +78,28 @@ test('blames each line of a file and opens the commit behind it', async ({ page,
     .click()
   await expect(page).toHaveURL(/\/graph/)
   await expect(page.getByRole('complementary', { name: 'Commit' })).toContainText('base')
+})
+
+test('a push still going shows after a reload, and ends there', async ({ page, app, repo }) => {
+  const remote = mkdtempSync(join(tmpdir(), 'duck-diff-remote-'))
+  try {
+    execFileSync('git', ['init', '-q', '--bare', '-b', 'main', remote])
+    repo.git('remote', 'add', 'origin', remote)
+    // A slow hook keeps the push running across the reload.
+    const hook = join(repo.path, '.git', 'hooks', 'pre-push')
+    writeFileSync(hook, '#!/bin/sh\nsleep 3\n')
+    chmodSync(hook, 0o755)
+    await page.goto(app.url)
+    const push = page.getByRole('button', { name: /^(Push|Publish branch)$/ })
+    await push.click()
+    await expect(push).toHaveAttribute('aria-busy', 'true')
+    await page.reload()
+    await expect(push).toHaveAttribute('aria-busy', 'true')
+    await expect(page.getByRole('button', { name: 'Fetch from remotes' })).toBeDisabled()
+    await expect(page.getByText('Push done')).toBeVisible({ timeout: 15_000 })
+    await expect(push).not.toHaveAttribute('aria-busy', 'true')
+    expect(execFileSync('git', ['-C', remote, 'branch', '--list', 'main'], { encoding: 'utf8' })).toContain('main')
+  } finally {
+    rmSync(remote, { recursive: true, force: true })
+  }
 })
