@@ -5,6 +5,7 @@ vim.opt.runtimepath:prepend(root)
 package.path = root .. '/lua/?.lua;' .. root .. '/lua/?/init.lua;' .. package.path
 -- Servers the specs start remember their repos; that goes under this run's temp folder, not the user's list.
 vim.env.XDG_DATA_HOME = vim.fn.tempname()
+vim.env.DUCK_DIFF_HOME = vim.env.XDG_DATA_HOME .. '/duck-diff'
 
 _G.eq = function(expected, actual)
   if not vim.deep_equal(expected, actual) then

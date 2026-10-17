@@ -49,25 +49,41 @@ return {
     eq(first.path, second.path)
   end,
 
-  ['says what it downloads, how far along it is, and when it is ready'] = function()
-    setup(fake_release(string.rep('x', 200000)))
+  ['tells each step as duck-diff update does: the download with its bar, then a check per step'] = function()
+    local dir = setup(fake_release(string.rep('x', 200000)))
     local said = {}
-    binary.report = function(message)
-      table.insert(said, message)
+    binary.report = function(kind, text)
+      table.insert(said, { kind, text })
     end
     local result = ensure()
     eq(nil, result.err)
-    eq(('downloading v%s (%s)'):format(version, platform.asset()), said[1])
-    assert(vim.iter(said):any(function(message)
-      return message:find('%d+%%') ~= nil
+    eq({ 'step', 'Downloading ' .. platform.asset() }, said[1])
+    assert(vim.iter(said):any(function(entry)
+      return entry[1] == 'progress' and entry[2]:find('%d+%%  .+ / .+ ') ~= nil
     end), vim.inspect(said))
-    eq(('v%s is ready'):format(version), said[#said])
+    local done = vim.iter(said):filter(function(entry)
+      return entry[1] == 'done'
+    end):map(function(entry)
+      return entry[2]
+    end):totable()
+    eq({ 'Downloaded 195.3 KB', 'The sha256 matches', 'Installed ' .. dir .. '/' .. version .. '/duck-diff' }, done)
+  end,
+
+  ['says why when the download cannot be used'] = function()
+    setup(fake_release('payload', string.rep('0', 64)))
+    local said = {}
+    binary.report = function(kind, text)
+      table.insert(said, { kind, text })
+    end
+    ensure()
+    eq('fail', said[#said][1])
+    assert(said[#said][2]:find('sha256'), vim.inspect(said))
   end,
 
   ['rejects a checksum mismatch and leaves nothing behind'] = function()
     setup(fake_release('payload', string.rep('0', 64)))
     local result = ensure()
-    assert(result.err and result.err:find('checksum'), vim.inspect(result))
+    assert(result.err and result.err:find('sha256'), vim.inspect(result))
     eq(0, vim.fn.filereadable(binary.dir .. '/' .. version .. '/duck-diff'))
   end,
 

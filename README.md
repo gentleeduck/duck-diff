@@ -48,7 +48,7 @@ against the release. The page brings its own fonts (JetBrains Mono and the Nerd 
 needs installing. Options go after `sh -s --`:
 
 ```sh
-curl -fsSL .../install.sh | sh -s -- --version 0.5.2   # a given release
+curl -fsSL .../install.sh | sh -s -- --version 0.6.0   # a given release
 curl -fsSL .../install.sh | sh -s -- --dir ~/bin       # another folder
 curl -fsSL .../install.sh | sh -s -- --uninstall       # take it out again
 ```
@@ -94,7 +94,8 @@ From Neovim it is `:DuckDiff`, with the same targets.
 - **GitHub**: pull requests and issues with their conversations, reviews and review threads in the diff, merge
   with every method, checks and logs, notifications, releases, actions, discussions and security alerts.
 - **Terminal and output**: real shells in a bottom panel, and every git action's command and output, hooks
-  included.
+  included. Ctrl+C, Ctrl+Z and job control work as in any terminal; Ctrl+Shift+C (or Ctrl+C with text selected)
+  copies and Ctrl+V or Ctrl+Shift+V pastes.
 - **Keys**: Space leader, `j`/`k` through changes, which-key, a `:` command line and a palette (`Ctrl K`), all
   rebindable; the keyboard button on the rail lists them.
 - **Themes**: ten dark ones. There is a light button. It does not do what you think.
@@ -138,10 +139,17 @@ opts = {
 
 ## Where things live
 
-Settings, key bindings, comments, open tabs and viewed files are kept in `$XDG_DATA_HOME/duck-diff` (usually
-`~/.local/share/duck-diff`), not in the browser: clearing the browser loses none of it. Each repo's GitHub and
-commit answers are cached beside them; `duck-diff cache clear` empties those. The GitHub token never reaches the
-page.
+Everything duck-diff keeps is in one folder, `~/.duck-diff` (set `DUCK_DIFF_HOME` to move it), not in the browser:
+clearing the browser loses none of it.
+
+- `state.json`: settings, key bindings, panel sizes, and each repo's open tabs, viewed files and unsent reviews.
+- `repos.json`: the repositories the switcher lists.
+- `<repo id>/`: that repo's comments (`reviews.json`), undo snapshots for discards, and its cache of GitHub and
+  commit answers (`duck-diff cache clear` empties the caches).
+
+Data from older versions, in `~/.local/share/duck-diff` and `~/.cache/duck-diff`, moves here the first time a newer
+duck-diff starts. The Neovim plugin's downloaded binaries stay in Neovim's own data folder. The GitHub token never
+reaches the page.
 
 ## Workspace
 

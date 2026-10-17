@@ -58,9 +58,9 @@ return {
       server.ensure(dir, cb)
     end)
     eq(nil, started.err)
-    local list = vim.fn.readfile(vim.env.XDG_DATA_HOME .. '/duck-diff/repos.json')
+    local list = vim.fn.readfile(vim.env.DUCK_DIFF_HOME .. '/repos.json')
     eq(true, vim.tbl_contains(vim.json.decode(table.concat(list, '\n')), dir))
-    eq(true, vim.startswith(vim.env.XDG_DATA_HOME, vim.fn.fnamemodify(vim.fn.tempname(), ':h')))
+    eq(true, vim.startswith(vim.env.DUCK_DIFF_HOME, vim.fn.fnamemodify(vim.fn.tempname(), ':h')))
     server.stop_all()
   end,
 

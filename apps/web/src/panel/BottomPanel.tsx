@@ -1,6 +1,6 @@
 import { Button, ResizableHandle, ResizablePanel, type ResizablePanelHandle } from '@duck-diff/ui'
 import { Plus, ScrollText, SquareTerminal, X } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useStore } from '../lib/store'
@@ -91,6 +91,19 @@ export function BottomPanel() {
 
   // Hidden, the panel folds to nothing instead of leaving, so its shells keep running.
   const fold = useRef<ResizablePanelHandle | null>(null)
+  // Its props stay the same from render to render: a changed one makes the group measure every panel again,
+  // which restyles the whole page.
+  const [startHeight] = useState(height)
+  const keepHeight = useCallback(
+    (size: { inPixels: number }, _id: string | number | undefined, previous: unknown) => {
+      if (previous === undefined) return
+      // Dragged shut, it closes as the hide button would; otherwise its height is kept.
+      if (size.inPixels === 0) {
+        if (panel.get().open) panel.toggle()
+      } else if (size.inPixels >= MIN_HEIGHT) panel.resize(Math.round(size.inPixels))
+    },
+    [panel],
+  )
   useEffect(() => {
     // A frame later: a panel that has just mounted is not in its group's layout until then.
     const frame = requestAnimationFrame(() => {
@@ -118,17 +131,11 @@ export function BottomPanel() {
         panelRef={fold}
         collapsible
         collapsedSize={0}
-        defaultSize={height}
+        defaultSize={startHeight}
         minSize={MIN_HEIGHT}
         maxSize="80%"
         groupResizeBehavior="preserve-pixel-size"
-        onResize={(size, _id, previous) => {
-          if (previous === undefined) return
-          // Dragged shut, it closes as the hide button would; otherwise its height is kept.
-          if (size.inPixels === 0) {
-            if (panel.get().open) panel.toggle()
-          } else if (size.inPixels >= MIN_HEIGHT) panel.resize(Math.round(size.inPixels))
-        }}>
+        onResize={keepHeight}>
         <section data-region="panel" aria-label="Bottom panel" className="flex h-full flex-col bg-background">
           <div className="flex h-9 shrink-0 items-stretch border-border border-b bg-card">
             <div role="tablist" aria-label="Panel" className="flex min-w-0 flex-1 items-stretch overflow-x-auto">

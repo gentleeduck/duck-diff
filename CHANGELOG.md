@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 - Open in editor never uses a terminal in the page: a file opens in the Neovim the plugin started from, else
   in VS Code (found on a Mac even without `code` on the PATH), else another editor (Cursor, VSCodium, Zed,
@@ -9,12 +9,88 @@
   thin chevrons and indent lines, and no folding of single-child folders.
 - In the split layout, a comment sits under the side it was made on, deleted lines on the left and added on
   the right.
-- Your own review comments on a pull request can be edited and deleted from a "..." menu, as on GitHub, and
-  local notes use the same card and menu instead of loose buttons. Deleting asks first.
+- Your own review comments on a pull request can be edited and deleted from small buttons at the top of the
+  comment, and comments kept on this machine use the same card and buttons. Deleting asks first.
 - Esc closes a comment being written even when its box does not have the keyboard, and Esc during a drag
   over lines lets them go instead of commenting.
 - The repo switcher drops folders that no longer exist and always lists the repo being served. The test
-  suites keep their repos out of your list and no longer leave temp folders behind.
+  suites keep their repos out of your list, and the Neovim suite no longer leaves about 95 MB in /tmp per run.
+- The repo switcher lists this repo's other worktrees, so switching to one and seeing its diff is one click.
+  Another worktree or repo opens the way the current page was opened: through the Neovim plugin (its open
+  setting, an app window by default), or as an app window from the command line, not a browser tab. Adding a
+  folder that does not exist says so.
+- Any commit can be the from side of the working tree or staged comparison, not only HEAD, and HEAD (or any
+  commit) compared with an older commit shows what changed between them instead of nothing. Two branch or tag
+  names still compare from where they split, as GitHub does.
+- The from and to pickers open with their ref selected, to replace by typing or edit in place (Home, End and
+  the arrows move the caret), and take any revision git reads: a hash, abc^, ^abc as the commit before abc,
+  HEAD~2, a tag, :/a message, main@{yesterday}. Under the box git says which commit it is, or shows in red why it
+  does not know it (no such hash, an ambiguous one). Enter or Use applies it, and a typed range (a..b, a...b)
+  sets both sides. Typing still narrows branches, tags and recent commits, and finds older commits by message.
+- Lines picked for a comment keep their added or deleted colour, with the selection tinted over them, a bar
+  beside them and their line numbers lit, as GitHub marks them; before, a solid yellow hid what changed.
+- The repo switcher lists each checkout once: this repo's worktrees under Worktrees, found by git, and only
+  other repositories under Repositories.
+- Worktrees also include checkouts kept in .claude/worktrees or .worktrees that git does not list as this repo's
+  (a copy synced from another machine, a clone), marked separate. Clicking a worktree's row opens it.
+- A window opened for another worktree or repo survives a new build: the server that opened it restarts in place
+  and leaves it running, where it used to close it, and its page reloads onto the new build.
+- Copy as prompt, at the top of a comment, and Copy all as prompt, in the comments panel, put your comments on the
+  clipboard ready for an AI: the comparison, then each file and its lines and side, the code quoted with its line
+  numbers, the exact words when only part of a line was picked, and the comment under it.
+- Pull requests, issues, the inbox, lists, actions, releases, discussions, security and insights read in a
+  column as wide as GitHub's, centred on a wide screen. A pull request's or issue's details column is GitHub's
+  width, with a wider gutter beside the conversation.
+- duck-diff update, install.sh and the Neovim plugin show a download the same way: the header, a spinning step,
+  the bar on its own line under it (beside it in Neovim's one-line command line) with the share, sizes, speed and
+  time left, then a check per finished step. install.sh draws it from the file growing on disk instead of curl's
+  own bar.
+- A README or other Markdown file reads in a centred column of GitHub's width, however wide the window.
+- Each view keeps its own left panel shown or hidden.
+- The repo switcher is wider, each row one line that never runs out of its box, and every worktree and repository
+  has a card on hover: its full path, what it is, the commit it is on and how to open it. The worktrees in the
+  graph's sidebar have the same card.
+- Destructive buttons (discard, delete, remove, forget) turn red on hover; the same action has the same icon
+  everywhere; a copy turns its button into a green check for a moment.
+- Every button in the page is duck-ui's, and every title and every cut-off or clamped text shows in the page's
+  own tooltip.
+- Toasts say what happened as a title with the detail under it: a success with a check, a failure with its reason
+  and, for git, a button to the output. Every action says so when it fails.
+- A comment kept on this machine is called a comment, not a note.
+- Toasts take the theme's colours instead of stock white or black, and each kind's icon its theme colour.
+- Every popover, hover card and tooltip points at what it describes, and the checkout cards are a little wider.
+- The repo switcher shows its lists loading, says so when there is no other repository, and says why when the
+  list could not be read, with a retry.
+- Badges are coloured by what they say, with duck-ui's badge variants: green for open, passed, here or current,
+  yellow for pending or waiting on you, red for failed, missing or severe, purple for merged or done, blue for
+  details, and grey for the rest.
+- The sidebar is never narrower than 300px. Commit and Commit and push share the row in equal halves, and in a
+  narrow sidebar the second says Push.
+- A failed git action's toast says the reason in a sentence (a hook failed, the remote has newer commits, the
+  credentials were refused) instead of the whole colour-coded log, which stays in Output.
+- The side panel, the symbol panel, the Output panel's list of actions and the bottom panel all resize with
+  duck-ui's resizable panels, keep their sizes, and go back to their first size on a double-click of the edge.
+- Words in buttons, badges, tabs and toggles sit centred on their capitals; JetBrains Mono's line box left them
+  about a pixel high.
+- The Comments count and the ahead and behind counts are badges like the rest.
+- Everything duck-diff keeps now lives in one folder, `~/.duck-diff` (or `$DUCK_DIFF_HOME`): settings, the repo
+  list, comments, caches and undo snapshots. What older versions kept in `~/.local/share/duck-diff` and
+  `~/.cache/duck-diff` moves there the first time duck-diff starts, and empty folders left by old runs are dropped.
+- A pull request review not sent yet keeps its comments across closing the page and restarting duck-diff, per
+  repository and pull request, until it is sent.
+- Viewed files are kept per repository instead of in one list shared by every repository.
+- The terminal works as a desktop one: the shell owns it, so Ctrl+C stops what runs, Ctrl+Z suspends it and job
+  control works (it said "no job control" and only printed ^C before). Ctrl+Shift+C, Ctrl+Insert or Ctrl+C with
+  text selected copy; Ctrl+V, Ctrl+Shift+V and Shift+Insert paste. Closing a terminal hangs up what runs in it.
+  This holds for zsh too, which unlike bash never took the terminal over by itself.
+- The test suites' shells keep no history, so their commands no longer end up in your own shell history.
+- Servers change the shared repo list one at a time, each writing it whole, so a repository one server adds while
+  another drops a gone folder is never lost, and no server reads a half-written list.
+- Every tooltip, hover card, popover, tab strip and picker is duck-ui's: the page-wide tooltip for titles and
+  cut-off text, the code hover, the selection toolbar, the @-mention list, the GitHub pickers and the pull request,
+  list, inbox and comment tabs.
+- Confirm dialogs are one width and keep everything inside: a long file or folder path sits on its own line and
+  wraps anywhere, and the buttons stay in the box. A diff's file path stays on one line in its header.
 
 ## 0.5.2
 

@@ -40,4 +40,9 @@ function M.open(url, opts)
   end
 end
 
+---Opens a page the server asks for (another worktree's), the way this plugin opens its own.
+function M.page(url)
+  M.open(url, require('duck-diff.config').get())
+end
+
 return M

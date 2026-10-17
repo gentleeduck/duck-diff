@@ -43,6 +43,16 @@ return {
     eq(nil, open.command('http://x', { open = 'app' }, linux, function() return false end))
   end,
 
+  ['opens a page the server asks for with the configured opener'] = function()
+    local got
+    require('duck-diff.config').setup({ open = function(url)
+      got = url
+    end })
+    open.page('http://127.0.0.1:2/?token=t')
+    eq('http://127.0.0.1:2/?token=t', got)
+    require('duck-diff.config').setup({})
+  end,
+
   ['completes subcommands, refs and the right side of a range'] = function()
     local commands = require('duck-diff.commands')
     local dir = vim.fn.tempname()
