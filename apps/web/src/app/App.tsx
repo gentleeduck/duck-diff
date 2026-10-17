@@ -1,4 +1,5 @@
 import { Button, Kbd, Toaster, TooltipProvider } from '@duck-diff/ui'
+import { formatForDisplay } from '@gentleduck/vim/format'
 import { RouterProvider } from '@tanstack/react-router'
 import { Search } from 'lucide-react'
 import { type ReactNode, useCallback, useState } from 'react'
@@ -15,16 +16,14 @@ import { GraphSidebar } from '../graph/GraphSidebar'
 import type { GraphState } from '../graph/store'
 import { useSettings } from '../hooks/useSettings'
 import { useView } from '../hooks/useView'
-import { KeymapsDialog } from '../keys/KeymapsDialog'
-import { KeymapsPicker } from '../keys/KeymapsPicker'
-import { useKeys } from '../keys/useKeys'
-import { WhichKey } from '../keys/WhichKey'
+import { ShortcutsDialog } from '../keys/ShortcutsDialog'
+import { useShortcuts } from '../keys/useShortcuts'
 import type { Api } from '../lib/api'
 import { useStore } from '../lib/store'
 import { useDesktopNotices } from '../live/useDesktopNotices'
 import { useLiveRefresh } from '../live/useLiveRefresh'
 import { MergeSidebar } from '../merge/MergeSidebar'
-import { Palette, previousSearch } from '../palette/Palette'
+import { Palette } from '../palette/Palette'
 import { BottomPanel } from '../panel/BottomPanel'
 import { CommentsSheet } from '../review/CommentsSheet'
 import type { Place, View } from '../router/place'
@@ -89,21 +88,10 @@ function Screen() {
   useThemeClass()
   useSizes()
   const [palette, setPalette] = useState(false)
-  const [paletteInput, setPaletteInput] = useState('')
-  const openPalette = (initial = '') => {
-    setPaletteInput(initial)
-    setPalette(true)
-  }
   const [help, setHelp] = useState(false)
-  const { view, show } = useView()
+  const { view } = useView()
   const item = useStore(useApp().place, selectNumber) !== null
-  const { keys } = useApp()
-  const runCommand = useKeys({
-    palette: openPalette,
-    resume: () => openPalette(previousSearch()),
-    keymaps: () => keys.set((state) => ({ ...state, picker: true })),
-    show,
-  })
+  useShortcuts({ palette: () => setPalette(true), shortcuts: () => setHelp(true) })
   const live = useLiveRefresh()
   useDesktopNotices()
   const search = (
@@ -112,11 +100,11 @@ function Screen() {
       variant="outline"
       className="size-7 shrink-0 justify-start gap-2 px-0! text-muted-foreground @max-6xl/top:justify-center @6xl/top:w-48 @6xl/top:ps-2! @6xl/top:pe-1! @7xl/top:w-80"
       aria-label="Search files and actions"
-      title="Search files and actions (Ctrl P)"
-      onClick={() => openPalette()}>
+      title={`Search files and actions (${formatForDisplay('mod+p')})`}
+      onClick={() => setPalette(true)}>
       <Search />
       <span className="hidden min-w-0 flex-1 truncate text-start @6xl/top:inline">Search or jump to...</span>
-      <Kbd className="ms-auto hidden h-[1.125rem] px-1 text-[0.8em] leading-none @6xl/top:inline-flex">Ctrl P</Kbd>
+      <Kbd className="ms-auto hidden h-[1.125rem] px-1 text-[0.8em] leading-none @6xl/top:inline-flex" keys="mod+p" />
     </Button>
   )
   const screens: Record<View, { top: ReactNode; side: ReactNode | null; label: string }> = {
@@ -284,12 +272,10 @@ function Screen() {
         bottom={<BottomPanel />}
         status={<StatusBar live={live} />}
       />
-      <Palette open={palette} onOpenChange={setPalette} initial={paletteInput} />
-      <KeymapsDialog open={help} onOpenChange={setHelp} />
+      <Palette open={palette} onOpenChange={setPalette} />
+      <ShortcutsDialog open={help} onOpenChange={setHelp} />
       <TruncationTooltip />
       <ScrollKeeper view={view} />
-      <KeymapsPicker run={runCommand} onEdit={() => setHelp(true)} />
-      <WhichKey />
     </>
   )
 }

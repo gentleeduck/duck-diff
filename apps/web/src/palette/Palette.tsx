@@ -128,20 +128,8 @@ function MatchedPath({ path, positions }: { path: string; positions: number[] })
 
 // GitHub's command palette: one box for files, pull requests, issues and commands, narrowed with file:,
 // pr:, issue:, #123 or >, and a preview of the highlighted result beside the list.
-// The last search typed, for <leader>sr to bring back.
-let lastSearch = ''
-export const previousSearch = () => lastSearch
 
-export function Palette({
-  open,
-  onOpenChange,
-  initial = '',
-}: {
-  open: boolean
-  onOpenChange(open: boolean): void
-  // What the box starts with, like file: for <leader>sf.
-  initial?: string
-}) {
+export function Palette({ open, onOpenChange }: { open: boolean; onOpenChange(open: boolean): void }) {
   const app = useApp()
   const { settings, diffFile, pullSelection, issueSelection } = app
   const changed = useSession(selectFiles)
@@ -161,12 +149,8 @@ export function Palette({
   const { scope, term } = parseSearch(useDeferredValue(input))
 
   useEffect(() => {
-    if (!open) return
-    setInput(initial)
-  }, [open, initial])
-  useEffect(() => {
-    if (input) lastSearch = input
-  }, [input])
+    if (open) setInput('')
+  }, [open])
 
   // Read through a ref so the result list below is rebuilt only when what it shows changes.
   const latest = useRef({ onOpenChange, pullSelection, issueSelection })

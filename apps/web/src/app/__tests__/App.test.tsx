@@ -15,10 +15,11 @@ describe('App', () => {
 })
 
 describe('keyboard shortcuts', () => {
-  it('opens the list of every key binding from the rail', async () => {
+  it('lists every shortcut from the rail', async () => {
     render(<App api={fakeApi()} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Keyboard shortcuts' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Keymaps' })
-    expect(within(dialog).getByText('Pull with rebase')).toBeTruthy()
+    const dialog = await screen.findByRole('dialog', { name: 'Keyboard shortcuts' })
+    expect(within(dialog).getByText('Next change')).toBeTruthy()
+    expect(within(dialog).getByText('Ctrl+P')).toBeTruthy()
   })
 })
