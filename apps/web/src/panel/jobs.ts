@@ -33,9 +33,9 @@ export function createJobs(api: Pick<Api, 'jobs' | 'jobOutput' | 'clearJobs'>): 
     async load() {
       const read = await api.jobs()
       // Merged by id against the list as it is when the answer lands: another load or a live event may
-      // have added the same jobs meanwhile.
+      // have added the same jobs meanwhile. A finished copy wins, so a missed end event is not running forever.
       const byId = new Map(read.map((job) => [job.id, job]))
-      for (const job of store.get().jobs) byId.set(job.id, job)
+      for (const job of store.get().jobs) if (job.status !== 'running' || !byId.has(job.id)) byId.set(job.id, job)
       put([...byId.values()].sort((a, b) => b.startedAt - a.startedAt))
     },
     apply(event) {

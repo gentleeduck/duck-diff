@@ -9,10 +9,13 @@
   panes: the top bar, the side panel, the page, the symbol panel and the bottom panel, from a terminal too (where a
   key with no panel on that side still reaches the shell). A text box keeps them; Esc first. A hidden side panel
   or a closed bottom panel opens on the way.
-- No key does two things any more: the palette moved to Ctrl+P (Cmd+K and Cmd+P on a Mac, <leader>sg still),
-  since Ctrl+K moves up; push, pull and pull with rebase moved to <leader>gP, <leader>gl and <leader>gL, since
-  <leader>p started <leader>pv and pushed after a pause. The keymaps editor warns about a key that starts
-  another, as about two commands on one key.
+- The Vim-style key layer is gone: no leader chords, which-key, `:` command line, modes in the status bar or
+  keymaps editor. A few plain keys do one thing each: Ctrl+P (Cmd+P on a Mac) searches, j and k step through
+  changes, J and K through files, s, u and x stage, unstage and discard, c comments, v marks viewed, o opens in
+  your editor, t flips the layout, / filters, and arrows, Home and End walk any list. `?` lists them.
+- A push, pull, commit or any other git action still running shows as running after a reload and in every
+  other tab, and its toast comes when it ends there too. A new build installed meanwhile waits for it instead of
+  cutting it off; one cut off by a restart says so.
 - The browser's own shortcuts (print, save, find, history, downloads, bookmarks, view source, developer tools,
   the F keys, Alt+arrows) do nothing in duck-diff; reload still works, and text boxes keep copy, cut, paste,
   select all, undo and redo. Chrome keeps Ctrl+W, Ctrl+T, Ctrl+N and Ctrl+Tab for itself.
