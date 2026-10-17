@@ -13,6 +13,9 @@
   keymaps editor. A few plain keys do one thing each: Ctrl+P (Cmd+P on a Mac) searches, j and k step through
   changes, J and K through files, s, u and x stage, unstage and discard, c comments, v marks viewed, o opens in
   your editor, t flips the layout, / filters, and arrows, Home and End walk any list. `?` lists them.
+- A push, commit, pull, merge or rebase whose hooks take minutes (a pre-push build, say) is no longer cut off at
+  two minutes. Git is stopped only after printing nothing for a while (ten minutes for anything that runs hooks),
+  and then with the hooks and everything they started, so the failure shows at once instead of when they finish.
 - A reload brings the page back as it was: the bottom panel open on the same terminal or output, terminals in
   their order with their names, the side panel's tab, where every list and the diff were scrolled, folded files
   and folders, opened context, filters and sorts, blame, the symbol panel, and anything half typed (the commit
