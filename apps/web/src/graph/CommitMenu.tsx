@@ -183,6 +183,8 @@ export function CommitHover({
   children: ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  // The pointer resting on a row while its menu is open would open the card over the menu's items.
+  const changeOpen = (next: boolean) => setOpen(next && !document.querySelector('[role="menu"]'))
   const info = useHoverDetails(entry.sha, open)
   const github = useGitHub()
   // A click or a right-click means the reader moved on to the row's actions; the card would cover them.
@@ -202,7 +204,7 @@ export function CommitHover({
   const [subject = entry.subject, ...rest] = (info?.message ?? entry.subject).split('\n')
   const body = reflow(rest.join('\n').trim())
   return (
-    <HoverCard open={open} onOpenChange={setOpen} openDelay={500} closeDelay={100}>
+    <HoverCard open={open} onOpenChange={changeOpen} openDelay={500} closeDelay={100}>
       {children}
       <HoverCardContent
         side="bottom"
