@@ -3,7 +3,7 @@ import { createStore, type Store } from '../lib/store'
 
 export interface PanelState {
   open: boolean
-  // 'output', or the id of a terminal.
+  // 'output', 'merge' while git waits on an operation, or the key of a terminal.
   tab: string
   // The job the Output tab shows; null follows the newest.
   job: string | null

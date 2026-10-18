@@ -19,7 +19,7 @@ describe('keyboard shortcuts', () => {
     render(<App api={fakeApi()} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Keyboard shortcuts' }))
     const dialog = await screen.findByRole('dialog', { name: 'Keyboard shortcuts' })
-    expect(within(dialog).getByText('Next change')).toBeTruthy()
+    expect(within(dialog).getByText('Next change, or conflict when merging')).toBeTruthy()
     expect(within(dialog).getByText('Ctrl+P')).toBeTruthy()
   })
 })

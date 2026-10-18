@@ -1,12 +1,17 @@
 import { Button } from '@duck-diff/ui'
-import { LoaderCircle, ScrollText } from 'lucide-react'
+import { GitMerge, LoaderCircle, ScrollText } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useGit } from '../git/GitProvider'
 import { useSession } from '../hooks/useSession'
+import { useView } from '../hooks/useView'
 import { useStore } from '../lib/store'
 import type { LiveState } from '../live/useLiveRefresh'
+import { headline, selectConflicts } from '../merge/merge-model'
+import { openMerge } from '../merge/open-merge'
 import type { JobsState } from '../panel/jobs'
 import { relativeTime } from '../sidebar/relative-time'
 import type { SessionState } from '../state/session'
+import { useStage } from '../state/stage'
 import { useApp } from './AppProvider'
 
 const STATUS = {
@@ -17,6 +22,30 @@ const STATUS = {
 
 const selectRunning = (state: JobsState) => state.running
 const selectLoad = (state: SessionState) => `${state.status}:${state.loadedAt}:${state.error ?? ''}`
+
+// A merge, rebase, pick or revert git is waiting on, on every page, one click from its conflicts.
+function OperationStatus() {
+  const app = useApp()
+  const { show } = useView()
+  const { status } = useGit()
+  const conflicts = selectConflicts(useStage())
+  const count = conflicts ? conflicts.split('\n').length : 0
+  const operation = status?.operation ?? null
+  if (!operation) return null
+  return (
+    <Button
+      variant="nothing"
+      size="none"
+      type="button"
+      title="Open the conflicts"
+      onClick={() => openMerge(app, show, null)}
+      className="flex cursor-pointer items-center gap-1.5 justify-start rounded-none whitespace-normal text-warning hover:text-foreground">
+      <GitMerge className="size-3.5" />
+      {headline(operation, status?.branch ?? null, status?.incoming ?? null)}
+      {count ? `, ${count} ${count === 1 ? 'file' : 'files'} to resolve` : ', ready to continue'}
+    </Button>
+  )
+}
 
 export function StatusBar({ live }: { live: LiveState }) {
   const [status = 'idle', loadedAt = '0', ...rest] = useSession(selectLoad).split(':')
@@ -56,6 +85,7 @@ export function StatusBar({ live }: { live: LiveState }) {
         )}
         {running ? `Running ${running}` : 'Output'}
       </Button>
+      <OperationStatus />
       <span className="ml-auto" aria-live="polite">
         {status === 'loading' && 'Loading changes'}
         {status === 'error' && <span className="text-removed">Could not load changes: {error}</span>}

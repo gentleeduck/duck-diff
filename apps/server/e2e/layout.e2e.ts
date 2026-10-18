@@ -119,6 +119,8 @@ test('a full page reads in a column as wide as GitHub keeps its own, centred on 
   await page.goto(`${app.url}&view=insights`)
   const column = page.locator('[data-page-column]').first()
   await expect(column).toBeVisible()
+  // The first box asked for while the page is still settling can come back empty though the column is drawn.
+  await expect.poll(() => column.boundingBox()).not.toBeNull()
   const box = await column.boundingBox()
   const main = await page.getByRole('main').boundingBox()
   if (!box || !main) throw new Error('no page column')

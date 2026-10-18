@@ -2,44 +2,88 @@ import type { ConflictBlock, ConflictFile } from '@duck-diff/protocol'
 import { Badge, type BadgeTone, Button, Separator, Textarea } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import {
+  ArrowDownUp,
   ArrowLeftToLine,
   ArrowRightToLine,
   Check,
   ChevronDown,
   ChevronsUpDown,
   ChevronUp,
+  Columns3,
+  GitCommitVertical,
   Pencil,
   RotateCcw,
+  Rows3,
   SquareArrowOutUpRight,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { CodeRowsSkeleton } from '../app/skeletons'
-import { Code } from '../diff/Code'
-import { highlighter } from '../diff/highlighter'
 import { useGit } from '../git/GitProvider'
 import { OperationActions } from '../git/OperationBanner'
 import { useOpenFile } from '../hooks/useOpenFile'
+import { useSettings } from '../hooks/useSettings'
 import { useView } from '../hooks/useView'
 import { dropKept, useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import { fileGlyph } from '../sidebar/icons'
+import type { Settings } from '../state/settings'
 import { useStage } from '../state/stage'
+import { contextLines, MergeLines } from './MergeLines'
 import {
   blockLines,
   type Choice,
   type Choices,
   firstConflictLine,
+  MERGE_STEP,
   resultText,
   selectConflicts,
+  sideDiff,
   unresolvedCount,
 } from './merge-model'
 
 const selectPath = (path: string | null) => path
+const selectSplit = (state: Settings) => state.diffStyle === 'split'
 // Long unchanged stretches between blocks fold to their edges, as a diff's context does.
 const KEEP = 3
 const MARKERS = /^(<{7}|>{7})( |$)/m
+
+type Side = 'ours' | 'theirs'
+type Sides = ConflictFile['sides']
+
+// The two sides as GitHub names them, each with a colour of its own; the changes inside are red and green.
+const SIDE = {
+  ours: {
+    label: 'Current change',
+    accept: 'Accept current',
+    bar: 'bg-tn-blue',
+    text: 'text-tn-blue',
+    tint: 'bg-tn-blue/10',
+  },
+  theirs: {
+    label: 'Incoming change',
+    accept: 'Accept incoming',
+    bar: 'bg-tn-magenta',
+    text: 'text-tn-magenta',
+    tint: 'bg-tn-magenta/10',
+  },
+} as const
+
+// How each pick reads in the result: the side's own colour, or a neutral one for a mix or a hand edit.
+const PICKS: Record<Choice['kind'], { tone: BadgeTone; edge: string }> = {
+  ours: { tone: 'soft-info', edge: 'border-tn-blue' },
+  theirs: { tone: 'soft-done', edge: 'border-tn-magenta' },
+  both: { tone: 'muted', edge: 'border-foreground/40' },
+  base: { tone: 'muted', edge: 'border-foreground/40' },
+  edit: { tone: 'muted', edge: 'border-tn-yellow' },
+}
+
+function label(choice: Choice): string {
+  if (choice.kind === 'both') return choice.first === 'ours' ? 'Both' : 'Both, incoming first'
+  if (choice.kind === 'edit') return 'Edited'
+  return choice.kind === 'ours' ? 'Current' : choice.kind === 'theirs' ? 'Incoming' : 'Base'
+}
 
 // Where each column's line numbers stand at the start of a segment.
 interface Starts {
@@ -48,59 +92,46 @@ interface Starts {
   theirs: number
 }
 
-// How each pick reads and looks: its side's colour, or the result's own for a mix.
-const PICKS: Record<Choice['kind'], { tone: BadgeTone; edge: string }> = {
-  ours: { tone: 'soft-success', edge: 'border-tn-green' },
-  theirs: { tone: 'soft-info', edge: 'border-tn-blue' },
-  both: { tone: 'soft-done', edge: 'border-tn-magenta' },
-  base: { tone: 'muted', edge: 'border-border' },
-  edit: { tone: 'soft-done', edge: 'border-tn-magenta' },
-}
-
-function Lines({
-  path,
-  lines,
-  start,
-  tone = '',
-}: {
-  path: string
-  lines: string[]
-  start: number | null
-  tone?: string
-}) {
-  useSyncExternalStore(highlighter.subscribe, () => highlighter.version)
-  const text = lines.join('\n')
-  const tokens = text ? highlighter.text(`merge:${path}:${text.length}:${text.slice(0, 64)}`, path, text) : null
-  if (!lines.length)
-    return <div className={`h-6 ps-[6ch] italic leading-6 text-muted-foreground ${tone}`}>(nothing)</div>
+// A side's name, the branch or commit, its short hash and subject, as GitHub heads a change.
+function SideName({ side, sides, fallback }: { side: Side; sides: Sides; fallback: string }) {
+  const look = SIDE[side]
+  const info = sides[side]
   return (
-    <div className={tone}>
-      {lines.map((line, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: lines of one fixed text
-        <div key={index} className="flex min-h-6 leading-6">
-          <span
-            aria-hidden
-            className="w-[6ch] shrink-0 select-none pe-[1.5ch] text-end text-muted-foreground/50 tabular-nums">
-            {start === null ? '' : start + index}
-          </span>
-          <code data-code className="min-w-0 flex-1 whitespace-pre-wrap pe-3 [overflow-wrap:anywhere]">
-            <Code text={line} tokens={tokens?.get(index + 1)} />
-          </code>
-        </div>
-      ))}
-    </div>
+    <span className="flex min-w-0 items-center gap-2">
+      <span aria-hidden className={`h-4 w-1 shrink-0 rounded-full ${look.bar}`} />
+      <span className={`shrink-0 ${look.text}`}>{look.label}</span>
+      <span className="shrink-0 text-foreground">{info?.name ?? fallback}</span>
+      {info ? <code className="shrink-0 text-muted-foreground">{info.sha}</code> : null}
+      {info?.subject ? (
+        <span className="min-w-0 truncate text-muted-foreground" title={info.subject}>
+          {info.subject}
+        </span>
+      ) : null}
+    </span>
   )
 }
 
-function Common({ path, lines, starts }: { path: string; lines: string[]; starts: Starts }) {
+function ResultName({ sides }: { sides: Sides }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      <span aria-hidden className="h-4 w-1 shrink-0 rounded-full bg-foreground/50" />
+      <span className="shrink-0 text-foreground">Result</span>
+      {sides.base ? (
+        <span className="min-w-0 truncate text-muted-foreground" title={`Merge base: ${sides.base.subject}`}>
+          from merge base <code>{sides.base.sha}</code>
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
+function Common({ path, lines, starts, split }: { path: string; lines: string[]; starts: Starts; split: boolean }) {
   const [open, setOpen] = useState(false)
   const folded = !open && lines.length > KEEP * 2 + 1
   const column = (start: number, dim: boolean) => {
-    const tone = dim ? 'opacity-60' : undefined
-    if (!folded) return <Lines path={path} lines={lines} start={start} tone={tone} />
-    return (
-      <div>
-        <Lines path={path} lines={lines.slice(0, KEEP)} start={start} tone={tone} />
+    const body = folded ? (
+      <>
+        <MergeLines path={path} lines={contextLines(lines.slice(0, KEEP), start)} />
         <Button
           variant="nothing"
           size="none"
@@ -110,10 +141,14 @@ function Common({ path, lines, starts }: { path: string; lines: string[]; starts
           <ChevronsUpDown className="size-4" />
           {lines.length - KEEP * 2} unchanged lines
         </Button>
-        <Lines path={path} lines={lines.slice(-KEEP)} start={start + lines.length - KEEP} tone={tone} />
-      </div>
+        <MergeLines path={path} lines={contextLines(lines.slice(-KEEP), start + lines.length - KEEP)} />
+      </>
+    ) : (
+      <MergeLines path={path} lines={contextLines(lines, start)} />
     )
+    return <div className={`min-w-0 ${dim ? 'opacity-60' : ''}`}>{body}</div>
   }
+  if (!split) return column(starts.result, false)
   return (
     <>
       {column(starts.ours, true)}
@@ -123,9 +158,9 @@ function Common({ path, lines, starts }: { path: string; lines: string[]; starts
   )
 }
 
-// The strip over each column of one conflict; the three line up, so a block reads straight across.
+// The strip over one part of a conflict; in the split layout the three line up, so a block reads across.
 const strip = (children: ReactNode, tone: string) => (
-  <div className={`flex min-h-9 flex-wrap items-center gap-1 border-border border-y px-2 py-0.5 ${tone}`}>
+  <div className={`flex min-h-9 flex-wrap items-center gap-x-2 gap-y-1 border-border border-y px-2 py-0.5 ${tone}`}>
     {children}
   </div>
 )
@@ -136,6 +171,8 @@ function Block({
   number,
   starts,
   choice,
+  sides,
+  split,
   onChoose,
 }: {
   path: string
@@ -143,150 +180,182 @@ function Block({
   number: number
   starts: Starts
   choice: Choice | undefined
+  sides: Sides
+  split: boolean
   onChoose(next: Choice | undefined): void
 }) {
   const [editing, setEditing] = useKept<string | null>(`merge-block:${path}:${number}`, null)
   const chosen = blockLines(block, choice)
   // Once one side is taken, the other steps back.
-  const dim = (side: 'ours' | 'theirs') =>
-    choice && (choice.kind === 'ours' || choice.kind === 'theirs') && choice.kind !== side ? 'opacity-40' : ''
-  const take = (side: 'ours' | 'theirs') => (
+  const dim = (side: Side) => choice?.kind === (side === 'ours' ? 'theirs' : 'ours')
+  const take = (side: Side) => (
     <Button
       size="sm"
       variant="ghost"
       aria-pressed={choice?.kind === side}
-      className={`${side === 'ours' ? 'ms-auto aria-pressed:text-tn-green' : 'aria-pressed:text-tn-blue'} aria-pressed:bg-accent`}
+      className={`${side === 'ours' && split ? 'ms-auto' : ''} ${
+        side === 'ours' ? 'aria-pressed:text-tn-blue' : 'aria-pressed:text-tn-magenta'
+      } aria-pressed:bg-accent`}
       onClick={() => onChoose({ kind: side })}>
-      {side === 'theirs' ? choice?.kind === side ? <Check /> : <ArrowLeftToLine /> : null}
-      {side === 'ours' ? 'Accept ours' : 'Accept theirs'}
-      {side === 'ours' ? choice?.kind === side ? <Check /> : <ArrowRightToLine /> : null}
+      {split && side === 'theirs' ? choice?.kind === side ? <Check /> : <ArrowLeftToLine /> : null}
+      {SIDE[side].accept}
+      {split && side === 'ours' ? choice?.kind === side ? <Check /> : <ArrowRightToLine /> : null}
+      {!split && choice?.kind === side ? <Check /> : null}
     </Button>
   )
-  return (
+  const status = (
     <>
-      <section
-        aria-label={`Ours, conflict ${number}`}
-        data-conflict={number}
-        className="row-span-2 grid min-w-0 grid-rows-subgrid">
-        {strip(take('ours'), 'bg-tn-green/10')}
-        <Lines
-          path={path}
-          lines={block.ours}
-          start={starts.ours}
-          tone={`border-s-2 border-tn-green bg-tn-green/10 ${dim('ours')}`}
+      <span className="ps-1 text-muted-foreground tabular-nums" title={`Conflict ${number}`}>
+        {split ? number : `Conflict ${number}`}
+      </span>
+      <Badge variant={choice ? PICKS[choice.kind].tone : 'soft-warning'} size="sm">
+        {choice ? label(choice) : 'Needs a pick'}
+      </Badge>
+    </>
+  )
+  // Both reads as a word; the rarer picks are icons with their names on hover, so the strip stays one line.
+  const mix = (
+    <span className="ms-auto flex items-center gap-0.5">
+      <Button size="sm" variant="ghost" onClick={() => onChoose({ kind: 'both', first: 'ours' })}>
+        Both
+      </Button>
+      <IconTool label="Both, incoming first" onClick={() => onChoose({ kind: 'both', first: 'theirs' })}>
+        <ArrowDownUp />
+      </IconTool>
+      {block.base ? (
+        <IconTool
+          label="Take the merge base"
+          tip="The merge base: as it was before both"
+          onClick={() => onChoose({ kind: 'base' })}>
+          <GitCommitVertical />
+        </IconTool>
+      ) : null}
+      <IconTool
+        label={`Edit conflict ${number}`}
+        tip="Write it yourself"
+        onClick={() => setEditing((chosen ?? [...block.ours, ...block.theirs]).join('\n'))}>
+        <Pencil />
+      </IconTool>
+      {choice ? (
+        <IconTool label={`Reset conflict ${number}`} tip="Pick again" onClick={() => onChoose(undefined)}>
+          <RotateCcw />
+        </IconTool>
+      ) : null}
+    </span>
+  )
+  const result =
+    editing !== null ? (
+      <div className="flex flex-col gap-2 p-2">
+        <Textarea
+          aria-label={`Text for conflict ${number}`}
+          value={editing}
+          rows={Math.min(16, Math.max(3, editing.split('\n').length + 1))}
+          onChange={(event) => setEditing(event.target.value)}
+          className="font-[inherit]"
         />
-      </section>
-      <section
-        aria-label={`Result, conflict ${number}`}
-        data-unresolved={choice ? undefined : true}
-        className="row-span-2 grid min-w-0 grid-rows-subgrid">
+        <div className="flex gap-1">
+          <Button
+            size="sm"
+            onClick={() => {
+              onChoose({ kind: 'edit', lines: editing === '' ? [] : editing.split('\n') })
+              setEditing(null)
+            }}>
+            <Check />
+            Use this text
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    ) : chosen && choice ? (
+      <div className={`border-s-2 ${PICKS[choice.kind].edge}`}>
+        <MergeLines path={path} lines={contextLines(chosen, starts.result)} />
+      </div>
+    ) : (
+      <p className="m-2 flex min-h-10 items-center justify-center rounded-md border border-warning/50 border-dashed bg-warning/5 px-3 text-center text-warning">
+        Accept current, incoming or both, or write it yourself.
+      </p>
+    )
+  const ours = <MergeLines path={path} lines={sideDiff(block.base, block.ours, starts.ours)} dim={dim('ours')} />
+  const theirs = (
+    <MergeLines path={path} lines={sideDiff(block.base, block.theirs, starts.theirs)} dim={dim('theirs')} />
+  )
+
+  if (split)
+    return (
+      <>
+        <section
+          aria-label={`Current change, conflict ${number}`}
+          data-conflict={number}
+          className="row-span-2 grid min-w-0 grid-rows-subgrid">
+          {strip(take('ours'), SIDE.ours.tint)}
+          {ours}
+        </section>
+        <section
+          aria-label={`Result, conflict ${number}`}
+          data-unresolved={choice ? undefined : true}
+          className="row-span-2 grid min-w-0 grid-rows-subgrid">
+          {strip(
+            <>
+              {status}
+              {mix}
+            </>,
+            'bg-muted/40',
+          )}
+          {result}
+        </section>
+        <section
+          aria-label={`Incoming change, conflict ${number}`}
+          className="row-span-2 grid min-w-0 grid-rows-subgrid">
+          {strip(take('theirs'), SIDE.theirs.tint)}
+          {theirs}
+        </section>
+      </>
+    )
+
+  // Stacked: current over incoming over the result, each headed by what it is.
+  return (
+    <section aria-label={`Conflict ${number}`} data-conflict={number} className="my-2 border-border border-y">
+      {strip(status, 'bg-muted/40')}
+      <section aria-label={`Current change, conflict ${number}`}>
         {strip(
           <>
-            <span className="ps-1 text-muted-foreground tabular-nums" title={`Conflict ${number}`}>
-              {number}
-            </span>
-            <Badge variant={choice ? PICKS[choice.kind].tone : 'soft-warning'} size="sm">
-              {choice ? label(choice) : 'Needs a pick'}
-            </Badge>
-            <span className="ms-auto flex items-center gap-0.5">
-              <Button size="sm" variant="ghost" onClick={() => onChoose({ kind: 'both', first: 'ours' })}>
-                Both
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label="Both, theirs first"
-                title="Both, theirs first"
-                onClick={() => onChoose({ kind: 'both', first: 'theirs' })}>
-                Theirs first
-              </Button>
-              {block.base ? (
-                <Button size="sm" variant="ghost" onClick={() => onChoose({ kind: 'base' })}>
-                  Base
-                </Button>
-              ) : null}
-              <IconTool
-                label={`Edit conflict ${number}`}
-                tip="Write it yourself"
-                onClick={() => setEditing((chosen ?? [...block.ours, ...block.theirs]).join('\n'))}>
-                <Pencil />
-              </IconTool>
-              {choice ? (
-                <IconTool label={`Reset conflict ${number}`} tip="Pick again" onClick={() => onChoose(undefined)}>
-                  <RotateCcw />
-                </IconTool>
-              ) : null}
-            </span>
+            <SideName side="ours" sides={sides} fallback={block.oursLabel} />
+            <span className="ms-auto">{take('ours')}</span>
+          </>,
+          SIDE.ours.tint,
+        )}
+        {ours}
+      </section>
+      <section aria-label={`Incoming change, conflict ${number}`}>
+        {strip(
+          <>
+            <SideName side="theirs" sides={sides} fallback={block.theirsLabel} />
+            <span className="ms-auto">{take('theirs')}</span>
+          </>,
+          SIDE.theirs.tint,
+        )}
+        {theirs}
+      </section>
+      <section aria-label={`Result, conflict ${number}`} data-unresolved={choice ? undefined : true}>
+        {strip(
+          <>
+            <ResultName sides={sides} />
+            {mix}
           </>,
           'bg-muted/40',
         )}
-        {editing !== null ? (
-          <div className="flex flex-col gap-2 p-2">
-            <Textarea
-              aria-label={`Text for conflict ${number}`}
-              value={editing}
-              rows={Math.min(16, Math.max(3, editing.split('\n').length + 1))}
-              onChange={(event) => setEditing(event.target.value)}
-              className="font-[inherit]"
-            />
-            <div className="flex gap-1">
-              <Button
-                size="sm"
-                onClick={() => {
-                  onChoose({ kind: 'edit', lines: editing === '' ? [] : editing.split('\n') })
-                  setEditing(null)
-                }}>
-                <Check />
-                Use this text
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(null)}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        ) : chosen && choice ? (
-          <Lines path={path} lines={chosen} start={starts.result} tone={`border-s-2 ${PICKS[choice.kind].edge}`} />
-        ) : (
-          <p className="m-2 flex min-h-10 items-center justify-center rounded-md border border-warning/50 border-dashed bg-warning/5 px-3 text-center text-warning">
-            Accept ours, theirs or both, or write it yourself.
-          </p>
-        )}
+        {result}
       </section>
-      <section aria-label={`Theirs, conflict ${number}`} className="row-span-2 grid min-w-0 grid-rows-subgrid">
-        {strip(take('theirs'), 'bg-tn-blue/10')}
-        <Lines
-          path={path}
-          lines={block.theirs}
-          start={starts.theirs}
-          tone={`border-s-2 border-tn-blue bg-tn-blue/10 ${dim('theirs')}`}
-        />
-      </section>
-    </>
-  )
-}
-
-function label(choice: Choice): string {
-  if (choice.kind === 'both') return choice.first === 'ours' ? 'Both' : 'Both, theirs first'
-  if (choice.kind === 'edit') return 'Edited'
-  return choice.kind === 'ours' ? 'Ours' : choice.kind === 'theirs' ? 'Theirs' : 'Base'
-}
-
-function Head({ name, detail, bar, tone }: { name: string; detail?: string; bar: string; tone: string }) {
-  return (
-    <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
-      <span aria-hidden className={`h-4 w-1 shrink-0 rounded-full ${bar}`} />
-      <span className={tone}>{name}</span>
-      {detail ? (
-        <span className="truncate text-muted-foreground" title={detail}>
-          {detail}
-        </span>
-      ) : null}
-    </div>
+    </section>
   )
 }
 
 function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
-  const { status, run, busy } = useGit()
+  const { settings } = useApp()
+  const { run, busy } = useGit()
+  const split = useSettings(selectSplit)
   const openInEditor = useOpenFile()
   // Kept per file and conflict shape, so a reload keeps the picks and a new conflict in the file starts over.
   const keep = `merge:${file.path}:${file.segments.length}`
@@ -294,12 +363,11 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
   // Editing the whole result as text replaces the blocks; markers left in it count as unresolved.
   const [whole, setWhole] = useKept<string | null>(`${keep}:whole`, null)
   const [at, setAt] = useState(0)
+  const page = useRef<HTMLElement>(null)
   const blocks = file.segments.flatMap((segment, index) => (segment.kind === 'conflict' ? [index] : []))
   const total = blocks.length
   const left = whole === null ? unresolvedCount(file, choices) : MARKERS.test(whole) ? 1 : 0
   const first = file.segments.find((segment) => segment.kind === 'conflict')
-  const oursLabel = first?.kind === 'conflict' ? first.oursLabel : ''
-  const theirsLabel = first?.kind === 'conflict' ? first.theirsLabel : ''
   const icon = fileGlyph(file.path.split('/').pop() ?? file.path)
 
   const choose = (index: number, next: Choice | undefined) =>
@@ -309,7 +377,7 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
       else delete copy[index]
       return copy
     })
-  const all = (kind: 'ours' | 'theirs') => setChoices(Object.fromEntries(blocks.map((index) => [index, { kind }])))
+  const all = (kind: Side) => setChoices(Object.fromEntries(blocks.map((index) => [index, { kind }])))
   const save = async () => {
     const text = whole ?? resultText(file, choices)
     if (!(await run('resolve-text', { path: file.path, text }, `Resolved ${file.path}`))) return
@@ -318,10 +386,11 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
     onDone()
   }
   const go = (to: number) => {
+    if (!total) return
     const next = (to + total) % total
     setAt(next)
-    document
-      .querySelector(`[aria-label="Merge ${CSS.escape(file.path)}"] [data-conflict="${next + 1}"]`)
+    page.current
+      ?.querySelector(`[data-conflict="${next + 1}"]`)
       ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }
   // Forward goes to the next block still waiting for a pick, and round to the first once none are.
@@ -329,11 +398,52 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
     const waiting = blocks.map((index, number) => (choices[index] ? -1 : number)).filter((number) => number >= 0)
     go(waiting.find((number) => number > at) ?? waiting[0] ?? at + 1)
   }
+  const step = useRef({ go, forward, at })
+  step.current = { go, forward, at }
+  useEffect(() => {
+    const onStep = (event: Event) => {
+      const { go, forward, at } = step.current
+      if ((event as CustomEvent<number>).detail > 0) forward()
+      else go(at - 1)
+    }
+    window.addEventListener(MERGE_STEP, onStep)
+    return () => window.removeEventListener(MERGE_STEP, onStep)
+  }, [])
 
   const starts: Starts = { ours: 1, result: 1, theirs: 1 }
   let number = 0
+  const segments = file.segments.map((segment, index) => {
+    const here = { ...starts }
+    if (segment.kind === 'common') {
+      starts.ours += segment.lines.length
+      starts.result += segment.lines.length
+      starts.theirs += segment.lines.length
+      // biome-ignore lint/suspicious/noArrayIndexKey: segments of one fixed file
+      return <Common key={index} path={file.path} lines={segment.lines} starts={here} split={split} />
+    }
+    number++
+    starts.ours += segment.ours.length
+    starts.theirs += segment.theirs.length
+    // The result counts what has been picked; a block still open adds nothing yet.
+    starts.result += blockLines(segment, choices[index])?.length ?? 0
+    return (
+      <Block
+        // biome-ignore lint/suspicious/noArrayIndexKey: segments of one fixed file
+        key={index}
+        path={file.path}
+        block={segment}
+        number={number}
+        starts={here}
+        choice={choices[index]}
+        sides={file.sides}
+        split={split}
+        onChoose={(next) => choose(index, next)}
+      />
+    )
+  })
+
   return (
-    <section aria-label={`Merge ${file.path}`} className="flex h-full min-h-0 flex-col">
+    <section ref={page} aria-label={`Merge ${file.path}`} className="flex h-full min-h-0 flex-col">
       {/* On a narrow page the actions take a second row rather than pushing the path or Mark resolved away. */}
       <header className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-border border-b bg-card px-3 py-1.5">
         <div className="flex min-w-48 flex-1 items-center gap-2">
@@ -348,21 +458,25 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
         <div className="ms-auto flex flex-wrap items-center justify-end gap-1">
           {whole === null ? (
             <>
-              <IconTool label="Previous conflict" onClick={() => go(at - 1)} disabled={total < 2}>
+              <IconTool
+                label="Previous conflict"
+                tip="Previous conflict (k)"
+                onClick={() => go(at - 1)}
+                disabled={total < 2}>
                 <ChevronUp />
               </IconTool>
               <span className="whitespace-nowrap text-muted-foreground tabular-nums">
                 Conflict {Math.min(at + 1, total)} of {total}
               </span>
-              <IconTool label="Next conflict" onClick={forward} disabled={!total}>
+              <IconTool label="Next conflict" tip="Next conflict (j)" onClick={forward} disabled={!total}>
                 <ChevronDown />
               </IconTool>
               <Separator orientation="vertical" className="mx-1 h-5" />
               <Button size="sm" variant="ghost" onClick={() => all('ours')}>
-                All ours
+                All current
               </Button>
               <Button size="sm" variant="ghost" onClick={() => all('theirs')}>
-                All theirs
+                All incoming
               </Button>
               <Separator orientation="vertical" className="mx-1 h-5" />
               <Button size="sm" variant="ghost" onClick={() => setWhole(resultText(file, choices))}>
@@ -375,6 +489,14 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
               Back to blocks
             </Button>
           )}
+          <IconTool
+            label={split ? 'Stacked layout' : 'Split layout'}
+            tip={split ? 'Stacked layout (t)' : 'Split layout (t)'}
+            onClick={() =>
+              settings.set((prev) => ({ ...prev, diffStyle: prev.diffStyle === 'split' ? 'unified' : 'split' }))
+            }>
+            {split ? <Rows3 /> : <Columns3 />}
+          </IconTool>
           <Button
             size="sm"
             variant="ghost"
@@ -398,52 +520,23 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
             className="h-full resize-none font-[inherit]"
           />
         </div>
-      ) : (
+      ) : split ? (
         <>
-          <div className="grid shrink-0 grid-cols-3 border-border border-b bg-card">
-            <Head
-              name="Ours"
-              detail={oursLabel === 'HEAD' ? (status?.branch ?? 'HEAD') : oursLabel}
-              bar="bg-tn-green"
-              tone="text-tn-green"
-            />
+          <div className="grid shrink-0 grid-cols-3 border-border border-b bg-card [&>*]:px-3 [&>*]:py-1.5">
+            <SideName side="ours" sides={file.sides} fallback={first?.kind === 'conflict' ? first.oursLabel : ''} />
             <div className="border-border border-x">
-              <Head name="Result" bar="bg-foreground/60" tone="text-foreground" />
+              <ResultName sides={file.sides} />
             </div>
-            <Head name="Theirs" detail={theirsLabel} bar="bg-tn-blue" tone="text-tn-blue" />
+            <SideName side="theirs" sides={file.sides} fallback={first?.kind === 'conflict' ? first.theirsLabel : ''} />
           </div>
           <div className="min-h-0 flex-1 overflow-auto">
             <div className="grid grid-cols-3 [&>*:nth-child(3n+2)]:border-border [&>*:nth-child(3n+2)]:border-x">
-              {file.segments.map((segment, index) => {
-                const here = { ...starts }
-                if (segment.kind === 'common') {
-                  starts.ours += segment.lines.length
-                  starts.result += segment.lines.length
-                  starts.theirs += segment.lines.length
-                  // biome-ignore lint/suspicious/noArrayIndexKey: segments of one fixed file
-                  return <Common key={index} path={file.path} lines={segment.lines} starts={here} />
-                }
-                number++
-                starts.ours += segment.ours.length
-                starts.theirs += segment.theirs.length
-                // The result counts what has been picked; a block still open adds nothing yet.
-                starts.result += blockLines(segment, choices[index])?.length ?? 0
-                return (
-                  <Block
-                    // biome-ignore lint/suspicious/noArrayIndexKey: segments of one fixed file
-                    key={index}
-                    path={file.path}
-                    block={segment}
-                    number={number}
-                    starts={here}
-                    choice={choices[index]}
-                    onChoose={(next) => choose(index, next)}
-                  />
-                )
-              })}
+              {segments}
             </div>
           </div>
         </>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-auto">{segments}</div>
       )}
     </section>
   )
@@ -469,8 +562,9 @@ function Finished() {
   )
 }
 
-// Three panes per conflicted file: ours, the result being built, and theirs; each block takes a side,
-// both, the base, or a hand edit, and Mark resolved writes the result and stages it.
+// Each conflicted file as GitHub shows a conflict: the current change and the incoming one, each against the
+// merge base, and the result being built, side by side or stacked as the diff settings say. A block takes a
+// side, both, the base, or a hand edit, and Mark resolved writes the result and stages it.
 export default function MergeEditor() {
   const app = useApp()
   const { mergeFile, queries } = app

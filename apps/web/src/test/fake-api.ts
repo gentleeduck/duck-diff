@@ -72,6 +72,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       finalNewline: true,
       segments: [],
       stages: { base: null, ours: null, theirs: null },
+      sides: { ours: null, theirs: null, base: null },
     }),
     lsp: {
       definition: async () => ({ source: null, server: null, locations: [] }),

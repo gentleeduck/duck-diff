@@ -7,7 +7,7 @@ import { SymbolPanel } from '../code-nav/SymbolPanel'
 import { CompareBar } from '../compare/CompareBar'
 import { FilesSidebar } from '../files/FilesSidebar'
 import { BranchMenu } from '../git/BranchMenu'
-import { GitProvider } from '../git/GitProvider'
+import { GitProvider, useGit } from '../git/GitProvider'
 import { SyncButtons } from '../git/SyncButtons'
 import { useUnread } from '../github/Inbox'
 import { useGitHub } from '../github/SignIn'
@@ -24,6 +24,7 @@ import { useDesktopNotices } from '../live/useDesktopNotices'
 import { useLiveRefresh } from '../live/useLiveRefresh'
 import { MergeHeader } from '../merge/MergeHeader'
 import { MergeSidebar } from '../merge/MergeSidebar'
+import { selectConflicts } from '../merge/merge-model'
 import { Palette } from '../palette/Palette'
 import { BottomPanel } from '../panel/BottomPanel'
 import { CommentsSheet } from '../review/CommentsSheet'
@@ -32,6 +33,7 @@ import { createAppRouter } from '../router/router'
 import { SettingsPopover } from '../settings/SettingsPopover'
 import { Sidebar } from '../sidebar/Sidebar'
 import { panelShown, type Settings, togglePanel } from '../state/settings'
+import { useStage } from '../state/stage'
 import { WritesProvider } from '../writes/WritesProvider'
 import { ActivityRail } from './ActivityRail'
 import { AppProvider, useApp } from './AppProvider'
@@ -57,6 +59,7 @@ const SHIPPED: View[] = [
   'security',
   'insights',
 ]
+const WITH_MERGE: View[] = ['changes', 'graph', 'merge', ...SHIPPED.slice(2)]
 
 const selectCommitCount = (state: GraphState) => state.entries.length
 const selectNumber = (place: Place) => place.number
@@ -256,12 +259,22 @@ function Screen() {
   const screen = screens[view]
   const panel = useSettings(useCallback((state: Settings) => panelShown(state, view), [view]))
   const unread = useUnread()
+  const conflicts = selectConflicts(useStage())
+  const conflictCount = conflicts ? conflicts.split('\n').length : 0
+  // The merge page has a place on the rail while git waits on an operation.
+  const merging = Boolean(useGit().status?.operation) || conflictCount > 0
   const { settings } = useApp()
   const flipPanel = () => settings.set((prev) => togglePanel(prev, view))
   return (
     <>
       <Shell
-        rail={<ActivityRail views={SHIPPED} badges={{ inbox: unread }} onShortcuts={() => setHelp(true)} />}
+        rail={
+          <ActivityRail
+            views={merging ? WITH_MERGE : SHIPPED}
+            badges={{ inbox: unread, merge: conflictCount }}
+            onShortcuts={() => setHelp(true)}
+          />
+        }
         topBar={screen.top}
         sidebar={screen.side}
         sidebarLabel={screen.label}

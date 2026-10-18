@@ -92,7 +92,7 @@ describe('parseConflicts', () => {
 let repo: TestRepo
 afterEach(() => repo?.cleanup())
 
-function conflicted(): TestRepo {
+function conflicted(style = 'diff3'): TestRepo {
   repo = createRepo()
   repo.write('a.txt', 'one\ntwo\nthree\n')
   repo.commit('base')
@@ -103,7 +103,7 @@ function conflicted(): TestRepo {
   repo.write('a.txt', 'one\nTWO main\nthree\n')
   repo.commit('main')
   try {
-    repo.git('-c', 'merge.conflictStyle=diff3', 'merge', 'feature')
+    repo.git('-c', `merge.conflictStyle=${style}`, 'merge', 'feature')
   } catch {}
   return repo
 }
@@ -123,6 +123,28 @@ describe('readConflict', () => {
       base: ['two'],
       theirs: ['TWO feature'],
       theirsLabel: 'feature',
+    })
+  })
+
+  it('finds the base of a block written without diff3 markers', async () => {
+    conflicted('merge')
+    const file = await readConflict(repo.path, 'a.txt')
+    expect(file.segments[1]).toMatchObject({
+      kind: 'conflict',
+      ours: ['TWO main'],
+      base: ['two'],
+      theirs: ['TWO feature'],
+    })
+  })
+
+  it('names the commits on each side and their merge base', async () => {
+    conflicted()
+    const file = await readConflict(repo.path, 'a.txt')
+    const short = (ref: string) => repo.git('rev-parse', '--short', ref).trim()
+    expect(file.sides).toEqual({
+      ours: { name: 'main', sha: short('main'), subject: 'main' },
+      theirs: { name: 'feature', sha: short('feature'), subject: 'feature' },
+      base: { name: 'merge base', sha: short('main~1'), subject: 'base' },
     })
   })
 
