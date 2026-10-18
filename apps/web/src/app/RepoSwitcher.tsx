@@ -50,12 +50,12 @@ function Row({
       onClick={() => openable && onOpen()}>
       {icon}
       <span className="min-w-0 shrink truncate">{name}</span>
-      {detail ? <span className="min-w-0 flex-1 truncate text-start text-muted-foreground">{detail}</span> : null}
       {tag ? (
-        <Badge variant={TAG_TONE[tag]} size="sm" className="ms-auto shrink-0">
+        <Badge variant={TAG_TONE[tag]} size="sm" className="shrink-0 bg-transparent">
           {tag}
         </Badge>
       ) : null}
+      {detail ? <span className="min-w-0 flex-[1_1_0] truncate text-start text-muted-foreground">{detail}</span> : null}
     </Button>
   )
 }
