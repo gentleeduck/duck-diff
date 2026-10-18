@@ -1,6 +1,4 @@
 import { execFileSync } from 'node:child_process'
-import { chmodSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GitError, runGit, streamGit, withOutput } from '../index'
@@ -51,15 +49,11 @@ describe('runGit', () => {
     expect(out.trim().split('\n')).toHaveLength(6)
   })
 
-  it('gives a command that runs hooks minutes of quiet', async () => {
+  it('never stops what a user action runs, however long it stays quiet', async () => {
     repo = createRepo()
-    const hook = join(repo.path, '.git', 'hooks', 'pre-commit')
-    writeFileSync(hook, '#!/bin/sh\nsleep 0.3\n')
-    chmodSync(hook, 0o755)
-    repo.write('a.txt', 'a\n')
-    repo.git('add', 'a.txt')
-    await runGit(['commit', '-q', '-m', 'quiet hook'], { cwd: repo.path, timeoutMs: 100 })
-    expect(repo.git('log', '-1', '--format=%s').trim()).toBe('quiet hook')
+    const sink = { command: () => {}, output: () => {} }
+    const hang = () => runGit(['-c', 'alias.hang=!sleep 0.3', 'hang'], { cwd: repo.path, timeoutMs: 100 })
+    await withOutput(sink, hang)
   })
 
   it('stops a silent command with everything it started, at once', async () => {
