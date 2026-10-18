@@ -1,6 +1,6 @@
-import type { ConflictBlock, ConflictFile } from '@duck-diff/protocol'
+import type { ConflictBlame, ConflictBlock, ConflictFile } from '@duck-diff/protocol'
 import { Badge, type BadgeTone, Button, Separator, Textarea } from '@duck-diff/ui'
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   ArrowDownUp,
   ArrowLeftToLine,
@@ -11,10 +11,12 @@ import {
   ChevronUp,
   Columns3,
   GitCommitVertical,
+  History,
   Pencil,
   RotateCcw,
   Rows3,
   SquareArrowOutUpRight,
+  UserRound,
 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
@@ -31,18 +33,26 @@ import { useStore } from '../lib/store'
 import { fileGlyph } from '../sidebar/icons'
 import type { Settings } from '../state/settings'
 import { useStage } from '../state/stage'
+import { MergeHistory } from './MergeHistory'
 import { contextLines, MergeLines, ScrollRows } from './MergeLines'
 import {
   blockLines,
   type Choice,
   type Choices,
+  eitherBlame,
   firstConflictLine,
+  MERGE_BLAME,
   MERGE_STEP,
+  pickedBlame,
   resultText,
+  type SegmentBlame,
+  segmentBlames,
   selectConflicts,
   sideDiff,
+  sideLineBlame,
   unresolvedCount,
 } from './merge-model'
+import { SIDE, type Side } from './sides'
 
 const selectPath = (path: string | null) => path
 const selectSplit = (state: Settings) => state.diffStyle === 'split'
@@ -51,30 +61,13 @@ const selectTabSize = (state: Settings) => state.tabSize
 // Long unchanged stretches between blocks fold to their edges, as a diff's context does.
 const KEEP = 3
 const MARKERS = /^(<{7}|>{7})( |$)/m
+// Every line unknown while the blame is read, so the columns keep their place.
+const NO_BLAME: ConflictBlame = { ours: null, theirs: null, base: null }
 
-type Side = 'ours' | 'theirs'
 type Sides = ConflictFile['sides']
 type Column = 'ours' | 'result' | 'theirs' | 'stacked'
 // The sideways scroll a column of a file moves with.
 const columnKey = (path: string, column: Column) => `${column}:${path}`
-
-// The two sides as GitHub names them, each with a colour of its own; the changes inside are red and green.
-const SIDE = {
-  ours: {
-    label: 'Current change',
-    accept: 'Accept current',
-    bar: 'bg-tn-blue',
-    text: 'text-tn-blue',
-    tint: 'bg-tn-blue/10',
-  },
-  theirs: {
-    label: 'Incoming change',
-    accept: 'Accept incoming',
-    bar: 'bg-tn-magenta',
-    text: 'text-tn-magenta',
-    tint: 'bg-tn-magenta/10',
-  },
-} as const
 
 // How each pick reads in the result: the side's own colour, or a neutral one for a mix or a hand edit.
 const PICKS: Record<Choice['kind'], { tone: BadgeTone; edge: string }> = {
@@ -131,14 +124,32 @@ function ResultName({ sides }: { sides: Sides }) {
   )
 }
 
-function Common({ path, lines, starts, split }: { path: string; lines: string[]; starts: Starts; split: boolean }) {
+function Common({
+  path,
+  lines,
+  starts,
+  split,
+  blame,
+}: {
+  path: string
+  lines: string[]
+  starts: Starts
+  split: boolean
+  blame: SegmentBlame | undefined
+}) {
   const [open, setOpen] = useState(false)
   const folded = !open && lines.length > KEEP * 2 + 1
   const column = (start: number, which: Column, dim: boolean) => {
     const key = columnKey(path, which)
+    const who = blame && (which === 'ours' ? blame.ours : which === 'theirs' ? blame.theirs : eitherBlame(blame))
     const body = folded ? (
       <>
-        <MergeLines path={path} column={key} lines={contextLines(lines.slice(0, KEEP), start)} />
+        <MergeLines
+          path={path}
+          column={key}
+          lines={contextLines(lines.slice(0, KEEP), start)}
+          blame={who?.slice(0, KEEP)}
+        />
         <Button
           variant="nothing"
           size="none"
@@ -148,10 +159,15 @@ function Common({ path, lines, starts, split }: { path: string; lines: string[];
           <ChevronsUpDown className="size-4" />
           {lines.length - KEEP * 2} unchanged lines
         </Button>
-        <MergeLines path={path} column={key} lines={contextLines(lines.slice(-KEEP), start + lines.length - KEEP)} />
+        <MergeLines
+          path={path}
+          column={key}
+          lines={contextLines(lines.slice(-KEEP), start + lines.length - KEEP)}
+          blame={who?.slice(-KEEP)}
+        />
       </>
     ) : (
-      <MergeLines path={path} column={key} lines={contextLines(lines, start)} />
+      <MergeLines path={path} column={key} lines={contextLines(lines, start)} blame={who} />
     )
     return <div className={`min-w-0 ${dim ? 'opacity-60' : ''}`}>{body}</div>
   }
@@ -180,6 +196,7 @@ function Block({
   choice,
   sides,
   split,
+  blame,
   onChoose,
 }: {
   path: string
@@ -189,6 +206,7 @@ function Block({
   choice: Choice | undefined
   sides: Sides
   split: boolean
+  blame: SegmentBlame | undefined
   onChoose(next: Choice | undefined): void
 }) {
   const [editing, setEditing] = useKept<string | null>(`merge-block:${path}:${number}`, null)
@@ -278,29 +296,32 @@ function Block({
       </div>
     ) : chosen && choice ? (
       <div className={`border-s-2 ${PICKS[choice.kind].edge}`}>
-        <MergeLines path={path} column={key('result')} lines={contextLines(chosen, starts.result)} />
+        <MergeLines
+          path={path}
+          column={key('result')}
+          lines={contextLines(chosen, starts.result)}
+          blame={blame && pickedBlame(choice, blame)}
+        />
       </div>
     ) : (
       <p className="m-2 flex min-h-10 items-center justify-center rounded-md border border-warning/50 border-dashed bg-warning/5 px-3 text-center text-warning">
         Accept current, incoming or both, or write it yourself.
       </p>
     )
-  const ours = (
-    <MergeLines
-      path={path}
-      column={key('ours')}
-      lines={sideDiff(block.base, block.ours, starts.ours)}
-      dim={dim('ours')}
-    />
-  )
-  const theirs = (
-    <MergeLines
-      path={path}
-      column={key('theirs')}
-      lines={sideDiff(block.base, block.theirs, starts.theirs)}
-      dim={dim('theirs')}
-    />
-  )
+  const side = (which: Side) => {
+    const lines = sideDiff(block.base, block[which], starts[which])
+    return (
+      <MergeLines
+        path={path}
+        column={key(which)}
+        lines={lines}
+        dim={dim(which)}
+        blame={blame && sideLineBlame(lines, blame[which], blame.base)}
+      />
+    )
+  }
+  const ours = side('ours')
+  const theirs = side('theirs')
 
   if (split)
     return (
@@ -378,15 +399,18 @@ function FileSection({
   file,
   split,
   wrap,
+  blaming,
   bar,
   onDone,
 }: {
   file: ConflictFile
   split: boolean
   wrap: boolean
+  blaming: boolean
   bar(key: string): ReactNode
   onDone(): void
 }) {
+  const { queries } = useApp()
   const { run, busy } = useGit()
   const openInEditor = useOpenFile()
   // Kept per file and conflict shape, so a reload keeps the picks and a new conflict in the file starts over.
@@ -398,6 +422,12 @@ function FileSection({
   const total = blocks.length
   const left = whole === null ? unresolvedCount(file, choices) : MARKERS.test(whole) ? 1 : 0
   const icon = fileGlyph(file.path.split('/').pop() ?? file.path)
+  const [history, setHistory] = useKept(`merge-history:${file.path}`, false)
+  const blamed = useQuery({ ...queries.git.conflictBlame(file.path), enabled: blaming })
+  const blames = useMemo(
+    () => (blaming ? segmentBlames(file, blamed.data ?? NO_BLAME) : undefined),
+    [blaming, blamed.data, file],
+  )
 
   const choose = (index: number, next: Choice | undefined) =>
     setChoices((now) => {
@@ -423,8 +453,17 @@ function FileSection({
       starts.ours += segment.lines.length
       starts.result += segment.lines.length
       starts.theirs += segment.lines.length
-      // biome-ignore lint/suspicious/noArrayIndexKey: segments of one fixed file
-      return <Common key={index} path={file.path} lines={segment.lines} starts={here} split={split} />
+      return (
+        <Common
+          // biome-ignore lint/suspicious/noArrayIndexKey: segments of one fixed file
+          key={index}
+          path={file.path}
+          lines={segment.lines}
+          starts={here}
+          split={split}
+          blame={blames?.[index]}
+        />
+      )
     }
     number++
     starts.ours += segment.ours.length
@@ -442,6 +481,7 @@ function FileSection({
         choice={choices[index]}
         sides={file.sides}
         split={split}
+        blame={blames?.[index]}
         onChoose={(next) => choose(index, next)}
       />
     )
@@ -484,6 +524,16 @@ function FileSection({
           <Button
             size="sm"
             variant="ghost"
+            aria-pressed={history}
+            className="aria-pressed:bg-accent"
+            title="The commits on each side that changed this file"
+            onClick={() => setHistory((open) => !open)}>
+            <History />
+            History
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
             title="Open the file at the first conflict left"
             onClick={() => void openInEditor(file.path, firstConflictLine(file, {}) ?? 1)}>
             <SquareArrowOutUpRight />
@@ -495,6 +545,7 @@ function FileSection({
           </Button>
         </div>
       </header>
+      {history ? <MergeHistory file={file} split={split} /> : null}
       {whole !== null ? (
         <div className="p-3">
           <Textarea
@@ -606,6 +657,13 @@ export default function MergeEditor() {
   const sideways = useCodeScrollX(page, widest, !wrap)
   const [at, setAt] = useState(0)
   const first = files[0]?.segments.find((segment) => segment.kind === 'conflict')
+  const [blaming, setBlaming] = useKept('merge-blame', false)
+
+  useEffect(() => {
+    const onBlame = () => setBlaming((on) => !on)
+    window.addEventListener(MERGE_BLAME, onBlame)
+    return () => window.removeEventListener(MERGE_BLAME, onBlame)
+  }, [setBlaming])
 
   useEffect(() => {
     const now = new Set(conflictKey.split('\n'))
@@ -704,6 +762,14 @@ export default function MergeEditor() {
               }>
               {split ? <Rows3 /> : <Columns3 />}
             </IconTool>
+            <span className={blaming ? 'text-tn-blue' : ''}>
+              <IconTool
+                label={blaming ? 'Hide blame' : 'Show blame'}
+                tip={`${blaming ? 'Hide' : 'Show'} who last changed each line (b)`}
+                onClick={() => setBlaming((on) => !on)}>
+                <UserRound />
+              </IconTool>
+            </span>
           </div>
         </div>
         <div ref={page} className="relative min-h-0 flex-1 overflow-auto">
@@ -731,6 +797,7 @@ export default function MergeEditor() {
               file={file}
               split={split}
               wrap={wrap}
+              blaming={blaming}
               bar={(key) => sideways.bar(key)}
               onDone={() => {
                 setResolved((before) => new Set(before).add(file.path))

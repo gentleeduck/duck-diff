@@ -129,6 +129,12 @@ export function gitQueries(api: Api) {
         queryFn: () => api.conflict(path),
         meta: { topics: ['index', 'worktree'] },
       }),
+    conflictBlame: (path: string) =>
+      queryOptions({
+        queryKey: ['git', 'conflict-blame', path],
+        queryFn: () => api.conflictBlame(path),
+        meta: { topics: ['refs', 'index'] },
+      }),
     // Code can change under a spot, so answers about it are kept only briefly; clicking back is still instant.
     symbol: (target: SymbolTarget) =>
       queryOptions({

@@ -1,6 +1,17 @@
 import type { ConflictFile } from '@duck-diff/protocol'
 import { describe, expect, it } from 'vitest'
-import { blockLines, conflictLines, firstConflictLine, resultText, sideDiff, unresolvedCount } from '../merge-model'
+import {
+  blockLines,
+  conflictLines,
+  eitherBlame,
+  firstConflictLine,
+  pickedBlame,
+  resultText,
+  segmentBlames,
+  sideDiff,
+  sideLineBlame,
+  unresolvedCount,
+} from '../merge-model'
 
 const file: ConflictFile = {
   path: 'a.txt',
@@ -77,15 +88,64 @@ describe('merge model', () => {
 describe('sideDiff', () => {
   it('shows a side against the base, pairing a replaced line with its replacement', () => {
     expect(sideDiff(['a', 'b', 'c'], ['a', 'B', 'c', 'd'], 10)).toEqual([
-      { kind: 'context', text: 'a', no: 10 },
-      { kind: 'deletion', text: 'b', no: null, partner: 'B' },
-      { kind: 'addition', text: 'B', no: 11, partner: 'b' },
-      { kind: 'context', text: 'c', no: 12 },
-      { kind: 'addition', text: 'd', no: 13 },
+      { kind: 'context', text: 'a', no: 10, at: 0 },
+      { kind: 'deletion', text: 'b', no: null, at: 1, partner: 'B' },
+      { kind: 'addition', text: 'B', no: 11, at: 1, partner: 'b' },
+      { kind: 'context', text: 'c', no: 12, at: 2 },
+      { kind: 'addition', text: 'd', no: 13, at: 3 },
     ])
   })
 
   it('reads a block without a base as all added', () => {
-    expect(sideDiff(null, ['x'], 1)).toEqual([{ kind: 'addition', text: 'x', no: 1 }])
+    expect(sideDiff(null, ['x'], 1)).toEqual([{ kind: 'addition', text: 'x', no: 1, at: 0 }])
+  })
+})
+
+describe('blame on the merge page', () => {
+  const who = (sha: string, text: string) => ({ sha, author: sha, time: 0, summary: '', text })
+  const shas = (lines: readonly ({ sha: string } | undefined)[] | undefined) => lines?.map((line) => line?.sha)
+  const labels = { oursLabel: 'HEAD', baseLabel: 'base', theirsLabel: 'x' }
+  const merged: ConflictFile = {
+    ...file,
+    segments: [
+      { kind: 'common', lines: ['a', 'b theirs'] },
+      { kind: 'conflict', ours: ['x ours'], base: ['x'], theirs: ['x theirs', 'y theirs'], ...labels },
+      { kind: 'common', lines: ['z'] },
+    ],
+  }
+  const blame = {
+    ours: [who('o0', 'a'), who('o0', 'b'), who('o1', 'x ours'), who('o0', 'z')],
+    theirs: [who('o0', 'a'), who('t1', 'b theirs'), who('t2', 'x theirs'), who('t3', 'y theirs'), who('o0', 'z')],
+    base: [who('o0', 'a'), who('o0', 'b'), who('b0', 'x'), who('o0', 'z')],
+  }
+
+  it("finds each shown line in its side's blame, a line merged in from the other side in that one", () => {
+    const [top, block, end] = segmentBlames(merged, blame)
+    expect(shas(top?.ours)).toEqual(['o0', undefined])
+    expect(shas(top?.theirs)).toEqual(['o0', 't1'])
+    expect(top && shas(eitherBlame(top))).toEqual(['o0', 't1'])
+    expect(shas(block?.ours)).toEqual(['o1'])
+    expect(shas(block?.theirs)).toEqual(['t2', 't3'])
+    expect(shas(block?.base)).toEqual(['b0'])
+    expect(shas(end?.ours)).toEqual(['o0'])
+  })
+
+  it('blames a removed line at the base and the rest at the side', () => {
+    const [, block] = segmentBlames(merged, blame)
+    const lines = sideDiff(['x'], ['x theirs', 'y theirs'], 3)
+    expect(block && shas(sideLineBlame(lines, block.theirs, block.base))).toEqual(['b0', 't2', 't3'])
+  })
+
+  it('blames a pick at the side it came from, and a hand edit at nobody', () => {
+    const [, block] = segmentBlames(merged, blame)
+    if (!block) throw new Error('no block')
+    expect(shas(pickedBlame({ kind: 'both', first: 'theirs' }, block))).toEqual(['t2', 't3', 'o1'])
+    expect(shas(pickedBlame({ kind: 'base' }, block))).toEqual(['b0'])
+    expect(shas(pickedBlame({ kind: 'edit', lines: ['new', 'text'] }, block))).toEqual([undefined, undefined])
+  })
+
+  it('knows no line of a side that has no blame', () => {
+    const [top] = segmentBlames(merged, { ours: null, theirs: null, base: null })
+    expect(top?.ours).toEqual([undefined, undefined])
   })
 })

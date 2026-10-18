@@ -145,13 +145,15 @@ export interface BlameLine {
   summary: string
 }
 
+export interface BlameText extends BlameLine {
+  text: string
+}
+
 // `--porcelain` repeats a commit's details only the first time it appears; later lines refer back by sha.
-// With mergeBase, blames at the merge-base of ref and it, the old side of a three-dot comparison.
-export async function blame(repo: string, path: string, ref?: string, mergeBase?: string): Promise<BlameLine[]> {
-  const at = ref && mergeBase ? (await runGit(['merge-base', ref, mergeBase], { cwd: repo })).trim() : ref
+export async function blameText(repo: string, path: string, at?: string): Promise<BlameText[]> {
   const out = await runGit(['blame', '--porcelain', ...(at ? [at] : []), '--', path], { cwd: repo })
   const commits = new Map<string, Omit<BlameLine, 'sha'>>()
-  const lines: BlameLine[] = []
+  const lines: BlameText[] = []
   let sha = ''
   let pending: Partial<Omit<BlameLine, 'sha'>> = {}
   for (const line of out.split('\n')) {
@@ -166,8 +168,14 @@ export async function blame(repo: string, path: string, ref?: string, mergeBase?
       if (!commits.has(sha)) {
         commits.set(sha, { author: pending.author ?? '', time: pending.time ?? 0, summary: pending.summary ?? '' })
       }
-      lines.push({ sha, ...(commits.get(sha) as Omit<BlameLine, 'sha'>) })
+      lines.push({ sha, ...(commits.get(sha) as Omit<BlameLine, 'sha'>), text: line.slice(1) })
     }
   }
   return lines
+}
+
+// With mergeBase, blames at the merge-base of ref and it, the old side of a three-dot comparison.
+export async function blame(repo: string, path: string, ref?: string, mergeBase?: string): Promise<BlameLine[]> {
+  const at = ref && mergeBase ? (await runGit(['merge-base', ref, mergeBase], { cwd: repo })).trim() : ref
+  return (await blameText(repo, path, at)).map(({ sha, author, time, summary }) => ({ sha, author, time, summary }))
 }

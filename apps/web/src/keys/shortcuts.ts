@@ -18,6 +18,7 @@ export interface Shortcut {
 const CHANGES: View[] = ['changes']
 // Stepping and the layout work on the merge page as well, through its conflicts.
 const MERGING: View[] = ['changes', 'merge']
+const MERGE: View[] = ['merge']
 
 // Every key the page answers. No chords, modes or remapping: a key does one thing.
 export const SHORTCUTS: Shortcut[] = [
@@ -73,6 +74,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'viewed', title: 'Mark the file viewed', group: 'Changes', keys: ['v'], views: CHANGES },
   { id: 'open', title: 'Open the change in your editor', group: 'Changes', keys: ['o'], views: CHANGES },
   { id: 'toggle-layout', title: 'Split or stacked', group: 'Changes', keys: ['t'], views: MERGING },
+  { id: 'toggle-blame', title: 'Show or hide blame while merging', group: 'Changes', keys: ['b'], views: MERGE },
   { id: 'focus-filter', title: 'Filter files', group: 'Changes', keys: ['/'], views: CHANGES },
 ]
 
