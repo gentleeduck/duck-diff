@@ -54,6 +54,7 @@ describe('/api/git', () => {
       behind: 0,
       staged: 0,
       operation: null,
+      incoming: null,
     })
     expect((await send('/api/git/push')).status).toBe(200)
     expect(await (await fixture.get('/api/sync')).json()).toMatchObject({ upstream: 'origin/main' })
