@@ -122,3 +122,22 @@ test('the repo switcher adds another repository and opens it on its own page', a
     other.cleanup()
   }
 })
+
+test('a long branch name truncates before its tag, which sits right beside it', async ({ page, app, repo }) => {
+  repo.commit('work in progress')
+  const branch = 'someone/iry-134-catalogue-4-variants-with-a-long-tail'
+  repo.git('checkout', '-q', '-b', branch)
+  await page.goto(`${app.url}&view=graph`)
+  const row = page.getByRole('region', { name: 'Worktrees' }).getByRole('button', { name: /open here$/ })
+  const tag = row.getByText('here', { exact: true })
+  await expect(tag).toBeVisible()
+  const [name, badge, box] = await Promise.all([
+    row.getByText(branch).boundingBox(),
+    tag.boundingBox(),
+    row.boundingBox(),
+  ])
+  if (!name || !badge || !box) throw new Error('nothing to measure')
+  expect(name.x + name.width).toBeLessThanOrEqual(badge.x)
+  expect(badge.x + badge.width).toBeLessThanOrEqual(box.x + box.width)
+  expect(await tag.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe('rgba(0, 0, 0, 0)')
+})
