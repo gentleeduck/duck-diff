@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { GitError } from './errors'
 import { runGit } from './run'
@@ -15,6 +16,8 @@ export interface SyncStatus {
   staged: number
   // A merge, cherry-pick, revert or rebase stopped part way, usually on conflicts.
   operation: Operation | null
+  // What it brings in: the branch being merged, or the commit picked, reverted or replayed.
+  incoming: string | null
 }
 
 export type Operation = 'merge' | 'cherry-pick' | 'revert' | 'rebase'
@@ -28,6 +31,30 @@ const MARKERS: [string, Operation][] = [
   ['rebase-apply', 'rebase'],
 ]
 
+// The commit each operation records as the one coming in.
+const INCOMING: Record<Operation, string> = {
+  merge: 'MERGE_HEAD',
+  'cherry-pick': 'CHERRY_PICK_HEAD',
+  revert: 'REVERT_HEAD',
+  rebase: 'REBASE_HEAD',
+}
+
+// A merge names its branch in the message git prepared; anything else, or a merge of a bare commit, by short sha.
+export async function readIncoming(repo: string, operation: Operation | null): Promise<string | null> {
+  if (!operation) return null
+  if (operation === 'merge') {
+    const gitDir = (await runGit(['rev-parse', '--absolute-git-dir'], { cwd: repo })).trim()
+    const message = await readFile(join(gitDir, 'MERGE_MSG'), 'utf8').catch(() => '')
+    const named = /^Merge (?:remote-tracking )?(?:branch|tag) '([^']+)'/.exec(message)?.[1]
+    if (named) return named
+  }
+  const sha = await runGit(['rev-parse', '--short', '--verify', '--quiet', INCOMING[operation]], {
+    cwd: repo,
+    okExitCodes: [1, 128],
+  })
+  return sha.trim() || null
+}
+
 export async function readOperation(repo: string): Promise<Operation | null> {
   const gitDir = (await runGit(['rev-parse', '--absolute-git-dir'], { cwd: repo })).trim()
   return MARKERS.find(([marker]) => existsSync(join(gitDir, marker)))?.[1] ?? null
@@ -40,7 +67,15 @@ export async function readSyncStatus(repo: string): Promise<SyncStatus> {
     runGit(['status', '--porcelain=v2', '--branch', '--untracked-files=no'], { cwd: repo }),
     readOperation(repo),
   ])
-  const status: SyncStatus = { branch: null, upstream: null, ahead: 0, behind: 0, staged: 0, operation }
+  const status: SyncStatus = {
+    branch: null,
+    upstream: null,
+    ahead: 0,
+    behind: 0,
+    staged: 0,
+    operation,
+    incoming: await readIncoming(repo, operation),
+  }
   for (const line of out.split('\n')) {
     if (line.startsWith('# branch.head ')) {
       const head = line.slice(14)

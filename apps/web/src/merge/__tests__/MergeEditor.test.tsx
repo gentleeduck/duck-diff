@@ -88,6 +88,53 @@ describe('merge editor', () => {
     })
     fireEvent.click(within(first).getByRole('button', { name: /Use this text/ }))
     expect(within(first).getByText('merged by hand')).toBeTruthy()
-    expect(within(first).getByText('Conflict 1: edited')).toBeTruthy()
+    expect(within(first).getByText('Edited')).toBeTruthy()
+  })
+
+  it('shows the side taken, and steps the other back', async () => {
+    window.history.replaceState(null, '', '/?view=merge&path=a.txt')
+    render(<App api={fakeApi({ conflict: async () => file })} />)
+    const ours = await screen.findByRole('region', { name: 'Ours, conflict 1' })
+    const accept = within(ours).getByRole('button', { name: /Accept ours/ })
+    fireEvent.click(accept)
+    expect(accept.getAttribute('aria-pressed')).toBe('true')
+    expect(within(screen.getByRole('region', { name: 'Result, conflict 1' })).getByText('Ours')).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: 'Result, conflict 2' })).getByText('Needs a pick')).toBeTruthy()
+    const theirs = screen.getByRole('region', { name: 'Theirs, conflict 1' })
+    expect(theirs.querySelector('.opacity-40')).not.toBeNull()
+  })
+
+  it('names the merge in the top bar and offers Continue once every file is resolved', async () => {
+    window.history.replaceState(null, '', '/?view=merge&path=a.txt')
+    const calls: unknown[][] = []
+    let left = [conflicted]
+    const api = fakeApi({
+      files: async (target: DiffTarget) => (target.kind === 'unstaged' ? left : []),
+      conflict: async () => file,
+      sync: async () => ({
+        branch: 'main',
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+        staged: 0,
+        operation: 'merge',
+        incoming: 'feature',
+      }),
+      git: async (action, body) => {
+        calls.push([action, body])
+        if (action === 'resolve-text') left = []
+        return {}
+      },
+    })
+    render(<App api={api} />)
+    expect(await screen.findByText('Merging feature into main')).toBeTruthy()
+    const editor = await screen.findByRole('region', { name: 'Merge a.txt' })
+    fireEvent.click(within(editor).getByRole('button', { name: 'All theirs' }))
+    fireEvent.click(within(editor).getByRole('button', { name: 'Mark resolved' }))
+    expect(await screen.findByText('Every conflict is resolved.')).toBeTruthy()
+    const proceed = await screen.findByRole('button', { name: 'Continue' })
+    await waitFor(() => expect((proceed as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(proceed)
+    await waitFor(() => expect(calls).toContainEqual(['continue', undefined]))
   })
 })

@@ -13,6 +13,11 @@
   keymaps editor. A few plain keys do one thing each: Ctrl+P (Cmd+P on a Mac) searches, j and k step through
   changes, J and K through files, s, u and x stage, unstage and discard, c comments, v marks viewed, o opens in
   your editor, t flips the layout, / filters, and arrows, Home and End walk any list. `?` lists them.
+- The merge page is easier to work in. The top bar says what is coming together ("Merging feature into main")
+  and how many files are left, with Continue and Abort beside it; each file in the list shows its conflict
+  count; every column has line numbers; each conflict reads straight across one strip with its state in a
+  coloured badge, the side taken marked and the other dimmed; and after the last file the page offers Continue
+  right there. The sync status now names what an operation brings in.
 - Nothing you start has a time limit any more: a push of a big repo, a pre-push build, a long rebase or a bisect
   run takes as long as it takes. Background reads still give up on a git that has printed nothing for a while,
   and then stop the hooks and everything it started with it.
