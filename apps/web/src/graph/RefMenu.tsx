@@ -63,7 +63,15 @@ export function RefMenu({
     const values = await ask.prompt({
       title: `Upstream for ${name}`,
       body: 'The remote branch this one pulls from and pushes to.',
-      fields: [{ name: 'upstream', label: 'Remote branch', placeholder: `origin/${name}` }],
+      // The checked-out branch shows what it tracks now; the graph knows only that one's.
+      fields: [
+        {
+          name: 'upstream',
+          label: 'Remote branch',
+          placeholder: `origin/${name}`,
+          initial: name === current ? (status?.upstream ?? undefined) : undefined,
+        },
+      ],
       action: 'Set upstream',
     })
     if (values)

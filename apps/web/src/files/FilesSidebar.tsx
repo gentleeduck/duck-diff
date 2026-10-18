@@ -1,6 +1,6 @@
 import { Input } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useApp } from '../app/AppProvider'
 import { TreeSkeleton } from '../app/skeletons'
 import { useOpenFile } from '../hooks/useOpenFile'
@@ -8,6 +8,7 @@ import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
 import { withoutHistory } from '../lib/history'
+import { useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import { FileTree } from '../sidebar/FileTree'
 import { CopyItems, FileMenu } from '../sidebar/tree-menus'
@@ -28,7 +29,7 @@ export function FilesSidebar() {
   const selected = useStore(fileSelection, selectPath)
   const tree = useQuery(queries.git.tree())
   const paths = tree.data ?? (tree.isError ? NO_PATHS : null)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useKept('files-query', '')
 
   // Like a repo's home page on GitHub, the README is what opens first.
   useEffect(() => {
@@ -57,6 +58,7 @@ export function FilesSidebar() {
         <TreeSkeleton />
       ) : shown.length > 0 ? (
         <FileTree
+          keep="files"
           label="All files"
           paths={shown}
           fileFor={fileFor}

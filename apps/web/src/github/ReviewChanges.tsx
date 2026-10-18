@@ -6,6 +6,7 @@ import { useApp } from '../app/AppProvider'
 import { COMPARE } from '../app/fit'
 import type { ReviewEvent } from '../lib/api'
 import { fitRows } from '../lib/fit-rows'
+import { useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import type { PullReviewState } from './pull-review'
 
@@ -25,7 +26,7 @@ export function ReviewChanges({ fit = false }: { fit?: boolean }) {
   const pending = useStore(pullReview, selectCount)
   const number = useStore(pullReview, selectNumber)
   const [open, setOpen] = useState(false)
-  const [body, setBody] = useState('')
+  const [body, setBody] = useKept(`review-body:${number}`, '')
   const [busy, setBusy] = useState<ReviewEvent | null>(null)
   if (number === null) return null
 

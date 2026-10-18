@@ -5,14 +5,15 @@ import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useStore } from '../lib/store'
 import { TerminalPane } from '../terminal/TerminalPane'
-import type { TerminalTab } from '../terminal/tabs'
+import type { TerminalTabsState } from '../terminal/tabs'
 import { OutputView } from './OutputView'
 import type { PanelState } from './panel'
 
 const selectOpen = (state: PanelState) => state.open
 const selectTab = (state: PanelState) => state.tab
 const selectHeight = (state: PanelState) => state.height
-const selectTabs = (state: { tabs: TerminalTab[] }) => state.tabs
+const selectTabs = (state: TerminalTabsState) => state.tabs
+const selectLoaded = (state: TerminalTabsState) => state.loaded
 const MIN_HEIGHT = 120
 
 function PanelTab({
@@ -76,18 +77,20 @@ export function BottomPanel() {
   const current = useStore(panel, selectTab)
   const height = useStore(panel, selectHeight)
   const terminals = useStore(terminalTabs, selectTabs)
+  const loaded = useStore(terminalTabs, selectLoaded)
   // Once shown, the panel stays mounted while hidden, so shells keep their screens and scrollback.
   const [seen, setSeen] = useState(open)
   useEffect(() => {
     if (open) setSeen(true)
   }, [open])
 
-  // A closed terminal hands its place to its neighbour, or to the output.
+  // A closed terminal hands its place to its neighbour, or to the output. After a reload, the tab it showed may
+  // still be on its way back from the server.
   useEffect(() => {
-    if (current !== 'output' && !terminals.some((tab) => tab.key === current)) {
+    if (loaded && current !== 'output' && !terminals.some((tab) => tab.key === current)) {
       panel.show(terminals.at(-1)?.key ?? 'output')
     }
-  }, [current, terminals, panel])
+  }, [loaded, current, terminals, panel])
 
   // Hidden, the panel folds to nothing instead of leaving, so its shells keep running.
   const fold = useRef<ResizablePanelHandle | null>(null)

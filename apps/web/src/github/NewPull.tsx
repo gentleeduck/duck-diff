@@ -20,6 +20,7 @@ import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
+import { useKept } from '../lib/kept'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { Avatar } from './Conversation'
 import { MarkdownEditor } from './MarkdownEditor'
@@ -31,15 +32,15 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
   const { api, pullSelection, queries, queryClient } = app
   const { status, run } = useGit()
   const { refs } = useRefs()
-  const [open, setOpen] = useState(false)
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
-  const [base, setBase] = useState('')
-  const [draft, setDraft] = useState(false)
+  const [open, setOpen] = useKept('new-pull:open', false)
+  const [title, setTitle] = useKept('new-pull:title', '')
+  const [body, setBody] = useKept('new-pull:body', '')
+  const [base, setBase] = useKept('new-pull:base', '')
+  const [draft, setDraft] = useKept('new-pull:draft', false)
   const [sending, setSending] = useState(false)
-  const [reviewers, setReviewers] = useState<string[]>([])
-  const [labels, setLabels] = useState<string[]>([])
-  const [assignees, setAssignees] = useState<string[]>([])
+  const [reviewers, setReviewers] = useKept<string[]>('new-pull:reviewers', [])
+  const [labels, setLabels] = useKept<string[]>('new-pull:labels', [])
+  const [assignees, setAssignees] = useKept<string[]>('new-pull:assignees', [])
   const draftId = useId()
   const head = status?.branch ?? null
   const branches = refs.filter((ref) => ref.kind === 'branch' && ref.name !== head).map((ref) => ref.name)
@@ -60,7 +61,7 @@ export function NewPull({ onCreated }: { onCreated(): void }) {
       (templates) => templates.pull && setBody((prev) => prev || (templates.pull ?? '')),
       () => {},
     )
-  }, [open, queries, queryClient])
+  }, [open, queries, queryClient, setTitle, setBody, setBase])
 
   // What GitHub's compare page shows before opening: the commits and files the pull request will carry.
   const from = refs.some((ref) => ref.name === `origin/${base}`) ? `origin/${base}` : base

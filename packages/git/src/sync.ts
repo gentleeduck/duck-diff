@@ -3,8 +3,6 @@ import { join } from 'node:path'
 import { GitError } from './errors'
 import { runGit } from './run'
 
-// Network commands can wait on a slow remote; local ones keep the default.
-export const NETWORK_TIMEOUT_MS = 120_000
 // Pull may want to write a merge message; it must never open an editor from a server.
 export const NO_EDITOR = { GIT_EDITOR: 'true' }
 
@@ -78,25 +76,21 @@ export async function push(repo: string): Promise<void> {
   const { branch, upstream } = await readSyncStatus(repo)
   if (!branch) throw new GitError('failed', null, '', 'HEAD is detached; switch to a branch to push')
   if (upstream) {
-    await runGit(['push'], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
+    await runGit(['push'], { cwd: repo })
     return
   }
   const remotes = (await runGit(['remote'], { cwd: repo })).split('\n').filter(Boolean)
   const remote = remotes.includes('origin') ? 'origin' : remotes[0]
   if (!remote) throw new GitError('failed', null, '', 'this repository has no remote to push to')
-  await runGit(['push', '--set-upstream', remote, branch], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
+  await runGit(['push', '--set-upstream', remote, branch], { cwd: repo })
 }
 
 export async function pull(repo: string, options: { rebase?: boolean } = {}): Promise<void> {
-  await runGit(['pull', '--no-edit', ...(options.rebase ? ['--rebase'] : [])], {
-    cwd: repo,
-    timeoutMs: NETWORK_TIMEOUT_MS,
-    env: NO_EDITOR,
-  })
+  await runGit(['pull', '--no-edit', ...(options.rebase ? ['--rebase'] : [])], { cwd: repo, env: NO_EDITOR })
 }
 
 export async function fetchAll(repo: string): Promise<void> {
-  await runGit(['fetch', '--all', '--prune'], { cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
+  await runGit(['fetch', '--all', '--prune'], { cwd: repo })
 }
 
 export async function switchBranch(

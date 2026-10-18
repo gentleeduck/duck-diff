@@ -187,7 +187,7 @@ export async function submoduleLog(
 
 export async function updateSubmodules(repo: string, options: { path?: string; init: boolean }): Promise<void> {
   const args = ['submodule', 'update', '--recursive', ...(options.init ? ['--init'] : [])]
-  await runGit([...args, '--', ...(options.path ? [options.path] : [])], { cwd: repo, timeoutMs: 300_000 })
+  await runGit([...args, '--', ...(options.path ? [options.path] : [])], { cwd: repo })
 }
 
 export async function syncSubmodules(repo: string): Promise<void> {

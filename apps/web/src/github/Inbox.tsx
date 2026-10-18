@@ -2,7 +2,7 @@ import type { Notification } from '@duck-diff/protocol'
 import { Badge, type BadgeTone, Button, Tabs, TabsList, TabsTrigger } from '@duck-diff/ui'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell, CheckCheck, CircleDot, GitPullRequest, MailCheck, RefreshCw, Rocket, Workflow } from 'lucide-react'
-import { type ReactNode, useRef, useState } from 'react'
+import { type ReactNode, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
@@ -10,6 +10,7 @@ import { pageColumn } from '../app/page-column'
 import { ListRowsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
 import { useView } from '../hooks/useView'
+import { useKept } from '../lib/kept'
 import { useGitHub } from './SignIn'
 import { isReady } from './store'
 import { ago } from './time'
@@ -58,7 +59,7 @@ export function Inbox() {
   const ready = isReady(useGitHub())
   const page = useRef<HTMLDivElement>(null)
   useScrollMemory(page, ready ? 'inbox' : null)
-  const [all, setAll] = useState(false)
+  const [all, setAll] = useKept('inbox-all', false)
   const client = useQueryClient()
   const { data: items = null, error, refetch } = useQuery({ ...queries.gh.notifications(all), enabled: ready })
   const failed = error ? error.message : null

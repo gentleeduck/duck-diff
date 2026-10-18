@@ -26,4 +26,8 @@ window.matchMedia ??= (query: string) =>
 
 Element.prototype.scrollIntoView ??= () => {}
 
-afterEach(() => cleanup())
+// Kept page state and scroll memory live in sessionStorage, which jsdom shares across a file's tests.
+afterEach(() => {
+  cleanup()
+  window.sessionStorage.clear()
+})

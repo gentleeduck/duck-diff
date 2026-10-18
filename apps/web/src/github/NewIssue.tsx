@@ -17,10 +17,11 @@ import {
   Textarea,
 } from '@duck-diff/ui'
 import { ArrowLeft, FileText, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { LinesSkeleton } from '../app/skeletons'
+import { useKept } from '../lib/kept'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { MarkdownEditor } from './MarkdownEditor'
 
@@ -109,17 +110,15 @@ function Field({ field, value, onChange }: { field: FormField; value: string; on
 // GitHub's "New issue": choose a template (or a blank issue), then fill it in.
 export function NewIssue({ onCreated }: { onCreated(): void }) {
   const { api, issueSelection, queries, queryClient } = useApp()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useKept('new-issue:open', false)
   const [templates, setTemplates] = useState<IssueTemplate[] | null>(null)
-  const [chosen, setChosen] = useState<IssueTemplate | 'blank' | null>(null)
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
-  const [values, setValues] = useState<Values>({})
+  const [chosen, setChosen] = useKept<IssueTemplate | 'blank' | null>('new-issue:chosen', null)
+  const [title, setTitle] = useKept('new-issue:title', '')
+  const [body, setBody] = useKept('new-issue:body', '')
+  const [values, setValues] = useKept<Values>('new-issue:values', {})
   const [sending, setSending] = useState(false)
 
-  const start = () => {
-    setOpen(true)
-    setChosen(null)
+  const loadTemplates = () =>
     queryClient.fetchQuery(queries.gh.templates()).then(
       (found) => {
         setTemplates(found.issue)
@@ -127,7 +126,16 @@ export function NewIssue({ onCreated }: { onCreated(): void }) {
       },
       () => pick('blank'),
     )
+  const start = () => {
+    setOpen(true)
+    setChosen(null)
+    void loadTemplates()
   }
+  // Open on the template list before a reload: the list is read again.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once, for the state the reload brought back
+  useEffect(() => {
+    if (open && chosen === null) void loadTemplates()
+  }, [])
   const pick = (template: IssueTemplate | 'blank') => {
     setChosen(template)
     setTitle(template === 'blank' ? '' : template.title)

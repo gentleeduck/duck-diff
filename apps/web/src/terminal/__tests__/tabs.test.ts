@@ -22,6 +22,29 @@ describe('terminal tabs', () => {
     expect(tabs.get().tabs).toEqual([{ key: 'term-x', id: 'term-x', name: 'Terminal 1', title: 'Terminal 1' }])
     expect(tabs.add().title).toBe('Terminal 2')
   })
+
+  it('keeps their order, keys, names and titles across a reload', async () => {
+    const api = (ids: string[]) => ({
+      terminals: async () => ids.map((id) => ({ id, title: 'zsh', cwd: '/r' })),
+      closeTerminal: async () => {},
+    })
+    const before = createTerminalTabs(api([]))
+    await before.load()
+    const [one, two, three] = [before.add(), before.add(), before.add()]
+    before.setId(one.key, 'a')
+    before.setId(two.key, 'b')
+    before.setId(three.key, 'c')
+    before.rename(three.key, 'vim')
+    before.remove(one.key)
+
+    const after = createTerminalTabs(api(['c', 'b']))
+    await after.load()
+    expect(after.get().tabs).toEqual([
+      { key: two.key, id: 'b', name: 'Terminal 2', title: 'Terminal 2' },
+      { key: three.key, id: 'c', name: 'Terminal 3', title: 'vim' },
+    ])
+    expect(after.add().name).toBe('Terminal 4')
+  })
 })
 
 describe('running a command in a terminal', () => {

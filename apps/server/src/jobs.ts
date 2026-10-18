@@ -6,7 +6,7 @@ export interface Jobs {
   // Settles once jobs saved by an earlier run are back.
   ready: Promise<void>
   // Runs a user action, recording every git command it starts and everything they print.
-  run<T>(title: string, task: () => Promise<T>): Promise<T>
+  run<T>(title: string, task: () => Promise<T>, action?: string): Promise<T>
   // Newest first.
   list(): Job[]
   output(id: string): string | null
@@ -30,6 +30,7 @@ export const jobTitle = (action: string) => {
   const words = action.replaceAll('-', ' ')
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
+const INTERRUPTED = 'Stopped when duck-diff restarted'
 const PROMPT = '\x1b[1;34m$\x1b[0m '
 const DIM = '\x1b[2m'
 const RESET = '\x1b[0m'
@@ -46,19 +47,20 @@ export function createJobs(
 ): Jobs {
   const entries: Entry[] = []
   let counter = 0
-  // The finished jobs and the tail of what they printed outlive a restart or a new build taking over.
+  // The jobs and the tail of what they printed outlive a restart or a new build taking over.
   const save = () =>
     cache?.set(
       'jobs',
       'list',
-      entries
-        .filter((entry) => entry.job.status !== 'running')
-        .map((entry) => ({ job: entry.job, output: entry.output.slice(-keepOutput) })),
+      entries.map((entry) => ({ job: entry.job, output: entry.output.slice(-keepOutput) })),
     )
   const ready = (async () => {
     const saved = (await cache?.get<{ job: Job; output: string }[]>('jobs', 'list').catch(() => null)) ?? []
     for (const { job, output } of saved) {
-      if (entries.length < keep) entries.push({ job, output, pending: '', timer: null })
+      if (entries.length >= keep) break
+      // Still running when the last server went away: it did not finish, and pages waiting on it should hear so.
+      if (job.status === 'running') Object.assign(job, { status: 'failed', error: INTERRUPTED, endedAt: Date.now() })
+      entries.push({ job, output, pending: '', timer: null })
     }
   })()
 
@@ -79,7 +81,7 @@ export function createJobs(
 
   return {
     ready,
-    async run(title, task) {
+    async run(title, task, action) {
       const job: Job = {
         id: `job-${Date.now().toString(36)}-${(counter++).toString(36)}`,
         title,
@@ -88,11 +90,13 @@ export function createJobs(
         endedAt: null,
         status: 'running',
         error: null,
+        ...(action ? { action } : {}),
       }
       const entry: Entry = { job, output: '', pending: '', timer: null }
       entries.unshift(entry)
       entries.splice(keep)
       publish({ type: 'job', job: { ...job } })
+      save()
       const sink = {
         command(args: string[], plumbing: boolean) {
           const line = commandLine(args)

@@ -130,6 +130,7 @@ const PtyMessageSchema = z.discriminatedUnion('type', [
   }),
 ])
 const DEFAULT_IDLE_MS = 600_000
+const HAND_OVER_WAIT_MS = 120_000
 const MAX_QUERIES_BYTES = 20 * 1024 * 1024
 const MAX_TOKENS_BYTES = 2 * 1024 * 1024
 const SavedTokensSchema = z.object({ key: z.string().max(4000), tokens: z.record(z.string(), z.unknown()) })
@@ -260,7 +261,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         if (url.pathname.startsWith('/api/git/') && request.method === 'POST') {
           const result = await enqueue(() => {
             const action = url.pathname.slice(9)
-            return jobs.run(jobTitle(action), () => gitAction(repo, action, request))
+            return jobs.run(jobTitle(action), () => gitAction(repo, action, request), action)
           })
           notify(result.reason)
           return Response.json(result.body)
@@ -490,6 +491,8 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
     url: `http://${HOST}:${port}/?token=${token}`,
     notify,
     async stop({ handOver = false } = {}) {
+      // A new build waits for a push or commit in flight rather than cutting it off, within reason.
+      if (handOver) await Promise.race([enqueue(async () => {}), Bun.sleep(HAND_OVER_WAIT_MS)])
       stopWatching()
       clearInterval(watching)
       stopStateWatch()

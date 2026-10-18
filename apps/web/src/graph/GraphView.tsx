@@ -16,6 +16,7 @@ import { useApp } from '../app/AppProvider'
 import { GraphSkeleton } from '../app/skeletons'
 import { useRowHeight } from '../app/useSizes'
 import { rememberedTop, useScrollMemory } from '../hooks/useScrollMemory'
+import { useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import { avatarFor, useAvatars } from './avatars'
 import { BisectBanner } from './BisectBanner'
@@ -94,7 +95,7 @@ export default function GraphView() {
   const [branchFrom, setBranchFrom] = useState<string | null>(null)
   const [rebaseOnto, setRebaseOnto] = useState<string | null>(null)
   // Shift-click picks every commit between the selected one and the clicked one, for picking them over.
-  const [picked, setPicked] = useState<string[]>([])
+  const [picked, setPicked] = useKept<string[]>('graph-picked', [])
   const actions = useCommitActions()
   const selected = useStore(graphSelection, (sha: string | null) => sha)
   const scroller = useRef<HTMLDivElement>(null)

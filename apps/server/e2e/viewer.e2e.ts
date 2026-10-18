@@ -271,7 +271,7 @@ test('folding or viewing a long file read halfway brings the next file up after 
   expect(await scroller.evaluate((element) => element.scrollTop)).toBeLessThan(200)
 })
 
-test('blame shows who changed each line of the new side, from the header or <leader>hb', async ({ page, app }) => {
+test('blame shows who changed each line of the new side, from the header', async ({ page, app }) => {
   await page.goto(app.url)
   const main = page.locator('main')
   await expect(main).toContainText('export const answer = 42')
@@ -280,7 +280,7 @@ test('blame shows who changed each line of the new side, from the header or <lea
   // Both sides: the removed line at HEAD, by the base commit, the edited one not committed yet.
   await expect(page.locator('[data-diff-view]').getByText('Duck Test').first()).toBeVisible()
   await expect(page.locator('[data-diff-view]').getByText('Uncommitted').first()).toBeVisible()
-  await page.keyboard.type(' hb')
+  await page.getByRole('button', { name: 'Hide blame' }).first().click()
   await expect(page.locator('[data-diff-view]').getByText('Duck Test')).toHaveCount(0)
 })
 

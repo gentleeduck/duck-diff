@@ -1,10 +1,10 @@
 import { Skeleton, ToggleGroup, ToggleGroupItem } from '@duck-diff/ui'
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@duck-diff/ui/chart'
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from 'recharts'
 import { useApp } from '../app/AppProvider'
 import { pageColumn } from '../app/page-column'
+import { useKept } from '../lib/kept'
 
 const CHART = {
   commits: { label: 'Commits', color: 'var(--tn-blue)' },
@@ -23,7 +23,7 @@ const day = (seconds: number) =>
 // Who works on this branch and how often, from local history: no forge, no sign-in.
 export default function Insights() {
   const { queries } = useApp()
-  const [days, setDays] = useState(90)
+  const [days, setDays] = useKept('insights-days', 90)
   const { data = null, error } = useQuery(queries.git.insights(days))
   const failed = error ? error.message : null
 

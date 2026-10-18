@@ -5,6 +5,8 @@ import { classify, GitError } from './errors'
 export interface RunOptions {
   cwd: string
   okExitCodes?: number[]
+  // How long git may print nothing before it is stopped; output of any kind starts the wait over. A user action's
+  // commands (run inside withOutput) have no limit: a push of a big repo or a long hook takes what it takes.
   timeoutMs?: number
   // Keeps stdin open instead of closing it at once; only the timeout test needs this.
   holdStdin?: boolean
@@ -78,8 +80,10 @@ interface BunRuntime {
       stdin: 'pipe' | 'ignore' | Blob
       stdout: 'pipe'
       stderr: 'pipe'
+      detached: boolean
     },
   ): {
+    pid: number
     stdout: AsyncIterable<Uint8Array>
     stderr: AsyncIterable<Uint8Array>
     exited: Promise<number>
@@ -92,26 +96,50 @@ const bun = (globalThis as { Bun?: BunRuntime }).Bun
 // Under Bun (the server and the binary) git starts through Bun.spawn: Bun's node:child_process can report a
 // quick child's exit inside spawn() and drop its output on a loaded macOS machine (oven-sh/bun#45483).
 // Under Node, where the package's own tests run, it is node:child_process.
+// git leads its own process group, so stopping it stops the hooks and whatever they started too.
+const killGroup = (pid: number | undefined, fallback: () => void) => {
+  try {
+    if (pid) process.kill(-pid, 'SIGKILL')
+    else fallback()
+  } catch {
+    fallback()
+  }
+}
+
 function startGit(args: string[], env: Record<string, string | undefined>, options: RunOptions): GitProcess {
   if (bun) {
     const stdin = options.input !== undefined ? new Blob([options.input]) : options.holdStdin ? 'pipe' : 'ignore'
-    const proc = bun.spawn(['git', ...args], { cwd: options.cwd, env, stdin, stdout: 'pipe', stderr: 'pipe' })
+    const proc = bun.spawn(['git', ...args], {
+      cwd: options.cwd,
+      env,
+      stdin,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      detached: true,
+    })
     return {
       stdout: proc.stdout,
       stderr: proc.stderr,
       exited: proc.exited.then(() => proc.exitCode),
-      kill: () => proc.kill('SIGKILL'),
+      kill: () => killGroup(proc.pid, () => proc.kill('SIGKILL')),
     }
   }
-  const child = spawn('git', args, { cwd: options.cwd, env, stdio: ['pipe', 'pipe', 'pipe'] })
+  const child = spawn('git', args, { cwd: options.cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true })
   if (options.input !== undefined) child.stdin.end(options.input)
   else if (!options.holdStdin) child.stdin.end()
   const exited = new Promise<number | null>((resolve, reject) => {
     child.once('error', reject)
     child.once('close', (code) => resolve(code))
   })
-  return { stdout: child.stdout, stderr: child.stderr, exited, kill: () => child.kill('SIGKILL') }
+  return {
+    stdout: child.stdout,
+    stderr: child.stderr,
+    exited,
+    kill: () => killGroup(child.pid, () => child.kill('SIGKILL')),
+  }
 }
+
+const quiet = (ms: number) => (ms >= 60_000 ? `${Math.round(ms / 60_000)} minutes` : `${Math.round(ms / 1000)} seconds`)
 
 // Decoded text from a stream of bytes, keeping a character split across two chunks whole.
 async function* text(chunks: AsyncIterable<Uint8Array>): AsyncIterable<string> {
@@ -138,29 +166,37 @@ function spawnGit(args: string[], options: RunOptions) {
   } catch (error) {
     throw new GitError('failed', null, String(error), `git ${args[0]} failed to start`)
   }
+  // A limit on silence, not on the whole run, and none at all for what a user action runs.
+  const limit = sink ? null : (options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
   let timedOut = false
-  const timer = setTimeout(() => {
-    timedOut = true
-    git.kill()
-  }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const wait = () => {
+    if (limit === null) return
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      timedOut = true
+      git.kill()
+    }, limit)
+  }
+  wait()
 
   let stderr = ''
   const readStderr = (async () => {
     for await (const chunk of text(git.stderr)) {
+      wait()
       stderr += chunk
       sink?.output(chunk, 'stderr')
     }
   })()
-  const stdoutBytes =
-    sink && !plumbing
-      ? (async function* () {
-          const decoder = new TextDecoder()
-          for await (const chunk of git.stdout) {
-            sink.output(decoder.decode(chunk, { stream: true }), 'stdout')
-            yield chunk
-          }
-        })()
-      : git.stdout
+  const shown = sink && !plumbing ? sink : null
+  const stdoutBytes = (async function* () {
+    const decoder = new TextDecoder()
+    for await (const chunk of git.stdout) {
+      wait()
+      shown?.output(decoder.decode(chunk, { stream: true }), 'stdout')
+      yield chunk
+    }
+  })()
 
   const done = (async () => {
     let code: number | null
@@ -171,7 +207,13 @@ function spawnGit(args: string[], options: RunOptions) {
     } finally {
       clearTimeout(timer)
     }
-    if (timedOut) throw new GitError('timeout', null, stderr, `git ${args[0]} timed out`)
+    if (timedOut)
+      throw new GitError(
+        'timeout',
+        null,
+        stderr,
+        `git ${subcommand(args) ?? args[0]} printed nothing for ${quiet(limit ?? 0)} and was stopped`,
+      )
     const ok = [0, ...(options.okExitCodes ?? [])]
     if (code !== null && ok.includes(code)) return
     throw new GitError(classify(stderr), code, stderr, `git ${args[0]} exited ${code}: ${stderr.trim()}`)

@@ -20,6 +20,7 @@ import { type ReactNode, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
+import { useKept } from '../lib/kept'
 import type { Store } from '../lib/store'
 import { Avatar, Body } from './Conversation'
 import { CommitLink, EventParts, UserLink } from './EventParts'
@@ -45,7 +46,10 @@ function CommentCard({
   onSave,
   onDelete,
   onQuote,
+  keep,
 }: {
+  // What a reload keeps an edit in progress under.
+  keep: string
   author: Thread['author']
   createdAt: string
   body: string
@@ -60,8 +64,8 @@ function CommentCard({
   onDelete?(): void
   onQuote(): void
 }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(body)
+  const [editing, setEditing] = useKept(`card-editing:${keep}`, false)
+  const [draft, setDraft] = useKept(`card-draft:${keep}`, body)
   const [saving, setSaving] = useState(false)
   const save = async () => {
     setSaving(true)
@@ -218,6 +222,7 @@ export function ThreadView({
       {/* The thread's line, from the first comment down to the last event, as on GitHub. */}
       <span aria-hidden className="absolute inset-y-0 start-[4.1875rem] hidden w-0.5 bg-border sm:block" />
       <CommentCard
+        keep={`thread:${thread.number}`}
         author={thread.author}
         createdAt={thread.createdAt}
         body={thread.body}
@@ -239,6 +244,7 @@ export function ThreadView({
           return (
             <CommentCard
               key={`c${event.id}`}
+              keep={`comment:${event.id}`}
               author={event.author}
               createdAt={event.createdAt}
               body={event.body}

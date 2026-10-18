@@ -96,7 +96,7 @@ export async function interactiveRebase(
     )
     const env = { ...NO_EDITOR, GIT_SEQUENCE_EDITOR: `cp ${quote(todo)}` }
     try {
-      await runGit(await rebaseArgs(repo, base), { cwd: repo, env, timeoutMs: 120_000 })
+      await runGit(await rebaseArgs(repo, base), { cwd: repo, env })
     } catch (error) {
       if (await readOperation(repo)) return { conflicts: true, stopped: true }
       throw error
@@ -165,7 +165,7 @@ export async function bisectMark(repo: string, kind: 'good' | 'bad' | 'skip', sh
 
 // git runs the command on each commit it picks: exit 0 is good, 125 skips, anything else is bad.
 export async function bisectRun(repo: string, command: string): Promise<void> {
-  await runGit(['bisect', 'run', 'sh', '-c', command], { cwd: repo, timeoutMs: 600_000 })
+  await runGit(['bisect', 'run', 'sh', '-c', command], { cwd: repo })
 }
 
 export async function bisectReset(repo: string): Promise<void> {

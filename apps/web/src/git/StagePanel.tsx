@@ -11,13 +11,13 @@ import {
   Plus,
   Undo2,
 } from 'lucide-react'
-import { useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { TreeSkeleton } from '../app/skeletons'
 import { useOpenFile } from '../hooks/useOpenFile'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
+import { useKept } from '../lib/kept'
 import { openMerge } from '../merge/open-merge'
 import { fileGlyph } from '../sidebar/icons'
 import { FileMenu } from '../sidebar/tree-menus'
@@ -177,7 +177,7 @@ function Section({
   selected: string | null
   onSelect(key: string): void
 }) {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useKept(`stage-open:${side}`, true)
   return (
     <section aria-label={title} className="flex flex-col">
       <div className="group flex h-7 items-center gap-1 pe-1">
@@ -218,7 +218,7 @@ export function StagePanel() {
   const { run } = useGit()
   const state = useStage()
   const writes = useWrites()
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useKept<string | null>('stage-selected', null)
 
   if (!state.loaded) return <TreeSkeleton count={6} />
   if (!state.staged.length && !state.unstaged.length) {

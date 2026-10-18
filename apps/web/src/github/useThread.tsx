@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
+import { keepStore } from '../lib/kept'
 import { createStore } from '../lib/store'
 import { useRefresh } from '../query/useRefresh'
 
@@ -12,7 +13,16 @@ export function useThread(number: number, kind: 'pr' | 'issue') {
   const { queries } = useApp()
   const refresh = useRefresh()
   const { data: thread = null } = useQuery(queries.gh.thread(number, kind))
-  const draft = useMemo(() => createStore(''), [])
+  const draft = useMemo(() => {
+    const store = createStore('')
+    keepStore(
+      store,
+      `comment:${kind}:${number}`,
+      (text) => text,
+      (kept) => kept,
+    )
+    return store
+  }, [kind, number])
   // After a change made here: everything about the item is read again, here and in the lists.
   const reload = useCallback(
     () => refresh(`item:${number}`, kind === 'pr' ? 'pulls' : 'issues'),

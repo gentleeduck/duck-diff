@@ -18,6 +18,7 @@ import { highlighter } from '../diff/highlighter'
 import { useGit } from '../git/GitProvider'
 import { useOpenFile } from '../hooks/useOpenFile'
 import { useView } from '../hooks/useView'
+import { dropKept, useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import { useStage } from '../state/stage'
 import {
@@ -110,7 +111,7 @@ function Block({
   choice: Choice | undefined
   onChoose(next: Choice | undefined): void
 }) {
-  const [editing, setEditing] = useState<string | null>(null)
+  const [editing, setEditing] = useKept<string | null>(`merge-block:${path}:${number}`, null)
   const chosen = blockLines(block, choice)
   const heading = (children: ReactNode, tone: string) => (
     <div className={`flex min-h-8 flex-wrap items-center gap-1 border-border border-y px-2 py-0.5 ${tone}`}>
@@ -223,9 +224,11 @@ function label(choice: Choice): string {
 function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
   const { run, busy } = useGit()
   const openInEditor = useOpenFile()
-  const [choices, setChoices] = useState<Choices>({})
+  // Kept per file and conflict shape, so a reload keeps the picks and a new conflict in the file starts over.
+  const keep = `merge:${file.path}:${file.segments.length}`
+  const [choices, setChoices] = useKept<Choices>(`${keep}:choices`, {})
   // Editing the whole result as text replaces the blocks; markers left in it count as unresolved.
-  const [whole, setWhole] = useState<string | null>(null)
+  const [whole, setWhole] = useKept<string | null>(`${keep}:whole`, null)
   const left = whole === null ? unresolvedCount(file, choices) : MARKERS.test(whole) ? 1 : 0
   const total = file.segments.filter((segment) => segment.kind === 'conflict').length
   const ours = file.segments.find((segment) => segment.kind === 'conflict')
@@ -244,7 +247,10 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
     )
   const save = async () => {
     const text = whole ?? resultText(file, choices)
-    if (await run('resolve-text', { path: file.path, text }, `Resolved ${file.path}`)) onDone()
+    if (!(await run('resolve-text', { path: file.path, text }, `Resolved ${file.path}`))) return
+    dropKept(`${keep}:choices`)
+    dropKept(`${keep}:whole`)
+    onDone()
   }
   const next = () =>
     document.querySelector('[data-unresolved]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })

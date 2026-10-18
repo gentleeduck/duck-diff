@@ -140,4 +140,25 @@ describe('jobs kept across a restart', () => {
     expect(output.length).toBeLessThanOrEqual(50)
     expect(output).toContain('done')
   })
+
+  it('brings back a job cut off by the restart as failed, with its action', async () => {
+    repo = createRepo()
+    dir = mkdtempSync(join(tmpdir(), 'duck-jobs-'))
+    const cache = createDiskCache(dir)
+    const jobs = createJobs(() => {}, { cache })
+    let finish = () => {}
+    void jobs.run('Push', () => new Promise<void>((resolve) => (finish = resolve)), 'push')
+    expect(jobs.list()[0]).toMatchObject({ status: 'running', action: 'push' })
+    await cache.flush()
+
+    const again = createJobs(() => {}, { cache: createDiskCache(dir) })
+    await again.ready
+    expect(again.list()[0]).toMatchObject({
+      title: 'Push',
+      action: 'push',
+      status: 'failed',
+      error: 'Stopped when duck-diff restarted',
+    })
+    finish()
+  })
 })

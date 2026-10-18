@@ -40,10 +40,11 @@ const State = z.object({ state: z.enum(['open', 'closed']).default('open') })
 const IssueStateSchema = State.extend({ reason: z.enum(['completed', 'not_planned']).optional() })
 const NETWORK_TIMEOUT_MS = 120_000
 
-// A pull request's head lands in a private ref so the diff viewer can compare it like any other range.
+// A pull request's head lands in a private ref so the diff viewer can compare it like any other range. Progress
+// counts as output, so a big fetch still moving is never taken for a stuck one.
 async function fetchPull(repo: string, number: number, baseRef: string, refspec: string): Promise<PullRefs> {
   const head = `refs/duck-diff/pr/${number}`
-  await runGit(['fetch', '--quiet', 'origin', `+${refspec}:${head}`, baseRef], {
+  await runGit(['fetch', '--progress', 'origin', `+${refspec}:${head}`, baseRef], {
     cwd: repo,
     timeoutMs: NETWORK_TIMEOUT_MS,
   })

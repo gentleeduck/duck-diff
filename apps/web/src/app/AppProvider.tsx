@@ -7,7 +7,6 @@ import type { DiffViewHandle } from '../diff/DiffView'
 import { highlighter } from '../diff/highlighter'
 import { createPullReview, type PullReview } from '../github/pull-review'
 import { createGraph, type Graph } from '../graph/store'
-import { createKeyOverrides, createKeyState, type KeyOverrides, type KeyState } from '../keys/state'
 import { type Api, createApi } from '../lib/api'
 import { createPageHistory } from '../lib/history'
 import { whenIdle } from '../lib/idle'
@@ -22,6 +21,7 @@ import { type GitHubQueries, githubQueries } from '../query/github'
 import { QueryProvider } from '../query/QueryProvider'
 import { createReviews, type Reviews } from '../review/reviews'
 import { createPlaceStores, type PlaceStores } from '../router/stores'
+import { keepPage } from '../state/keep-page'
 import { rememberTarget } from '../state/last-target'
 import { createRefs, type Refs } from '../state/refs'
 import { createSession, readSeed, type Session } from '../state/session'
@@ -67,9 +67,6 @@ export interface AppContextValue extends PlaceStores {
   panel: Panel
   // The shells open in the bottom panel.
   terminalTabs: TerminalTabs
-  // Vim-style keys: the mode, keys typed so far, and the user's own bindings.
-  keys: Store<KeyState>
-  keyOverrides: KeyOverrides
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -95,7 +92,7 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
     if (seed?.tokens) highlighter.prime(seed.tokens)
     const session = createSession(client, target, seed)
     const queries = { gh: githubQueries(client), git: gitQueries(client) }
-    return {
+    const value = {
       api: client,
       session,
       refs: createRefs(client, session, {
@@ -127,9 +124,9 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
       jobs: createJobs(client),
       panel: createPanel(),
       terminalTabs: createTerminalTabs(client),
-      keys: createKeyState(),
-      keyOverrides: createKeyOverrides(),
     }
+    keepPage(value)
+    return value
   }, [api, queryClient])
 
   useEffect(() => {

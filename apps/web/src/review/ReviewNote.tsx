@@ -10,6 +10,7 @@ import { Body as GitHubBody, Comment as GitHubComment } from '../github/Conversa
 import type { PullReviewState } from '../github/pull-review'
 import { useGitHub } from '../github/SignIn'
 import { fitRows } from '../lib/fit-rows'
+import { dropKept, useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import { relativeTime } from '../sidebar/relative-time'
 import type { Draft, Note } from './annotations'
@@ -111,7 +112,10 @@ function Editor({
   onPending,
   suggestFrom,
   saveLabel = 'Save comment',
+  keep,
 }: {
+  // What a reload keeps the text under, until it is sent or cancelled.
+  keep: string
   initial: string
   label: string
   saveLabel?: string
@@ -124,13 +128,18 @@ function Editor({
   // The line's text, for GitHub's "Suggest change".
   suggestFrom?: string
 }) {
-  const [body, setBody] = useState(initial)
+  const [body, setBody] = useKept(`note:${keep}`, initial)
   const [busy, setBusy] = useState(false)
+  const cancel = () => {
+    dropKept(`note:${keep}`)
+    onCancel()
+  }
   const submit = async (send = onSave) => {
     if (!body.trim() || busy) return
     setBusy(true)
     try {
       await send(body)
+      dropKept(`note:${keep}`)
     } catch (error) {
       toast.error('Could not save the comment', { description: (error as Error).message })
     } finally {
@@ -151,7 +160,7 @@ function Editor({
         rows={fitRows(body, 6)}
         onChange={(event) => setBody(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Escape') onCancel()
+          if (event.key === 'Escape') cancel()
           if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) void submit()
         }}
       />
@@ -187,7 +196,7 @@ function Editor({
         <Button type="submit" size="sm" variant={onPublish ? 'ghost' : 'default'} disabled={!body.trim() || busy}>
           {onPublish ? 'Keep local' : saveLabel}
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={onCancel}>
+        <Button type="button" size="sm" variant="outline" onClick={cancel}>
           Cancel
         </Button>
       </div>
@@ -198,7 +207,7 @@ function Editor({
 // The user's own comment, kept on this machine, carded like a GitHub comment with its actions at the top.
 function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
   const { api, reviews } = useApp()
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useKept(`note-editing:${note.comment.id}`, false)
   const { comment, outdated } = note
   const remove = async () => {
     const yes = await ask.confirm({
@@ -238,6 +247,7 @@ function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
       <div className="px-3 py-2">
         {editing ? (
           <Editor
+            keep={`edit:${comment.id}`}
             initial={comment.body}
             label="Edit comment"
             saveLabel="Update comment"
@@ -258,8 +268,8 @@ function Comment({ note }: { note: Extract<Note, { kind: 'comment' }> }) {
 function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['thread'] }) {
   const { pullReview } = useApp()
   const me = useGitHub().status?.user?.login
-  const [replying, setReplying] = useState(false)
-  const [editing, setEditing] = useState<number | null>(null)
+  const [replying, setReplying] = useKept(`thread-replying:${thread[0]?.id}`, false)
+  const [editing, setEditing] = useKept<number | null>(`thread-editing:${thread[0]?.id}`, null)
   const root = thread[0]
   const state = useStore(pullReview, (value: PullReviewState) => (root ? value.threads.get(root.id) : undefined))
   // Resolved threads fold to one line, as GitHub shows them.
@@ -308,6 +318,7 @@ function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['t
           {editing === comment.id ? (
             <div className="p-2">
               <Editor
+                keep={`edit:${comment.id}`}
                 initial={comment.body}
                 label="Edit comment"
                 saveLabel="Update comment"
@@ -346,6 +357,7 @@ function GitHubThread({ thread }: { thread: Extract<Note, { kind: 'github' }>['t
       <div className="flex items-center gap-2 p-2">
         {replying && root ? (
           <Editor
+            keep={`reply:${root.id}`}
             initial=""
             label="Reply"
             saveLabel="Reply"
@@ -410,6 +422,7 @@ export function ReviewNote({ note }: { note: Note }) {
         </p>
       ) : null}
       <Editor
+        keep={`new:${note.draft.path}:${note.draft.side}:${note.draft.line}`}
         initial=""
         label="New comment"
         onSave={(body) => reviews.save(body)}

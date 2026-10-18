@@ -1,66 +1,50 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { expect, test } from './fixture'
 
 const UNSTAGED = `&target=${encodeURIComponent(JSON.stringify({ kind: 'unstaged' }))}`
 
-test('drives the page from the keyboard the way Neovim does', async ({ page, app, repo }) => {
+test('drives the page with a few plain keys', async ({ page, app, repo }) => {
   await page.goto(app.url + UNSTAGED)
   await expect(page.locator('main')).toContainText('export const answer = 42')
-  // Its title becomes the page's tooltip once hovered, so it is found either way.
-  const mode = page.locator('[title="Key mode"], [data-tip="Key mode"]')
-  await expect(mode).toHaveText('NORMAL')
 
-  // The leader waits, shows what can follow, then runs the chord.
-  await page.keyboard.press('Space')
-  const which = page.getByRole('complementary', { name: 'Keys that can follow' })
-  await expect(which).toContainText('+search')
-  await page.keyboard.press('g')
-  await page.keyboard.press('g')
-  await expect(page.getByRole('heading', { name: 'Commit graph' })).toBeVisible()
-  await page.keyboard.press('Space')
-  await page.keyboard.press('g')
+  // j steps to a change and s stages it.
+  await page.keyboard.press('j')
   await page.keyboard.press('s')
-  await expect(page.locator('main')).toContainText('export const answer = 42')
-
-  // The first change is staged with the same keys as gitsigns.
-  await page.keyboard.type(' hs')
   await expect.poll(() => repo.git('diff', '--cached', '--name-only')).toMatch(/^(src\/app\.ts|notes\.txt)$/)
 
-  // :! runs in a terminal, <Esc><Esc> leaves it, and the page keys work again.
-  await page.keyboard.press(':')
-  await expect(mode).toHaveText('COMMAND')
-  await page.keyboard.type('ta')
-  await expect(page.getByRole('list', { name: 'Matching commands' })).toContainText('Next diff tab')
-  await page.getByRole('textbox', { name: 'Command line' }).fill('!echo from-ex > ex.txt')
-  await page.keyboard.press('Enter')
-  await expect.poll(() => existsSync(join(repo.path, 'ex.txt')), { timeout: 10_000 }).toBe(true)
-  expect(readFileSync(join(repo.path, 'ex.txt'), 'utf8').trim()).toBe('from-ex')
-  await expect(mode).toHaveText('TERMINAL')
+  // t flips the layout; typing in a text box keeps the letters there.
+  await expect(page.locator('[data-layout="split"]')).toBeAttached()
+  await page.keyboard.press('t')
+  await expect(page.locator('[data-layout="unified"]')).toBeAttached()
+  await page.keyboard.press('/')
+  await expect(page.locator('#file-filter')).toBeFocused()
+  await page.keyboard.type('t')
+  await expect(page.locator('#file-filter')).toHaveValue('t')
+  await expect(page.locator('[data-layout="unified"]')).toBeAttached()
   await page.keyboard.press('Escape')
-  await page.keyboard.press('Escape')
-  await expect(mode).toHaveText('NORMAL')
+  await expect(page.locator('#file-filter')).not.toBeFocused()
 
-  // The keymaps picker searches every command and runs the one picked; its box is insert mode.
+  // ? lists them all.
   await page.keyboard.press('?')
-  const keymaps = page.getByRole('dialog', { name: 'Keymaps' })
-  await expect(keymaps).toContainText('Pull with rebase')
-  await expect(mode).toHaveText('INSERT')
-  await page.keyboard.type('commit graph')
-  await page.keyboard.press('Enter')
-  await expect(keymaps).toBeHidden()
-  await expect(page.getByRole('heading', { name: 'Commit graph' })).toBeVisible()
+  const shortcuts = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+  await expect(shortcuts).toContainText('Next change')
+  await page.keyboard.press('Escape')
+  await expect(shortcuts).toBeHidden()
 
-  // Lists move with j, k, gg and G.
+  // Ctrl P searches.
+  await page.keyboard.press('Control+p')
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  // Arrows walk a list once it has focus, or from nothing focused.
+  await page.goto(`${app.url}&view=graph`)
   const commits = page.getByRole('listbox', { name: 'Commits' })
   await expect(commits.getByRole('option').first()).toBeVisible()
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
-  await page.keyboard.press('j')
+  await page.keyboard.press('ArrowDown')
   await expect(commits.getByRole('option').first()).toBeFocused()
-  await page.keyboard.press('G')
+  await page.keyboard.press('End')
   await expect(commits.getByRole('option').last()).toBeFocused()
-  await page.keyboard.press('g')
-  await page.keyboard.press('g')
+  await page.keyboard.press('Home')
   await expect(commits.getByRole('option').first()).toBeFocused()
 })
 

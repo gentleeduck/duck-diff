@@ -54,18 +54,15 @@ test('starts a branch at an older commit and checks one out detached', async ({ 
   await expect.poll(() => repo.git('branch', '--show-current').trim()).toBe('')
 })
 
-test('number keys switch views, and diff keys stay inert outside the changes view', async ({ page, app, repo }) => {
-  await page.goto(app.url)
-  await expect(page.getByRole('banner')).toContainText('2 files')
-  await page.keyboard.press('2')
-  await expect(page).toHaveURL(/\/graph/)
+test('diff keys stay inert outside the changes view', async ({ page, app, repo }) => {
+  await page.goto(`${app.url}&view=graph`)
+  await expect(page.getByRole('listbox', { name: 'Commits' }).getByRole('option').first()).toBeVisible()
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
   await page.keyboard.press('j')
   await page.keyboard.press('x')
-  await page.keyboard.press('3')
-  await expect(page).toHaveURL(/\/files/)
+  await page.keyboard.press('s')
   expect(repo.git('status', '--porcelain')).not.toBe('')
-  await page.keyboard.press('1')
-  await expect(page.getByRole('banner')).toContainText('2 files')
+  expect(repo.git('diff', '--cached', '--name-only')).toBe('')
 })
 
 test('finds commits by message and steps through the matches', async ({ page, app, repo }) => {

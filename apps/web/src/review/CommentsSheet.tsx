@@ -9,12 +9,13 @@ import {
   SheetTrigger,
 } from '@duck-diff/ui'
 import { Check, Copy, MessageSquare } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useApp } from '../app/AppProvider'
 import { COPIED, useCopy } from '../app/CopyTool'
 import { COUNT, ICON_ONLY, LABEL } from '../app/fit'
 import { useSession } from '../hooks/useSession'
 import { itemId } from '../lib/items'
+import { useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import type { SessionState } from '../state/session'
 import { type Anchored, anchorComments } from './anchor'
@@ -30,7 +31,7 @@ export function CommentsSheet() {
   const comments = useStore(reviews, selectComments)
   const target = useStore(reviews, selectTarget)
   const { copied, copy } = useCopy()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useKept('comments-sheet', false)
 
   // Files missing from the current diff keep their comments listed, as outdated.
   const groups = useMemo(() => {

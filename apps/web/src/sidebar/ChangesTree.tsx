@@ -1,5 +1,5 @@
 import { Input } from '@duck-diff/ui'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useApp } from '../app/AppProvider'
 import { TreeSkeleton } from '../app/skeletons'
 import { useOpenFile } from '../hooks/useOpenFile'
@@ -7,6 +7,7 @@ import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
 import { compileHidden } from '../lib/hide'
+import { useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import type { SessionState } from '../state/session'
 import type { Settings } from '../state/settings'
@@ -35,8 +36,9 @@ export function ChangesTree() {
   const openInEditor = useOpenFile()
   const files = useSession(selectFiles)
   const loading = useSession(selectLoading)
-  const [statuses, setStatuses] = useState<ReadonlySet<TreeStatus>>(new Set())
-  const [query, setQuery] = useState('')
+  const [statusList, setStatusList] = useKept<TreeStatus[]>('changes-statuses', [])
+  const statuses = useMemo(() => new Set(statusList), [statusList])
+  const [query, setQuery] = useKept('changes-query', '')
   // The tree follows the diff: whatever file is at the top of it is the one marked here.
   const selected = useStore(diffTop, selectTop)
   const patterns = useSettings(selectPatterns)
@@ -64,7 +66,7 @@ export function ChangesTree() {
           />
           <HideFilter hiddenCount={files.length - shown.length} />
         </div>
-        <StatusFilter files={shown} value={statuses} onChange={setStatuses} />
+        <StatusFilter files={shown} value={statuses} onChange={(next) => setStatusList([...next])} />
         <ViewedProgress files={shown} target={target} />
       </div>
       {loading ? <TreeSkeleton /> : null}

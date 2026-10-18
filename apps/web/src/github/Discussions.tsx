@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { pageColumn } from '../app/page-column'
 import { ListRowsSkeleton, ThreadSkeleton } from '../app/skeletons'
+import { useKept } from '../lib/kept'
 import { Avatar, Body } from './Conversation'
 import { MarkdownEditor } from './MarkdownEditor'
 import { useGitHub } from './SignIn'
@@ -16,9 +17,9 @@ function DiscussionView({ number, onBack }: { number: number; onBack(): void }) 
   const { api, queries } = useApp()
   const { data: discussion = null, error, refetch } = useQuery(queries.gh.discussion(number))
   const failed = error ? error.message : null
-  const [draft, setDraft] = useState('')
-  const [replying, setReplying] = useState<string | null>(null)
-  const [reply, setReply] = useState('')
+  const [draft, setDraft] = useKept(`discussion:${number}:draft`, '')
+  const [replying, setReplying] = useKept<string | null>(`discussion:${number}:replying`, null)
+  const [reply, setReply] = useKept(`discussion:${number}:reply`, '')
   const [busy, setBusy] = useState(false)
 
   const load = refetch

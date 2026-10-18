@@ -1,9 +1,10 @@
 import { Button, Checkbox, Label, Popover, PopoverContent, PopoverTrigger, Textarea } from '@duck-diff/ui'
 import { Archive, ArchiveX, Brush, Ellipsis, GitCommitHorizontal, Undo2, Upload } from 'lucide-react'
-import { type ReactNode, useId, useState } from 'react'
+import { type ReactNode, useId } from 'react'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { BisectBanner } from '../graph/BisectBanner'
+import { useKept } from '../lib/kept'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { useGit } from './GitProvider'
 import { OperationBanner } from './OperationBanner'
@@ -19,10 +20,10 @@ function MoreItem({ onSelect, children }: { onSelect(): void; children: ReactNod
 export function CommitBox() {
   const { api } = useApp()
   const { status, busy, run } = useGit()
-  const [message, setMessage] = useState('')
-  const [amend, setAmend] = useState(false)
-  const [signoff, setSignoff] = useState(false)
-  const [more, setMore] = useState(false)
+  const [message, setMessage] = useKept('commit-message', '')
+  const [amend, setAmend] = useKept('commit-amend', false)
+  const [signoff, setSignoff] = useKept('commit-signoff', false)
+  const [more, setMore] = useKept('commit-more', false)
   const amendId = useId()
   const signoffId = useId()
   const staged = status?.staged ?? 0

@@ -2,12 +2,13 @@ import type { SymbolHit } from '@duck-diff/protocol'
 import { Button, Input, ResizableHandle, ResizablePanel, Skeleton } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { useSidePanel } from '../app/side-panel'
 import { openFile } from '../files/open-file'
 import { useView } from '../hooks/useView'
+import { useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import { fileGlyph } from '../sidebar/icons'
 import { sourceLabel } from './load-symbol'
@@ -92,7 +93,7 @@ export function SymbolPanel() {
   const current = useStore(symbol, selectSymbol)
   const { show } = useView()
   const side = useSidePanel(PANEL)
-  const [filter, setFilter] = useState('')
+  const [filter, setFilter] = useKept('symbol-filter', '')
   useHighlight(current?.name ?? null)
   const found = useQuery({ ...queries.git.symbol(current ?? { name: '', ref: null }), enabled: current !== null })
   const result = current ? (found.data ?? null) : null

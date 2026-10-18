@@ -3,7 +3,7 @@ import { Badge, Button } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Code2, Eye, FileDiff, History, SquareArrowOutUpRight, UserSearch } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { CopyTool } from '../app/CopyTool'
 import { IconTool } from '../app/IconTool'
@@ -20,6 +20,7 @@ import { useSession } from '../hooks/useSession'
 import { useSettings } from '../hooks/useSettings'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
+import { useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import { Markdown } from '../markdown/Markdown'
 import { fileGlyph } from '../sidebar/icons'
@@ -60,8 +61,8 @@ export default function FileView() {
   const { navigate } = useTarget()
   const { show } = useView()
   const openInEditor = useOpenFile()
-  const [preview, setPreview] = useState(true)
-  const [blaming, setBlaming] = useState(false)
+  const [preview, setPreview] = useKept('file-preview', true)
+  const [blaming, setBlaming] = useKept('file-blame', false)
   const file = useQuery({ ...queries.git.file(path ?? '', at ?? undefined), enabled: Boolean(path) })
   const contents = file.data ?? null
   const failed = file.error ? file.error.message : null

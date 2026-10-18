@@ -41,6 +41,32 @@ describe('runGit', () => {
     )
     expect((error as GitError).code).toBe('timeout')
   })
+
+  it('waits as long as git keeps printing, however long that takes', async () => {
+    repo = createRepo()
+    const ticks = 'for i in 1 2 3 4 5 6; do echo tick; sleep 0.05; done'
+    const out = await runGit(['-c', `alias.ticks=!${ticks}`, 'ticks'], { cwd: repo.path, timeoutMs: 150 })
+    expect(out.trim().split('\n')).toHaveLength(6)
+  })
+
+  it('never stops what a user action runs, however long it stays quiet', async () => {
+    repo = createRepo()
+    const sink = { command: () => {}, output: () => {} }
+    const hang = () => runGit(['-c', 'alias.hang=!sleep 0.3', 'hang'], { cwd: repo.path, timeoutMs: 100 })
+    await withOutput(sink, hang)
+  })
+
+  it('stops a silent command with everything it started, at once', async () => {
+    repo = createRepo()
+    const started = Date.now()
+    const error = await runGit(['-c', 'alias.hang=!sleep 30', 'hang'], { cwd: repo.path, timeoutMs: 100 }).catch(
+      (e: unknown) => e,
+    )
+    expect((error as GitError).code).toBe('timeout')
+    expect((error as GitError).message).toContain('git hang printed nothing')
+    // The sleep held git's pipes; left running, the failure would wait for it.
+    expect(Date.now() - started).toBeLessThan(5000)
+  })
 })
 
 describe('streamGit', () => {

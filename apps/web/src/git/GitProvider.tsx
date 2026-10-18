@@ -1,12 +1,15 @@
 import type { SyncStatus } from '@duck-diff/protocol'
 import { useQuery } from '@tanstack/react-query'
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { useFirstDiff } from '../hooks/useFirstDiff'
 import type { GitAction } from '../lib/api'
+import { useStore } from '../lib/store'
+import type { JobsState } from '../panel/jobs'
 import { useRefresh } from '../query/useRefresh'
 import { failureReason } from './failure-reason'
+import { followJobs } from './follow-jobs'
 
 interface Git {
   status: SyncStatus | null
@@ -69,9 +72,17 @@ const DOING: Record<GitAction, string> = {
   'stash-staged': 'Stash staged',
 }
 
+const isGitAction = (action: string | undefined): action is GitAction => Boolean(action && action in DOING)
+// The server's running action, so a reloaded page or another tab shows the push still going.
+const selectRunning = (state: JobsState) =>
+  (state.jobs.find((job) => job.status === 'running' && isGitAction(job.action))?.action as GitAction) ?? null
+
 export function GitProvider({ children }: { children: ReactNode }) {
-  const { api, session, graph, refs, panel, queries } = useApp()
-  const [busy, setBusy] = useState<GitAction | null>(null)
+  const { api, session, graph, refs, panel, queries, jobs } = useApp()
+  const [started, setStarted] = useState<GitAction | null>(null)
+  const running = useStore(jobs, selectRunning)
+  const busy = started ?? running
+  const mine = useRef<GitAction | null>(null)
   const topics = useRefresh()
   // Everything a git action can move, on this page and every other.
   const refresh = useCallback(() => void topics('refs', 'index', 'worktree'), [topics])
@@ -83,9 +94,17 @@ export function GitProvider({ children }: { children: ReactNode }) {
 
   const showOutput = useMemo(() => ({ label: 'Show output', onClick: () => panel.show('output', null) }), [panel])
 
+  const settle = useCallback(() => {
+    refresh()
+    void session.reload()
+    void refs.reload()
+    if (graph.get().status !== 'idle') void graph.load()
+  }, [refresh, session, refs, graph])
+
   const run = useCallback<Git['run']>(
     async (action, body, done) => {
-      setBusy(action)
+      mine.current = action
+      setStarted(action)
       try {
         const result = await api.git(action, body)
         // A stop on conflicts is not a failure: the files wait in the changes view for resolving.
@@ -96,10 +115,7 @@ export function GitProvider({ children }: { children: ReactNode }) {
         else if (result.stopped)
           toast(`${DOING[action]} paused`, { description: 'It stopped to let you edit a commit. Continue when ready.' })
         else toast.success(done ?? `${DOING[action]} done`, { action: showOutput })
-        refresh()
-        void session.reload()
-        void refs.reload()
-        if (graph.get().status !== 'idle') void graph.load()
+        settle()
         return true
       } catch (error) {
         // A failure opens what git and the hooks printed, which usually says why.
@@ -110,10 +126,31 @@ export function GitProvider({ children }: { children: ReactNode }) {
         })
         return false
       } finally {
-        setBusy(null)
+        mine.current = null
+        setStarted(null)
       }
     },
-    [api, refresh, session, graph, refs, panel, showOutput],
+    [api, settle, panel, showOutput],
+  )
+
+  // An action this page did not start (before a reload, or in another tab) still ends here the way run does.
+  useEffect(
+    () =>
+      followJobs(
+        jobs,
+        (job) => isGitAction(job.action),
+        () => mine.current,
+        (job) => {
+          const doing = DOING[job.action as GitAction]
+          if (job.status === 'ok') toast.success(`${doing} done`, { action: showOutput })
+          else {
+            panel.show('output', null)
+            toast.error(`${doing} failed`, { description: failureReason(job.error ?? ''), action: showOutput })
+          }
+          settle()
+        },
+      ),
+    [jobs, panel, showOutput, settle],
   )
 
   const value = useMemo(() => ({ status, busy, run, refresh }), [status, busy, run, refresh])

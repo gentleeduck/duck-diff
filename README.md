@@ -96,8 +96,9 @@ From Neovim it is `:DuckDiff`, with the same targets.
 - **Terminal and output**: real shells in a bottom panel, and every git action's command and output, hooks
   included. Ctrl+C, Ctrl+Z and job control work as in any terminal; Ctrl+Shift+C (or Ctrl+C with text selected)
   copies and Ctrl+V or Ctrl+Shift+V pastes.
-- **Keys**: Space leader, `j`/`k` through changes, which-key, a `:` command line and a palette (`Ctrl P`), all
-  rebindable; the keyboard button on the rail lists them.
+- **Keys**: a few plain ones: `Ctrl P` searches, `j`/`k` step through changes, `s`/`u`/`x` stage, unstage and
+  discard, Ctrl+H/J/K/L move between panels, arrows walk lists. `?` or the keyboard button on the rail lists
+  them all.
 - **Themes**: ten dark ones. There is a light button. It does not do what you think.
 
 Open on any file goes to the Neovim you started duck-diff from, else to VS Code at the line (then VSCodium,

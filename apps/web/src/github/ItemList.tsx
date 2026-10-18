@@ -17,13 +17,14 @@ import {
 } from '@duck-diff/ui'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Check, ChevronDown, CircleDot, Copy, FileText, RefreshCw, Search, SquareArrowOutUpRight } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { pageColumn } from '../app/page-column'
 import { ItemRowsSkeleton } from '../app/skeletons'
 import { useScrollMemory } from '../hooks/useScrollMemory'
+import { useKept } from '../lib/kept'
 import type { Store } from '../lib/store'
 import { ListFilters } from './ListFilters'
 import { useGitHub } from './SignIn'
@@ -55,11 +56,11 @@ export function ItemList({ kind, label, selection, row, actions, menuFor }: Prop
   const { queries } = useApp()
   const github = useGitHub()
   const ready = isReady(github)
-  const [state, setState] = useState<ListQuery['state']>('open')
-  const [filter, setFilter] = useState<ListQuery['filter']>('all')
-  const [sort, setSort] = useState<ListQuery['sort']>('updated')
-  const [typed, setTyped] = useState('')
-  const [query, setQuery] = useState('')
+  const [state, setState] = useKept<ListQuery['state']>(`list:${kind}:state`, 'open')
+  const [filter, setFilter] = useKept<ListQuery['filter']>(`list:${kind}:filter`, 'all')
+  const [sort, setSort] = useKept<ListQuery['sort']>(`list:${kind}:sort`, 'updated')
+  const [typed, setTyped] = useKept(`list:${kind}:typed`, '')
+  const [query, setQuery] = useKept(`list:${kind}:query`, '')
   const list = useInfiniteQuery({ ...queries.gh.list({ kind, state, filter, sort, query }), enabled: ready })
   // The other state's first page gives its total for the Open / Closed switch, and makes switching instant.
   const other = useInfiniteQuery({
@@ -80,7 +81,7 @@ export function ItemList({ kind, label, selection, row, actions, menuFor }: Prop
   useEffect(() => {
     const timer = setTimeout(() => setQuery(typed.trim()), 350)
     return () => clearTimeout(timer)
-  }, [typed])
+  }, [typed, setQuery])
 
   // The next page loads as the end of the list scrolls into view.
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = list
