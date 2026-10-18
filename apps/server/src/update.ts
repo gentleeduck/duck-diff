@@ -77,6 +77,16 @@ async function readBody(response: Response, size: number | null, step: Step): Pr
   return bytes
 }
 
+// Apple Silicon kills code whose signature does not check out, so a build that does not verify is signed ad hoc.
+function signForMac(path: string) {
+  if (process.platform !== 'darwin') return
+  spawnSync('xattr', ['-d', 'com.apple.quarantine', path])
+  if (spawnSync('codesign', ['--verify', '--strict', path]).status === 0) return
+  if (spawnSync('codesign', ['--force', '--sign', '-', path]).status !== 0) {
+    throw new Error('could not sign the new binary for macOS; nothing changed')
+  }
+}
+
 export interface UpdateOptions {
   binary: string
   current: string
@@ -132,6 +142,7 @@ export async function update(options: UpdateOptions): Promise<boolean> {
     try {
       await writeFile(next, bytes)
       await chmod(next, 0o755)
+      signForMac(next)
       await rename(next, binary)
     } catch (error) {
       await rm(next, { force: true })
