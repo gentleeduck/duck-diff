@@ -1,13 +1,12 @@
 import { Input } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useApp } from '../app/AppProvider'
 import { TreeSkeleton } from '../app/skeletons'
 import { useOpenFile } from '../hooks/useOpenFile'
 import { useSession } from '../hooks/useSession'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
-import { withoutHistory } from '../lib/history'
 import { useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import { FileTree } from '../sidebar/FileTree'
@@ -30,12 +29,6 @@ export function FilesSidebar() {
   const tree = useQuery(queries.git.tree())
   const paths = tree.data ?? (tree.isError ? NO_PATHS : null)
   const [query, setQuery] = useKept('files-query', '')
-
-  // Like a repo's home page on GitHub, the README is what opens first.
-  useEffect(() => {
-    const readme = tree.data?.find((path) => /^readme(\.md|\.txt)?$/i.test(path))
-    if (readme && fileSelection.get() === null) withoutHistory(() => fileSelection.set(readme))
-  }, [tree.data, fileSelection])
 
   const byPath = useMemo(() => new Map(changed.map((file) => [file.path, file])), [changed])
   const fileFor = useCallback((path: string) => byPath.get(path), [byPath])
