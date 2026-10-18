@@ -1,4 +1,5 @@
 import { type CSSProperties, createContext, memo, useContext, useMemo, useSyncExternalStore } from 'react'
+import { BlameCell } from '../blame/BlameCell'
 import { Code } from '../diff/Code'
 import type { Token } from '../diff/highlight'
 import { highlighter } from '../diff/highlighter'
@@ -6,12 +7,12 @@ import { BAR, BG, MARK, SIGN } from '../diff/RowViews'
 import { changedRanges } from '../diff/words'
 import { useSettings } from '../hooks/useSettings'
 import type { Settings } from '../state/settings'
-import type { SideLine } from './merge-model'
+import type { SideLine, Who } from './merge-model'
 
 const selectSettings = (state: Settings) => state
 
 export const contextLines = (lines: string[], start: number): SideLine[] =>
-  lines.map((text, index) => ({ kind: 'context', text, no: start + index }))
+  lines.map((text, index) => ({ kind: 'context', text, no: start + index, at: index }))
 
 // Each column of each file scrolls sideways as one, as a file does in the diff (diff/useCodeScrollX.tsx): its
 // lines carry the column's key and start at its offset.
@@ -21,10 +22,14 @@ const Line = memo(function Line({
   line,
   tokens,
   settings,
+  blame,
+  index,
 }: {
   line: SideLine
   tokens: Token[] | undefined
   settings: Settings
+  blame: readonly Who[] | undefined
+  index: number
 }) {
   const marks = useMemo(() => {
     if (!line.partner || line.kind === 'context' || settings.lineDiffType === 'none') return undefined
@@ -36,6 +41,10 @@ const Line = memo(function Line({
   const wrap = settings.overflow === 'wrap'
   return (
     <div className={`flex min-h-6 leading-6 ${settings.backgrounds ? BG[line.kind] : ''} ${MARK[line.kind]}`}>
+      {blame ? (
+        // Three columns side by side leave less room for a name than a diff does.
+        <BlameCell blame={blame} index={index} className={settings.diffStyle === 'split' ? 'w-40' : 'w-56'} />
+      ) : null}
       {settings.lineNumbers ? (
         <span aria-hidden className="w-[6ch] shrink-0 select-none pe-[1.5ch] text-end text-tn-gutter tabular-nums">
           {line.no ?? ''}
@@ -73,12 +82,15 @@ export function MergeLines({
   lines,
   column,
   dim = false,
+  blame,
 }: {
   path: string
   lines: SideLine[]
   // The sideways scroll this block moves with.
   column: string
   dim?: boolean
+  // Who last changed each line, while blame is on.
+  blame?: readonly Who[] | undefined
 }) {
   const settings = useSettings(selectSettings)
   const rowStyle = useContext(ScrollRows)
@@ -91,7 +103,7 @@ export function MergeLines({
     <div data-scroll-key={column} style={rowStyle(column)} className={`min-w-0 ${dim ? 'opacity-40' : ''}`}>
       {lines.map((line, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: lines of one fixed block
-        <Line key={index} line={line} tokens={tokens?.get(index + 1)} settings={settings} />
+        <Line key={index} line={line} tokens={tokens?.get(index + 1)} settings={settings} blame={blame} index={index} />
       ))}
     </div>
   )

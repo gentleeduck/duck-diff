@@ -15,6 +15,8 @@ import {
   CommitSchema,
   type CommitStat,
   CommitStatSchema,
+  type ConflictBlame,
+  ConflictBlameSchema,
   type ConflictFile,
   ConflictFileSchema,
   type ConversationComment,
@@ -184,6 +186,7 @@ export interface Api {
   bisect(): Promise<BisectState>
   // A conflicted file as blocks, with what each side had.
   conflict(path: string): Promise<ConflictFile>
+  conflictBlame(path: string): Promise<ConflictBlame>
   // What git handed duck-diff as one of its tools, and the page's answer to it.
   tool(id: string): Promise<ToolSpec>
   finishTool(finish: ToolFinish): Promise<void>
@@ -558,6 +561,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       await sendEmpty('POST', '/api/nvim/tcd', { path })
     },
     conflict: (path) => json(`/api/conflict?${new URLSearchParams({ path })}`, ConflictFileSchema),
+    conflictBlame: (path) => json(`/api/conflict-blame?${new URLSearchParams({ path })}`, ConflictBlameSchema),
     tool: (id) => json(`/api/tool?${new URLSearchParams({ id })}`, ToolSpecSchema),
     finishTool: (finish) => post('/api/tool/finish', finish),
     file(path, ref) {

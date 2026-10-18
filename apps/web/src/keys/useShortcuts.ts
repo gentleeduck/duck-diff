@@ -4,7 +4,7 @@ import { useApp } from '../app/AppProvider'
 import { useOpenFile } from '../hooks/useOpenFile'
 import { compileHidden } from '../lib/hide'
 import { back, forward } from '../lib/history'
-import { MERGE_STEP } from '../merge/merge-model'
+import { MERGE_BLAME, MERGE_STEP } from '../merge/merge-model'
 import { lineHash, lineText } from '../review/anchor'
 import { resize } from '../settings/resize'
 import { BASE_FONT, panelShown, togglePanel } from '../state/settings'
@@ -182,6 +182,7 @@ export function useShortcuts(handlers: ShortcutHandlers) {
       },
       'toggle-layout': () =>
         settings.set((prev) => ({ ...prev, diffStyle: prev.diffStyle === 'split' ? 'unified' : 'split' })),
+      'toggle-blame': () => window.dispatchEvent(new CustomEvent(MERGE_BLAME)),
       'focus-filter': () => document.getElementById('file-filter')?.focus(),
     }
 

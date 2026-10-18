@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, describe, expect, it } from 'vitest'
-import { hasConflictMarkers, parseConflicts, readConflict, writeResolution } from '../index'
+import { conflictBlame, hasConflictMarkers, parseConflicts, readConflict, writeResolution } from '../index'
 
 describe('parseConflicts', () => {
   it('splits a file into common lines and conflict blocks with their labels', () => {
@@ -137,6 +137,26 @@ describe('readConflict', () => {
     })
   })
 
+  it('finds the base of a block git folded from two, and of one it trimmed to the lines that differ', async () => {
+    repo = createRepo()
+    repo.write('a.txt', 'a\none\n}\ntwo\nz\nkeep\nkeep\nkeep\nb1\nb2\nb3\nend\n')
+    repo.commit('base')
+    repo.git('checkout', '-q', '-b', 'feature')
+    repo.write('a.txt', 'a\nONE feature\n}\nTWO feature\nz\nkeep\nkeep\nkeep\nsame\nfeature\nsame too\nend\n')
+    repo.commit('feature')
+    repo.git('checkout', '-q', 'main')
+    repo.write('a.txt', 'a\nONE main\n}\nTWO main\nz\nkeep\nkeep\nkeep\nsame\nmain\nsame too\nend\n')
+    repo.commit('main')
+    try {
+      repo.git('-c', 'merge.conflictStyle=merge', 'merge', 'feature')
+    } catch {}
+    const blocks = (await readConflict(repo.path, 'a.txt')).segments.filter((segment) => segment.kind === 'conflict')
+    expect(blocks).toMatchObject([
+      { ours: ['ONE main', '}', 'TWO main'], base: ['one', '}', 'two'], theirs: ['ONE feature', '}', 'TWO feature'] },
+      { ours: ['main'], base: ['b1', 'b2', 'b3'], theirs: ['feature'] },
+    ])
+  })
+
   it('names the commits on each side and their merge base', async () => {
     conflicted()
     const file = await readConflict(repo.path, 'a.txt')
@@ -164,6 +184,62 @@ describe('readConflict', () => {
     const file = await readConflict(repo.path, 'new.txt')
     expect(file.stages.base).toBeNull()
     expect(file.stages.ours).toBe('from main\n')
+  })
+})
+
+describe('conflictBlame', () => {
+  const sha = (ref: string) => repo.git('rev-parse', ref).trim()
+  const pairs = (lines: { text: string; sha: string }[] | null) => lines?.map((line) => [line.text, line.sha])
+
+  it('blames each side at its own commit and the base at the merge base', async () => {
+    conflicted()
+    const blame = await conflictBlame(repo.path, 'a.txt')
+    expect(pairs(blame.ours)).toEqual([
+      ['one', sha('main~1')],
+      ['TWO main', sha('main')],
+      ['three', sha('main~1')],
+    ])
+    expect(blame.theirs?.[1]).toMatchObject({ text: 'TWO feature', sha: sha('feature'), summary: 'feature' })
+    expect(blame.base?.[1]).toMatchObject({ text: 'two', sha: sha('main~1'), author: 'Duck Test' })
+  })
+
+  it("blames a cherry-pick's base at the picked commit's parent, not the merge base", async () => {
+    repo = createRepo()
+    repo.write('a.txt', 'one\ntwo\nthree\n')
+    repo.commit('base')
+    repo.git('checkout', '-q', '-b', 'feature')
+    repo.write('a.txt', 'one\ntwo\nTHREE\n')
+    repo.commit('louder end')
+    repo.write('a.txt', 'one\nTWO feature\nTHREE\n')
+    const picked = repo.commit('feature')
+    repo.git('checkout', '-q', 'main')
+    repo.write('a.txt', 'one\nTWO main\nthree\n')
+    repo.commit('main')
+    try {
+      repo.git('cherry-pick', picked)
+    } catch {}
+    const blame = await conflictBlame(repo.path, 'a.txt')
+    expect(blame.theirs?.[1]).toMatchObject({ text: 'TWO feature', sha: picked })
+    expect(blame.base?.[2]).toMatchObject({ text: 'THREE', sha: sha('feature~1') })
+  })
+
+  it('has nothing for a side that does not have the file', async () => {
+    repo = createRepo()
+    repo.write('base.txt', 'x\n')
+    repo.commit('base')
+    repo.git('checkout', '-q', '-b', 'feature')
+    repo.write('new.txt', 'from feature\n')
+    repo.commit('feature')
+    repo.git('checkout', '-q', 'main')
+    repo.write('new.txt', 'from main\n')
+    repo.commit('main')
+    try {
+      repo.git('merge', 'feature')
+    } catch {}
+    const blame = await conflictBlame(repo.path, 'new.txt')
+    expect(blame.base).toBeNull()
+    expect(pairs(blame.ours)).toEqual([['from main', sha('main')]])
+    expect(pairs(blame.theirs)).toEqual([['from feature', sha('feature')]])
   })
 })
 

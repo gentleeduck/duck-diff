@@ -15,13 +15,14 @@ export function BlameCell({
   className = 'w-60',
   everyLine = false,
 }: {
-  blame: readonly BlameLine[] | null
+  // A gap is a line the blamed version does not have.
+  blame: readonly (BlameLine | undefined)[] | null
   // The line's index in the file, from 0; -1 for a line the blamed version does not have.
   index: number
   className?: string
   everyLine?: boolean
 }) {
-  const { graphSelection } = useApp()
+  const { graphSelection, toolId } = useApp()
   const { show } = useView()
   const line = index >= 0 ? blame?.[index] : undefined
   const first = line && blame?.[index - 1]?.sha !== line.sha
@@ -37,7 +38,8 @@ export function BlameCell({
           type="button"
           data-own-tooltip
           onClick={() => {
-            if (uncommitted) return
+            // git's tool window has no graph to open the commit in.
+            if (uncommitted || toolId) return
             graphSelection.set(line.sha)
             show('graph')
           }}

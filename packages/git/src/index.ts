@@ -1,8 +1,10 @@
 export { type CheckoutInfo, readCheckout } from './checkout'
 export { type Commit, type CommitDetails, type CommitStat, listCommits, readCommit, readCommitStat } from './commits'
 export {
+  type ConflictBlame,
   type ConflictFile,
   type ConflictSegment,
+  conflictBlame,
   hasConflictMarkers,
   type ParsedConflicts,
   parseConflicts,
@@ -34,7 +36,9 @@ export { buildLinePatch, discardLines, type PickedLine, stageLines, unstageLines
 export {
   addRemote,
   type BlameLine,
+  type BlameText,
   blame,
+  blameText,
   cleanUntracked,
   continueOperation,
   createTag,

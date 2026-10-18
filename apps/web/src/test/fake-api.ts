@@ -78,6 +78,7 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       stages: { base: null, ours: null, theirs: null },
       sides: { ours: null, theirs: null, base: null },
     }),
+    conflictBlame: async () => ({ ours: null, theirs: null, base: null }),
     lsp: {
       definition: async () => ({ source: null, server: null, locations: [] }),
       references: async () => ({ source: null, server: null, locations: [] }),

@@ -73,3 +73,39 @@ test("a conflict met in the page's terminal shows in the panel at once", async (
   await expect(page.getByRole('main')).toContainText('Current change')
   await expect(page.getByRole('main')).toContainText(repo.git('rev-parse', '--short', 'feature').trim())
 })
+
+test('the merge page blames each side and lists the commits behind it', async ({ page, app, repo }) => {
+  const commitAs = (author: string, message: string) => {
+    repo.git('add', '-A')
+    repo.git('commit', '-q', '--author', author, '-m', message)
+  }
+  repo.commit('work in progress')
+  repo.write('list.txt', 'one\nkeep\n')
+  repo.commit('base')
+  repo.git('checkout', '-q', '-b', 'feature')
+  repo.write('list.txt', 'one feature\nkeep\n')
+  commitAs('Bob Incoming <bob@duck.local>', 'Louder one')
+  repo.git('checkout', '-q', 'main')
+  repo.write('list.txt', 'one main\nkeep\n')
+  commitAs('Ada Current <ada@duck.local>', 'Quieter one')
+  expect(() => repo.git('merge', 'feature')).toThrow()
+
+  await page.goto(app.url)
+  await page.getByRole('button', { name: 'Resolve list.txt' }).first().click()
+  const editor = page.getByRole('region', { name: 'Merge list.txt' })
+  await expect(editor).toContainText('1 of 1 left')
+  await page.keyboard.press('b')
+  const incoming = editor.getByRole('region', { name: 'Incoming change, conflict 1' })
+  await expect(incoming).toContainText('Bob Incoming')
+  await expect(editor.getByRole('region', { name: 'Current change, conflict 1' })).toContainText('Ada Current')
+
+  await editor.getByRole('button', { name: 'History' }).click()
+  const history = editor.getByRole('region', { name: 'History of list.txt' })
+  await expect(history.getByRole('region', { name: 'Current change history' })).toContainText('Quieter one')
+  await expect(history.getByRole('region', { name: 'Incoming change history' })).toContainText('Louder one')
+
+  // Both stay on across a reload, as the rest of the page does.
+  await page.reload()
+  await expect(incoming).toContainText('Bob Incoming')
+  await expect(history).toContainText('Louder one')
+})

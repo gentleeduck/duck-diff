@@ -211,6 +211,14 @@ export const RemoteSchema = z.object({ name: z.string(), url: z.string() })
 export type Remote = z.infer<typeof RemoteSchema>
 export const BlameLineSchema = z.object({ sha: z.string(), author: z.string(), time: z.number(), summary: z.string() })
 export type BlameLine = z.infer<typeof BlameLineSchema>
+// Each side of a conflict blamed at its own commit, every line with its text so the page can find the lines it shows.
+const BlameTextSchema = BlameLineSchema.extend({ text: z.string() })
+export const ConflictBlameSchema = z.object({
+  ours: z.array(BlameTextSchema).nullable(),
+  theirs: z.array(BlameTextSchema).nullable(),
+  base: z.array(BlameTextSchema).nullable(),
+})
+export type ConflictBlame = z.infer<typeof ConflictBlameSchema>
 
 // Where a name is defined, imported and used, from a plain text search like GitHub's code navigation.
 export const SymbolHitSchema = z.object({
