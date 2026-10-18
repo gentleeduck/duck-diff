@@ -102,6 +102,9 @@ import {
   TemplatesSchema,
   type Thread,
   ThreadSchema,
+  type ToolFinish,
+  type ToolSpec,
+  ToolSpecSchema,
   type UndoResult,
   UndoResultSchema,
   type WorkflowRun,
@@ -181,6 +184,9 @@ export interface Api {
   bisect(): Promise<BisectState>
   // A conflicted file as blocks, with what each side had.
   conflict(path: string): Promise<ConflictFile>
+  // What git handed duck-diff as one of its tools, and the page's answer to it.
+  tool(id: string): Promise<ToolSpec>
+  finishTool(finish: ToolFinish): Promise<void>
   sync(): Promise<SyncStatus>
   remotes(): Promise<Remote[]>
   lastMessage(): Promise<string>
@@ -552,6 +558,8 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
       await sendEmpty('POST', '/api/nvim/tcd', { path })
     },
     conflict: (path) => json(`/api/conflict?${new URLSearchParams({ path })}`, ConflictFileSchema),
+    tool: (id) => json(`/api/tool?${new URLSearchParams({ id })}`, ToolSpecSchema),
+    finishTool: (finish) => post('/api/tool/finish', finish),
     file(path, ref) {
       const params = new URLSearchParams({ path })
       if (ref) params.set('ref', ref)

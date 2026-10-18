@@ -213,6 +213,10 @@ function M.ensure(callback)
     vim.fn.delete(sums)
     remove_other_versions()
     M.report('done', 'Installed ' .. bin)
+    -- git's tools point at this copy now that the old one is gone.
+    if config.get().git_setup ~= false then
+      vim.system({ bin, 'git-setup', '--quiet' })
+    end
     done(nil, bin)
   end
 

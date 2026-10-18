@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { RepoInfoSchema } from './api'
 import { DiffTargetSchema } from './git'
 import { JobSchema } from './jobs'
+import { ToolSpecSchema } from './tools'
 
 export const ServerEventSchema = z.discriminatedUnion('type', [
   // build changes when a new server binary has taken over, which tells an open page to reload.
@@ -17,6 +18,9 @@ export const ServerEventSchema = z.discriminatedUnion('type', [
   // What pages save (settings, keys, tabs) changed, here or through another repo's server. A page that just
   // connected gets every value (all), so a save that landed after the page was served, or a key removed while
   // it was away, still reaches it.
+  // git ran duck-diff as one of its tools: the page shows that, and stops once it is done.
+  z.object({ type: z.literal('tool'), tool: ToolSpecSchema }),
+  z.object({ type: z.literal('tool-done'), id: z.string() }),
   z.object({
     type: z.literal('state'),
     changes: z.record(z.string(), z.string().nullable()),

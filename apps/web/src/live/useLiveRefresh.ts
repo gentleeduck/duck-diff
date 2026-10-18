@@ -13,14 +13,15 @@ export interface LiveState {
   repo: RepoInfo | null
 }
 
-function eventsUrl(): string {
+// A git tool's window says so, so the tool counts it apart from the user's own pages.
+function eventsUrl(tool: boolean): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${window.location.host}/api/events`
+  return `${protocol}//${window.location.host}/api/events${tool ? '?tool=1' : ''}`
 }
 
 // Keeps the page in step with the repo: every change the server reports becomes one coalesced reload.
 export function useLiveRefresh(): LiveState {
-  const { session, reviews, refs, jobs, place, queries } = useApp()
+  const { session, reviews, refs, jobs, place, queries, toolId, tool } = useApp()
   const [state, setState] = useState<LiveState>({ status: 'connecting', repo: null })
   const client = useQueryClient()
 
@@ -36,7 +37,7 @@ export function useLiveRefresh(): LiveState {
     let build: string | undefined
     let dropped = false
     const dispose = connectEvents({
-      url: eventsUrl(),
+      url: eventsUrl(Boolean(toolId)),
       onStatus: (status) => {
         setState((prev) => ({ ...prev, status }))
         if (status === 'closed') dropped = true
@@ -60,6 +61,14 @@ export function useLiveRefresh(): LiveState {
         if (event.type === 'github') return void invalidateTopic(client, event.topic)
         if (event.type === 'job' || event.type === 'job-output') return jobs.apply(event)
         if (event.type === 'state') return saved.apply(event.changes, event.all)
+        if (event.type === 'tool') {
+          if (toolId) tool.set({ spec: event.tool, done: false })
+          return
+        }
+        if (event.type === 'tool-done') {
+          if (tool.get().spec?.id === event.id) tool.set((now) => ({ ...now, done: true }))
+          return
+        }
         if (event.type === 'navigate') {
           place.set((now) => ({ ...now, target: event.target }))
           window.focus()
@@ -82,7 +91,7 @@ export function useLiveRefresh(): LiveState {
       refresher.dispose()
       dispose()
     }
-  }, [session, reviews, refs, jobs, client, place, queries])
+  }, [session, reviews, refs, jobs, client, place, queries, toolId, tool])
 
   return state
 }

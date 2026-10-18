@@ -12,7 +12,7 @@ const selectPath = (path: string | null) => path
 
 // The merge page's top bar: what is being merged, how much is left, and the way out either side.
 export function MergeHeader() {
-  const { mergeFile, queries } = useApp()
+  const { mergeFile, queries, toolId } = useApp()
   const { status } = useGit()
   const paths = selectConflicts(useStage()).split('\n').filter(Boolean)
   const path = useStore(mergeFile, selectPath) ?? paths[0] ?? null
@@ -33,7 +33,8 @@ export function MergeHeader() {
         ) : null}
       </h1>
       {/* Once nothing is left, the page itself offers Continue and Abort. */}
-      {paths.length ? <OperationActions resolve={false} /> : null}
+      {/* In a window git opened as its merge tool, git and the terminal finish the operation. */}
+      {paths.length && !toolId ? <OperationActions resolve={false} /> : null}
     </>
   )
 }

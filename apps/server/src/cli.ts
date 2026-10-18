@@ -1,15 +1,20 @@
 #!/usr/bin/env bun
-import { duckHome, resolveRepo, runGit } from '@duck-diff/git'
+import { spawnSync } from 'node:child_process'
+import { realpathSync } from 'node:fs'
+import { relative } from 'node:path'
+import { duckHome, resolveRepo, runGit, snapshotCommit } from '@duck-diff/git'
 import type { Handshake } from '@duck-diff/protocol'
 import { type Command, parseArgs, VERSION } from './args'
 import { startBanner } from './banner'
 import { ansi, createReporter, header, paintFor } from './cli-ui'
 import { clearCaches } from './disk-cache'
+import { gitSetup, gitSetupOff } from './git-setup'
 import { help } from './help'
 import { alive, instanceFile, liveInstance, openBrowser, pageUrl, removeInstance, writeInstance } from './instance'
 import { moveOldData } from './move-home'
 import { buildStamp, watchBinary } from './self-update'
 import { createServer } from './server'
+import { ensureServer, runTool, ToolError } from './tool-cli'
 import { update } from './update'
 
 // A compiled server runs from its own binary; from source there is nothing to watch or replace.
@@ -23,6 +28,91 @@ function fail(message: string) {
   console.error(
     process.stderr.isTTY ? `${ansi('31', paintFor(process.stderr))('✖')} ${message}` : `duck-diff: ${message}`,
   )
+}
+
+// This binary as git should run it: by name when it is the duck-diff on the PATH, so an update never leaves git
+// pointing at an old copy, by its full path otherwise (the Neovim plugin's own copy).
+function selfCommand(): string {
+  if (!binary) return 'duck-diff'
+  const onPath = Bun.which('duck-diff')
+  return onPath && realpathSync(onPath) === realpathSync(binary) ? 'duck-diff' : binary
+}
+
+async function setupGit(off: boolean, quiet: boolean): Promise<number> {
+  const say = (line: string) => quiet || report.ok(line)
+  try {
+    if (off) {
+      const changes = await gitSetupOff(duckHome())
+      if (!quiet) showHeader()
+      for (const change of changes) say(`Removed ${change.key} (was ${change.was})`)
+      if (!changes.length) say("duck-diff was not set up as any of git's tools")
+      return 0
+    }
+    const { changes, kept } = await gitSetup(selfCommand(), duckHome())
+    if (!quiet) showHeader()
+    for (const change of changes) say(`${change.key} = ${change.now}`)
+    if (!quiet) {
+      for (const { key, value } of kept)
+        report.note(`Kept your ${key} (${value}); set it to duck-diff to use it there too.`)
+      report.note(
+        'git mergetool, git difftool and git rebase -i now open duck-diff; duck-diff git-setup --off undoes it.',
+      )
+    }
+    return 0
+  } catch (error) {
+    fail(`could not set up git: ${(error as Error).message}`)
+    return 1
+  }
+}
+
+// git ran duck-diff as one of its tools: a window shows what git handed over, and the exit code tells git how
+// it went (0 resolved or done, anything else not).
+async function runGitTool(
+  command: Extract<Command, { name: 'mergetool' | 'difftool' | 'rebase-todo' }>,
+  repo: string,
+  record: string,
+): Promise<number> {
+  const self = binary ? [binary] : [process.execPath, Bun.main]
+  const say = (line: string) => console.error(line)
+  if (command.name === 'mergetool') {
+    const path = relative(repo, command.path)
+    const unmerged = async () => (await runGit(['ls-files', '-u', '--', path], { cwd: repo })).trim() !== ''
+    if (!(await unmerged())) return 0
+    const instance = await ensureServer(record, repo, self)
+    say(`Resolve ${path} in duck-diff; this waits until it is staged.`)
+    const ok = await runTool(instance, {
+      start: { kind: 'merge', path },
+      page: '/merge',
+      settled: async () => !(await unmerged()),
+      say,
+    })
+    if (!ok) say(`${path} is still in conflict: the duck-diff window was closed.`)
+    return ok ? 0 : 1
+  }
+  if (command.name === 'difftool') {
+    const path = relative(repo, command.path)
+    const [from, to] = await Promise.all([
+      snapshotCommit(repo, path, command.left),
+      snapshotCommit(repo, path, command.right),
+    ])
+    const instance = await ensureServer(record, repo, self)
+    const ok = await runTool(instance, {
+      start: { kind: 'diff', path, target: { kind: 'range', from, to, mode: 'two-dot' } },
+      page: '/changes',
+      say,
+    })
+    return ok ? 0 : 1
+  }
+  const instance = await ensureServer(record, repo, self)
+  try {
+    return (await runTool(instance, { start: { kind: 'rebase', todo: command.todo }, page: '/graph', say })) ? 0 : 1
+  } catch (error) {
+    // A todo with lines the planner does not handle goes to the editor the user has for everything else.
+    if (!(error instanceof ToolError) || error.status !== 422) throw error
+    const editor = (await runGit(['var', 'GIT_EDITOR'], { cwd: repo })).trim() || 'vi'
+    const done = spawnSync('/bin/sh', ['-c', `${editor} "$1"`, 'editor', command.todo], { stdio: 'inherit' })
+    return done.status ?? 1
+  }
 }
 
 async function main(): Promise<number> {
@@ -59,6 +149,7 @@ async function main(): Promise<number> {
     if (cleared) report.note('GitHub answers and commits are read again the next time they are needed.')
     return 0
   }
+  if (command.name === 'git-setup') return setupGit(command.off, command.quiet)
   if (command.name === 'update') {
     showHeader()
     if (!binary) {
@@ -76,6 +167,15 @@ async function main(): Promise<number> {
     return 1
   }
   const record = instanceFile(duckHome(), repo)
+
+  if (command.name === 'mergetool' || command.name === 'difftool' || command.name === 'rebase-todo') {
+    try {
+      return await runGitTool(command, repo, record)
+    } catch (error) {
+      fail((error as Error).message)
+      return 1
+    }
+  }
 
   // One server per repo: a second `duck-diff` opens its page on the one already running.
   if (command.name === 'open') {

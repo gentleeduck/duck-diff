@@ -25,6 +25,11 @@ export type Command =
       // False prints the url instead of opening a browser.
       browser: boolean
     }
+  // Run by git as its merge tool, diff tool or rebase todo editor (duck-diff git-setup sets that up).
+  | { name: 'mergetool'; repo: string; path: string }
+  | { name: 'difftool'; repo: string; left: string; right: string; path: string }
+  | { name: 'rebase-todo'; repo: string; todo: string }
+  | { name: 'git-setup'; off: boolean; quiet: boolean }
   | { name: 'version' }
   | { name: 'cache-clear'; repo: string | null }
   | { name: 'update'; version: string | null }
@@ -46,7 +51,19 @@ const VIEWS = [
 ] as const
 type View = (typeof VIEWS)[number]
 
-export const COMMANDS = [...VIEWS, 'diff', 'serve', 'update', 'cache', 'help', 'version'] as const
+export const COMMANDS = [
+  ...VIEWS,
+  'diff',
+  'serve',
+  'update',
+  'cache',
+  'git-setup',
+  'mergetool',
+  'difftool',
+  'rebase-todo',
+  'help',
+  'version',
+] as const
 
 function wholeNumber(flag: string, value: string | undefined): number {
   const parsed = Number(value)
@@ -126,7 +143,7 @@ export function parseArgs(argv: string[], cwd: string): Command {
       else flags[arg] = value
       continue
     }
-    if (['-h', '--help', '-v', '--version', '--no-open', '--no-terminal'].includes(arg)) {
+    if (['-h', '--help', '-v', '--version', '--no-open', '--no-terminal', '--off', '--quiet'].includes(arg)) {
       flags[arg] = true
       continue
     }
@@ -141,6 +158,26 @@ export function parseArgs(argv: string[], cwd: string): Command {
   if (command === 'cache') {
     if (rest[0] !== 'clear' || rest.length > 1) throw new Error('usage: duck-diff cache clear [--repo <path>]')
     return { name: 'cache-clear', repo: repos[0] ?? null }
+  }
+  if (command === 'git-setup') {
+    if (rest.length) throw new Error('usage: duck-diff git-setup [--off] [--quiet]')
+    return { name: 'git-setup', off: Boolean(flags['--off']), quiet: Boolean(flags['--quiet']) }
+  }
+  // git hands these paths relative to where it runs them; they are kept as given and read from there.
+  const repo = repos[0] ?? cwd
+  if (command === 'mergetool') {
+    if (rest.length !== 1) throw new Error('usage: duck-diff mergetool <file>; git runs it as its merge tool')
+    return { name: 'mergetool', repo, path: resolve(cwd, rest[0] as string) }
+  }
+  if (command === 'difftool') {
+    if (rest.length !== 3)
+      throw new Error('usage: duck-diff difftool <left> <right> <path>; git runs it as its diff tool')
+    const [left, right, path] = rest as [string, string, string]
+    return { name: 'difftool', repo, left: resolve(cwd, left), right: resolve(cwd, right), path: resolve(cwd, path) }
+  }
+  if (command === 'rebase-todo') {
+    if (rest.length !== 1) throw new Error('usage: duck-diff rebase-todo <todo>; git runs it for git rebase -i')
+    return { name: 'rebase-todo', repo, todo: resolve(cwd, rest[0] as string) }
   }
   if (command === 'update') {
     if (rest.length > 1) throw new Error('usage: duck-diff update [<version>]')

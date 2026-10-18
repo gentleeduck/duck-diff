@@ -21,6 +21,7 @@ import {
   NavigateRequestSchema,
   OpenRepoSchema,
   OpenRequestSchema,
+  ToolFinishSchema,
   targetKey,
   UpdateReviewSchema,
   WriteRequestSchema,
@@ -58,6 +59,7 @@ import {
   pageState,
   rememberedTarget,
 } from './state'
+import { createTools, ToolStartSchema } from './tools'
 import { watchRepo } from './watch'
 import { createWebHandler } from './web'
 import { WEB_ASSETS } from './web-assets.gen'
@@ -113,7 +115,8 @@ export interface RunningServer {
 
 const HOST = '127.0.0.1'
 
-type SocketData = { kind: 'events' } | { kind: 'pty'; id: string; peer: TerminalPeer | null }
+// tool: a window opened for one of git's tools (tools.ts), counted apart from the user's own pages.
+type SocketData = { kind: 'events'; tool: boolean } | { kind: 'pty'; id: string; peer: TerminalPeer | null }
 
 const LspWarmSchema = z.object({ paths: z.array(z.string().max(4096)).max(50) })
 const PtyQuerySchema = z.object({
@@ -151,6 +154,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
   const enqueue = createWriteQueue()
   const cache = options.persist ? createDiskCache(join(options.dataDir ?? duckHome(), repoId(repo))) : undefined
   const jobs = createJobs((event) => hub.broadcast(event), { cache })
+  const tools = createTools(repo, (event) => hub.broadcast(event))
   const terminals =
     options.terminal === false
       ? null
@@ -196,7 +200,8 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         const port = bun.port ?? 0
         if (!isAuthorized(request, token, port)) throw new HttpError(401, 'unauthorized', 'missing or wrong token')
         if (url.pathname === '/api/events') {
-          if (bun.upgrade(request, { data: { kind: 'events' } })) return undefined
+          if (bun.upgrade(request, { data: { kind: 'events', tool: url.searchParams.get('tool') === '1' } }))
+            return undefined
           throw new HttpError(400, 'bad-request', 'expected a websocket upgrade')
         }
         if (url.pathname === '/api/saved' && request.method === 'POST') {
@@ -265,6 +270,20 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           })
           notify(result.reason)
           return Response.json(result.body)
+        }
+        if (url.pathname.startsWith('/api/tool')) {
+          const pages = () => hub.count((data) => data.kind === 'events' && data.tool)
+          const id = url.searchParams.get('id') ?? ''
+          if (url.pathname === '/api/tool/start' && request.method === 'POST') {
+            const spec = await tools.start(ToolStartSchema.parse(await request.json()))
+            return Response.json({ id: spec.id, pages: pages() })
+          }
+          if (url.pathname === '/api/tool/finish' && request.method === 'POST') {
+            await tools.finish(ToolFinishSchema.parse(await request.json()))
+            return new Response(null, { status: 204 })
+          }
+          if (url.pathname === '/api/tool/state') return Response.json(tools.state(id, pages()))
+          if (url.pathname === '/api/tool') return Response.json(tools.get(id))
         }
         if (url.pathname === '/api/navigate' && request.method === 'POST') {
           const { target } = NavigateRequestSchema.parse(await request.json())

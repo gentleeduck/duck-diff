@@ -119,6 +119,8 @@ done
 header
 
 if [ "$UNINSTALL" = 1 ]; then
+  # git stops opening duck-diff before the binary it would run goes.
+  [ -x "$DIR/duck-diff" ] && "$DIR/duck-diff" git-setup --off --quiet 2>/dev/null || true
   rm -f "$DIR/duck-diff"
   ok "Removed $DIR/duck-diff"
   say ""
@@ -250,6 +252,14 @@ if [ "$OS" = darwin ]; then
 fi
 mv -f "$NEXT" "$DIR/duck-diff"
 ok "Installed $DIR/duck-diff"
+
+# git mergetool, git difftool and git rebase -i open duck-diff, unless another tool is already chosen for them.
+step "Setting duck-diff up as git's merge tool, diff tool and rebase editor"
+if "$DIR/duck-diff" git-setup --quiet; then
+  ok "git mergetool, git difftool and git rebase -i open duck-diff (duck-diff git-setup --off undoes it)"
+else
+  note "Could not set git up; run duck-diff git-setup later."
+fi
 
 case ":$PATH:" in
   *":$DIR:"*) ;;

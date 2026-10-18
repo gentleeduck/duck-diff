@@ -9,9 +9,11 @@ import { selectConflicts } from './merge-model'
 const selectPath = (path: string | null) => path
 
 export function MergeSidebar() {
-  const { mergeFile, queries } = useApp()
+  const { mergeFile, mergeTop, queries } = useApp()
   const conflicts = selectConflicts(useStage())
-  const current = useStore(mergeFile, selectPath)
+  const onScreen = useStore(mergeTop, selectPath)
+  const picked = useStore(mergeFile, selectPath)
+  const current = onScreen ?? picked
   const paths = conflicts ? conflicts.split('\n') : []
   // How many blocks each file holds, from the same reads the editor opens them with.
   const counts = useQueries({ queries: paths.map((path) => queries.git.conflict(path)) }).map(
@@ -32,7 +34,13 @@ export function MergeSidebar() {
               type="button"
               aria-current={path === active}
               title={path}
-              onClick={() => mergeFile.set(path)}
+              onClick={() => {
+                mergeFile.set(path)
+                // Every file is on the page, so picking one scrolls to it, again if it is picked twice.
+                document
+                  .querySelector(`[data-merge-file="${CSS.escape(path)}"]`)
+                  ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+              }}
               className="flex h-7 w-full cursor-pointer items-center gap-2 rounded-sm px-2 text-start hover:bg-accent/60 aria-[current=true]:bg-accent justify-start">
               <span className="text-removed">!</span>
               <span style={{ color: icon.color }}>{icon.glyph}</span>

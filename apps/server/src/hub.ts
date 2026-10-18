@@ -16,6 +16,13 @@ export class Hub<T = unknown> {
     return this.sockets.size
   }
 
+  // Pages of one kind, like the windows git's tools opened.
+  count(match: (data: T) => boolean) {
+    let found = 0
+    for (const socket of this.sockets) if (match(socket.data)) found++
+    return found
+  }
+
   add(socket: ServerWebSocket<T>) {
     this.sockets.add(socket)
     this.clearTimer()

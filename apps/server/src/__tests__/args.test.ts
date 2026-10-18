@@ -92,3 +92,23 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['serve', 'x'], '/')).toThrow(/serve takes no arguments/)
   })
 })
+
+describe("git's tools", () => {
+  it('reads what git hands its merge tool, diff tool and sequence editor, from where git runs them', () => {
+    expect(parseArgs(['mergetool', 'src/a.ts'], '/r')).toEqual({ name: 'mergetool', repo: '/r', path: '/r/src/a.ts' })
+    expect(parseArgs(['difftool', '/tmp/x_a.ts', 'src/a.ts', 'src/a.ts'], '/r')).toEqual({
+      name: 'difftool',
+      repo: '/r',
+      left: '/tmp/x_a.ts',
+      right: '/r/src/a.ts',
+      path: '/r/src/a.ts',
+    })
+    expect(parseArgs(['rebase-todo', '/r/.git/rebase-merge/git-rebase-todo'], '/r/sub')).toEqual({
+      name: 'rebase-todo',
+      repo: '/r/sub',
+      todo: '/r/.git/rebase-merge/git-rebase-todo',
+    })
+    expect(parseArgs(['git-setup', '--off'], '/r')).toEqual({ name: 'git-setup', off: true, quiet: false })
+    expect(() => parseArgs(['mergetool'], '/r')).toThrow(/usage/)
+  })
+})

@@ -13,13 +13,23 @@
   keymaps editor. A few plain keys do one thing each: Ctrl+P (Cmd+P on a Mac) searches, j and k step through
   changes, J and K through files, s, u and x stage, unstage and discard, c comments, v marks viewed, o opens in
   your editor, t flips the layout, / filters, and arrows, Home and End walk any list. `?` lists them.
-- The merge page shows a conflict as GitHub does: the current change and the incoming one, each headed by its
-  branch, short hash and subject and drawn against the merge base in red and green with the changed words
-  marked, beside the result being built. It follows the diff settings (split or stacked, word marks, wrapping,
-  line numbers, backgrounds, change markers, tab width), with a layout button and j, k and t working there too.
-  The top bar says what is coming together and how many files are left, with Continue and Abort; each file
-  shows its conflict count; each conflict reads across one strip with its state in a badge; and after the last
-  file the page offers Continue right there.
+- duck-diff is git's merge tool, diff tool and rebase editor. `git mergetool` resolves a merge, cherry-pick, revert,
+  rebase or stash pop in a window with only the conflicts and their files, and returns each file to git once it
+  is staged; `git difftool` shows each file and moves on with Next file; `git rebase -i` plans the rebase as a
+  list (a todo with lines it does not plan opens the usual editor). The window closes once git has what it asked
+  for. The install sets this up where no other tool is chosen (`duck-diff git-setup`, `--off` to undo); so does
+  the Neovim plugin, unless `git_setup = false`.
+- Conflicts met in the page's terminal are announced only when there are conflicts: a rebase being planned no
+  longer reads as stopped.
+- The merge page shows every conflicted file on one page, as the diff shows changed files: each under a header
+  that stays while it scrolls, the list beside it jumping to a file and marking the one on screen, and each
+  column scrolling sideways as the diff's do. It shows a conflict as GitHub does: the current change and the
+  incoming one, each headed by its branch, short hash and subject and drawn against the merge base in red and
+  green with the changed words marked, beside the result being built. It follows the diff settings (split or
+  stacked, word marks, wrapping, line numbers, backgrounds, change markers, tab width), with a layout button and
+  j, k and t working there too. The top bar says what is coming together and how many files are left, with
+  Continue and Abort; each file shows its conflict count; each conflict reads across one strip with its state in
+  a badge; and after the last file the page offers Continue right there.
 - A merge, rebase, cherry-pick or revert in progress shows everywhere: in the status bar on every page, as a
   Merge entry with its count on the rail, and as a Merge tab in the bottom panel listing the conflicted files with
   Take current, Take incoming and Resolve. One that stops in the page's terminal (or anywhere else) turns the

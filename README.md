@@ -119,9 +119,23 @@ Cursor, Windsurf, Zed or Sublime), else to the app your system opens the file wi
 | `duck-diff graph` / `files [path[:line]]` / `prs [n]` / `issues [n]` / `inbox` | a view |
 | `duck-diff update [version]` | the newest release, over this binary |
 | `duck-diff cache clear` | empties the GitHub and commit caches |
+| `duck-diff git-setup [--off]` | makes duck-diff git's merge tool, diff tool and rebase editor (the install does this) |
 | `duck-diff serve` | the server alone, for editor plugins (one line of JSON on stdout) |
 
 Options: `-C <path>` another repo, `--no-open` print the url, `-p <port>`, `--no-terminal`.
+
+## As git's tools
+
+The install makes duck-diff the tool git opens, wherever you have not chosen another (`duck-diff git-setup`;
+`--off` undoes it):
+
+| You run | duck-diff |
+| --- | --- |
+| `git mergetool` | resolves the conflicts of a merge, cherry-pick, revert, rebase or stash pop, in a window with only them |
+| `git difftool` | shows each file, the next one when you click Next file |
+| `git rebase -i` | plans the rebase as a list instead of a text file (a todo with exec or merge lines opens your editor) |
+
+The window closes once git has what it asked for, and the terminal carries on.
 
 ## Neovim options
 
@@ -132,6 +146,7 @@ opts = {
   binary = nil,       -- your own duck-diff binary
   github_token = nil, -- for downloads from a private fork
   server = { idle_timeout_ms = 600000 },
+  git_setup = true,   -- make each downloaded binary git's merge tool, diff tool and rebase editor
 }
 ```
 
