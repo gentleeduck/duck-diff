@@ -158,10 +158,10 @@ describe('merge editor', () => {
     expect(within(block).getByRole('region', { name: 'Incoming change, conflict 1' }).textContent).toContain('bbbbbbb')
     fireEvent.click(within(current).getByRole('button', { name: /Accept current/ }))
     expect(within(within(block).getByRole('region', { name: 'Result, conflict 1' })).getByText('mine 1')).toBeTruthy()
-    // The layout button flips it back to three columns.
-    fireEvent.click(screen.getByRole('button', { name: 'Split layout' }))
-    expect(await screen.findByRole('button', { name: 'Stacked layout' })).toBeTruthy()
-    expect(screen.queryByRole('region', { name: 'Conflict 1' })).toBeNull()
+    // The layout is the diff's setting, with no button of its own here; t flips it back to three columns.
+    expect(screen.queryByRole('button', { name: /layout/ })).toBeNull()
+    fireEvent.keyDown(window, { key: 't' })
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Conflict 1' })).toBeNull())
     window.localStorage.removeItem('duck-diff:settings')
   })
 
@@ -248,7 +248,9 @@ describe('merge editor', () => {
     render(<App api={api} />)
     const editor = await screen.findByRole('region', { name: 'Merge a.txt' })
     expect(screen.queryByText('Bob')).toBeNull()
-    fireEvent.keyDown(window, { key: 'b' })
+    const blame = within(editor).getByRole('button', { name: 'Blame' })
+    fireEvent.click(blame)
+    expect(blame.getAttribute('aria-pressed')).toBe('true')
     const incoming = screen.getByRole('region', { name: 'Incoming change, conflict 1' })
     expect(await within(incoming).findByText('Bob')).toBeTruthy()
     expect(within(screen.getByRole('region', { name: 'Current change, conflict 1' })).getByText('Ada')).toBeTruthy()
@@ -262,7 +264,9 @@ describe('merge editor', () => {
     expect(await within(history).findByText('Yours, not mine')).toBeTruthy()
     expect(asked).toContainEqual({ head: 'bbbbbbb', base: 'ccccccc', path: 'a.txt', limit: 100 })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Hide blame' }))
+    // b turns it off again for the file at the top of the page.
+    fireEvent.keyDown(window, { key: 'b' })
     expect(within(screen.getByRole('region', { name: 'Incoming change, conflict 1' })).queryByText('Bob')).toBeNull()
+    expect(blame.getAttribute('aria-pressed')).toBe('false')
   })
 })

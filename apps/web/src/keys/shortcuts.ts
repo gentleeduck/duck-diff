@@ -74,7 +74,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'viewed', title: 'Mark the file viewed', group: 'Changes', keys: ['v'], views: CHANGES },
   { id: 'open', title: 'Open the change in your editor', group: 'Changes', keys: ['o'], views: CHANGES },
   { id: 'toggle-layout', title: 'Split or stacked', group: 'Changes', keys: ['t'], views: MERGING },
-  { id: 'toggle-blame', title: 'Show or hide blame while merging', group: 'Changes', keys: ['b'], views: MERGE },
+  { id: 'toggle-blame', title: 'Blame the file at the top while merging', group: 'Changes', keys: ['b'], views: MERGE },
   { id: 'focus-filter', title: 'Filter files', group: 'Changes', keys: ['/'], views: CHANGES },
 ]
 

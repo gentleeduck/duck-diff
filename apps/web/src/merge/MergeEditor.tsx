@@ -1,5 +1,5 @@
 import type { ConflictBlame, ConflictBlock, ConflictFile } from '@duck-diff/protocol'
-import { Badge, type BadgeTone, Button, Separator, Textarea } from '@duck-diff/ui'
+import { Badge, type BadgeTone, Button, Textarea } from '@duck-diff/ui'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   ArrowDownUp,
@@ -9,12 +9,10 @@ import {
   ChevronDown,
   ChevronsUpDown,
   ChevronUp,
-  Columns3,
   GitCommitVertical,
   History,
   Pencil,
   RotateCcw,
-  Rows3,
   SquareArrowOutUpRight,
   UserRound,
 } from 'lucide-react'
@@ -399,18 +397,16 @@ function FileSection({
   file,
   split,
   wrap,
-  blaming,
   bar,
   onDone,
 }: {
   file: ConflictFile
   split: boolean
   wrap: boolean
-  blaming: boolean
   bar(key: string): ReactNode
   onDone(): void
 }) {
-  const { queries } = useApp()
+  const { queries, mergeTop } = useApp()
   const { run, busy } = useGit()
   const openInEditor = useOpenFile()
   // Kept per file and conflict shape, so a reload keeps the picks and a new conflict in the file starts over.
@@ -423,11 +419,21 @@ function FileSection({
   const left = whole === null ? unresolvedCount(file, choices) : MARKERS.test(whole) ? 1 : 0
   const icon = fileGlyph(file.path.split('/').pop() ?? file.path)
   const [history, setHistory] = useKept(`merge-history:${file.path}`, false)
+  const [blaming, setBlaming] = useKept(`merge-blame:${file.path}`, false)
   const blamed = useQuery({ ...queries.git.conflictBlame(file.path), enabled: blaming })
   const blames = useMemo(
     () => (blaming ? segmentBlames(file, blamed.data ?? NO_BLAME) : undefined),
     [blaming, blamed.data, file],
   )
+
+  // b blames the file at the top of the page.
+  useEffect(() => {
+    const onBlame = () => {
+      if (mergeTop.get() === file.path) setBlaming((on) => !on)
+    }
+    window.addEventListener(MERGE_BLAME, onBlame)
+    return () => window.removeEventListener(MERGE_BLAME, onBlame)
+  }, [mergeTop, file.path, setBlaming])
 
   const choose = (index: number, next: Choice | undefined) =>
     setChoices((now) => {
@@ -521,6 +527,16 @@ function FileSection({
               Back to blocks
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-pressed={blaming}
+            className="aria-pressed:bg-accent aria-pressed:text-tn-blue"
+            title="Who last changed each line (b)"
+            onClick={() => setBlaming((on) => !on)}>
+            <UserRound />
+            Blame
+          </Button>
           <Button
             size="sm"
             variant="ghost"
@@ -635,7 +651,7 @@ function Finished() {
 // file's result and stages it, and the file leaves the page.
 export default function MergeEditor() {
   const app = useApp()
-  const { mergeFile, mergeTop, queries, settings } = app
+  const { mergeFile, mergeTop, queries } = app
   const split = useSettings(selectSplit)
   const wrap = useSettings(selectWrap)
   const tabSize = useSettings(selectTabSize)
@@ -657,13 +673,6 @@ export default function MergeEditor() {
   const sideways = useCodeScrollX(page, widest, !wrap)
   const [at, setAt] = useState(0)
   const first = files[0]?.segments.find((segment) => segment.kind === 'conflict')
-  const [blaming, setBlaming] = useKept('merge-blame', false)
-
-  useEffect(() => {
-    const onBlame = () => setBlaming((on) => !on)
-    window.addEventListener(MERGE_BLAME, onBlame)
-    return () => window.removeEventListener(MERGE_BLAME, onBlame)
-  }, [setBlaming])
 
   useEffect(() => {
     const now = new Set(conflictKey.split('\n'))
@@ -753,23 +762,6 @@ export default function MergeEditor() {
             <IconTool label="Next conflict" tip="Next conflict (j)" onClick={forward} disabled={!total}>
               <ChevronDown />
             </IconTool>
-            <Separator orientation="vertical" className="mx-1 h-5" />
-            <IconTool
-              label={split ? 'Stacked layout' : 'Split layout'}
-              tip={split ? 'Stacked layout (t)' : 'Split layout (t)'}
-              onClick={() =>
-                settings.set((prev) => ({ ...prev, diffStyle: prev.diffStyle === 'split' ? 'unified' : 'split' }))
-              }>
-              {split ? <Rows3 /> : <Columns3 />}
-            </IconTool>
-            <span className={blaming ? 'text-tn-blue' : ''}>
-              <IconTool
-                label={blaming ? 'Hide blame' : 'Show blame'}
-                tip={`${blaming ? 'Hide' : 'Show'} who last changed each line (b)`}
-                onClick={() => setBlaming((on) => !on)}>
-                <UserRound />
-              </IconTool>
-            </span>
           </div>
         </div>
         <div ref={page} className="relative min-h-0 flex-1 overflow-auto">
@@ -797,7 +789,6 @@ export default function MergeEditor() {
               file={file}
               split={split}
               wrap={wrap}
-              blaming={blaming}
               bar={(key) => sideways.bar(key)}
               onDone={() => {
                 setResolved((before) => new Set(before).add(file.path))
