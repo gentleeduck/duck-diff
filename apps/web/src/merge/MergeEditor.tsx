@@ -527,34 +527,27 @@ function FileSection({
               Back to blocks
             </Button>
           )}
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-pressed={blaming}
-            className="aria-pressed:bg-accent aria-pressed:text-tn-blue"
-            title="Who last changed each line (b)"
-            onClick={() => setBlaming((on) => !on)}>
-            <UserRound />
-            Blame
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-pressed={history}
-            className="aria-pressed:bg-accent"
-            title="The commits on each side that changed this file"
-            onClick={() => setHistory((open) => !open)}>
-            <History />
-            History
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            title="Open the file at the first conflict left"
+          <IconTool
+            label="Open"
+            tip="Open in your editor at the first conflict left"
             onClick={() => void openInEditor(file.path, firstConflictLine(file, {}) ?? 1)}>
             <SquareArrowOutUpRight />
-            Open
-          </Button>
+          </IconTool>
+          <span className={blaming ? 'text-tn-blue' : ''}>
+            <IconTool
+              label={blaming ? 'Hide blame' : 'Blame: who changed each line'}
+              tip={`${blaming ? 'Hide blame' : 'Blame: who changed each line'} (b)`}
+              onClick={() => setBlaming((on) => !on)}>
+              <UserRound />
+            </IconTool>
+          </span>
+          <span className={history ? 'text-tn-blue' : ''}>
+            <IconTool
+              label={history ? 'Hide history' : "History: each side's commits to the file"}
+              onClick={() => setHistory((open) => !open)}>
+              <History />
+            </IconTool>
+          </span>
           <Button size="sm" disabled={left > 0} loading={busy === 'resolve-text'} onClick={() => void save()}>
             <Check />
             Mark resolved
