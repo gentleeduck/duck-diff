@@ -87,6 +87,7 @@ export {
   unstageAll,
 } from './sync'
 export { type DiffTarget, targetArgs, unmergedPaths } from './target'
+export { parseTodo, readTodo, snapshotCommit, writeTodo } from './tools'
 export { type FileContents, listTree, readTreeBytes, readTreeFile, type TreeRef } from './tree'
 export { repoId, restoreLatest, snapshot } from './undo'
 export {

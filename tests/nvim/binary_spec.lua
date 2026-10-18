@@ -13,7 +13,8 @@ local function fake_release(contents, checksum)
   vim.fn.mkdir(dir, 'p')
   local asset = platform.asset()
   local file = dir .. '/' .. asset
-  vim.fn.writefile({ contents }, file)
+  -- Line by line: a newline inside one item would be written as a NUL.
+  vim.fn.writefile(vim.split(contents, '\n'), file)
   vim.fn.writefile({ (checksum or sha256(file)) .. '  ' .. asset }, dir .. '/checksums.txt')
   return dir
 end
@@ -91,6 +92,23 @@ return {
     config.setup({ binary = '/usr/bin/true' })
     binary.base_url = 'file:///nowhere'
     eq('/usr/bin/true', ensure().path)
+  end,
+
+  ['sets the new binary up as git\'s tools, unless told not to'] = function()
+    local log = vim.fn.tempname()
+    setup(fake_release('#!/bin/sh\necho "$@" >> ' .. log))
+    eq(nil, ensure().err)
+    vim.wait(5000, function()
+      return vim.fn.filereadable(log) == 1
+    end)
+    eq({ 'git-setup --quiet' }, vim.fn.readfile(log))
+
+    local quiet = vim.fn.tempname()
+    setup(fake_release('#!/bin/sh\necho "$@" >> ' .. quiet))
+    config.setup({ git_setup = false })
+    eq(nil, ensure().err)
+    vim.wait(300)
+    eq(0, vim.fn.filereadable(quiet))
   end,
 
   ['removes binaries of other versions after installing'] = function()

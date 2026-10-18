@@ -11,6 +11,9 @@ M.defaults = {
   -- Token for private release downloads; GITHUB_TOKEN, GH_TOKEN or `gh auth token` are used when nil.
   github_token = nil,
   server = { idle_timeout_ms = 600000 },
+  -- Make each downloaded binary git's merge tool, diff tool and rebase editor (duck-diff git-setup), where no
+  -- other tool is chosen; false leaves git's config alone.
+  git_setup = true,
 }
 
 local current = vim.deepcopy(M.defaults)

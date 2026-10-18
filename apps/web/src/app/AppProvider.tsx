@@ -12,6 +12,7 @@ import { createPageHistory } from '../lib/history'
 import { whenIdle } from '../lib/idle'
 import { onServer } from '../lib/saved'
 import { createStore, type Store } from '../lib/store'
+import { readToolId, type ToolState } from '../lib/tool'
 import { saveTokens } from '../live/saveTokens'
 import { createJobs, type Jobs } from '../panel/jobs'
 import { createPanel, type Panel } from '../panel/panel'
@@ -69,6 +70,9 @@ export interface AppContextValue extends PlaceStores {
   panel: Panel
   // The shells open in the bottom panel.
   terminalTabs: TerminalTabs
+  // Set when git opened this window as one of its tools; the page then shows only that (app/ToolScreen.tsx).
+  toolId: string | null
+  tool: Store<ToolState>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -127,6 +131,8 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
       jobs: createJobs(client),
       panel: createPanel(),
       terminalTabs: createTerminalTabs(client),
+      toolId: readToolId(),
+      tool: createStore<ToolState>({ spec: null, done: false }),
     }
     keepPage(value)
     return value
@@ -146,7 +152,8 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
     return place.subscribe(() => {
       const { target } = place.get()
       if (targetKey(target) === targetKey(session.get().target)) return
-      tabs.open(target)
+      // A git tool's window shows what git handed it and leaves the user's own tabs alone.
+      if (!value.toolId) tabs.open(target)
       void session.load(target)
     })
   }, [value])
@@ -159,9 +166,10 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
     value.queryClient.fetchQuery(value.queries.git.repo()).then(
       (info) => {
         if (gone) return
-        value.tabs.restore(info.root)
         value.viewed.restore(info.root)
         value.pullReview.restore(info.root)
+        if (value.toolId) return
+        value.tabs.restore(info.root)
         // The from and to chosen last come back on the next page this repo opens, reloaded or new.
         forget = rememberTarget(info.root, value.place)
       },
@@ -174,6 +182,16 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
   }, [value])
 
   useEffect(() => (api || !onServer ? undefined : saveTokens(value.session)), [api, value])
+
+  // A git tool's window reads what git handed over; later requests reach it as events (live/useLiveRefresh.ts).
+  useEffect(() => {
+    const { toolId, tool } = value
+    if (!toolId) return
+    value.api.tool(toolId).then(
+      (spec) => tool.get().spec ?? tool.set({ spec, done: false }),
+      () => tool.set({ spec: null, done: true }),
+    )
+  }, [value])
 
   useEffect(() => {
     // The highlighter starts with the page and loads the changed files' grammars while the diff is read,

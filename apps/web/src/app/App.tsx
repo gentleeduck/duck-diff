@@ -41,6 +41,7 @@ import { AskDialog } from './Ask'
 import { ScrollKeeper } from './ScrollKeeper'
 import { Shell } from './Shell'
 import { StatusBar } from './StatusBar'
+import { ToolScreen } from './ToolScreen'
 import { TruncationTooltip } from './TruncationTooltip'
 import { useSizes } from './useSizes'
 import { useThemeClass } from './useThemeClass'
@@ -294,6 +295,11 @@ function Screen() {
   )
 }
 
+// A window git opened as one of its tools shows only that; any other gets the whole app.
+function Main() {
+  return useApp().toolId ? <ToolScreen /> : <Routed />
+}
+
 // The router renders the page; its history is the one the place stores read (AppProvider).
 function Routed() {
   const { history } = useApp()
@@ -307,7 +313,7 @@ export function App({ api, persist = false }: { api?: Api; persist?: boolean }) 
       <TooltipProvider>
         <WritesProvider>
           <GitProvider>
-            <Routed />
+            <Main />
             <AskDialog />
             {/* Every theme is dark; sonner would otherwise follow the system's light or dark. */}
             <Toaster position="bottom-right" theme="dark" style={{ '--width': '28rem' } as React.CSSProperties} />
