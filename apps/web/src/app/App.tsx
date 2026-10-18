@@ -22,6 +22,7 @@ import type { Api } from '../lib/api'
 import { useStore } from '../lib/store'
 import { useDesktopNotices } from '../live/useDesktopNotices'
 import { useLiveRefresh } from '../live/useLiveRefresh'
+import { MergeHeader } from '../merge/MergeHeader'
 import { MergeSidebar } from '../merge/MergeSidebar'
 import { Palette } from '../palette/Palette'
 import { BottomPanel } from '../panel/BottomPanel'
@@ -243,7 +244,7 @@ function Screen() {
       top: (
         <>
           <BranchMenu />
-          <h1 className="min-w-0 flex-1">Resolve conflicts</h1>
+          <MergeHeader />
           {search}
           <SettingsPopover />
         </>

@@ -31,6 +31,16 @@ describe('saved storage', () => {
     vi.useRealTimers()
   })
 
+  it('drops what a removed feature kept, on the server too', async () => {
+    vi.useFakeTimers()
+    const send = vi.fn(async () => {})
+    const saved = createSavedStorage({ initial: { 'duck-diff:keys': '{}', a: '1' }, send, browser: null })
+    expect(saved.getItem('duck-diff:keys')).toBeNull()
+    await vi.runAllTimersAsync()
+    expect(send).toHaveBeenCalledExactlyOnceWith({ 'duck-diff:keys': null })
+    vi.useRealTimers()
+  })
+
   it('moves what an older build left in the browser to the server, once', async () => {
     vi.useFakeTimers()
     const send = vi.fn(async () => {})

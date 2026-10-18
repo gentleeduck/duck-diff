@@ -78,6 +78,7 @@ export const SyncStatusSchema = z.object({
   behind: z.number().int(),
   staged: z.number().int(),
   operation: z.enum(['merge', 'cherry-pick', 'revert', 'rebase']).nullable(),
+  incoming: z.string().nullable(),
 })
 export type SyncStatus = z.infer<typeof SyncStatusSchema>
 

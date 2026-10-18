@@ -82,6 +82,7 @@ describe('sync', () => {
       behind: 0,
       staged: 0,
       operation: null,
+      incoming: null,
     })
     repo.write('a.txt', 'staged\n')
     repo.git('add', 'a.txt')
@@ -178,10 +179,20 @@ describe('merge, cherry-pick and revert', () => {
   it('stops a conflicting merge for resolving, reports it, and aborts it', async () => {
     diverged()
     expect(await mergeRef(repo.path, 'side')).toEqual({ conflicts: true })
-    expect((await readSyncStatus(repo.path)).operation).toBe('merge')
+    expect(await readSyncStatus(repo.path)).toMatchObject({ operation: 'merge', incoming: 'side' })
     await abortOperation(repo.path)
     expect((await readSyncStatus(repo.path)).operation).toBeNull()
     expect(repo.git('status', '--porcelain')).toBe('')
+  })
+
+  it('names the commit a stopped cherry-pick brings in', async () => {
+    const sideSha = diverged()
+    expect(await cherryPick(repo.path, sideSha)).toEqual({ conflicts: true })
+    expect(await readSyncStatus(repo.path)).toMatchObject({
+      operation: 'cherry-pick',
+      incoming: repo.git('rev-parse', '--short', sideSha).trim(),
+    })
+    await abortOperation(repo.path)
   })
 
   it('finishes a resolved merge with a commit even when the resolution matches HEAD', async () => {

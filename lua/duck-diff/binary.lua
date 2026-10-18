@@ -198,8 +198,18 @@ function M.ensure(callback)
 
   local function install()
     M.report('step', 'Installing ' .. bin)
+    vim.uv.fs_chmod(part, tonumber('755', 8))
+    -- Apple Silicon kills code whose signature does not check out, so a build that does not verify is signed ad hoc.
+    if vim.uv.os_uname().sysname == 'Darwin' then
+      vim.system({ 'xattr', '-d', 'com.apple.quarantine', part }):wait()
+      if vim.system({ 'codesign', '--verify', '--strict', part }):wait().code ~= 0 then
+        if vim.system({ 'codesign', '--force', '--sign', '-', part }):wait().code ~= 0 then
+          return fail('could not sign the binary for macOS; nothing was installed')
+        end
+      end
+    end
+    -- A new file renamed over the old: macOS kills a binary rewritten in place.
     vim.uv.fs_rename(part, bin)
-    vim.uv.fs_chmod(bin, tonumber('755', 8))
     vim.fn.delete(sums)
     remove_other_versions()
     M.report('done', 'Installed ' .. bin)

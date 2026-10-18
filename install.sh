@@ -161,7 +161,7 @@ api() {
 }
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT INT TERM
+trap 'rm -rf "$TMP" ${NEXT:+"$NEXT"}' EXIT INT TERM
 
 if [ -n "$VERSION" ]; then
   step "Finding release $VERSION"
@@ -236,8 +236,19 @@ ok "The sha256 matches"
 
 step "Installing $DIR/duck-diff"
 mkdir -p "$DIR"
-chmod 755 "$TMP/$ASSET"
-mv "$TMP/$ASSET" "$DIR/duck-diff"
+# A new file beside the old one, then a rename over it: macOS remembers a binary's signature by its file, and kills
+# one rewritten in place (as a move from another disk would).
+NEXT="$DIR/.duck-diff.$$"
+cp "$TMP/$ASSET" "$NEXT" || die "could not write to $DIR"
+chmod 755 "$NEXT"
+if [ "$OS" = darwin ]; then
+  # Apple Silicon kills code whose signature does not check out, and a download may carry the quarantine flag.
+  xattr -d com.apple.quarantine "$NEXT" 2>/dev/null || true
+  if ! codesign --verify --strict "$NEXT" 2>/dev/null; then
+    codesign --force --sign - "$NEXT" >/dev/null 2>&1 || die "could not sign the binary for macOS"
+  fi
+fi
+mv -f "$NEXT" "$DIR/duck-diff"
 ok "Installed $DIR/duck-diff"
 
 case ":$PATH:" in

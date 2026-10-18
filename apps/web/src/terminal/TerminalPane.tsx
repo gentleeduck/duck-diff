@@ -1,6 +1,5 @@
 import { memo, useCallback, useState } from 'react'
 import { useApp } from '../app/AppProvider'
-import { registerTerminal } from './input'
 import { TerminalSurface } from './TerminalSurface'
 import type { TerminalTab } from './tabs'
 import type { Terminal } from './xterm'
@@ -80,7 +79,6 @@ export const TerminalPane = memo(function TerminalPane({ tab, active }: { tab: T
       const resizing = terminal.onResize(({ cols, rows }) => send({ type: 'resize', cols, rows }))
       const naming = terminal.onTitleChange((title) => title && terminalTabs.rename(key, title))
       const queued = terminalTabs.subscribe(flush)
-      const unregister = registerTerminal(key, (data) => send({ type: 'input', data }))
       connect()
       return () => {
         stopped = true
@@ -89,7 +87,6 @@ export const TerminalPane = memo(function TerminalPane({ tab, active }: { tab: T
         resizing.dispose()
         naming.dispose()
         queued()
-        unregister()
         socket?.close()
       }
     },

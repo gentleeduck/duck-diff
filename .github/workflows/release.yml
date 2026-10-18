@@ -30,11 +30,15 @@ jobs:
       - run: bun scripts/gen-web-assets.ts
       - name: Compile
         run: for target in ${{ matrix.targets }}; do bun scripts/build-binary.ts --target "$target"; done
+      # The build for this runner must start, and every macOS build must carry a signature that checks out.
       - name: Smoke test the native binary
         run: |
-          for bin in apps/server/dist/duck-diff-*; do
-            "$bin" --version 2>/dev/null && echo "ran $bin" || true
-          done
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          arch="$(uname -m | sed 's/x86_64/x64/; s/aarch64/arm64/')"
+          "apps/server/dist/duck-diff-$os-$arch" --version
+          if [ "$os" = darwin ]; then
+            for bin in apps/server/dist/duck-diff-darwin-*; do codesign --verify --strict "$bin"; done
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: binaries-${{ matrix.os }}
