@@ -20,10 +20,13 @@ test('a merge stops on three conflicts, each resolved its own way, and continues
   await expect(editor).toContainText('3 of 3 left')
   await expect(page.getByRole('banner')).toContainText('Merging feature into main')
 
-  await editor.getByRole('region', { name: 'Ours, conflict 1' }).getByRole('button', { name: 'Accept ours' }).click()
   await editor
-    .getByRole('region', { name: 'Theirs, conflict 2' })
-    .getByRole('button', { name: 'Accept theirs' })
+    .getByRole('region', { name: 'Current change, conflict 1' })
+    .getByRole('button', { name: 'Accept current' })
+    .click()
+  await editor
+    .getByRole('region', { name: 'Incoming change, conflict 2' })
+    .getByRole('button', { name: 'Accept incoming' })
     .click()
   const third = editor.getByRole('region', { name: 'Result, conflict 3' })
   await third.getByRole('button', { name: 'Edit conflict 3' }).click()
@@ -40,4 +43,32 @@ test('a merge stops on three conflicts, each resolved its own way, and continues
 
   await page.getByRole('main').getByRole('button', { name: 'Continue' }).click()
   await expect.poll(() => repo.git('log', '-1', '--format=%P').split(' ').length).toBe(2)
+})
+
+test("a conflict met in the page's terminal shows in the panel at once", async ({ page, app, repo }) => {
+  repo.commit('work in progress')
+  repo.write('list.txt', 'one\nkeep\n')
+  repo.commit('base')
+  repo.git('checkout', '-q', '-b', 'feature')
+  repo.write('list.txt', 'one feature\nkeep\n')
+  repo.commit('feature')
+  repo.git('checkout', '-q', 'main')
+  repo.write('list.txt', 'one main\nkeep\n')
+  repo.commit('main')
+
+  await page.goto(app.url)
+  await page.keyboard.press('Control+`')
+  await page.getByRole('button', { name: 'New terminal' }).click()
+  await page.getByRole('region', { name: 'Terminal 1' }).locator('.xterm').click()
+  await page.keyboard.type('git merge feature\n')
+
+  // The panel turns to its Merge tab, and the status bar says so on every page.
+  await expect(page.getByRole('tab', { name: 'Merge' })).toHaveAttribute('aria-selected', 'true', { timeout: 10_000 })
+  const tab = page.getByRole('region', { name: 'Merge in progress' })
+  await expect(tab).toContainText('Merging feature into main')
+  await expect(page.getByRole('contentinfo')).toContainText('Merging feature into main, 1 file to resolve')
+  await tab.getByRole('button', { name: 'Resolve list.txt' }).click()
+  const editor = page.getByRole('region', { name: 'Merge list.txt' })
+  await expect(editor).toContainText('Current change')
+  await expect(editor).toContainText(repo.git('rev-parse', '--short', 'feature').trim())
 })

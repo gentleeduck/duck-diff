@@ -20,6 +20,11 @@ const file: ConflictFile = {
   eol: '\n',
   finalNewline: true,
   stages: { base: null, ours: null, theirs: null },
+  sides: {
+    ours: { name: 'main', sha: 'aaaaaaa', subject: 'Warmer greeting' },
+    theirs: { name: 'feature', sha: 'bbbbbbb', subject: 'Loud greeting' },
+    base: { name: 'merge base', sha: 'ccccccc', subject: 'Start' },
+  },
   segments: [
     { kind: 'common', lines: ['top'] },
     {
@@ -65,10 +70,12 @@ describe('merge editor', () => {
     expect(resolve.disabled).toBe(true)
 
     fireEvent.click(
-      within(screen.getByRole('region', { name: 'Ours, conflict 1' })).getByRole('button', { name: /Accept ours/ }),
+      within(screen.getByRole('region', { name: 'Current change, conflict 1' })).getByRole('button', {
+        name: /Accept current/,
+      }),
     )
     const second = screen.getByRole('region', { name: 'Result, conflict 2' })
-    fireEvent.click(within(second).getByRole('button', { name: 'Both, theirs first' }))
+    fireEvent.click(within(second).getByRole('button', { name: 'Both, incoming first' }))
     expect(within(editor).getByText('All resolved')).toBeTruthy()
     expect(within(second).getByText('yours 2')).toBeTruthy()
 
@@ -94,13 +101,13 @@ describe('merge editor', () => {
   it('shows the side taken, and steps the other back', async () => {
     window.history.replaceState(null, '', '/?view=merge&path=a.txt')
     render(<App api={fakeApi({ conflict: async () => file })} />)
-    const ours = await screen.findByRole('region', { name: 'Ours, conflict 1' })
-    const accept = within(ours).getByRole('button', { name: /Accept ours/ })
+    const ours = await screen.findByRole('region', { name: 'Current change, conflict 1' })
+    const accept = within(ours).getByRole('button', { name: /Accept current/ })
     fireEvent.click(accept)
     expect(accept.getAttribute('aria-pressed')).toBe('true')
-    expect(within(screen.getByRole('region', { name: 'Result, conflict 1' })).getByText('Ours')).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: 'Result, conflict 1' })).getByText('Current')).toBeTruthy()
     expect(within(screen.getByRole('region', { name: 'Result, conflict 2' })).getByText('Needs a pick')).toBeTruthy()
-    const theirs = screen.getByRole('region', { name: 'Theirs, conflict 1' })
+    const theirs = screen.getByRole('region', { name: 'Incoming change, conflict 1' })
     expect(theirs.querySelector('.opacity-40')).not.toBeNull()
   })
 
@@ -129,12 +136,60 @@ describe('merge editor', () => {
     render(<App api={api} />)
     expect(await screen.findByText('Merging feature into main')).toBeTruthy()
     const editor = await screen.findByRole('region', { name: 'Merge a.txt' })
-    fireEvent.click(within(editor).getByRole('button', { name: 'All theirs' }))
+    fireEvent.click(within(editor).getByRole('button', { name: 'All incoming' }))
     fireEvent.click(within(editor).getByRole('button', { name: 'Mark resolved' }))
     expect(await screen.findByText('Every conflict is resolved.')).toBeTruthy()
     const proceed = await screen.findByRole('button', { name: 'Continue' })
     await waitFor(() => expect((proceed as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(proceed)
     await waitFor(() => expect(calls).toContainEqual(['continue', undefined]))
+  })
+  it('stacks current over incoming over the result when the diff is stacked, each side with its commit', async () => {
+    window.localStorage.setItem('duck-diff:settings', JSON.stringify({ diffStyle: 'unified' }))
+    window.history.replaceState(null, '', '/?view=merge&path=a.txt')
+    render(<App api={fakeApi({ conflict: async () => file })} />)
+    const block = await screen.findByRole('region', { name: 'Conflict 1' })
+    const current = within(block).getByRole('region', { name: 'Current change, conflict 1' })
+    expect(current.textContent).toContain('main')
+    expect(current.textContent).toContain('aaaaaaa')
+    expect(current.textContent).toContain('Warmer greeting')
+    expect(within(block).getByRole('region', { name: 'Incoming change, conflict 1' }).textContent).toContain('bbbbbbb')
+    fireEvent.click(within(current).getByRole('button', { name: /Accept current/ }))
+    expect(within(within(block).getByRole('region', { name: 'Result, conflict 1' })).getByText('mine 1')).toBeTruthy()
+    // The layout button flips it back to three columns.
+    fireEvent.click(screen.getByRole('button', { name: 'Split layout' }))
+    expect(await screen.findByRole('button', { name: 'Stacked layout' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Conflict 1' })).toBeNull()
+    window.localStorage.removeItem('duck-diff:settings')
+  })
+
+  it('shows what git is doing on every page and gives the bottom panel a Merge tab for it', async () => {
+    const calls: unknown[][] = []
+    const api = fakeApi({
+      files: async (target: DiffTarget) => (target.kind === 'unstaged' ? [conflicted] : []),
+      conflict: async () => file,
+      sync: async () => ({
+        branch: 'main',
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+        staged: 0,
+        operation: 'merge',
+        incoming: 'feature',
+      }),
+      git: async (action, body) => {
+        calls.push([action, body])
+        return {}
+      },
+    })
+    render(<App api={api} />)
+    const status = await screen.findByRole('button', { name: /Merging feature into main, 1 file to resolve/ })
+    expect(status).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Merge conflicts, 1 to resolve' })).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: /^Output/ }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Merge' }))
+    const tab = await screen.findByRole('region', { name: 'Merge in progress' })
+    fireEvent.click(within(tab).getByRole('button', { name: 'Take incoming for a.txt' }))
+    await waitFor(() => expect(calls).toContainEqual(['resolve', { path: 'a.txt', side: 'theirs' }]))
   })
 })

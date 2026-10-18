@@ -1,7 +1,9 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { GitError } from './errors'
 import { runGit } from './run'
+import { incomingRef, readIncoming, readOperation } from './sync'
 
 export type ConflictSegment =
   | { kind: 'common'; lines: string[] }
@@ -22,10 +24,19 @@ export interface ParsedConflicts {
   segments: ConflictSegment[]
 }
 
+// One side of the operation as a commit: what to call it, its short hash and its subject.
+export interface ConflictSide {
+  name: string
+  sha: string
+  subject: string
+}
+
 export interface ConflictFile extends ParsedConflicts {
   path: string
   // The file as each side had it; null where that side has no such file (added on one side only).
   stages: { base: string | null; ours: string | null; theirs: string | null }
+  // The commits behind ours (HEAD), theirs (what the operation brings in) and their merge base.
+  sides: { ours: ConflictSide | null; theirs: ConflictSide | null; base: ConflictSide | null }
 }
 
 type Marker = 'start' | 'base' | 'separator' | 'end'
@@ -127,16 +138,99 @@ async function isConflicted(repo: string, path: string): Promise<boolean> {
   return (await runGit(['ls-files', '--unmerged', '--', path], { cwd: repo })).trim() !== ''
 }
 
+async function commitOf(repo: string, ref: string, name: string): Promise<ConflictSide | null> {
+  const out = await runGit(['log', '-1', '--format=%h%x1f%s', ref, '--'], { cwd: repo, okExitCodes: [128] })
+  const [sha, subject = ''] = out.trim().split('\x1f')
+  return sha ? { name, sha, subject } : null
+}
+
+export async function readSides(repo: string): Promise<ConflictFile['sides']> {
+  const operation = await readOperation(repo)
+  const branch = (await runGit(['symbolic-ref', '--short', '-q', 'HEAD'], { cwd: repo, okExitCodes: [1] })).trim()
+  const ours = await commitOf(repo, 'HEAD', branch || 'HEAD')
+  if (!operation) return { ours, theirs: null, base: null }
+  const ref = incomingRef(operation)
+  const [theirs, base] = await Promise.all([
+    readIncoming(repo, operation).then((name) => commitOf(repo, ref, name ?? ref)),
+    runGit(['merge-base', 'HEAD', ref], { cwd: repo, okExitCodes: [1, 128] }).then((sha) =>
+      sha.trim() ? commitOf(repo, sha.trim(), 'merge base') : null,
+    ),
+  ])
+  return { ours, theirs, base }
+}
+
+type Block = Extract<ConflictSegment, { kind: 'conflict' }>
+const isBlock = (segment: ConflictSegment): segment is Block => segment.kind === 'conflict'
+const same = (a: string[], b: string[]) => a.length === b.length && a.every((line, index) => line === b[index])
+
+// A file written without diff3 markers still gets each block's base: git merges the three stages again in diff3
+// style, and where those blocks match the file's (the user may have edited it since), each takes its base.
+async function withBases(segments: ConflictSegment[], stages: ConflictFile['stages'], size: number) {
+  const blocks = segments.filter(isBlock)
+  if (!blocks.some((block) => block.base === null) || stages.ours === null || stages.theirs === null) return segments
+  const dir = await mkdtemp(join(tmpdir(), 'duck-diff-merge-'))
+  try {
+    const [ours, base, theirs] = ['ours', 'base', 'theirs'].map((name) => join(dir, name)) as [string, string, string]
+    await Promise.all([
+      writeFile(ours, stages.ours),
+      writeFile(base, stages.base ?? ''),
+      writeFile(theirs, stages.theirs),
+    ])
+    // merge-file exits with the number of conflicts it left.
+    const conflicts = Array.from({ length: 127 }, (_, index) => index + 1)
+    const merged = await runGit(
+      [
+        'merge-file',
+        '-p',
+        '--diff3',
+        `--marker-size=${size}`,
+        '-L',
+        'ours',
+        '-L',
+        'base',
+        '-L',
+        'theirs',
+        ours,
+        base,
+        theirs,
+      ],
+      { cwd: dir, okExitCodes: conflicts },
+    )
+    const fresh = parseConflicts(merged, size).segments.filter(isBlock)
+    if (fresh.length !== blocks.length) return segments
+    let at = 0
+    return segments.map((segment) => {
+      if (!isBlock(segment)) return segment
+      const match = fresh[at++]
+      if (
+        segment.base !== null ||
+        !match?.base ||
+        !same(match.ours, segment.ours) ||
+        !same(match.theirs, segment.theirs)
+      )
+        return segment
+      return { ...segment, base: match.base, baseLabel: 'merge base' }
+    })
+  } catch {
+    return segments
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
+
 export async function readConflict(repo: string, path: string): Promise<ConflictFile> {
   if (!(await isConflicted(repo, path))) throw new GitError('failed', null, '', `${path} is not conflicted`)
-  const [text, size, base, ours, theirs] = await Promise.all([
+  const [text, size, base, ours, theirs, sides] = await Promise.all([
     readFile(join(repo, path), 'utf8').catch(() => ''),
     markerSize(repo, path),
     stage(repo, 1, path),
     stage(repo, 2, path),
     stage(repo, 3, path),
+    readSides(repo),
   ])
-  return { path, ...parseConflicts(text, size), stages: { base, ours, theirs } }
+  const stages = { base, ours, theirs }
+  const parsed = parseConflicts(text, size)
+  return { path, ...parsed, segments: await withBases(parsed.segments, stages, size), stages, sides }
 }
 
 // The merged text replaces the working file and is staged, which is what marks the conflict resolved.

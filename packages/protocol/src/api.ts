@@ -175,12 +175,14 @@ export const ConflictSegmentSchema = z.union([
   ConflictBlockSchema,
 ])
 export type ConflictSegment = z.infer<typeof ConflictSegmentSchema>
+const ConflictSideSchema = z.object({ name: z.string(), sha: z.string(), subject: z.string() }).nullable()
 export const ConflictFileSchema = z.object({
   path: z.string(),
   eol: z.enum(['\n', '\r\n']),
   finalNewline: z.boolean(),
   segments: z.array(ConflictSegmentSchema),
   stages: z.object({ base: z.string().nullable(), ours: z.string().nullable(), theirs: z.string().nullable() }),
+  sides: z.object({ ours: ConflictSideSchema, theirs: ConflictSideSchema, base: ConflictSideSchema }),
 })
 export type ConflictFile = z.infer<typeof ConflictFileSchema>
 export const PathRequestSchema = z.object({ path: RepoPathSchema })

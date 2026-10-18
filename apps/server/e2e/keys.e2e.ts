@@ -26,7 +26,7 @@ test('drives the page with a few plain keys', async ({ page, app, repo }) => {
   // ? lists them all.
   await page.keyboard.press('?')
   const shortcuts = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
-  await expect(shortcuts).toContainText('Next change')
+  await expect(shortcuts).toContainText('Next change, or conflict when merging')
   await page.keyboard.press('Escape')
   await expect(shortcuts).toBeHidden()
 

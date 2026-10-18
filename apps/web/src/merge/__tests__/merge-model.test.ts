@@ -1,12 +1,13 @@
 import type { ConflictFile } from '@duck-diff/protocol'
 import { describe, expect, it } from 'vitest'
-import { blockLines, conflictLines, firstConflictLine, resultText, unresolvedCount } from '../merge-model'
+import { blockLines, conflictLines, firstConflictLine, resultText, sideDiff, unresolvedCount } from '../merge-model'
 
 const file: ConflictFile = {
   path: 'a.txt',
   eol: '\n',
   finalNewline: true,
   stages: { base: null, ours: null, theirs: null },
+  sides: { ours: null, theirs: null, base: null },
   segments: [
     { kind: 'common', lines: ['top'] },
     {
@@ -70,5 +71,21 @@ describe('merge model', () => {
     // The second block starts after top, seven marker lines and two common lines.
     expect(firstConflictLine(file, { 1: { kind: 'ours' } })).toBe(11)
     expect(firstConflictLine(file, { 1: { kind: 'ours' }, 3: { kind: 'ours' } })).toBeNull()
+  })
+})
+
+describe('sideDiff', () => {
+  it('shows a side against the base, pairing a replaced line with its replacement', () => {
+    expect(sideDiff(['a', 'b', 'c'], ['a', 'B', 'c', 'd'], 10)).toEqual([
+      { kind: 'context', text: 'a', no: 10 },
+      { kind: 'deletion', text: 'b', no: null, partner: 'B' },
+      { kind: 'addition', text: 'B', no: 11, partner: 'b' },
+      { kind: 'context', text: 'c', no: 12 },
+      { kind: 'addition', text: 'd', no: 13 },
+    ])
+  })
+
+  it('reads a block without a base as all added', () => {
+    expect(sideDiff(null, ['x'], 1)).toEqual([{ kind: 'addition', text: 'x', no: 1 }])
   })
 })

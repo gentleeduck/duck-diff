@@ -4,6 +4,7 @@ import { useApp } from '../app/AppProvider'
 import { useOpenFile } from '../hooks/useOpenFile'
 import { compileHidden } from '../lib/hide'
 import { back, forward } from '../lib/history'
+import { MERGE_STEP } from '../merge/merge-model'
 import { lineHash, lineText } from '../review/anchor'
 import { resize } from '../settings/resize'
 import { BASE_FONT, panelShown, togglePanel } from '../state/settings'
@@ -23,6 +24,7 @@ export interface ShortcutHandlers {
   shortcuts(): void
 }
 
+const stepMerge = (by: number) => window.dispatchEvent(new CustomEvent(MERGE_STEP, { detail: by }))
 const region = (name: string) => document.querySelector<HTMLElement>(`[data-region="${name}"]`)
 // The panels Ctrl and a direction move between, whichever are on screen.
 const AREAS = ['top', 'side', 'main', 'aside', 'panel']
@@ -150,8 +152,8 @@ export function useShortcuts(handlers: ShortcutHandlers) {
         if (open && tab !== 'output') focusTerminal(tab)
         if (!open) (document.activeElement as HTMLElement | null)?.blur?.()
       },
-      'next-hunk': () => move('next-hunk'),
-      'prev-hunk': () => move('prev-hunk'),
+      'next-hunk': () => (view.get() === 'merge' ? stepMerge(1) : move('next-hunk')),
+      'prev-hunk': () => (view.get() === 'merge' ? stepMerge(-1) : move('prev-hunk')),
       'next-file': () => move('next-file'),
       'prev-file': () => move('prev-file'),
       stage: () => write('stage'),
@@ -194,7 +196,7 @@ export function useShortcuts(handlers: ShortcutHandlers) {
       const shortcut = shortcutFor(event)
       if (!shortcut) return
       if ((terminal && !shortcut.terminal) || (typing && !shortcut.typing)) return
-      if (shortcut.diff && view.get() !== 'changes') return
+      if (shortcut.views && !shortcut.views.includes(view.get())) return
       if (commands[shortcut.id]?.() === false) return
       event.preventDefault()
       // A shell must not see a key the page took.
