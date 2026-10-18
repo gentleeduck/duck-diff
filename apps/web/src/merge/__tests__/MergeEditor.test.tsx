@@ -1,4 +1,4 @@
-import type { ChangedFile, ConflictFile, DiffTarget } from '@duck-diff/protocol'
+import type { ChangedFile, Commit, ConflictFile, DiffTarget } from '@duck-diff/protocol'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../../app/App'
@@ -216,5 +216,53 @@ describe('merge editor', () => {
     fireEvent.click(within(first).getByRole('button', { name: 'Mark resolved' }))
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Merge a.txt' })).toBeNull())
     expect(screen.getByRole('region', { name: 'Merge b.txt' })).toBeTruthy()
+  })
+
+  it("blames each side and the picks, and lists each side's commits to the file", async () => {
+    const who = (sha: string, author: string, text: string) => ({ sha, author, time: 0, summary: 'why', text })
+    const commit = (sha: string, subject: string, authorName: string): Commit => ({
+      sha,
+      parents: [],
+      authorName,
+      authorEmail: '',
+      authoredAt: 0,
+      subject,
+    })
+    const asked: { head: string; base?: string; path?: string }[] = []
+    const api = fakeApi({
+      files: conflictedOnly,
+      conflict: async () => file,
+      conflictBlame: async () => ({
+        ours: [who('1111111', 'Ada', 'top'), who('2222222', 'Ada', 'mine 1'), who('1111111', 'Ada', 'mid')],
+        theirs: [who('1111111', 'Ada', 'top'), who('4444444', 'Bob', 'yours 1'), who('1111111', 'Ada', 'mid')],
+        base: null,
+      }),
+      commits: async (query) => {
+        asked.push(query)
+        return query.head === 'aaaaaaa'
+          ? [commit('2222222', 'Mine, not yours', 'Ada')]
+          : [commit('4444444', 'Yours, not mine', 'Bob')]
+      },
+    })
+    window.history.replaceState(null, '', '/?view=merge&path=a.txt')
+    render(<App api={api} />)
+    const editor = await screen.findByRole('region', { name: 'Merge a.txt' })
+    expect(screen.queryByText('Bob')).toBeNull()
+    fireEvent.keyDown(window, { key: 'b' })
+    const incoming = screen.getByRole('region', { name: 'Incoming change, conflict 1' })
+    expect(await within(incoming).findByText('Bob')).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: 'Current change, conflict 1' })).getByText('Ada')).toBeTruthy()
+
+    fireEvent.click(within(incoming).getByRole('button', { name: /Accept incoming/ }))
+    expect(within(screen.getByRole('region', { name: 'Result, conflict 1' })).getByText('Bob')).toBeTruthy()
+
+    fireEvent.click(within(editor).getByRole('button', { name: 'History' }))
+    const history = await screen.findByRole('region', { name: 'History of a.txt' })
+    expect(await within(history).findByText('Mine, not yours')).toBeTruthy()
+    expect(await within(history).findByText('Yours, not mine')).toBeTruthy()
+    expect(asked).toContainEqual({ head: 'bbbbbbb', base: 'ccccccc', path: 'a.txt', limit: 100 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide blame' }))
+    expect(within(screen.getByRole('region', { name: 'Incoming change, conflict 1' })).queryByText('Bob')).toBeNull()
   })
 })

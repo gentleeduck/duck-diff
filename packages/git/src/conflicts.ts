@@ -1,9 +1,10 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { diffArrays } from 'diff'
 import { GitError } from './errors'
+import { type BlameText, blameText } from './ops'
 import { runGit } from './run'
-import { incomingRef, readIncoming, readOperation } from './sync'
+import { incomingRef, type Operation, readIncoming, readOperation } from './sync'
 
 export type ConflictSegment =
   | { kind: 'common'; lines: string[] }
@@ -159,63 +160,80 @@ export async function readSides(repo: string): Promise<ConflictFile['sides']> {
   return { ours, theirs, base }
 }
 
-type Block = Extract<ConflictSegment, { kind: 'conflict' }>
-const isBlock = (segment: ConflictSegment): segment is Block => segment.kind === 'conflict'
-const same = (a: string[], b: string[]) => a.length === b.length && a.every((line, index) => line === b[index])
+function fileLines(text: string): string[] {
+  if (text === '') return []
+  const lines = text.split(/\r?\n/)
+  if (text.endsWith('\n')) lines.pop()
+  return lines
+}
 
-// A file written without diff3 markers still gets each block's base: git merges the three stages again in diff3
-// style, and where those blocks match the file's (the user may have edited it since), each takes its base.
-async function withBases(segments: ConflictSegment[], stages: ConflictFile['stages'], size: number) {
-  const blocks = segments.filter(isBlock)
-  if (!blocks.some((block) => block.base === null) || stages.ours === null || stages.theirs === null) return segments
-  const dir = await mkdtemp(join(tmpdir(), 'duck-diff-merge-'))
-  try {
-    const [ours, base, theirs] = ['ours', 'base', 'theirs'].map((name) => join(dir, name)) as [string, string, string]
-    await Promise.all([
-      writeFile(ours, stages.ours),
-      writeFile(base, stages.base ?? ''),
-      writeFile(theirs, stages.theirs),
-    ])
-    // merge-file exits with the number of conflicts it left.
-    const conflicts = Array.from({ length: 127 }, (_, index) => index + 1)
-    const merged = await runGit(
-      [
-        'merge-file',
-        '-p',
-        '--diff3',
-        `--marker-size=${size}`,
-        '-L',
-        'ours',
-        '-L',
-        'base',
-        '-L',
-        'theirs',
-        ours,
-        base,
-        theirs,
-      ],
-      { cwd: dir, okExitCodes: conflicts },
-    )
-    const fresh = parseConflicts(merged, size).segments.filter(isBlock)
-    if (fresh.length !== blocks.length) return segments
-    let at = 0
-    return segments.map((segment) => {
-      if (!isBlock(segment)) return segment
-      const match = fresh[at++]
-      if (
-        segment.base !== null ||
-        !match?.base ||
-        !same(match.ours, segment.ours) ||
-        !same(match.theirs, segment.theirs)
-      )
-        return segment
-      return { ...segment, base: match.base, baseLabel: 'merge base' }
-    })
-  } catch {
-    return segments
-  } finally {
-    await rm(dir, { recursive: true, force: true })
+// Where each line of `from` is in `to`, or -1 for a line `to` does not have.
+function matchLines(from: string[], to: string[]): number[] {
+  const at = new Array<number>(from.length).fill(-1)
+  let mine = 0
+  let theirs = 0
+  for (const part of diffArrays(from, to)) {
+    const count = part.count ?? part.value.length
+    if (part.added) theirs += count
+    else if (part.removed) mine += count
+    else for (let step = 0; step < count; step++) at[mine++] = theirs++
   }
+  return at
+}
+
+// The base lines each block replaced on one side: the base between the unchanged lines around the block in that
+// side's file. Matching by text finds the block even where common lines hold the other side's clean changes.
+function baseRanges(segments: ConflictSegment[], side: 'ours' | 'theirs', text: string, base: string[]) {
+  const shown = segments.map((segment) => (segment.kind === 'common' ? segment.lines : segment[side]))
+  const sideLines = fileLines(text)
+  const inSide = matchLines(shown.flat(), sideLines)
+  const inBase = matchLines(sideLines, base)
+  const ranges = new Map<number, [number, number]>()
+  let at = 0
+  for (const [index, lines] of shown.entries()) {
+    const from = at
+    at += lines.length
+    if (segments[index]?.kind !== 'conflict') continue
+    // The block's lines in the side's file, or where it would be for a side that removed everything.
+    let before = from - 1
+    while (before >= 0 && (inSide[before] ?? -1) < 0) before--
+    let after = at
+    while (after < inSide.length && (inSide[after] ?? -1) < 0) after++
+    const first = before >= 0 ? (inSide[before] ?? -1) + 1 : 0
+    const last = after < inSide.length ? (inSide[after] ?? sideLines.length) : sideLines.length
+    // Out to the nearest lines the side kept from the base.
+    let open = first - 1
+    while (open >= 0 && (inBase[open] ?? -1) < 0) open--
+    let close = last
+    while (close < inBase.length && (inBase[close] ?? -1) < 0) close++
+    ranges.set(index, [
+      open >= 0 ? (inBase[open] ?? -1) + 1 : 0,
+      close < inBase.length ? (inBase[close] ?? base.length) : base.length,
+    ])
+  }
+  return ranges
+}
+
+// A file written without diff3 markers still gets each block's base, found by where it sits in each side's file:
+// git folds blocks split by a lone brace and trims shared lines, so a fresh diff3 merge's blocks need not match.
+function withBases(segments: ConflictSegment[], stages: ConflictFile['stages']): ConflictSegment[] {
+  if (stages.base === null || stages.ours === null || stages.theirs === null) return segments
+  if (!segments.some((segment) => segment.kind === 'conflict' && segment.base === null)) return segments
+  const base = fileLines(stages.base)
+  const ours = baseRanges(segments, 'ours', stages.ours, base)
+  const theirs = baseRanges(segments, 'theirs', stages.theirs, base)
+  let taken = 0
+  return segments.map((segment, index): ConflictSegment => {
+    if (segment.kind !== 'conflict') return segment
+    const [a = 0, b = 0] = ours.get(index) ?? []
+    const [c = 0, d = 0] = theirs.get(index) ?? []
+    // Never a base line twice, so taking the base for every block writes each line once.
+    const start = Math.max(Math.min(a, c), taken)
+    const end = Math.max(b, d, start)
+    taken = end
+    if (segment.base !== null) return segment
+    return { ...segment, base: base.slice(start, end), baseLabel: 'merge base' }
+  })
 }
 
 export async function readConflict(repo: string, path: string): Promise<ConflictFile> {
@@ -230,7 +248,32 @@ export async function readConflict(repo: string, path: string): Promise<Conflict
   ])
   const stages = { base, ours, theirs }
   const parsed = parseConflicts(text, size)
-  return { path, ...parsed, segments: await withBases(parsed.segments, stages, size), stages, sides }
+  return { path, ...parsed, segments: withBases(parsed.segments, stages), stages, sides }
+}
+
+export interface ConflictBlame {
+  ours: BlameText[] | null
+  theirs: BlameText[] | null
+  base: BlameText[] | null
+}
+
+// The commits holding each side's version of a file: a revert brings in the reverted commit's parent against the
+// commit itself, and a pick or a rebase step is applied against its own parent rather than the merge base.
+async function blameRefs(repo: string, operation: Operation | null): Promise<{ theirs?: string; base?: string }> {
+  if (!operation) return {}
+  const ref = incomingRef(operation)
+  if (operation === 'revert') return { theirs: `${ref}^`, base: ref }
+  if (operation !== 'merge') return { theirs: ref, base: `${ref}^` }
+  const base = (await runGit(['merge-base', 'HEAD', ref], { cwd: repo, okExitCodes: [1, 128] })).trim()
+  return { theirs: ref, base: base || undefined }
+}
+
+// Who last changed each line of each side. A side without the file (added on the other side only) has none.
+export async function conflictBlame(repo: string, path: string): Promise<ConflictBlame> {
+  const refs = await blameRefs(repo, await readOperation(repo))
+  const at = (ref: string | undefined) => (ref ? blameText(repo, path, ref).catch(() => null) : Promise.resolve(null))
+  const [ours, theirs, base] = await Promise.all([at('HEAD'), at(refs.theirs), at(refs.base)])
+  return { ours, theirs, base }
 }
 
 // The merged text replaces the working file and is staged, which is what marks the conflict resolved.
