@@ -91,6 +91,9 @@ From Neovim it is `:DuckDiff`, with the same targets.
   rebase interactively, bisect, worktrees and submodules.
 - **Files**: the whole tree, markdown rendered, blame and history per file, go to definition and references
   through language servers.
+- **Merges**: conflicts shown as GitHub shows them (the current and incoming change against their merge base,
+  with each side's branch and commit), split or stacked like the diff, resolved block by block or as text; a
+  merge, rebase, pick or revert in progress shows on every page and in the bottom panel, wherever it began.
 - **GitHub**: pull requests and issues with their conversations, reviews and review threads in the diff, merge
   with every method, checks and logs, notifications, releases, actions, discussions and security alerts.
 - **Terminal and output**: real shells in a bottom panel, and every git action's command and output, hooks

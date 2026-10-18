@@ -1,9 +1,13 @@
-import { Button, ResizableHandle, ResizablePanel, type ResizablePanelHandle } from '@duck-diff/ui'
-import { Plus, ScrollText, SquareTerminal, X } from 'lucide-react'
+import { Badge, Button, ResizableHandle, ResizablePanel, type ResizablePanelHandle } from '@duck-diff/ui'
+import { GitMerge, Plus, ScrollText, SquareTerminal, X } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
+import { useGit } from '../git/GitProvider'
 import { useStore } from '../lib/store'
+import { MergePanel } from '../merge/MergePanel'
+import { selectConflicts } from '../merge/merge-model'
+import { useStage } from '../state/stage'
 import { TerminalPane } from '../terminal/TerminalPane'
 import type { TerminalTabsState } from '../terminal/tabs'
 import { OutputView } from './OutputView'
@@ -21,6 +25,7 @@ function PanelTab({
   label,
   name = label,
   icon,
+  count,
   onSelect,
   onClose,
 }: {
@@ -29,6 +34,8 @@ function PanelTab({
   // The fixed name, when the label is the shell title.
   name?: string
   icon: ReactNode
+  // Files waiting on the user, for the Merge tab.
+  count?: number
   onSelect(): void
   onClose?(): void
 }) {
@@ -51,6 +58,11 @@ function PanelTab({
       }`}>
       {icon}
       <span className="min-w-0 truncate pe-0.5">{label}</span>
+      {count ? (
+        <Badge variant="soft-warning" size="sm" className="shrink-0 tabular-nums">
+          {count}
+        </Badge>
+      ) : null}
       {onClose ? (
         <Button
           variant="nothing"
@@ -78,6 +90,10 @@ export function BottomPanel() {
   const height = useStore(panel, selectHeight)
   const terminals = useStore(terminalTabs, selectTabs)
   const loaded = useStore(terminalTabs, selectLoaded)
+  const conflicts = selectConflicts(useStage())
+  const conflictCount = conflicts ? conflicts.split('\n').length : 0
+  // While git waits on a merge, rebase, pick or revert, the panel has a Merge tab for it.
+  const merging = Boolean(useGit().status?.operation) || conflictCount > 0
   // Once shown, the panel stays mounted while hidden, so shells keep their screens and scrollback.
   const [seen, setSeen] = useState(open)
   useEffect(() => {
@@ -87,10 +103,10 @@ export function BottomPanel() {
   // A closed terminal hands its place to its neighbour, or to the output. After a reload, the tab it showed may
   // still be on its way back from the server.
   useEffect(() => {
-    if (loaded && current !== 'output' && !terminals.some((tab) => tab.key === current)) {
-      panel.show(terminals.at(-1)?.key ?? 'output')
-    }
-  }, [loaded, current, terminals, panel])
+    const gone =
+      current === 'merge' ? !merging : loaded && current !== 'output' && !terminals.some((tab) => tab.key === current)
+    if (gone) panel.show(terminals.at(-1)?.key ?? 'output')
+  }, [loaded, current, terminals, panel, merging])
 
   // Hidden, the panel folds to nothing instead of leaving, so its shells keep running.
   const fold = useRef<ResizablePanelHandle | null>(null)
@@ -148,6 +164,15 @@ export function BottomPanel() {
                 icon={<ScrollText className="size-4 shrink-0" />}
                 onSelect={() => panel.show('output')}
               />
+              {merging ? (
+                <PanelTab
+                  selected={current === 'merge'}
+                  label="Merge"
+                  icon={<GitMerge className="size-4 shrink-0 text-tn-magenta" />}
+                  count={conflictCount}
+                  onSelect={() => panel.show('merge')}
+                />
+              ) : null}
               {terminals.map((tab) => (
                 <PanelTab
                   key={tab.key}
@@ -171,6 +196,7 @@ export function BottomPanel() {
           </div>
           <div className="relative min-h-0 flex-1">
             {current === 'output' ? <OutputView /> : null}
+            {current === 'merge' && merging ? <MergePanel /> : null}
             {terminals.map((tab) => (
               <TerminalPane key={tab.key} tab={tab} active={open && current === tab.key} />
             ))}

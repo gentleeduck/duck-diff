@@ -1,4 +1,8 @@
-import type { ConflictBlock, ConflictFile } from '@duck-diff/protocol'
+import type { ConflictBlock, ConflictFile, SyncStatus } from '@duck-diff/protocol'
+import { diffArrays } from 'diff'
+
+// j and k on the merge page step through its conflicts (keys/useShortcuts.ts sends it, the editor listens).
+export const MERGE_STEP = 'duck-diff:merge-step'
 
 export type Choice =
   | { kind: 'ours' }
@@ -72,3 +76,45 @@ export const selectConflicts = (state: { unstaged: { path: string; status: strin
     .filter((file) => file.status === 'conflicted')
     .map((file) => file.path)
     .join('\n')
+
+export interface SideLine {
+  kind: 'context' | 'addition' | 'deletion'
+  text: string
+  // The line's number in that side's file; a line the side removed has none.
+  no: number | null
+  // The line it replaced or was replaced by, for marking changed words.
+  partner?: string
+}
+
+// One side of a block as GitHub shows a change: against the merge base, what it removed, kept and added.
+// A block with no base (a file both sides added) is all additions.
+export function sideDiff(base: string[] | null, side: string[], start: number): SideLine[] {
+  const parts = diffArrays(base ?? [], side)
+  const lines: SideLine[] = []
+  let no = start
+  for (let index = 0; index < parts.length; index++) {
+    const part = parts[index]
+    if (!part) continue
+    if (part.removed) {
+      const next = parts[index + 1]
+      const added = next?.added ? next.value : []
+      for (const [at, text] of part.value.entries())
+        lines.push({ kind: 'deletion', text, no: null, partner: added[at] })
+      for (const [at, text] of added.entries())
+        lines.push({ kind: 'addition', text, no: no++, partner: part.value[at] })
+      if (next?.added) index++
+    } else if (part.added) for (const text of part.value) lines.push({ kind: 'addition', text, no: no++ })
+    else for (const text of part.value) lines.push({ kind: 'context', text, no: no++ })
+  }
+  return lines
+}
+
+// What git is in the middle of, in the names of what is coming together.
+export function headline(operation: SyncStatus['operation'], branch: string | null, theirs: string | null): string {
+  const other = theirs ?? 'the other side'
+  if (operation === 'merge') return `Merging ${other} into ${branch ?? 'HEAD'}`
+  if (operation === 'cherry-pick') return `Cherry-picking ${other}`
+  if (operation === 'revert') return `Reverting ${other}`
+  if (operation === 'rebase') return `Rebasing, replaying ${other}`
+  return 'Resolve conflicts'
+}

@@ -48,22 +48,22 @@ const WRITE = {
   discard: { icon: Undo2, label: 'Discard change' },
 } as const
 
-const BG: Record<DiffLine['kind'], string> = {
+export const BG: Record<DiffLine['kind'], string> = {
   addition: 'bg-[var(--diff-add-bg)]',
   deletion: 'bg-[var(--diff-del-bg)]',
   context: '',
 }
-const MARK: Record<DiffLine['kind'], string> = {
+export const MARK: Record<DiffLine['kind'], string> = {
   addition: '[&_[data-mark]]:bg-[var(--diff-add-word)]',
   deletion: '[&_[data-mark]]:bg-[var(--diff-del-word)]',
   context: '',
 }
-const BAR: Record<DiffLine['kind'], string> = {
+export const BAR: Record<DiffLine['kind'], string> = {
   addition: 'border-added',
   deletion: 'border-removed',
   context: 'border-transparent',
 }
-const SIGN: Record<DiffLine['kind'], string> = { addition: '+', deletion: '-', context: ' ' }
+export const SIGN: Record<DiffLine['kind'], string> = { addition: '+', deletion: '-', context: ' ' }
 // Lines picked for a comment, as GitHub marks them: a tint layered over the line's own diff colour (an image over
 // its background colour, so added and deleted lines still read as such), a bar and lit line numbers.
 const PICKED =

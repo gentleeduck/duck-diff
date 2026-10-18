@@ -13,11 +13,19 @@
   keymaps editor. A few plain keys do one thing each: Ctrl+P (Cmd+P on a Mac) searches, j and k step through
   changes, J and K through files, s, u and x stage, unstage and discard, c comments, v marks viewed, o opens in
   your editor, t flips the layout, / filters, and arrows, Home and End walk any list. `?` lists them.
-- The merge page is easier to work in. The top bar says what is coming together ("Merging feature into main")
-  and how many files are left, with Continue and Abort beside it; each file in the list shows its conflict
-  count; every column has line numbers; each conflict reads straight across one strip with its state in a
-  coloured badge, the side taken marked and the other dimmed; and after the last file the page offers Continue
-  right there. The sync status now names what an operation brings in.
+- The merge page shows a conflict as GitHub does: the current change and the incoming one, each headed by its
+  branch, short hash and subject and drawn against the merge base in red and green with the changed words
+  marked, beside the result being built. It follows the diff settings (split or stacked, word marks, wrapping,
+  line numbers, backgrounds, change markers, tab width), with a layout button and j, k and t working there too.
+  The top bar says what is coming together and how many files are left, with Continue and Abort; each file
+  shows its conflict count; each conflict reads across one strip with its state in a badge; and after the last
+  file the page offers Continue right there.
+- A merge, rebase, cherry-pick or revert in progress shows everywhere: in the status bar on every page, as a
+  Merge entry with its count on the rail, and as a Merge tab in the bottom panel listing the conflicted files with
+  Take current, Take incoming and Resolve. One that stops in the page's terminal (or anywhere else) turns the
+  panel to that tab at once and says so.
+- Files opens the README, or offers the file tree back, when the tree is hidden; it no longer shows an empty
+  page pointing at a panel that is not there.
 - Nothing you start has a time limit any more: a push of a big repo, a pre-push build, a long rebase or a bisect
   run takes as long as it takes. Background reads still give up on a git that has printed nothing for a while,
   and then stop the hooks and everything it started with it.

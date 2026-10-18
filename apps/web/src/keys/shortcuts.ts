@@ -1,5 +1,6 @@
 import { matchesKeyboardEvent } from '@gentleduck/vim/matcher'
 import { parseKeyBind } from '@gentleduck/vim/parser'
+import type { View } from '../router/place'
 
 export interface Shortcut {
   id: string
@@ -7,12 +8,16 @@ export interface Shortcut {
   group: 'General' | 'Panels' | 'Changes'
   // duck-vim bindings, the first is the one shown. Mod is Cmd on a Mac and Ctrl elsewhere.
   keys: string[]
-  // On the changes page only.
-  diff?: boolean
+  // Only on these pages.
+  views?: View[]
   // Also while typing in a text box, and in a terminal; every other key belongs to them there.
   typing?: boolean
   terminal?: boolean
 }
+
+const CHANGES: View[] = ['changes']
+// Stepping and the layout work on the merge page as well, through its conflicts.
+const MERGING: View[] = ['changes', 'merge']
 
 // Every key the page answers. No chords, modes or remapping: a key does one thing.
 export const SHORTCUTS: Shortcut[] = [
@@ -51,18 +56,24 @@ export const SHORTCUTS: Shortcut[] = [
     terminal: true,
   },
 
-  { id: 'next-hunk', title: 'Next change', group: 'Changes', keys: ['j'], diff: true },
-  { id: 'prev-hunk', title: 'Previous change', group: 'Changes', keys: ['k'], diff: true },
-  { id: 'next-file', title: 'Next file', group: 'Changes', keys: ['shift+j'], diff: true },
-  { id: 'prev-file', title: 'Previous file', group: 'Changes', keys: ['shift+k'], diff: true },
-  { id: 'stage', title: 'Stage the change', group: 'Changes', keys: ['s'], diff: true },
-  { id: 'unstage', title: 'Unstage the change', group: 'Changes', keys: ['u'], diff: true },
-  { id: 'discard', title: 'Discard the change', group: 'Changes', keys: ['x'], diff: true },
-  { id: 'comment', title: 'Comment on the change', group: 'Changes', keys: ['c'], diff: true },
-  { id: 'viewed', title: 'Mark the file viewed', group: 'Changes', keys: ['v'], diff: true },
-  { id: 'open', title: 'Open the change in your editor', group: 'Changes', keys: ['o'], diff: true },
-  { id: 'toggle-layout', title: 'Split or stacked', group: 'Changes', keys: ['t'], diff: true },
-  { id: 'focus-filter', title: 'Filter files', group: 'Changes', keys: ['/'], diff: true },
+  { id: 'next-hunk', title: 'Next change, or conflict when merging', group: 'Changes', keys: ['j'], views: MERGING },
+  {
+    id: 'prev-hunk',
+    title: 'Previous change, or conflict when merging',
+    group: 'Changes',
+    keys: ['k'],
+    views: MERGING,
+  },
+  { id: 'next-file', title: 'Next file', group: 'Changes', keys: ['shift+j'], views: CHANGES },
+  { id: 'prev-file', title: 'Previous file', group: 'Changes', keys: ['shift+k'], views: CHANGES },
+  { id: 'stage', title: 'Stage the change', group: 'Changes', keys: ['s'], views: CHANGES },
+  { id: 'unstage', title: 'Unstage the change', group: 'Changes', keys: ['u'], views: CHANGES },
+  { id: 'discard', title: 'Discard the change', group: 'Changes', keys: ['x'], views: CHANGES },
+  { id: 'comment', title: 'Comment on the change', group: 'Changes', keys: ['c'], views: CHANGES },
+  { id: 'viewed', title: 'Mark the file viewed', group: 'Changes', keys: ['v'], views: CHANGES },
+  { id: 'open', title: 'Open the change in your editor', group: 'Changes', keys: ['o'], views: CHANGES },
+  { id: 'toggle-layout', title: 'Split or stacked', group: 'Changes', keys: ['t'], views: MERGING },
+  { id: 'focus-filter', title: 'Filter files', group: 'Changes', keys: ['/'], views: CHANGES },
 ]
 
 const PARSED = SHORTCUTS.flatMap((shortcut) => shortcut.keys.map((key) => ({ shortcut, parsed: parseKeyBind(key) })))

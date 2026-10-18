@@ -6,6 +6,8 @@ import { useApp } from '../app/AppProvider'
 import { useFirstDiff } from '../hooks/useFirstDiff'
 import type { GitAction } from '../lib/api'
 import { useStore } from '../lib/store'
+import { headline } from '../merge/merge-model'
+import { openMerge } from '../merge/open-merge'
 import type { JobsState } from '../panel/jobs'
 import { useRefresh } from '../query/useRefresh'
 import { failureReason } from './failure-reason'
@@ -77,8 +79,16 @@ const isGitAction = (action: string | undefined): action is GitAction => Boolean
 const selectRunning = (state: JobsState) =>
   (state.jobs.find((job) => job.status === 'running' && isGitAction(job.action))?.action as GitAction) ?? null
 
+// What an operation is called when it stops for the user.
+const STOPPED: Record<NonNullable<SyncStatus['operation']>, string> = {
+  merge: 'Merge',
+  'cherry-pick': 'Cherry-pick',
+  revert: 'Revert',
+  rebase: 'Rebase',
+}
+
 export function GitProvider({ children }: { children: ReactNode }) {
-  const { api, session, graph, refs, panel, queries, jobs } = useApp()
+  const { api, session, graph, refs, panel, queries, jobs, mergeFile, view } = useApp()
   const [started, setStarted] = useState<GitAction | null>(null)
   const running = useStore(jobs, selectRunning)
   const busy = started ?? running
@@ -93,6 +103,12 @@ export function GitProvider({ children }: { children: ReactNode }) {
   const status = sync.isError ? null : (sync.data ?? null)
 
   const showOutput = useMemo(() => ({ label: 'Show output', onClick: () => panel.show('output', null) }), [panel])
+  const resolve = useMemo(
+    () => ({ label: 'Resolve', onClick: () => openMerge({ mergeFile }, view.set, null) }),
+    [mergeFile, view],
+  )
+  // Set when this page's own action stopped on conflicts, which run has already said.
+  const expected = useRef(false)
 
   const settle = useCallback(() => {
     refresh()
@@ -108,11 +124,13 @@ export function GitProvider({ children }: { children: ReactNode }) {
       try {
         const result = await api.git(action, body)
         // A stop on conflicts is not a failure: the files wait in the changes view for resolving.
-        if (result.conflicts)
+        if (result.conflicts) {
+          expected.current = true
           toast.warning(`${DOING[action]} stopped on conflicts`, {
-            description: 'Resolve them in Changes, then continue.',
+            description: 'Resolve them, then continue.',
+            action: resolve,
           })
-        else if (result.stopped)
+        } else if (result.stopped)
           toast(`${DOING[action]} paused`, { description: 'It stopped to let you edit a commit. Continue when ready.' })
         else toast.success(done ?? `${DOING[action]} done`, { action: showOutput })
         settle()
@@ -130,8 +148,28 @@ export function GitProvider({ children }: { children: ReactNode }) {
         setStarted(null)
       }
     },
-    [api, settle, panel, showOutput],
+    [api, settle, panel, showOutput, resolve],
   )
+
+  // An operation started without this page's buttons (in its terminal, or another) is announced the moment git
+  // reports it, and the bottom panel turns to its Merge tab.
+  const operation = status?.operation ?? null
+  const seen = useRef<SyncStatus['operation'] | undefined>(undefined)
+  useEffect(() => {
+    if (!sync.data) return
+    const before = seen.current
+    seen.current = operation
+    if (before === undefined || !operation || before === operation) return
+    if (expected.current || mine.current) {
+      expected.current = false
+      return
+    }
+    panel.show('merge')
+    toast.warning(`${STOPPED[operation]} stopped`, {
+      description: `${headline(operation, status?.branch ?? null, status?.incoming ?? null)}. Resolve the conflicts, then continue.`,
+      action: resolve,
+    })
+  }, [sync.data, operation, status, panel, resolve])
 
   // An action this page did not start (before a reload, or in another tab) still ends here the way run does.
   useEffect(

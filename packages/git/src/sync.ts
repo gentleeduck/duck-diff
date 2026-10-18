@@ -39,6 +39,8 @@ const INCOMING: Record<Operation, string> = {
   rebase: 'REBASE_HEAD',
 }
 
+export const incomingRef = (operation: Operation) => INCOMING[operation]
+
 // A merge names its branch in the message git prepared; anything else, or a merge of a bare commit, by short sha.
 export async function readIncoming(repo: string, operation: Operation | null): Promise<string | null> {
   if (!operation) return null

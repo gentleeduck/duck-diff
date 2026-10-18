@@ -1,4 +1,3 @@
-import type { SyncStatus } from '@duck-diff/protocol'
 import { Badge } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { GitMerge } from 'lucide-react'
@@ -7,19 +6,9 @@ import { useGit } from '../git/GitProvider'
 import { OperationActions } from '../git/OperationBanner'
 import { useStore } from '../lib/store'
 import { useStage } from '../state/stage'
-import { selectConflicts } from './merge-model'
+import { headline, selectConflicts } from './merge-model'
 
 const selectPath = (path: string | null) => path
-
-// What git is in the middle of, in the names of what is coming together.
-function headline(operation: SyncStatus['operation'], branch: string | null, theirs: string | null): string {
-  const other = theirs ?? 'the other side'
-  if (operation === 'merge') return `Merging ${other} into ${branch ?? 'HEAD'}`
-  if (operation === 'cherry-pick') return `Cherry-picking ${other}`
-  if (operation === 'revert') return `Reverting ${other}`
-  if (operation === 'rebase') return `Rebasing, replaying ${other}`
-  return 'Resolve conflicts'
-}
 
 // The merge page's top bar: what is being merged, how much is left, and the way out either side.
 export function MergeHeader() {
