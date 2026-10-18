@@ -1,8 +1,6 @@
 import { GitError } from './errors'
 import { notOption, runGit } from './run'
-import { mayConflict, NETWORK_TIMEOUT_MS, NO_EDITOR, readOperation } from './sync'
-
-const network = (repo: string) => ({ cwd: repo, timeoutMs: NETWORK_TIMEOUT_MS })
+import { mayConflict, NO_EDITOR, readOperation } from './sync'
 
 // A conflicted file takes one side whole, then counts as resolved.
 export async function resolveConflict(repo: string, options: { path: string; side: 'ours' | 'theirs' }) {
@@ -48,17 +46,15 @@ export async function forcePush(repo: string) {
   ).trim()
   const slash = upstream.indexOf('/')
   if (!upstream || slash < 0) throw new GitError('failed', null, '', 'this branch tracks nothing to force-push to')
-  await runGit(
-    ['push', '--force-with-lease', upstream.slice(0, slash), `HEAD:${upstream.slice(slash + 1)}`],
-    network(repo),
-  )
+  await runGit(['push', '--force-with-lease', upstream.slice(0, slash), `HEAD:${upstream.slice(slash + 1)}`], {
+    cwd: repo,
+  })
 }
 
 export async function deleteRemoteBranch(repo: string, options: { remote: string; branch: string }) {
-  await runGit(
-    ['push', notOption(options.remote, 'remote'), '--delete', notOption(options.branch, 'branch')],
-    network(repo),
-  )
+  await runGit(['push', notOption(options.remote, 'remote'), '--delete', notOption(options.branch, 'branch')], {
+    cwd: repo,
+  })
 }
 
 // origin/feature becomes a local feature that tracks it.
@@ -78,10 +74,9 @@ export async function deleteTag(repo: string, name: string) {
 }
 
 export async function pushTags(repo: string, options: { remote: string; name: string | null }) {
-  await runGit(
-    ['push', notOption(options.remote, 'remote'), options.name ? `refs/tags/${options.name}` : '--tags'],
-    network(repo),
-  )
+  await runGit(['push', notOption(options.remote, 'remote'), options.name ? `refs/tags/${options.name}` : '--tags'], {
+    cwd: repo,
+  })
 }
 
 export interface Remote {
@@ -108,7 +103,7 @@ export async function removeRemote(repo: string, name: string) {
 }
 
 export async function fetchRemote(repo: string, options: { remote: string; prune: boolean }) {
-  await runGit(['fetch', ...(options.prune ? ['--prune'] : []), notOption(options.remote, 'remote')], network(repo))
+  await runGit(['fetch', ...(options.prune ? ['--prune'] : []), notOption(options.remote, 'remote')], { cwd: repo })
 }
 
 export function rebaseOnto(repo: string, onto: string): Promise<{ conflicts: boolean }> {

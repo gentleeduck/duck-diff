@@ -5,7 +5,8 @@ import { classify, GitError } from './errors'
 export interface RunOptions {
   cwd: string
   okExitCodes?: number[]
-  // How long git may print nothing before it is stopped; output of any kind starts the wait over.
+  // How long git may print nothing before it is stopped; output of any kind starts the wait over. A user action's
+  // commands (run inside withOutput) have no limit: a push of a big repo or a long hook takes what it takes.
   timeoutMs?: number
   // Keeps stdin open instead of closing it at once; only the timeout test needs this.
   holdStdin?: boolean
@@ -16,20 +17,6 @@ export interface RunOptions {
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
-// Commands that run the repo's hooks, which may build or test quietly for minutes before printing again.
-const RUNS_HOOKS = new Set([
-  'am',
-  'checkout',
-  'cherry-pick',
-  'commit',
-  'merge',
-  'pull',
-  'push',
-  'rebase',
-  'revert',
-  'switch',
-])
-const HOOKS_TIMEOUT_MS = 600_000
 
 // GIT_OPTIONAL_LOCKS=0 keeps reads from rewriting .git/index (the repo may be a receive-only sync copy).
 const ENV = { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0' }
@@ -179,14 +166,12 @@ function spawnGit(args: string[], options: RunOptions) {
   } catch (error) {
     throw new GitError('failed', null, String(error), `git ${args[0]} failed to start`)
   }
-  // A limit on silence, not on the whole run: a hook building for minutes keeps printing, a stuck remote does not.
-  const limit = Math.max(
-    options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    RUNS_HOOKS.has(subcommand(args) ?? '') ? HOOKS_TIMEOUT_MS : 0,
-  )
+  // A limit on silence, not on the whole run, and none at all for what a user action runs.
+  const limit = sink ? null : (options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
   let timedOut = false
   let timer: ReturnType<typeof setTimeout> | undefined
   const wait = () => {
+    if (limit === null) return
     clearTimeout(timer)
     timer = setTimeout(() => {
       timedOut = true
@@ -227,7 +212,7 @@ function spawnGit(args: string[], options: RunOptions) {
         'timeout',
         null,
         stderr,
-        `git ${subcommand(args) ?? args[0]} printed nothing for ${quiet(limit)} and was stopped`,
+        `git ${subcommand(args) ?? args[0]} printed nothing for ${quiet(limit ?? 0)} and was stopped`,
       )
     const ok = [0, ...(options.okExitCodes ?? [])]
     if (code !== null && ok.includes(code)) return
