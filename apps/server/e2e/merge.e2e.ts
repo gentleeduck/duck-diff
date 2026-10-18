@@ -68,7 +68,8 @@ test("a conflict met in the page's terminal shows in the panel at once", async (
   await expect(tab).toContainText('Merging feature into main')
   await expect(page.getByRole('contentinfo')).toContainText('Merging feature into main, 1 file to resolve')
   await tab.getByRole('button', { name: 'Resolve list.txt' }).click()
-  const editor = page.getByRole('region', { name: 'Merge list.txt' })
-  await expect(editor).toContainText('Current change')
-  await expect(editor).toContainText(repo.git('rev-parse', '--short', 'feature').trim())
+  await expect(page.getByRole('region', { name: 'Merge list.txt' })).toBeVisible()
+  // The sides are headed once, over every file, with their commits.
+  await expect(page.getByRole('main')).toContainText('Current change')
+  await expect(page.getByRole('main')).toContainText(repo.git('rev-parse', '--short', 'feature').trim())
 })

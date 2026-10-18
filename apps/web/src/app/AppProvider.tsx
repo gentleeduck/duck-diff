@@ -53,6 +53,8 @@ export interface AppContextValue extends PlaceStores {
   blameFiles: Store<ReadonlySet<string>>
   // The file at the top of the diff as it scrolls, which the changes tree highlights.
   diffTop: Store<string | null>
+  // The same for the merge page, whose file list marks the conflicted file on screen.
+  mergeTop: Store<string | null>
   // The diffs open side by side above the viewer; the first is always the working tree.
   tabs: Tabs
   // GitHub's review threads for the pull request the diff shows.
@@ -111,6 +113,7 @@ function AppState({ api, children }: { api?: Api; children: ReactNode }) {
       symbol: createStore<SymbolTarget | null>(null),
       changesFolders: createStore<ReadonlySet<string>>(new Set()),
       diffTop: createStore<string | null>(null),
+      mergeTop: createStore<string | null>(null),
       blameFiles: createStore<ReadonlySet<string>>(new Set()),
       tabs: createTabs(target),
       pullReview: createPullReview(client, {

@@ -1,6 +1,6 @@
 import type { ConflictBlock, ConflictFile } from '@duck-diff/protocol'
 import { Badge, type BadgeTone, Button, Separator, Textarea } from '@duck-diff/ui'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries } from '@tanstack/react-query'
 import {
   ArrowDownUp,
   ArrowLeftToLine,
@@ -16,10 +16,11 @@ import {
   Rows3,
   SquareArrowOutUpRight,
 } from 'lucide-react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { IconTool } from '../app/IconTool'
 import { CodeRowsSkeleton } from '../app/skeletons'
+import { useCodeScrollX } from '../diff/useCodeScrollX'
 import { useGit } from '../git/GitProvider'
 import { OperationActions } from '../git/OperationBanner'
 import { useOpenFile } from '../hooks/useOpenFile'
@@ -30,7 +31,7 @@ import { useStore } from '../lib/store'
 import { fileGlyph } from '../sidebar/icons'
 import type { Settings } from '../state/settings'
 import { useStage } from '../state/stage'
-import { contextLines, MergeLines } from './MergeLines'
+import { contextLines, MergeLines, ScrollRows } from './MergeLines'
 import {
   blockLines,
   type Choice,
@@ -45,12 +46,17 @@ import {
 
 const selectPath = (path: string | null) => path
 const selectSplit = (state: Settings) => state.diffStyle === 'split'
+const selectWrap = (state: Settings) => state.overflow === 'wrap'
+const selectTabSize = (state: Settings) => state.tabSize
 // Long unchanged stretches between blocks fold to their edges, as a diff's context does.
 const KEEP = 3
 const MARKERS = /^(<{7}|>{7})( |$)/m
 
 type Side = 'ours' | 'theirs'
 type Sides = ConflictFile['sides']
+type Column = 'ours' | 'result' | 'theirs' | 'stacked'
+// The sideways scroll a column of a file moves with.
+const columnKey = (path: string, column: Column) => `${column}:${path}`
 
 // The two sides as GitHub names them, each with a colour of its own; the changes inside are red and green.
 const SIDE = {
@@ -128,10 +134,11 @@ function ResultName({ sides }: { sides: Sides }) {
 function Common({ path, lines, starts, split }: { path: string; lines: string[]; starts: Starts; split: boolean }) {
   const [open, setOpen] = useState(false)
   const folded = !open && lines.length > KEEP * 2 + 1
-  const column = (start: number, dim: boolean) => {
+  const column = (start: number, which: Column, dim: boolean) => {
+    const key = columnKey(path, which)
     const body = folded ? (
       <>
-        <MergeLines path={path} lines={contextLines(lines.slice(0, KEEP), start)} />
+        <MergeLines path={path} column={key} lines={contextLines(lines.slice(0, KEEP), start)} />
         <Button
           variant="nothing"
           size="none"
@@ -141,19 +148,19 @@ function Common({ path, lines, starts, split }: { path: string; lines: string[];
           <ChevronsUpDown className="size-4" />
           {lines.length - KEEP * 2} unchanged lines
         </Button>
-        <MergeLines path={path} lines={contextLines(lines.slice(-KEEP), start + lines.length - KEEP)} />
+        <MergeLines path={path} column={key} lines={contextLines(lines.slice(-KEEP), start + lines.length - KEEP)} />
       </>
     ) : (
-      <MergeLines path={path} lines={contextLines(lines, start)} />
+      <MergeLines path={path} column={key} lines={contextLines(lines, start)} />
     )
     return <div className={`min-w-0 ${dim ? 'opacity-60' : ''}`}>{body}</div>
   }
-  if (!split) return column(starts.result, false)
+  if (!split) return column(starts.result, 'stacked', false)
   return (
     <>
-      {column(starts.ours, true)}
-      {column(starts.result, false)}
-      {column(starts.theirs, true)}
+      {column(starts.ours, 'ours', true)}
+      {column(starts.result, 'result', false)}
+      {column(starts.theirs, 'theirs', true)}
     </>
   )
 }
@@ -186,6 +193,7 @@ function Block({
 }) {
   const [editing, setEditing] = useKept<string | null>(`merge-block:${path}:${number}`, null)
   const chosen = blockLines(block, choice)
+  const key = (column: Column) => columnKey(path, split ? column : 'stacked')
   // Once one side is taken, the other steps back.
   const dim = (side: Side) => choice?.kind === (side === 'ours' ? 'theirs' : 'ours')
   const take = (side: Side) => (
@@ -270,16 +278,28 @@ function Block({
       </div>
     ) : chosen && choice ? (
       <div className={`border-s-2 ${PICKS[choice.kind].edge}`}>
-        <MergeLines path={path} lines={contextLines(chosen, starts.result)} />
+        <MergeLines path={path} column={key('result')} lines={contextLines(chosen, starts.result)} />
       </div>
     ) : (
       <p className="m-2 flex min-h-10 items-center justify-center rounded-md border border-warning/50 border-dashed bg-warning/5 px-3 text-center text-warning">
         Accept current, incoming or both, or write it yourself.
       </p>
     )
-  const ours = <MergeLines path={path} lines={sideDiff(block.base, block.ours, starts.ours)} dim={dim('ours')} />
+  const ours = (
+    <MergeLines
+      path={path}
+      column={key('ours')}
+      lines={sideDiff(block.base, block.ours, starts.ours)}
+      dim={dim('ours')}
+    />
+  )
   const theirs = (
-    <MergeLines path={path} lines={sideDiff(block.base, block.theirs, starts.theirs)} dim={dim('theirs')} />
+    <MergeLines
+      path={path}
+      column={key('theirs')}
+      lines={sideDiff(block.base, block.theirs, starts.theirs)}
+      dim={dim('theirs')}
+    />
   )
 
   if (split)
@@ -287,7 +307,7 @@ function Block({
       <>
         <section
           aria-label={`Current change, conflict ${number}`}
-          data-conflict={number}
+          data-conflict
           className="row-span-2 grid min-w-0 grid-rows-subgrid">
           {strip(take('ours'), SIDE.ours.tint)}
           {ours}
@@ -316,7 +336,7 @@ function Block({
 
   // Stacked: current over incoming over the result, each headed by what it is.
   return (
-    <section aria-label={`Conflict ${number}`} data-conflict={number} className="my-2 border-border border-y">
+    <section aria-label={`Conflict ${number}`} data-conflict className="my-2 border-border border-y">
       {strip(status, 'bg-muted/40')}
       <section aria-label={`Current change, conflict ${number}`}>
         {strip(
@@ -352,22 +372,31 @@ function Block({
   )
 }
 
-function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
-  const { settings } = useApp()
+// One conflicted file on the page, as the diff shows a file: a header that stays while its blocks scroll by,
+// with the file's own picks, and a sideways bar per column along its bottom.
+function FileSection({
+  file,
+  split,
+  wrap,
+  bar,
+  onDone,
+}: {
+  file: ConflictFile
+  split: boolean
+  wrap: boolean
+  bar(key: string): ReactNode
+  onDone(): void
+}) {
   const { run, busy } = useGit()
-  const split = useSettings(selectSplit)
   const openInEditor = useOpenFile()
   // Kept per file and conflict shape, so a reload keeps the picks and a new conflict in the file starts over.
   const keep = `merge:${file.path}:${file.segments.length}`
   const [choices, setChoices] = useKept<Choices>(`${keep}:choices`, {})
   // Editing the whole result as text replaces the blocks; markers left in it count as unresolved.
   const [whole, setWhole] = useKept<string | null>(`${keep}:whole`, null)
-  const [at, setAt] = useState(0)
-  const page = useRef<HTMLElement>(null)
   const blocks = file.segments.flatMap((segment, index) => (segment.kind === 'conflict' ? [index] : []))
   const total = blocks.length
   const left = whole === null ? unresolvedCount(file, choices) : MARKERS.test(whole) ? 1 : 0
-  const first = file.segments.find((segment) => segment.kind === 'conflict')
   const icon = fileGlyph(file.path.split('/').pop() ?? file.path)
 
   const choose = (index: number, next: Choice | undefined) =>
@@ -385,30 +414,6 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
     dropKept(`${keep}:whole`)
     onDone()
   }
-  const go = (to: number) => {
-    if (!total) return
-    const next = (to + total) % total
-    setAt(next)
-    page.current
-      ?.querySelector(`[data-conflict="${next + 1}"]`)
-      ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  }
-  // Forward goes to the next block still waiting for a pick, and round to the first once none are.
-  const forward = () => {
-    const waiting = blocks.map((index, number) => (choices[index] ? -1 : number)).filter((number) => number >= 0)
-    go(waiting.find((number) => number > at) ?? waiting[0] ?? at + 1)
-  }
-  const step = useRef({ go, forward, at })
-  step.current = { go, forward, at }
-  useEffect(() => {
-    const onStep = (event: Event) => {
-      const { go, forward, at } = step.current
-      if ((event as CustomEvent<number>).detail > 0) forward()
-      else go(at - 1)
-    }
-    window.addEventListener(MERGE_STEP, onStep)
-    return () => window.removeEventListener(MERGE_STEP, onStep)
-  }, [])
 
   const starts: Starts = { ours: 1, result: 1, theirs: 1 }
   let number = 0
@@ -443,9 +448,11 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
   })
 
   return (
-    <section ref={page} aria-label={`Merge ${file.path}`} className="flex h-full min-h-0 flex-col">
-      {/* On a narrow page the actions take a second row rather than pushing the path or Mark resolved away. */}
-      <header className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-border border-b bg-card px-3 py-1.5">
+    <section aria-label={`Merge ${file.path}`} data-merge-file={file.path} className="border-border border-b">
+      <header
+        className={`sticky z-20 flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1 border-border border-b bg-card px-3 py-1.5 ${
+          split ? 'top-9' : 'top-0'
+        }`}>
         <div className="flex min-w-48 flex-1 items-center gap-2">
           <span style={{ color: icon.color }}>{icon.glyph}</span>
           <span className="min-w-0 truncate" title={file.path}>
@@ -458,27 +465,12 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
         <div className="ms-auto flex flex-wrap items-center justify-end gap-1">
           {whole === null ? (
             <>
-              <IconTool
-                label="Previous conflict"
-                tip="Previous conflict (k)"
-                onClick={() => go(at - 1)}
-                disabled={total < 2}>
-                <ChevronUp />
-              </IconTool>
-              <span className="whitespace-nowrap text-muted-foreground tabular-nums">
-                Conflict {Math.min(at + 1, total)} of {total}
-              </span>
-              <IconTool label="Next conflict" tip="Next conflict (j)" onClick={forward} disabled={!total}>
-                <ChevronDown />
-              </IconTool>
-              <Separator orientation="vertical" className="mx-1 h-5" />
               <Button size="sm" variant="ghost" onClick={() => all('ours')}>
                 All current
               </Button>
               <Button size="sm" variant="ghost" onClick={() => all('theirs')}>
                 All incoming
               </Button>
-              <Separator orientation="vertical" className="mx-1 h-5" />
               <Button size="sm" variant="ghost" onClick={() => setWhole(resultText(file, choices))}>
                 <Pencil />
                 Edit as text
@@ -489,14 +481,6 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
               Back to blocks
             </Button>
           )}
-          <IconTool
-            label={split ? 'Stacked layout' : 'Split layout'}
-            tip={split ? 'Stacked layout (t)' : 'Split layout (t)'}
-            onClick={() =>
-              settings.set((prev) => ({ ...prev, diffStyle: prev.diffStyle === 'split' ? 'unified' : 'split' }))
-            }>
-            {split ? <Rows3 /> : <Columns3 />}
-          </IconTool>
           <Button
             size="sm"
             variant="ghost"
@@ -512,34 +496,58 @@ function Editor({ file, onDone }: { file: ConflictFile; onDone(): void }) {
         </div>
       </header>
       {whole !== null ? (
-        <div className="min-h-0 flex-1 p-3">
+        <div className="p-3">
           <Textarea
-            aria-label="Result"
+            aria-label={`Result for ${file.path}`}
             value={whole}
+            rows={Math.min(40, Math.max(8, whole.split('\n').length + 1))}
             onChange={(event) => setWhole(event.target.value)}
-            className="h-full resize-none font-[inherit]"
+            className="resize-y font-[inherit]"
           />
         </div>
       ) : split ? (
         <>
-          <div className="grid shrink-0 grid-cols-3 border-border border-b bg-card [&>*]:px-3 [&>*]:py-1.5">
-            <SideName side="ours" sides={file.sides} fallback={first?.kind === 'conflict' ? first.oursLabel : ''} />
-            <div className="border-border border-x">
-              <ResultName sides={file.sides} />
-            </div>
-            <SideName side="theirs" sides={file.sides} fallback={first?.kind === 'conflict' ? first.theirsLabel : ''} />
+          <div className="grid grid-cols-3 [&>*:nth-child(3n+2)]:border-border [&>*:nth-child(3n+2)]:border-x">
+            {segments}
           </div>
-          <div className="min-h-0 flex-1 overflow-auto">
-            <div className="grid grid-cols-3 [&>*:nth-child(3n+2)]:border-border [&>*:nth-child(3n+2)]:border-x">
-              {segments}
+          {wrap ? null : (
+            <div className="sticky bottom-0 z-10 grid grid-cols-3 [&>*]:min-w-0">
+              {bar(columnKey(file.path, 'ours'))}
+              {bar(columnKey(file.path, 'result'))}
+              {bar(columnKey(file.path, 'theirs'))}
             </div>
-          </div>
+          )}
         </>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">{segments}</div>
+        <>
+          {segments}
+          {wrap ? null : <div className="sticky bottom-0 z-10">{bar(columnKey(file.path, 'stacked'))}</div>}
+        </>
       )}
     </section>
   )
+}
+
+// Each column's longest line, in characters, sets how far it can scroll sideways.
+function widestColumns(files: ConflictFile[], tabSize: number): Map<string, number> {
+  const width = (line: string) => line.length + (line.split('\t').length - 1) * (tabSize - 1)
+  const widest = new Map<string, number>()
+  const grow = (key: string, lines: readonly string[]) => {
+    for (const line of lines) widest.set(key, Math.max(widest.get(key) ?? 0, width(line)))
+  }
+  for (const file of files) {
+    for (const segment of file.segments) {
+      const sides =
+        segment.kind === 'common'
+          ? { ours: segment.lines, theirs: segment.lines, base: [] }
+          : { ours: segment.ours, theirs: segment.theirs, base: segment.base ?? [] }
+      grow(columnKey(file.path, 'ours'), [...sides.ours, ...sides.base])
+      grow(columnKey(file.path, 'theirs'), [...sides.theirs, ...sides.base])
+      grow(columnKey(file.path, 'result'), [...sides.ours, ...sides.theirs])
+      grow(columnKey(file.path, 'stacked'), [...sides.ours, ...sides.theirs, ...sides.base])
+    }
+  }
+  return widest
 }
 
 function Finished() {
@@ -562,33 +570,169 @@ function Finished() {
   )
 }
 
-// Each conflicted file as GitHub shows a conflict: the current change and the incoming one, each against the
-// merge base, and the result being built, side by side or stacked as the diff settings say. A block takes a
-// side, both, the base, or a hand edit, and Mark resolved writes the result and stages it.
+// Every conflicted file on one page, as the diff shows changed files: each conflict as GitHub shows it, the
+// current change and the incoming one against their merge base beside the result being built, side by side or
+// stacked as the diff settings say. A block takes a side, both, the base, or a hand edit; Mark resolved writes a
+// file's result and stages it, and the file leaves the page.
 export default function MergeEditor() {
   const app = useApp()
-  const { mergeFile, queries } = app
-  const path = useStore(mergeFile, selectPath)
-  const conflictKey = selectConflicts(useStage())
-  // A file just resolved can stay in the list until the index is read again; it is not opened twice.
-  const resolved = useRef(new Set<string>())
-  const open = conflictKey.split('\n').filter((other) => other && !resolved.current.has(other))
-  const shown = path && !resolved.current.has(path) ? path : (open[0] ?? null)
-  const conflict = useQuery({ ...queries.git.conflict(shown ?? ''), enabled: Boolean(shown) })
-  const file = conflict.data
-  const failed = conflict.error ? conflict.error.message : null
+  const { mergeFile, mergeTop, queries, settings } = app
+  const split = useSettings(selectSplit)
+  const wrap = useSettings(selectWrap)
+  const tabSize = useSettings(selectTabSize)
+  const target = useStore(mergeFile, selectPath)
+  const stage = useStage()
+  const conflictKey = selectConflicts(stage)
+  // A file just resolved can stay in the list until the index is read again; it is not shown twice.
+  const [resolved, setResolved] = useState<ReadonlySet<string>>(new Set())
+  const listed = conflictKey.split('\n').filter(Boolean)
+  // A link to one file opens it before the index has been read.
+  const early = target && !stage.loaded && !listed.includes(target) ? [target] : []
+  const paths = [...early, ...listed].filter((path) => !resolved.has(path))
+  const reads = useQueries({ queries: paths.map((path) => queries.git.conflict(path)) })
+  const files = reads.flatMap((read) => (read.data ? [read.data] : []))
+  const loading = reads.some((read) => read.isPending)
+  const failed = reads.find((read) => read.error)?.error?.message ?? null
+  const page = useRef<HTMLDivElement>(null)
+  const widest = useMemo(() => widestColumns(files, tabSize), [files, tabSize])
+  const sideways = useCodeScrollX(page, widest, !wrap)
+  const [at, setAt] = useState(0)
+  const first = files[0]?.segments.find((segment) => segment.kind === 'conflict')
 
   useEffect(() => {
     const now = new Set(conflictKey.split('\n'))
-    for (const done of resolved.current) if (!now.has(done)) resolved.current.delete(done)
+    setResolved((before) => {
+      const kept = new Set([...before].filter((path) => now.has(path)))
+      return kept.size === before.size ? before : kept
+    })
   }, [conflictKey])
-  const after = () => {
-    if (shown) resolved.current.add(shown)
-    mergeFile.set(open.find((other) => other !== shown) ?? null)
-  }
 
-  if (!shown) return <Finished />
-  if (failed) return <p className="p-4 text-removed">{failed}</p>
-  if (!file) return <CodeRowsSkeleton count={20} />
-  return <Editor key={file.path} file={file} onDone={after} />
+  // Picking a file in the list (or opening the page at one) scrolls to it, as the diff does.
+  useEffect(() => {
+    if (!target || loading) return
+    page.current
+      ?.querySelector(`[data-merge-file="${CSS.escape(target)}"]`)
+      ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [target, loading])
+
+  // The file list marks the file whose blocks are on screen.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the page mounts once the files are read, so it waits for them
+  useEffect(() => {
+    const root = page.current
+    if (!root) return
+    const onScroll = () => {
+      const top = root.getBoundingClientRect().top + 48
+      const sections = [...root.querySelectorAll<HTMLElement>('[data-merge-file]')]
+      const current = sections.filter((section) => section.getBoundingClientRect().top <= top).at(-1) ?? sections[0]
+      mergeTop.set(current?.dataset.mergeFile ?? null)
+    }
+    onScroll()
+    root.addEventListener('scroll', onScroll, { passive: true })
+    return () => root.removeEventListener('scroll', onScroll)
+  }, [mergeTop, files.length])
+
+  // Through every conflict on the page in order; forward goes to the next one still waiting for a pick.
+  const conflicts = () => [...(page.current?.querySelectorAll<HTMLElement>('[data-conflict]') ?? [])]
+  const total = files.reduce((sum, file) => sum + file.segments.filter((s) => s.kind === 'conflict').length, 0)
+  const go = (to: number) => {
+    const all = conflicts()
+    if (!all.length) return
+    const next = (to + all.length) % all.length
+    setAt(next)
+    all[next]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }
+  // Split, a block's result is the column beside it; stacked, it sits inside the block.
+  const open = (block: HTMLElement) =>
+    split
+      ? Boolean(block.nextElementSibling?.hasAttribute('data-unresolved'))
+      : Boolean(block.querySelector('[data-unresolved]'))
+  const forward = () => {
+    const all = conflicts()
+    const waiting = all.flatMap((block, index) => (open(block) ? [index] : []))
+    go(waiting.find((index) => index > at) ?? waiting[0] ?? at + 1)
+  }
+  const step = useRef({ go, forward, at })
+  step.current = { go, forward, at }
+  useEffect(() => {
+    const onStep = (event: Event) => {
+      const { go, forward, at } = step.current
+      if ((event as CustomEvent<number>).detail > 0) forward()
+      else go(at - 1)
+    }
+    window.addEventListener(MERGE_STEP, onStep)
+    return () => window.removeEventListener(MERGE_STEP, onStep)
+  }, [])
+
+  if (!paths.length) return <Finished />
+  if (failed && !files.length) return <p className="p-4 text-removed">{failed}</p>
+  if (!files.length) return <CodeRowsSkeleton count={20} />
+  return (
+    <ScrollRows.Provider value={sideways.rowStyle}>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-border border-b bg-card px-3 py-1">
+          <span className="text-muted-foreground">
+            {files.length} {files.length === 1 ? 'file' : 'files'}, {total} {total === 1 ? 'conflict' : 'conflicts'}
+          </span>
+          <div className="ms-auto flex items-center gap-1">
+            <IconTool
+              label="Previous conflict"
+              tip="Previous conflict (k)"
+              onClick={() => go(at - 1)}
+              disabled={total < 2}>
+              <ChevronUp />
+            </IconTool>
+            <span className="whitespace-nowrap text-muted-foreground tabular-nums">
+              Conflict {Math.min(at + 1, total)} of {total}
+            </span>
+            <IconTool label="Next conflict" tip="Next conflict (j)" onClick={forward} disabled={!total}>
+              <ChevronDown />
+            </IconTool>
+            <Separator orientation="vertical" className="mx-1 h-5" />
+            <IconTool
+              label={split ? 'Stacked layout' : 'Split layout'}
+              tip={split ? 'Stacked layout (t)' : 'Split layout (t)'}
+              onClick={() =>
+                settings.set((prev) => ({ ...prev, diffStyle: prev.diffStyle === 'split' ? 'unified' : 'split' }))
+              }>
+              {split ? <Rows3 /> : <Columns3 />}
+            </IconTool>
+          </div>
+        </div>
+        <div ref={page} className="relative min-h-0 flex-1 overflow-auto">
+          {sideways.probe}
+          {split && files[0] ? (
+            <div className="sticky top-0 z-30 grid h-9 grid-cols-3 items-center border-border border-b bg-card [&>*]:px-3">
+              <SideName
+                side="ours"
+                sides={files[0].sides}
+                fallback={first?.kind === 'conflict' ? first.oursLabel : ''}
+              />
+              <div className="flex h-full items-center border-border border-x">
+                <ResultName sides={files[0].sides} />
+              </div>
+              <SideName
+                side="theirs"
+                sides={files[0].sides}
+                fallback={first?.kind === 'conflict' ? first.theirsLabel : ''}
+              />
+            </div>
+          ) : null}
+          {files.map((file) => (
+            <FileSection
+              key={file.path}
+              file={file}
+              split={split}
+              wrap={wrap}
+              bar={(key) => sideways.bar(key)}
+              onDone={() => {
+                setResolved((before) => new Set(before).add(file.path))
+                if (mergeFile.get() === file.path) mergeFile.set(null)
+              }}
+            />
+          ))}
+          {loading ? <CodeRowsSkeleton count={6} /> : null}
+        </div>
+      </div>
+    </ScrollRows.Provider>
+  )
 }
