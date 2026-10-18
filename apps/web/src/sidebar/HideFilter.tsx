@@ -27,7 +27,8 @@ interface Draft {
   pattern: string
 }
 
-// A name and a regex, for adding a pattern and for editing one; the name falls back to the regex.
+// A name and a regex, for adding a pattern and for editing one; the name falls back to the regex, and a name that
+// is only that fallback follows the regex as it is edited.
 function PatternForm({
   initial,
   submit,
@@ -86,7 +87,10 @@ function PatternForm({
           aria-invalid={draft.pattern.length > 0 && !ok}
           placeholder="A regex, like \.snap$ or ^docs/"
           value={draft.pattern}
-          onChange={(event) => setDraft({ ...draft, pattern: event.target.value })}
+          onChange={(event) => {
+            const pattern = event.target.value
+            setDraft({ label: draft.label && draft.label === draft.pattern ? pattern : draft.label, pattern })
+          }}
           onKeyDown={cancelOnEscape}
           className="h-7 min-w-0 flex-1 font-mono"
         />
@@ -155,7 +159,7 @@ export function HideFilter({ hiddenCount }: { hiddenCount: number }) {
               />
               {editing === entry.id ? (
                 <PatternForm
-                  initial={{ label: entry.label === entry.pattern ? '' : entry.label, pattern: entry.pattern }}
+                  initial={{ label: entry.label, pattern: entry.pattern }}
                   submit="keep"
                   names={{ label: `Name for ${entry.label}`, pattern: `Pattern for ${entry.label}` }}
                   onSubmit={(draft) => {
