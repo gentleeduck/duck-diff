@@ -51,6 +51,8 @@ const file: ConflictFile = {
 
 afterEach(() => window.history.replaceState(null, '', '/'))
 
+const conflictedOnly = async (target: DiffTarget) => (target.kind === 'unstaged' ? [conflicted] : [])
+
 describe('merge editor', () => {
   it('resolves each block its own way and stages the result', async () => {
     window.history.replaceState(null, '', '/?view=merge&path=a.txt')
@@ -87,7 +89,7 @@ describe('merge editor', () => {
 
   it('takes a hand edit for a block', async () => {
     window.history.replaceState(null, '', '/?view=merge&path=a.txt')
-    render(<App api={fakeApi({ conflict: async () => file })} />)
+    render(<App api={fakeApi({ files: conflictedOnly, conflict: async () => file })} />)
     const first = await screen.findByRole('region', { name: 'Result, conflict 1' })
     fireEvent.click(within(first).getByRole('button', { name: 'Edit conflict 1' }))
     fireEvent.change(within(first).getByRole('textbox', { name: 'Text for conflict 1' }), {
@@ -100,7 +102,7 @@ describe('merge editor', () => {
 
   it('shows the side taken, and steps the other back', async () => {
     window.history.replaceState(null, '', '/?view=merge&path=a.txt')
-    render(<App api={fakeApi({ conflict: async () => file })} />)
+    render(<App api={fakeApi({ files: conflictedOnly, conflict: async () => file })} />)
     const ours = await screen.findByRole('region', { name: 'Current change, conflict 1' })
     const accept = within(ours).getByRole('button', { name: /Accept current/ })
     fireEvent.click(accept)
@@ -147,7 +149,7 @@ describe('merge editor', () => {
   it('stacks current over incoming over the result when the diff is stacked, each side with its commit', async () => {
     window.localStorage.setItem('duck-diff:settings', JSON.stringify({ diffStyle: 'unified' }))
     window.history.replaceState(null, '', '/?view=merge&path=a.txt')
-    render(<App api={fakeApi({ conflict: async () => file })} />)
+    render(<App api={fakeApi({ files: conflictedOnly, conflict: async () => file })} />)
     const block = await screen.findByRole('region', { name: 'Conflict 1' })
     const current = within(block).getByRole('region', { name: 'Current change, conflict 1' })
     expect(current.textContent).toContain('main')
@@ -191,5 +193,28 @@ describe('merge editor', () => {
     const tab = await screen.findByRole('region', { name: 'Merge in progress' })
     fireEvent.click(within(tab).getByRole('button', { name: 'Take incoming for a.txt' }))
     await waitFor(() => expect(calls).toContainEqual(['resolve', { path: 'a.txt', side: 'theirs' }]))
+  })
+  it('shows every conflicted file on one page, as the diff shows changed files', async () => {
+    const second: ChangedFile = { ...conflicted, path: 'b.txt' }
+    let listed = [conflicted, second]
+    const calls: unknown[][] = []
+    const api = fakeApi({
+      files: async (target: DiffTarget) => (target.kind === 'unstaged' ? listed : []),
+      conflict: async (path) => ({ ...file, path }),
+      git: async (action, body) => {
+        calls.push([action, body])
+        if (action === 'resolve-text') listed = listed.filter((entry) => entry.path !== (body as { path: string }).path)
+        return {}
+      },
+    })
+    window.history.replaceState(null, '', '/?view=merge')
+    render(<App api={api} />)
+    const first = await screen.findByRole('region', { name: 'Merge a.txt' })
+    expect(await screen.findByRole('region', { name: 'Merge b.txt' })).toBeTruthy()
+    expect(screen.getByText('2 files, 4 conflicts')).toBeTruthy()
+    fireEvent.click(within(first).getByRole('button', { name: 'All current' }))
+    fireEvent.click(within(first).getByRole('button', { name: 'Mark resolved' }))
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Merge a.txt' })).toBeNull())
+    expect(screen.getByRole('region', { name: 'Merge b.txt' })).toBeTruthy()
   })
 })
