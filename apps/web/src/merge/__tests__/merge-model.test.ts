@@ -5,6 +5,7 @@ import {
   conflictLines,
   eitherBlame,
   firstConflictLine,
+  markerTints,
   pickedBlame,
   resultText,
   segmentBlames,
@@ -147,5 +148,16 @@ describe('blame on the merge page', () => {
   it('knows no line of a side that has no blame', () => {
     const [top] = segmentBlames(merged, { ours: null, theirs: null, base: null })
     expect(top?.ours).toEqual([undefined, undefined])
+  })
+})
+
+describe('markerTints', () => {
+  it('tints each side of a conflict written as text, and its markers', () => {
+    const lines = ['a', '<<<<<<< HEAD', 'mine', '||||||| base', 'old', '=======', 'yours', '>>>>>>> feature', 'z']
+    expect(markerTints(lines)).toEqual([null, 'marker', 'ours', 'marker', 'base', 'marker', 'theirs', 'marker', null])
+  })
+
+  it('reads a lone ======= outside a conflict as text', () => {
+    expect(markerTints(['=======', 'x'])).toEqual([null, null])
   })
 })

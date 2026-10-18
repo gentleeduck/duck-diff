@@ -31,10 +31,29 @@ describe('glide', () => {
     expect(element.scrollTop).toBe(300)
   })
 
-  it('cuts a long jump down to the last screen, so far moves stay quick', () => {
+  it('jumps a long way to one screen short, so the part the eye follows is never longer than a screen', () => {
     const element = box(500)
     void glide(element, 10_000, 100)
-    expect(element.scrollTop).toBe(10_000 - 1000)
+    expect(element.scrollTop).toBe(10_000 - 500)
+  })
+
+  it('starts gently enough to follow and takes a little longer for a longer way', async () => {
+    const element = box(1000)
+    const done = glide(element, 1000)
+    tick(16)
+    // A first frame that moves a third of the way reads as a jump, not a scroll.
+    expect(element.scrollTop).toBeLessThan(150)
+    tick(184)
+    expect(element.scrollTop).toBeLessThan(1000)
+    tick(100)
+    await done
+    expect(element.scrollTop).toBe(1000)
+
+    const near = box(1000)
+    const short = glide(near, 100)
+    tick(180)
+    await short
+    expect(near.scrollTop).toBe(100)
   })
 
   it('a new glide takes over from where the last one is', () => {

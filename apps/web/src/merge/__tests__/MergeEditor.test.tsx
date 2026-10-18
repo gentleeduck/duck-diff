@@ -270,4 +270,109 @@ describe('merge editor', () => {
     expect(within(editor).getByRole('button', { name: 'Blame: who changed each line' })).toBeTruthy()
     expect(within(editor).getByRole('button', { name: 'Hide history' })).toBeTruthy()
   })
+
+  it('says nothing is finished while the conflicts are still being read', async () => {
+    let release = () => {}
+    const listed = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    window.history.replaceState(null, '', '/?view=merge')
+    const api = fakeApi({
+      // Only the index read waits: the page itself is up, as it is between the first diff and the index.
+      files: async (target: DiffTarget) => {
+        if (target.kind === 'staged') await listed
+        return target.kind === 'unstaged' ? [conflicted] : []
+      },
+      conflict: async () => file,
+      sync: async () => ({
+        branch: 'main',
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+        staged: 0,
+        operation: 'merge',
+        incoming: 'feature',
+      }),
+    })
+    render(<App api={api} />)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    for (const done of [/Every conflict is resolved/, /No conflicts to resolve/, /No conflicted files/, /All resolved/])
+      expect(screen.queryByText(done)).toBeNull()
+    release()
+    expect(await screen.findByRole('region', { name: 'Merge a.txt' })).toBeTruthy()
+    expect(screen.getByText('1 file left')).toBeTruthy()
+  })
+
+  it('shows the files together and in order, however their reads arrive', async () => {
+    let releaseFirst = () => {}
+    const first = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    let secondRead = () => {}
+    const second = new Promise<void>((resolve) => {
+      secondRead = resolve
+    })
+    const api = fakeApi({
+      files: async (target: DiffTarget) =>
+        target.kind === 'unstaged' ? [conflicted, { ...conflicted, path: 'b.txt' }] : [],
+      conflict: async (path) => {
+        if (path === 'a.txt') await first
+        else setTimeout(secondRead, 0)
+        return { ...file, path }
+      },
+    })
+    window.history.replaceState(null, '', '/?view=merge')
+    render(<App api={api} />)
+    await second
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    // b.txt is read, but showing it now would push it down again when a.txt lands above it.
+    expect(screen.queryByRole('region', { name: 'Merge b.txt' })).toBeNull()
+    releaseFirst()
+    const a = await screen.findByRole('region', { name: 'Merge a.txt' })
+    const b = screen.getByRole('region', { name: 'Merge b.txt' })
+    expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('edits the whole file as code, each side of a conflict tinted, and counts the markers left', async () => {
+    const calls: unknown[][] = []
+    const api = fakeApi({
+      files: conflictedOnly,
+      conflict: async () => file,
+      git: async (action, body) => {
+        calls.push([action, body])
+        return {}
+      },
+    })
+    window.history.replaceState(null, '', '/?view=merge&path=a.txt')
+    render(<App api={api} />)
+    const editor = await screen.findByRole('region', { name: 'Merge a.txt' })
+    fireEvent.click(within(editor).getByRole('button', { name: 'Edit as text' }))
+    const text = within(editor).getByRole('textbox', { name: 'Result for a.txt' }) as HTMLTextAreaElement
+    expect(within(editor).getByText('2 of 2 left')).toBeTruthy()
+    // The code under the text box: a numbered, tinted row per line.
+    const rows = [...editor.querySelectorAll<HTMLElement>('[data-tint]')]
+    expect(rows.map((row) => row.dataset.tint)).toEqual([
+      '',
+      'marker',
+      'ours',
+      'marker',
+      'theirs',
+      'marker',
+      '',
+      'marker',
+      'ours',
+      'marker',
+      'theirs',
+      'marker',
+      '',
+    ])
+    expect(within(editor).getByText('12')).toBeTruthy()
+
+    fireEvent.change(text, { target: { value: 'top\nmine 1\nmid\nyours 2\n' } })
+    expect(within(editor).getByText('All resolved')).toBeTruthy()
+    fireEvent.click(within(editor).getByRole('button', { name: 'Mark resolved' }))
+    await waitFor(() =>
+      expect(calls).toContainEqual(['resolve-text', { path: 'a.txt', text: 'top\nmine 1\nmid\nyours 2\n' }]),
+    )
+  })
 })

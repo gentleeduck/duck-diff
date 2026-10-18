@@ -3,6 +3,8 @@ import { diffArrays } from 'diff'
 
 // j and k on the merge page step through its conflicts (keys/useShortcuts.ts sends it, the editor listens).
 export const MERGE_STEP = 'duck-diff:merge-step'
+// The merge list asks the page to bring a file into view, again when it is picked twice.
+export const MERGE_SHOW_FILE = 'duck-diff:merge-show-file'
 // b on the merge page shows or hides who last changed each line.
 export const MERGE_BLAME = 'duck-diff:merge-blame'
 
@@ -70,6 +72,33 @@ export function firstConflictLine(file: ConflictFile, choices: Choices): number 
     else line += conflictLines(segment).length
   }
   return null
+}
+
+// What each line of a file written as text belongs to: a side of a conflict, one of its markers, or neither.
+export type Tint = 'ours' | 'base' | 'theirs' | 'marker' | null
+
+export function markerTints(lines: readonly string[]): Tint[] {
+  let section: Tint = null
+  return lines.map((line) => {
+    if (/^<{7}( |$)/.test(line)) {
+      section = 'ours'
+      return 'marker'
+    }
+    if (!section) return null
+    if (section === 'ours' && /^\|{7}( |$)/.test(line)) {
+      section = 'base'
+      return 'marker'
+    }
+    if (section !== 'theirs' && /^={7}$/.test(line)) {
+      section = 'theirs'
+      return 'marker'
+    }
+    if (section === 'theirs' && /^>{7}( |$)/.test(line)) {
+      section = null
+      return 'marker'
+    }
+    return section
+  })
 }
 
 // Joined so the selection compares by value and the store does not re-render on every read.

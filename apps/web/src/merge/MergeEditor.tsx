@@ -1,5 +1,5 @@
 import type { ConflictBlame, ConflictBlock, ConflictFile } from '@duck-diff/protocol'
-import { Badge, type BadgeTone, Button, Textarea } from '@duck-diff/ui'
+import { Badge, type BadgeTone, Button } from '@duck-diff/ui'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   ArrowDownUp,
@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   ChevronUp,
+  FilePenLine,
   GitCommitVertical,
   History,
   Pencil,
@@ -26,6 +27,7 @@ import { OperationActions } from '../git/OperationBanner'
 import { useOpenFile } from '../hooks/useOpenFile'
 import { useSettings } from '../hooks/useSettings'
 import { useView } from '../hooks/useView'
+import { glide } from '../lib/glide'
 import { dropKept, useKept } from '../lib/kept'
 import { useStore } from '../lib/store'
 import { fileGlyph } from '../sidebar/icons'
@@ -33,6 +35,7 @@ import type { Settings } from '../state/settings'
 import { useStage } from '../state/stage'
 import { MergeHistory } from './MergeHistory'
 import { contextLines, MergeLines, ScrollRows } from './MergeLines'
+import { MergeText } from './MergeText'
 import {
   blockLines,
   type Choice,
@@ -40,6 +43,7 @@ import {
   eitherBlame,
   firstConflictLine,
   MERGE_BLAME,
+  MERGE_SHOW_FILE,
   MERGE_STEP,
   pickedBlame,
   resultText,
@@ -58,7 +62,10 @@ const selectWrap = (state: Settings) => state.overflow === 'wrap'
 const selectTabSize = (state: Settings) => state.tabSize
 // Long unchanged stretches between blocks fold to their edges, as a diff's context does.
 const KEEP = 3
-const MARKERS = /^(<{7}|>{7})( |$)/m
+// A conflict still written into the text, counted by its opening marker.
+const MARKERS = /^<{7}( |$)/gm
+// How long the page waits for every file before it shows the ones read so far, in order.
+const PATIENCE_MS = 800
 // Every line unknown while the blame is read, so the columns keep their place.
 const NO_BLAME: ConflictBlame = { ours: null, theirs: null, base: null }
 
@@ -270,13 +277,7 @@ function Block({
   const result =
     editing !== null ? (
       <div className="flex flex-col gap-2 p-2">
-        <Textarea
-          aria-label={`Text for conflict ${number}`}
-          value={editing}
-          rows={Math.min(16, Math.max(3, editing.split('\n').length + 1))}
-          onChange={(event) => setEditing(event.target.value)}
-          className="font-[inherit]"
-        />
+        <MergeText label={`Text for conflict ${number}`} path={path} value={editing} onChange={setEditing} />
         <div className="flex gap-1">
           <Button
             size="sm"
@@ -416,7 +417,7 @@ function FileSection({
   const [whole, setWhole] = useKept<string | null>(`${keep}:whole`, null)
   const blocks = file.segments.flatMap((segment, index) => (segment.kind === 'conflict' ? [index] : []))
   const total = blocks.length
-  const left = whole === null ? unresolvedCount(file, choices) : MARKERS.test(whole) ? 1 : 0
+  const left = whole === null ? unresolvedCount(file, choices) : (whole.match(MARKERS) ?? []).length
   const icon = fileGlyph(file.path.split('/').pop() ?? file.path)
   const [history, setHistory] = useKept(`merge-history:${file.path}`, false)
   const [blaming, setBlaming] = useKept(`merge-blame:${file.path}`, false)
@@ -505,7 +506,7 @@ function FileSection({
             {file.path}
           </span>
           <Badge variant={left ? 'soft-warning' : 'soft-success'} size="sm" className="shrink-0">
-            {left ? `${whole === null ? left : 'Markers'} of ${total} left` : 'All resolved'}
+            {left ? `${left} of ${total} left` : 'All resolved'}
           </Badge>
         </div>
         <div className="ms-auto flex flex-wrap items-center justify-end gap-1">
@@ -517,15 +518,19 @@ function FileSection({
               <Button size="sm" variant="ghost" onClick={() => all('theirs')}>
                 All incoming
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setWhole(resultText(file, choices))}>
-                <Pencil />
-                Edit as text
-              </Button>
+              <IconTool
+                label="Edit as text"
+                tip="Edit the whole file as text"
+                onClick={() => setWhole(resultText(file, choices))}>
+                <FilePenLine />
+              </IconTool>
             </>
           ) : (
-            <Button size="sm" variant="ghost" onClick={() => setWhole(null)}>
-              Back to blocks
-            </Button>
+            <span className="text-tn-blue">
+              <IconTool label="Back to blocks" tip="Back to the blocks, one pick each" onClick={() => setWhole(null)}>
+                <FilePenLine />
+              </IconTool>
+            </span>
           )}
           <IconTool
             label="Open"
@@ -557,13 +562,7 @@ function FileSection({
       {history ? <MergeHistory file={file} split={split} /> : null}
       {whole !== null ? (
         <div className="p-3">
-          <Textarea
-            aria-label={`Result for ${file.path}`}
-            value={whole}
-            rows={Math.min(40, Math.max(8, whole.split('\n').length + 1))}
-            onChange={(event) => setWhole(event.target.value)}
-            className="resize-y font-[inherit]"
-          />
+          <MergeText label={`Result for ${file.path}`} path={file.path} value={whole} onChange={setWhole} />
         </div>
       ) : split ? (
         <>
@@ -658,8 +657,19 @@ export default function MergeEditor() {
   const early = target && !stage.loaded && !listed.includes(target) ? [target] : []
   const paths = [...early, ...listed].filter((path) => !resolved.has(path))
   const reads = useQueries({ queries: paths.map((path) => queries.git.conflict(path)) })
-  const files = reads.flatMap((read) => (read.data ? [read.data] : []))
   const loading = reads.some((read) => read.isPending)
+  // The files show together once all are read, so none lands above another and pushes it down; a long list
+  // starts showing, in order, after a moment rather than waiting on its slowest file.
+  const [patient, setPatient] = useState(true)
+  useEffect(() => {
+    const timer = setTimeout(() => setPatient(false), PATIENCE_MS)
+    return () => clearTimeout(timer)
+  }, [])
+  const shownAll = useRef(false)
+  if (!loading && reads.length && stage.loaded) shownAll.current = true
+  const pending = reads.findIndex((read) => read.isPending)
+  const ready = shownAll.current ? reads : patient ? [] : reads.slice(0, pending)
+  const files = ready.flatMap((read) => (read.data ? [read.data] : []))
   const failed = reads.find((read) => read.error)?.error?.message ?? null
   const page = useRef<HTMLDivElement>(null)
   const widest = useMemo(() => widestColumns(files, tabSize), [files, tabSize])
@@ -675,28 +685,58 @@ export default function MergeEditor() {
     })
   }, [conflictKey])
 
-  // Picking a file in the list (or opening the page at one) scrolls to it, as the diff does.
-  useEffect(() => {
-    if (!target || loading) return
-    page.current
-      ?.querySelector(`[data-merge-file="${CSS.escape(target)}"]`)
-      ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
-  }, [target, loading])
+  // Every move on the page glides as the diff's do. The list marks the file it is headed for at once and
+  // holds it there, instead of flicking through every file it passes, until the reader scrolls on.
+  const steering = useRef<{ top: number; gliding: boolean } | null>(null)
+  const glideTo = (element: HTMLElement, block: 'start' | 'center') => {
+    const root = page.current
+    if (!root) return
+    const box = element.getBoundingClientRect()
+    const centred = block === 'center' ? (root.clientHeight - box.height) / 2 : 0
+    const top = root.scrollTop + box.top - root.getBoundingClientRect().top - centred
+    const file = element.closest<HTMLElement>('[data-merge-file]')?.dataset.mergeFile ?? null
+    const end = Math.max(0, Math.min(top, root.scrollHeight - root.clientHeight))
+    const steer = { top: end, gliding: true }
+    steering.current = steer
+    if (file && mergeTop.get() !== file) mergeTop.set(file)
+    void glide(root, end).then(() => {
+      steer.gliding = false
+    })
+  }
+  const shownTarget = useRef<string | null>(null)
+  const showFile = (path: string) => {
+    const section = page.current?.querySelector<HTMLElement>(`[data-merge-file="${CSS.escape(path)}"]`)
+    if (!section) return
+    shownTarget.current = path
+    glideTo(section, 'start')
+  }
 
-  // The file list marks the file whose blocks are on screen.
+  // The file list marks the file whose blocks are on screen, worked out once a frame while the page scrolls.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the page mounts once the files are read, so it waits for them
   useEffect(() => {
     const root = page.current
     if (!root) return
-    const onScroll = () => {
+    let frame = 0
+    const track = () => {
+      frame = 0
+      const steer = steering.current
+      if (steer && (steer.gliding || Math.abs(root.scrollTop - steer.top) < 2)) return
+      steering.current = null
       const top = root.getBoundingClientRect().top + 48
       const sections = [...root.querySelectorAll<HTMLElement>('[data-merge-file]')]
       const current = sections.filter((section) => section.getBoundingClientRect().top <= top).at(-1) ?? sections[0]
-      mergeTop.set(current?.dataset.mergeFile ?? null)
+      const path = current?.dataset.mergeFile ?? null
+      if (mergeTop.get() !== path) mergeTop.set(path)
     }
-    onScroll()
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(track)
+    }
+    track()
     root.addEventListener('scroll', onScroll, { passive: true })
-    return () => root.removeEventListener('scroll', onScroll)
+    return () => {
+      cancelAnimationFrame(frame)
+      root.removeEventListener('scroll', onScroll)
+    }
   }, [mergeTop, files.length])
 
   // Through every conflict on the page in order; forward goes to the next one still waiting for a pick.
@@ -707,7 +747,8 @@ export default function MergeEditor() {
     if (!all.length) return
     const next = (to + all.length) % all.length
     setAt(next)
-    all[next]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const block = all[next]
+    if (block) glideTo(block, 'center')
   }
   // Split, a block's result is the column beside it; stacked, it sits inside the block.
   const open = (block: HTMLElement) =>
@@ -719,19 +760,31 @@ export default function MergeEditor() {
     const waiting = all.flatMap((block, index) => (open(block) ? [index] : []))
     go(waiting.find((index) => index > at) ?? waiting[0] ?? at + 1)
   }
-  const step = useRef({ go, forward, at })
-  step.current = { go, forward, at }
+  const step = useRef({ go, forward, at, showFile })
+  step.current = { go, forward, at, showFile }
   useEffect(() => {
     const onStep = (event: Event) => {
       const { go, forward, at } = step.current
       if ((event as CustomEvent<number>).detail > 0) forward()
       else go(at - 1)
     }
+    const onShow = (event: Event) => step.current.showFile((event as CustomEvent<string>).detail)
     window.addEventListener(MERGE_STEP, onStep)
-    return () => window.removeEventListener(MERGE_STEP, onStep)
+    window.addEventListener(MERGE_SHOW_FILE, onShow)
+    return () => {
+      window.removeEventListener(MERGE_STEP, onStep)
+      window.removeEventListener(MERGE_SHOW_FILE, onShow)
+    }
   }, [])
 
-  if (!paths.length) return <Finished />
+  // Opening the page at a file (a link, git's merge tool) brings it into view once it is on the page.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: waits for the files to be on the page
+  useEffect(() => {
+    if (target && target !== shownTarget.current) step.current.showFile(target)
+  }, [target, files.length])
+
+  // Until the index is read there is nothing to say about it either way.
+  if (!paths.length) return stage.loaded ? <Finished /> : <CodeRowsSkeleton count={20} />
   if (failed && !files.length) return <p className="p-4 text-removed">{failed}</p>
   if (!files.length) return <CodeRowsSkeleton count={20} />
   return (
