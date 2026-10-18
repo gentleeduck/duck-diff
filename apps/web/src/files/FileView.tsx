@@ -1,8 +1,8 @@
 import type { BlameLine } from '@duck-diff/protocol'
-import { Badge, Button } from '@duck-diff/ui'
+import { Badge, Button, Kbd } from '@duck-diff/ui'
 import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Code2, Eye, FileDiff, History, SquareArrowOutUpRight, UserSearch } from 'lucide-react'
+import { Code2, Eye, FileDiff, FolderTree, History, SquareArrowOutUpRight, UserSearch } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useApp } from '../app/AppProvider'
 import { CopyTool } from '../app/CopyTool'
@@ -25,9 +25,10 @@ import { useStore } from '../lib/store'
 import { Markdown } from '../markdown/Markdown'
 import { fileGlyph } from '../sidebar/icons'
 import type { SessionState } from '../state/session'
-import type { Settings } from '../state/settings'
+import { panelShown, type Settings, togglePanel } from '../state/settings'
 import { formatBytes } from '../viewer/file-info'
 import { openFile } from './open-file'
+import { useReadmeFirst } from './readme-first'
 
 const selectPath = (path: string | null) => path
 const selectFiles = (state: SessionState) => state.files
@@ -48,11 +49,35 @@ function resolveLink(from: string, href: string): string {
 }
 
 const selectAt = (at: string | null) => at
+const selectTreeShown = (state: Settings) => panelShown(state, 'files')
 const selectLine = (line: number | null) => line
+
+// With nothing open and the tree hidden, the way to a file is offered here rather than pointed at.
+function NoFile() {
+  const { settings } = useApp()
+  const treeShown = useSettings(selectTreeShown)
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+      <p>No file open. Pick one from the file tree, or search for it.</p>
+      <div className="flex items-center gap-2">
+        {treeShown ? null : (
+          <Button size="sm" variant="outline" onClick={() => settings.set((prev) => togglePanel(prev, 'files', true))}>
+            <FolderTree />
+            Show the file tree
+          </Button>
+        )}
+        <span className="flex items-center gap-1.5">
+          <Kbd keys="mod+p" /> searches every file
+        </span>
+      </div>
+    </div>
+  )
+}
 
 export default function FileView() {
   const app = useApp()
   const { fileSelection, fileHistory, fileLine, fileAt, queries } = app
+  useReadmeFirst()
   const path = useStore(fileSelection, selectPath)
   const at = useStore(fileAt, selectAt)
   const line = useStore(fileLine, selectLine)
@@ -110,9 +135,7 @@ export default function FileView() {
     if (line && contents?.text) requestAnimationFrame(() => virtualizer.scrollToIndex(line - 1, { align: 'center' }))
   }, [line, contents, virtualizer])
 
-  if (!path) {
-    return <p className="p-4 text-muted-foreground">Pick a file on the left to read it here. No file, no quack.</p>
-  }
+  if (!path) return <NoFile />
 
   const status = changed.find((file) => file.path === path)
   const markdown = MARKDOWN.test(path)
