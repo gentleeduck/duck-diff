@@ -1,4 +1,4 @@
-// What the page remembers between visits (settings, keys, panel sizes, tabs, viewed files) lives on the server,
+// What the page remembers between visits (settings, panel sizes, tabs, viewed files) lives on the server,
 // in duck-diff's data folder, not in the browser: clearing the browser loses nothing. The server puts the
 // values into the page, so stores read them as they are created; changes go back in batches.
 export interface SavedStorage extends Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
@@ -15,6 +15,8 @@ type Changes = Record<string, string | null>
 const PREFIX = 'duck-diff:'
 // Caches an older build kept in the browser; the server has its own, so these are only cleared.
 const CACHES = /^duck-diff:(queries|items):/
+// Values for features that are gone (the rebindable keys), dropped wherever they were kept.
+const GONE = ['duck-diff:keys']
 // Short: on a reload the new page is asked for before the old one leaves, so a change still waiting
 // here would miss it.
 const SEND_MS = 50
@@ -60,6 +62,10 @@ export function createSavedStorage({
         browser.removeItem(key)
       }
     } catch {}
+  }
+
+  for (const key of GONE) {
+    if (values.delete(key)) queue(key, null)
   }
 
   return {

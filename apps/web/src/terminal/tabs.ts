@@ -6,7 +6,7 @@ export interface TerminalTab {
   key: string
   // The server's id, known once the shell has started; null for a tab still opening.
   id: string | null
-  // Terminal 1, 2...: fixed, so keys and tests can find it.
+  // Terminal 1, 2...: fixed, so its tab and tests can find it.
   name: string
   // What the shell calls itself (its window title), shown on the tab.
   title: string

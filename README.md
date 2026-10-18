@@ -26,7 +26,7 @@
 
 Your changes, a branch, a range or a commit, rendered with [@pierre/diffs](https://diffs.com): split or stacked,
 syntax highlighted, virtualized and live as you edit. Around it, the commit graph, the files, pull requests,
-issues, notifications, actions and the rest of GitHub, a real terminal, and Neovim-style keys. One binary, no
+issues, notifications, actions and the rest of GitHub, a real terminal, and a few plain keys. One binary, no
 cloud: it runs on your machine and opens in your browser.
 
 <p align="center">
@@ -143,7 +143,7 @@ opts = {
 Everything duck-diff keeps is in one folder, `~/.duck-diff` (set `DUCK_DIFF_HOME` to move it), not in the browser:
 clearing the browser loses none of it.
 
-- `state.json`: settings, key bindings, panel sizes, and each repo's open tabs, viewed files and unsent reviews.
+- `state.json`: settings, panel sizes, and each repo's open tabs, viewed files and unsent reviews.
 - `repos.json`: the repositories the switcher lists.
 - `<repo id>/`: that repo's comments (`reviews.json`), undo snapshots for discards, and its cache of GitHub and
   commit answers (`duck-diff cache clear` empties the caches).
