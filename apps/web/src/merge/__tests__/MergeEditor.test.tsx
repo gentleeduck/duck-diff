@@ -248,9 +248,9 @@ describe('merge editor', () => {
     render(<App api={api} />)
     const editor = await screen.findByRole('region', { name: 'Merge a.txt' })
     expect(screen.queryByText('Bob')).toBeNull()
-    const blame = within(editor).getByRole('button', { name: 'Blame' })
-    fireEvent.click(blame)
-    expect(blame.getAttribute('aria-pressed')).toBe('true')
+    // Icon buttons named as the diff names its file actions.
+    fireEvent.click(within(editor).getByRole('button', { name: 'Blame: who changed each line' }))
+    expect(within(editor).getByRole('button', { name: 'Hide blame' })).toBeTruthy()
     const incoming = screen.getByRole('region', { name: 'Incoming change, conflict 1' })
     expect(await within(incoming).findByText('Bob')).toBeTruthy()
     expect(within(screen.getByRole('region', { name: 'Current change, conflict 1' })).getByText('Ada')).toBeTruthy()
@@ -258,7 +258,7 @@ describe('merge editor', () => {
     fireEvent.click(within(incoming).getByRole('button', { name: /Accept incoming/ }))
     expect(within(screen.getByRole('region', { name: 'Result, conflict 1' })).getByText('Bob')).toBeTruthy()
 
-    fireEvent.click(within(editor).getByRole('button', { name: 'History' }))
+    fireEvent.click(within(editor).getByRole('button', { name: "History: each side's commits to the file" }))
     const history = await screen.findByRole('region', { name: 'History of a.txt' })
     expect(await within(history).findByText('Mine, not yours')).toBeTruthy()
     expect(await within(history).findByText('Yours, not mine')).toBeTruthy()
@@ -267,6 +267,7 @@ describe('merge editor', () => {
     // b turns it off again for the file at the top of the page.
     fireEvent.keyDown(window, { key: 'b' })
     expect(within(screen.getByRole('region', { name: 'Incoming change, conflict 1' })).queryByText('Bob')).toBeNull()
-    expect(blame.getAttribute('aria-pressed')).toBe('false')
+    expect(within(editor).getByRole('button', { name: 'Blame: who changed each line' })).toBeTruthy()
+    expect(within(editor).getByRole('button', { name: 'Hide history' })).toBeTruthy()
   })
 })
