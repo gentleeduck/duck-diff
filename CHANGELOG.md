@@ -13,9 +13,14 @@
   keymaps editor. A few plain keys do one thing each: Ctrl+P (Cmd+P on a Mac) searches, j and k step through
   changes, J and K through files, s, u and x stage, unstage and discard, c comments, v marks viewed, o opens in
   your editor, t flips the layout, / filters, and arrows, Home and End walk any list. `?` lists them.
-- A push, commit, pull, merge or rebase whose hooks take minutes (a pre-push build, say) is no longer cut off at
-  two minutes. Git is stopped only after printing nothing for a while (ten minutes for anything that runs hooks),
-  and then with the hooks and everything they started, so the failure shows at once instead of when they finish.
+- Nothing you start has a time limit any more: a push of a big repo, a pre-push build, a long rebase or a bisect
+  run takes as long as it takes. Background reads still give up on a git that has printed nothing for a while,
+  and then stop the hooks and everything it started with it.
+- macOS no longer kills duck-diff after an update. Every install path (the Neovim plugin, `duck-diff update`,
+  install.sh and a local build) writes a new file and renames it over the old one instead of rewriting it, and
+  signs it ad hoc when its signature does not check out. A release now fails if a Mac build does not verify.
+- Editing a hide pattern keeps its name in the box instead of emptying it, and a name that is only the regex
+  follows the regex as it changes. Set upstream starts from the branch's current upstream.
 - A reload brings the page back as it was: the bottom panel open on the same terminal or output, terminals in
   their order with their names, the side panel's tab, where every list and the diff were scrolled, folded files
   and folders, opened context, filters and sorts, blame, the symbol panel, and anything half typed (the commit

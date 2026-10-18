@@ -1,3 +1,4 @@
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 const TARGETS = ['bun-linux-x64', 'bun-linux-arm64', 'bun-darwin-arm64', 'bun-darwin-x64'] as const
@@ -13,6 +14,8 @@ if (target && !TARGETS.includes(target)) {
 
 const name = target ? `duck-diff-${target.replace('bun-', '')}` : 'duck-diff'
 const outfile = join(root, 'apps/server/dist', name)
+// macOS remembers a binary's signature by its file: a build written over the old one in place is killed at launch.
+rmSync(outfile, { force: true })
 
 const result = Bun.spawnSync(
   [
@@ -30,4 +33,15 @@ const result = Bun.spawnSync(
   ],
   { cwd: join(root, 'apps/server'), stdout: 'inherit', stderr: 'inherit' },
 )
-process.exit(result.exitCode ?? 1)
+if (result.exitCode !== 0) process.exit(result.exitCode ?? 1)
+
+// Apple Silicon runs only signed code. A Mac build is checked, and signed ad hoc if it does not verify.
+const forMac = target ? target.startsWith('bun-darwin') : process.platform === 'darwin'
+if (forMac && process.platform === 'darwin') {
+  const verifies = () => Bun.spawnSync(['codesign', '--verify', '--strict', outfile]).exitCode === 0
+  if (!verifies()) Bun.spawnSync(['codesign', '--force', '--sign', '-', outfile], { stderr: 'inherit' })
+  if (!verifies()) {
+    console.error(`${outfile} has no valid signature, and macOS would kill it`)
+    process.exit(1)
+  }
+}
