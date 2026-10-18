@@ -66,6 +66,10 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
     removeRepo: async () => {},
     tcd: async () => {},
     bisect: async () => ({ active: false, bad: false, good: 0, remaining: null, culprit: null, log: '' }),
+    tool: async () => {
+      throw new Error('not faked')
+    },
+    finishTool: async () => {},
     conflict: async (path) => ({
       path,
       eol: '\n',

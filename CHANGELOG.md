@@ -13,6 +13,14 @@
   keymaps editor. A few plain keys do one thing each: Ctrl+P (Cmd+P on a Mac) searches, j and k step through
   changes, J and K through files, s, u and x stage, unstage and discard, c comments, v marks viewed, o opens in
   your editor, t flips the layout, / filters, and arrows, Home and End walk any list. `?` lists them.
+- duck-diff is git's merge tool, diff tool and rebase editor. `git mergetool` resolves a merge, cherry-pick, revert,
+  rebase or stash pop in a window with only the conflicts and their files, and returns each file to git once it
+  is staged; `git difftool` shows each file and moves on with Next file; `git rebase -i` plans the rebase as a
+  list (a todo with lines it does not plan opens the usual editor). The window closes once git has what it asked
+  for. The install sets this up where no other tool is chosen (`duck-diff git-setup`, `--off` to undo); so does
+  the Neovim plugin, unless `git_setup = false`.
+- Conflicts met in the page's terminal are announced only when there are conflicts: a rebase being planned no
+  longer reads as stopped.
 - The merge page shows every conflicted file on one page, as the diff shows changed files: each under a header
   that stays while it scrolls, the list beside it jumping to a file and marking the one on screen, and each
   column scrolling sideways as the diff's do. It shows a conflict as GitHub does: the current change and the

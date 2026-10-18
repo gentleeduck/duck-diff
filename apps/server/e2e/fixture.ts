@@ -7,13 +7,14 @@ import { HandshakeSchema } from '@duck-diff/protocol'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { type BrowserContext, test as base, expect, type Page } from '@playwright/test'
 
-const BINARY = new URL('../dist/duck-diff', import.meta.url).pathname
+export const BINARY = new URL('../dist/duck-diff', import.meta.url).pathname
 
 interface Fixtures {
   repo: TestRepo
   // opened: where the stand-in editor writes the arguments it was started with; browsed: the pages the server
-  // opened through the stand-in browser, one url a line.
-  app: { url: string; opened: string; browsed: string }
+  // opened through the stand-in browser, one url a line; env: what the server runs with, for running git (and
+  // duck-diff through it) the same way.
+  app: { url: string; opened: string; browsed: string; env: Record<string, string | undefined> }
 }
 
 // Each test gets a fresh repo with one committed file edited and one untracked file, served by the real binary.
@@ -60,7 +61,7 @@ export const test = base.extend<Fixtures>({
     const child = spawn(BINARY, ['serve', '--repo', repo.path], { stdio: ['pipe', 'pipe', 'inherit'], env })
     const [chunk] = (await once(child.stdout, 'data')) as [Buffer]
     const handshake = HandshakeSchema.parse(JSON.parse(chunk.toString().split('\n')[0] ?? ''))
-    await use({ url: handshake.url, opened, browsed })
+    await use({ url: handshake.url, opened, browsed, env })
     // Wait for the exit so the repo is not deleted under a git command still running.
     const exited = once(child, 'exit')
     child.kill()

@@ -553,7 +553,15 @@ function widestColumns(files: ConflictFile[], tabSize: number): Map<string, numb
 function Finished() {
   const { status } = useGit()
   const { show } = useView()
+  const { toolId } = useApp()
   const operation = status?.operation
+  if (toolId)
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+        <p className="text-tn-green">Every conflict is resolved.</p>
+        <p className="text-muted-foreground">git takes it from here, in the terminal.</p>
+      </div>
+    )
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
       <p className="text-tn-green">{operation ? 'Every conflict is resolved.' : 'No conflicts to resolve.'}</p>

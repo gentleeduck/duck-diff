@@ -54,6 +54,7 @@ ${rows([
   ['serve', 'run the server for an editor plugin (speaks JSON on stdout)'],
   ['update [<version>]', 'replace this binary with the latest release, or <version>'],
   ['cache clear', 'empty the GitHub and commit caches'],
+  ['git-setup [--off]', "make duck-diff git's merge tool, diff tool and rebase editor"],
   ['help [<command>]', 'this page, or one command in detail'],
   ['version', 'print the version'],
 ])}
@@ -97,6 +98,21 @@ Downloads the release for this machine from GitHub, showing how far along it is,
 against the release's checksums, and puts it over this binary. A running server picks the new build up
 on its own and pages reload.
 Private repos need a token: ${green('GITHUB_TOKEN')}, ${green('GH_TOKEN')} or a ${green('gh auth login')}.`,
+  'git-setup': () => `${bold('duck-diff git-setup')} ${dim('[--off] [--quiet]')}
+
+Makes duck-diff the tool git opens, in your global git config:
+${rows([
+  [
+    'git mergetool',
+    'resolves conflicts of a merge, cherry-pick, revert, rebase or stash pop in a window with only them',
+  ],
+  ['git difftool', 'shows each file in duck-diff, the next one when you ask'],
+  ['git rebase -i', 'plans the rebase in duck-diff instead of a text file'],
+])}
+
+A tool you already chose (merge.tool, diff.tool, sequence.editor) stays yours; the install sets this up, and
+${blue('--off')} takes back only what it set. git runs ${blue('mergetool')}, ${blue('difftool')} and ${blue('rebase-todo')} itself; the window
+closes once git has what it asked for.`,
   cache: () => `${bold('duck-diff cache clear')} ${dim('[--repo <path>]')}
 
 Empties the GitHub answers, commit details and graph kept on disk, for one repo or all of them.

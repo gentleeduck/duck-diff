@@ -10,6 +10,7 @@ import { headline } from '../merge/merge-model'
 import { openMerge } from '../merge/open-merge'
 import type { JobsState } from '../panel/jobs'
 import { useRefresh } from '../query/useRefresh'
+import { useStage } from '../state/stage'
 import { failureReason } from './failure-reason'
 import { followJobs } from './follow-jobs'
 
@@ -88,7 +89,7 @@ const STOPPED: Record<NonNullable<SyncStatus['operation']>, string> = {
 }
 
 export function GitProvider({ children }: { children: ReactNode }) {
-  const { api, session, graph, refs, panel, queries, jobs, mergeFile, view } = useApp()
+  const { api, session, graph, refs, panel, queries, jobs, mergeFile, view, toolId } = useApp()
   const [started, setStarted] = useState<GitAction | null>(null)
   const running = useStore(jobs, selectRunning)
   const busy = started ?? running
@@ -151,25 +152,28 @@ export function GitProvider({ children }: { children: ReactNode }) {
     [api, settle, panel, showOutput, resolve],
   )
 
-  // An operation started without this page's buttons (in its terminal, or another) is announced the moment git
-  // reports it, and the bottom panel turns to its Merge tab.
+  // Conflicts met in an operation this page did not start (in its terminal, say) are announced the moment git
+  // reports them, and the bottom panel turns to its Merge tab. A rebase being planned has none, and a window git
+  // opened as its merge tool shows them already.
   const operation = status?.operation ?? null
-  const seen = useRef<SyncStatus['operation'] | undefined>(undefined)
+  const stage = useStage()
+  const stopped = Boolean(operation) && stage.unstaged.some((file) => file.status === 'conflicted')
+  const seen = useRef<boolean | undefined>(undefined)
   useEffect(() => {
-    if (!sync.data) return
+    if (!sync.data || !stage.loaded) return
     const before = seen.current
-    seen.current = operation
-    if (before === undefined || !operation || before === operation) return
+    seen.current = stopped
+    if (before === undefined || before || !stopped || !operation || toolId) return
     if (expected.current || mine.current) {
       expected.current = false
       return
     }
     panel.show('merge')
-    toast.warning(`${STOPPED[operation]} stopped`, {
-      description: `${headline(operation, status?.branch ?? null, status?.incoming ?? null)}. Resolve the conflicts, then continue.`,
+    toast.warning(`${STOPPED[operation]} stopped on conflicts`, {
+      description: `${headline(operation, status?.branch ?? null, status?.incoming ?? null)}. Resolve them, then continue.`,
       action: resolve,
     })
-  }, [sync.data, operation, status, panel, resolve])
+  }, [sync.data, stage.loaded, stopped, operation, status, panel, resolve, toolId])
 
   // An action this page did not start (before a reload, or in another tab) still ends here the way run does.
   useEffect(
