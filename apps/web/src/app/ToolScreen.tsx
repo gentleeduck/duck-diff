@@ -1,10 +1,11 @@
 import type { ToolSpec } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
-import { ArrowRight, GitCompareArrows } from 'lucide-react'
+import { ArrowRight, GitCompareArrows, Keyboard } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { RebaseTodo } from '../graph/RebaseTodo'
 import { useSettings } from '../hooks/useSettings'
+import { ShortcutsDialog } from '../keys/ShortcutsDialog'
 import { useShortcuts } from '../keys/useShortcuts'
 import { useStore } from '../lib/store'
 import type { ToolState } from '../lib/tool'
@@ -12,9 +13,11 @@ import { useLiveRefresh } from '../live/useLiveRefresh'
 import MergeEditor from '../merge/MergeEditor'
 import { MergeHeader } from '../merge/MergeHeader'
 import { MergeSidebar } from '../merge/MergeSidebar'
+import { SettingsPopover } from '../settings/SettingsPopover'
 import { panelShown, type Settings, togglePanel } from '../state/settings'
 import Viewer from '../viewer/Viewer'
 import { useApp } from './AppProvider'
+import { IconTool } from './IconTool'
 import { Shell } from './Shell'
 import { useSizes } from './useSizes'
 import { useThemeClass } from './useThemeClass'
@@ -68,7 +71,8 @@ function Closing({ failed }: { failed: boolean }) {
 export function ToolScreen() {
   useThemeClass()
   useSizes()
-  useShortcuts({ palette: () => {}, shortcuts: () => {} })
+  const [help, setHelp] = useState(false)
+  useShortcuts({ palette: () => {}, shortcuts: () => setHelp(true) })
   useLiveRefresh()
   const { tool, place, mergeFile, settings } = useApp()
   const { spec, done } = useStore(tool, selectTool)
@@ -92,9 +96,26 @@ export function ToolScreen() {
     return () => clearTimeout(timer)
   }, [done])
 
+  // The window has no rail, so the shortcuts the rail would list and the display settings sit with the tool.
+  const tools = (
+    <>
+      <IconTool label="Keyboard shortcuts" tip="Keyboard shortcuts (?)" onClick={() => setHelp(true)}>
+        <Keyboard />
+      </IconTool>
+      <SettingsPopover />
+    </>
+  )
+  const shortcuts = <ShortcutsDialog open={help} onOpenChange={setHelp} />
+
   if (closed || (done && !spec)) return <Closing failed={!spec} />
   if (!spec) return <div className="h-full" />
-  if (spec.kind === 'rebase') return <RebaseTodo key={spec.id} spec={spec} />
+  if (spec.kind === 'rebase')
+    return (
+      <>
+        <RebaseTodo key={spec.id} spec={spec} actions={tools} />
+        {shortcuts}
+      </>
+    )
   const status = (
     <span className="truncate">
       git {spec.kind === 'merge' ? 'mergetool' : 'difftool'} is waiting on {spec.path}
@@ -102,27 +123,43 @@ export function ToolScreen() {
   )
   if (spec.kind === 'merge')
     return (
-      <Shell
-        rail={null}
-        topBar={<MergeHeader />}
-        sidebar={<MergeSidebar />}
-        sidebarLabel="Conflicted files"
-        panelShown={mergeTree}
-        onTogglePanel={() => settings.set((prev) => togglePanel(prev, 'merge'))}
-        viewer={<MergeEditor />}
-        status={status}
-      />
+      <>
+        <Shell
+          rail={null}
+          topBar={
+            <>
+              <MergeHeader />
+              {tools}
+            </>
+          }
+          sidebar={<MergeSidebar />}
+          sidebarLabel="Conflicted files"
+          panelShown={mergeTree}
+          onTogglePanel={() => settings.set((prev) => togglePanel(prev, 'merge'))}
+          viewer={<MergeEditor />}
+          status={status}
+        />
+        {shortcuts}
+      </>
     )
   return (
-    <Shell
-      rail={null}
-      topBar={<DiffBar spec={spec} />}
-      sidebar={null}
-      sidebarLabel="Files"
-      panelShown={false}
-      onTogglePanel={() => {}}
-      viewer={<Viewer />}
-      status={status}
-    />
+    <>
+      <Shell
+        rail={null}
+        topBar={
+          <>
+            <DiffBar spec={spec} />
+            {tools}
+          </>
+        }
+        sidebar={null}
+        sidebarLabel="Files"
+        panelShown={false}
+        onTogglePanel={() => {}}
+        viewer={<Viewer />}
+        status={status}
+      />
+      {shortcuts}
+    </>
   )
 }

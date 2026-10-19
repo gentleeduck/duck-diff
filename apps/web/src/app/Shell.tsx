@@ -1,4 +1,5 @@
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@duck-diff/ui'
+import { formatForDisplay } from '@gentleduck/vim/format'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { type ReactNode, useLayoutEffect, useState } from 'react'
 import { IconTool } from './IconTool'
@@ -52,7 +53,7 @@ export function Shell({
         {sidebar !== null && !panelShown ? (
           <IconTool
             label={`Show ${sidebarLabel.toLowerCase()}`}
-            tip={`Show ${sidebarLabel.toLowerCase()} (Ctrl B)`}
+            tip={`Show ${sidebarLabel.toLowerCase()} (${formatForDisplay('mod+b')})`}
             onClick={onTogglePanel}>
             <PanelLeftOpen />
           </IconTool>
@@ -70,7 +71,7 @@ export function Shell({
                   <span className="truncate">{sidebarLabel}</span>
                   <IconTool
                     label={`Hide ${sidebarLabel.toLowerCase()}`}
-                    tip={`Hide ${sidebarLabel.toLowerCase()} (Ctrl B)`}
+                    tip={`Hide ${sidebarLabel.toLowerCase()} (${formatForDisplay('mod+b')})`}
                     onClick={onTogglePanel}>
                     <PanelLeftClose />
                   </IconTool>
