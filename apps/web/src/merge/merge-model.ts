@@ -74,31 +74,56 @@ export function firstConflictLine(file: ConflictFile, choices: Choices): number 
   return null
 }
 
+// A conflict still written into a text, by the line each of its markers is on.
+export type TextBlock = { start: number; base: number | null; separator: number; end: number }
+
+// A trailing CR is the line's ending, not its text, so a CRLF file reads its markers too.
+const marker = (line: string, pattern: RegExp) => pattern.test(line.replace(/\r$/, ''))
+
+// Markers that never close are not a conflict git wrote, so they are left as text.
+export function textBlocks(lines: readonly string[]): TextBlock[] {
+  const blocks: TextBlock[] = []
+  let open: { start: number; base: number | null; separator: number | null } | null = null
+  for (const [index, line] of lines.entries()) {
+    if (marker(line, /^<{7}( |$)/)) open = { start: index, base: null, separator: null }
+    else if (!open) continue
+    else if (open.separator === null && open.base === null && marker(line, /^\|{7}( |$)/)) open.base = index
+    else if (open.separator === null && marker(line, /^={7}$/)) open.separator = index
+    else if (open.separator !== null && marker(line, /^>{7}( |$)/)) {
+      blocks.push({ start: open.start, base: open.base, separator: open.separator, end: index })
+      open = null
+    }
+  }
+  return blocks
+}
+
+export type TextPick = 'ours' | 'theirs' | 'both' | 'base'
+
+export function pickInText(text: string, block: TextBlock, pick: TextPick): string {
+  const lines = text.split('\n')
+  const ours = lines.slice(block.start + 1, block.base ?? block.separator)
+  const theirs = lines.slice(block.separator + 1, block.end)
+  const base = block.base === null ? [] : lines.slice(block.base + 1, block.separator)
+  const chosen = pick === 'ours' ? ours : pick === 'theirs' ? theirs : pick === 'base' ? base : [...ours, ...theirs]
+  return [...lines.slice(0, block.start), ...chosen, ...lines.slice(block.end + 1)].join('\n')
+}
+
 // What each line of a file written as text belongs to: a side of a conflict, one of its markers, or neither.
 export type Tint = 'ours' | 'base' | 'theirs' | 'marker' | null
 
 export function markerTints(lines: readonly string[]): Tint[] {
-  let section: Tint = null
-  return lines.map((line) => {
-    if (/^<{7}( |$)/.test(line)) {
-      section = 'ours'
-      return 'marker'
-    }
-    if (!section) return null
-    if (section === 'ours' && /^\|{7}( |$)/.test(line)) {
-      section = 'base'
-      return 'marker'
-    }
-    if (section !== 'theirs' && /^={7}$/.test(line)) {
-      section = 'theirs'
-      return 'marker'
-    }
-    if (section === 'theirs' && /^>{7}( |$)/.test(line)) {
-      section = null
-      return 'marker'
-    }
-    return section
-  })
+  const tints: Tint[] = lines.map(() => null)
+  for (const { start, base, separator, end } of textBlocks(lines))
+    for (let index = start; index <= end; index++)
+      tints[index] =
+        index === start || index === base || index === separator || index === end
+          ? 'marker'
+          : index < (base ?? separator)
+            ? 'ours'
+            : index < separator
+              ? 'base'
+              : 'theirs'
+  return tints
 }
 
 // Joined so the selection compares by value and the store does not re-render on every read.

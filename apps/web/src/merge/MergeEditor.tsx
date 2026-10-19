@@ -52,6 +52,7 @@ import {
   selectConflicts,
   sideDiff,
   sideLineBlame,
+  textBlocks,
   unresolvedCount,
 } from './merge-model'
 import { SIDE, type Side } from './sides'
@@ -62,8 +63,6 @@ const selectWrap = (state: Settings) => state.overflow === 'wrap'
 const selectTabSize = (state: Settings) => state.tabSize
 // Long unchanged stretches between blocks fold to their edges, as a diff's context does.
 const KEEP = 3
-// A conflict still written into the text, counted by its opening marker.
-const MARKERS = /^<{7}( |$)/gm
 // How long the page waits for every file before it shows the ones read so far, in order.
 const PATIENCE_MS = 800
 // Every line unknown while the blame is read, so the columns keep their place.
@@ -417,7 +416,7 @@ function FileSection({
   const [whole, setWhole] = useKept<string | null>(`${keep}:whole`, null)
   const blocks = file.segments.flatMap((segment, index) => (segment.kind === 'conflict' ? [index] : []))
   const total = blocks.length
-  const left = whole === null ? unresolvedCount(file, choices) : (whole.match(MARKERS) ?? []).length
+  const left = whole === null ? unresolvedCount(file, choices) : textBlocks(whole.split('\n')).length
   const icon = fileGlyph(file.path.split('/').pop() ?? file.path)
   const [history, setHistory] = useKept(`merge-history:${file.path}`, false)
   const [blaming, setBlaming] = useKept(`merge-blame:${file.path}`, false)

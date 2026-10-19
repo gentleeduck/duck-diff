@@ -375,4 +375,21 @@ describe('merge editor', () => {
       expect(calls).toContainEqual(['resolve-text', { path: 'a.txt', text: 'top\nmine 1\nmid\nyours 2\n' }]),
     )
   })
+
+  it('picks a side from the conflict line itself while the file is edited as text', async () => {
+    window.history.replaceState(null, '', '/?view=merge&path=a.txt')
+    render(<App api={fakeApi({ files: conflictedOnly, conflict: async () => file })} />)
+    const editor = await screen.findByRole('region', { name: 'Merge a.txt' })
+    fireEvent.click(within(editor).getByRole('button', { name: 'Edit as text' }))
+    const text = within(editor).getByRole('textbox', { name: 'Result for a.txt' })
+
+    fireEvent.click(within(editor).getByRole('button', { name: 'Accept incoming, conflict 1' }))
+    expect(text).toHaveProperty('value', 'top\nyours 1\nmid\n<<<<<<< HEAD\nmine 2\n=======\nyours 2\n>>>>>>> feature\n')
+    expect(within(editor).getByText('1 of 2 left')).toBeTruthy()
+    // What was conflict 2 is the only one left, so it is conflict 1 now.
+    fireEvent.click(within(editor).getByRole('button', { name: 'Both, conflict 1' }))
+    expect(text).toHaveProperty('value', 'top\nyours 1\nmid\nmine 2\nyours 2\n')
+    expect(within(editor).getByText('All resolved')).toBeTruthy()
+    expect(within(editor).queryByRole('button', { name: /conflict 1/ })).toBeNull()
+  })
 })
