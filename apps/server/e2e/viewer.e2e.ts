@@ -230,8 +230,9 @@ test('counts the files viewed and goes to the next one not viewed', async ({ pag
   await page.goto(app.url)
   const progress = page.getByRole('button', { name: /viewed/ }).filter({ hasText: '/ 2 viewed' })
   await expect(progress).toContainText('0 / 2 viewed')
-  await page.locator('[data-diff-view]').getByText('notes.txt', { exact: true }).first().hover()
-  await page.getByRole('checkbox', { name: 'Viewed' }).first().click()
+  const notes = page.locator('[data-diff-view] [data-row="header"]').filter({ hasText: 'notes.txt' }).first()
+  await notes.hover()
+  await notes.getByRole('checkbox', { name: 'Viewed' }).click()
   await expect(progress).toContainText('1 / 2 viewed')
   await progress.click()
   await expect(
