@@ -6,13 +6,13 @@ const MARKED = '[role="treeitem"][aria-current="true"]'
 
 // Every animation frame for a while: where the scrolling area is and what the page shows.
 function sampleFrames([selector, mark, ms]: readonly [string, string, number]) {
-  return new Promise<{ top: number; marked: string | null }[]>((resolve) => {
-    const frames: { top: number; marked: string | null }[] = []
+  return new Promise<{ at: number; top: number; marked: string | null }[]>((resolve) => {
+    const frames: { at: number; top: number; marked: string | null }[] = []
     const start = performance.now()
     const tick = () => {
       const area = document.querySelector<HTMLElement>(selector)
       const marked = document.querySelector(mark)?.textContent?.trim() ?? null
-      frames.push({ top: area?.scrollTop ?? -1, marked })
+      frames.push({ at: performance.now(), top: area?.scrollTop ?? -1, marked })
       if (performance.now() - start < ms) requestAnimationFrame(tick)
       else resolve(frames)
     }
@@ -40,9 +40,12 @@ test('the next file glides into view, and the list marks it from the first frame
   const tops = seen.map((frame) => frame.top)
   const distance = Math.abs((tops.at(-1) ?? 0) - (tops[0] ?? 0))
   expect(distance).toBeGreaterThan(100)
-  // A glide the eye can follow: no frame covers a quarter of the way on its own.
-  const steps = tops.slice(1).map((top, index) => Math.abs(top - (tops[index] ?? top)))
-  expect(Math.max(...steps)).toBeLessThan(distance / 4)
+  // A glide, not a jump: it takes its time to arrive however few frames the machine draws on the way. How it
+  // eases is lib/glide's test.
+  const end = tops.at(-1) ?? 0
+  const left = seen[tops.findIndex((top) => top !== tops[0]) - 1]
+  const arrived = seen.find((frame) => Math.abs(frame.top - end) < 2)
+  expect((arrived?.at ?? 0) - (left?.at ?? 0)).toBeGreaterThanOrEqual(150)
   // The list goes straight from one file to the next and stays there, never through another one or back.
   const marks = seen.map((frame) => frame.marked).filter((mark, index, all) => mark !== all[index - 1])
   expect(marks).toHaveLength(2)
