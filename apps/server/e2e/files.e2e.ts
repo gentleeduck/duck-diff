@@ -56,7 +56,7 @@ test('a README reads in a column of its own width, centred, however wide the win
 test('opens the README with the file tree hidden', async ({ page, app, browser }) => {
   await page.goto(`${app.url}&view=files`)
   await expect(page.getByRole('tree', { name: 'All files' })).toBeVisible()
-  await page.keyboard.press('Control+b')
+  await page.keyboard.press('ControlOrMeta+b')
   await expect(page.getByRole('tree', { name: 'All files' })).toBeHidden()
   // A new page with the tree still hidden opens the README all the same.
   const fresh = await (await browser.newContext()).newPage()
