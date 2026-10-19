@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 - The diff's from and to stay as chosen: a page that opens without them (a reload from Neovim, a new window, a
   restarted server) lands on the comparison last picked in that repo. Picking the working tree again goes back to
@@ -19,6 +19,20 @@
   list (a todo with lines it does not plan opens the usual editor). The window closes once git has what it asked
   for. The install sets this up where no other tool is chosen (`duck-diff git-setup`, `--off` to undo); so does
   the Neovim plugin, unless `git_setup = false`.
+- Each file on the merge page carries Open, Blame and History in its header. Blame names who last changed each
+  line of the current and incoming sides (the merge base's for the lines a side removed), and the result names
+  the side each pick came from; b blames the file at the top of the page. History lists the commits on each side
+  that changed the file since the two parted.
+- A conflict written by git in its usual style, which folds blocks split only by a lone brace and trims lines
+  both sides share, now shows its merge base, so a side that removed lines shows them removed instead of
+  showing nothing.
+- Editing a merge as text is editing code: coloured as the diff is, numbered, and with each side of a conflict
+  tinted, and each conflict's opening line carries Accept current, Accept incoming, Both and Base. The same
+  editor writes a single block by hand.
+- Moving to a file or a change glides there gently on the diff and the merge page, and the file list marks the
+  file it is headed for at once instead of flicking through those on the way. The merge page no longer says
+  everything is resolved before it has read the conflicts, and shows its files together rather than one by one.
+- A worktree's tag sits right after its branch name instead of under a long one.
 - Conflicts met in the page's terminal are announced only when there are conflicts: a rebase being planned no
   longer reads as stopped.
 - The merge page shows every conflicted file on one page, as the diff shows changed files: each under a header
@@ -26,8 +40,8 @@
   column scrolling sideways as the diff's do. It shows a conflict as GitHub does: the current change and the
   incoming one, each headed by its branch, short hash and subject and drawn against the merge base in red and
   green with the changed words marked, beside the result being built. It follows the diff settings (split or
-  stacked, word marks, wrapping, line numbers, backgrounds, change markers, tab width), with a layout button and
-  j, k and t working there too. The top bar says what is coming together and how many files are left, with
+  stacked, word marks, wrapping, line numbers, backgrounds, change markers, tab width), with j, k and t working
+  there too. The top bar says what is coming together and how many files are left, with
   Continue and Abort; each file shows its conflict count; each conflict reads across one strip with its state in
   a badge; and after the last file the page offers Continue right there.
 - A merge, rebase, cherry-pick or revert in progress shows everywhere: in the status bar on every page, as a
