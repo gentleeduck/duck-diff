@@ -99,7 +99,7 @@ test('the merge page blames each side and lists the commits behind it', async ({
   await expect(incoming).toContainText('Bob Incoming')
   await expect(editor.getByRole('region', { name: 'Current change, conflict 1' })).toContainText('Ada Current')
 
-  await editor.getByRole('button', { name: 'History' }).click()
+  await editor.getByRole('button', { name: "History: each side's commits to the file" }).click()
   const history = editor.getByRole('region', { name: 'History of list.txt' })
   await expect(history.getByRole('region', { name: 'Current change history' })).toContainText('Quieter one')
   await expect(history.getByRole('region', { name: 'Incoming change history' })).toContainText('Louder one')

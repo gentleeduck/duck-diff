@@ -14,7 +14,8 @@ const selectPath = (path: string | null) => path
 export function MergeHeader() {
   const { mergeFile, queries, toolId } = useApp()
   const { status } = useGit()
-  const paths = selectConflicts(useStage()).split('\n').filter(Boolean)
+  const stage = useStage()
+  const paths = selectConflicts(stage).split('\n').filter(Boolean)
   const path = useStore(mergeFile, selectPath) ?? paths[0] ?? null
   // The open file's markers name the other side; the editor reads the same cached answer.
   const file = useQuery({ ...queries.git.conflict(path ?? ''), enabled: Boolean(path) }).data
@@ -26,7 +27,7 @@ export function MergeHeader() {
       <h1 className="flex min-w-0 flex-1 items-center gap-2">
         <GitMerge className="size-4 shrink-0 text-tn-magenta" />
         <span className="truncate">{headline(operation, status?.branch ?? null, theirs)}</span>
-        {operation ? (
+        {operation && stage.loaded ? (
           <Badge variant={paths.length ? 'soft-warning' : 'soft-success'} size="sm" className="shrink-0">
             {paths.length ? `${paths.length} ${paths.length === 1 ? 'file' : 'files'} left` : 'All resolved'}
           </Badge>

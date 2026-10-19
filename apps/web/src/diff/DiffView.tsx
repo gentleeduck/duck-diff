@@ -90,6 +90,9 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
   const sideways = useCodeScrollX(scroller, widest, !wrap)
   useScrollMemory(scroller, scrollKey && page.rows.length ? `diff:${scrollKey}` : null)
   const getItemKey = useCallback((index: number) => page.rows[index]?.key ?? index, [page])
+  const steering = useRef(false)
+  const onTop = useRef(onTopItem)
+  onTop.current = onTopItem
   const virtualizer = useVirtualizer({
     count: page.rows.length,
     initialOffset: () => rememberedTop(scrollKey ? `diff:${scrollKey}` : null),
@@ -112,8 +115,15 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
         const offset = virtualizer.getOffsetForIndex(index, align)?.[0]
         const element = scroller.current
         if (offset === undefined || !element) return virtualizer.scrollToIndex(index, { align })
+        // The file list marks where the glide is headed from the start, not each file it passes on the way,
+        // and keeps it there until the reader scrolls on, even where the page ends before the file reaches the top.
+        steering.current = true
+        onTop.current?.(page.rows[index]?.item ?? null)
         // Glides there, then settles on the row once rows measured on the way have moved it.
-        void glide(element, offset).then(() => virtualizer.scrollToIndex(index, { align }))
+        void glide(element, offset).then(() => {
+          virtualizer.scrollToIndex(index, { align })
+          steering.current = false
+        })
       },
       reveal(id) {
         const index = page.starts.get(id)
@@ -253,7 +263,9 @@ export const DiffView = forwardRef<DiffViewHandle, DiffViewProps>(function DiffV
     : firstRow?.type === 'end'
       ? (page.rows[(first?.index ?? 0) + 1]?.item ?? null)
       : (firstRow?.item ?? null)
-  useEffect(() => onTopItem?.(topItem), [onTopItem, topItem])
+  useEffect(() => {
+    if (!steering.current) onTopItem?.(topItem)
+  }, [onTopItem, topItem])
 
   const content = useMemo(
     () => (row: PageRow) => {

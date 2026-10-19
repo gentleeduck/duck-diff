@@ -119,12 +119,13 @@ test('a full page reads in a column as wide as GitHub keeps its own, centred on 
   await page.goto(`${app.url}&view=insights`)
   const column = page.locator('[data-page-column]').first()
   await expect(column).toBeVisible()
-  // The first box asked for while the page is still settling can come back empty though the column is drawn.
-  await expect.poll(() => column.boundingBox()).not.toBeNull()
-  const box = await column.boundingBox()
-  const main = await page.getByRole('main').boundingBox()
-  if (!box || !main) throw new Error('no page column')
-  expect(box.width).toBeLessThanOrEqual(1280)
-  // Centred in the space the page has, not pinned to its left edge.
-  expect(Math.abs(box.x - main.x - (main.width - box.width) / 2)).toBeLessThan(2)
+  // Both boxes in one read: while the page settles the column can be swapped out between two reads.
+  await expect
+    .poll(async () => {
+      const [box, main] = await Promise.all([column.boundingBox(), page.getByRole('main').boundingBox()])
+      if (!box || !main) return null
+      // Centred in the space the page has, not pinned to its left edge.
+      return { narrow: box.width <= 1280, centred: Math.abs(box.x - main.x - (main.width - box.width) / 2) < 2 }
+    })
+    .toEqual({ narrow: true, centred: true })
 })

@@ -87,14 +87,15 @@ export function Worktrees() {
                 <span className={`w-5 shrink-0 text-center ${tree.current ? 'text-tn-green' : 'text-tn-blue'}`}>
                   {'\uf401'}
                 </span>
-                <span className="shrink-0">{tree.branch ?? short(tree.head)}</span>
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">{tree.path}</span>
+                {/* The path gives up its room first; the name truncates only once that is gone. */}
+                <span className="min-w-0 truncate">{tree.branch ?? short(tree.head)}</span>
+                {tag ? (
+                  <Badge variant={TAG_TONE[tag]} size="sm" className="shrink-0 bg-transparent">
+                    {tag}
+                  </Badge>
+                ) : null}
+                <span className="min-w-0 flex-[1_1_0] truncate text-muted-foreground">{tree.path}</span>
               </Button>
-              {tag ? (
-                <Badge variant={TAG_TONE[tag]} size="sm" className="me-1 shrink-0">
-                  {tag}
-                </Badge>
-              ) : null}
               {!tree.current ? (
                 <span className="hidden group-focus-within:flex group-hover:flex">
                   {neovim ? (
