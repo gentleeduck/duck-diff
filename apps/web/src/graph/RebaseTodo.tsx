@@ -1,6 +1,6 @@
 import type { ToolSpec } from '@duck-diff/protocol'
 import { Button } from '@duck-diff/ui'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { RebaseRows } from './RebaseRows'
@@ -8,7 +8,7 @@ import { type PlanRow, planProblem, toSteps } from './rebase-plan'
 
 // git rebase -i's todo, opened in duck-diff (duck-diff rebase-todo is git's sequence editor): the commits git is
 // about to replay, to reorder and pick for, then handed back for git to run.
-export function RebaseTodo({ spec }: { spec: Extract<ToolSpec, { kind: 'rebase' }> }) {
+export function RebaseTodo({ spec, actions }: { spec: Extract<ToolSpec, { kind: 'rebase' }>; actions?: ReactNode }) {
   const { api } = useApp()
   const [rows, setRows] = useState<PlanRow[]>(() =>
     spec.steps.map((step) => ({ commit: step.commit, action: step.action, message: step.commit.subject })),
@@ -26,11 +26,14 @@ export function RebaseTodo({ spec }: { spec: Extract<ToolSpec, { kind: 'rebase' 
   }
   return (
     <section aria-label="Rebase plan for git" className="mx-auto flex h-full w-full max-w-4xl flex-col gap-3 p-6">
-      <div>
-        <h1 className="text-foreground">git rebase -i</h1>
-        <p className="text-muted-foreground">
-          Oldest first, as git replays them. Squash and fixup fold a commit into the one above it.
-        </p>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-foreground">git rebase -i</h1>
+          <p className="text-muted-foreground">
+            Oldest first, as git replays them. Squash and fixup fold a commit into the one above it.
+          </p>
+        </div>
+        {actions}
       </div>
       {rows.length ? (
         // Not a flex child, so the list is as tall as its commits rather than the window.
