@@ -7,10 +7,12 @@ import {
   firstConflictLine,
   markerTints,
   pickedBlame,
+  pickInText,
   resultText,
   segmentBlames,
   sideDiff,
   sideLineBlame,
+  textBlocks,
   unresolvedCount,
 } from '../merge-model'
 
@@ -159,5 +161,41 @@ describe('markerTints', () => {
 
   it('reads a lone ======= outside a conflict as text', () => {
     expect(markerTints(['=======', 'x'])).toEqual([null, null])
+  })
+})
+
+describe('picking a side in the text', () => {
+  const text = [
+    'a',
+    '<<<<<<< HEAD',
+    'mine',
+    '||||||| base',
+    'old',
+    '=======',
+    'yours',
+    '>>>>>>> feature',
+    'z',
+    '',
+  ].join('\n')
+
+  it('finds each conflict still written into the text, and none that never closes', () => {
+    expect(textBlocks(text.split('\n'))).toEqual([{ start: 1, base: 3, separator: 5, end: 7 }])
+    expect(textBlocks(['<<<<<<< HEAD', 'mine', '======='])).toEqual([])
+  })
+
+  it('writes the side picked in place of the conflict, and leaves the rest as typed', () => {
+    const [block] = textBlocks(text.split('\n'))
+    if (!block) throw new Error('no block')
+    expect(pickInText(text, block, 'ours')).toBe('a\nmine\nz\n')
+    expect(pickInText(text, block, 'theirs')).toBe('a\nyours\nz\n')
+    expect(pickInText(text, block, 'both')).toBe('a\nmine\nyours\nz\n')
+    expect(pickInText(text, block, 'base')).toBe('a\nold\nz\n')
+  })
+
+  it('keeps CRLF line endings', () => {
+    const crlf = text.replaceAll('\n', '\r\n')
+    const [block] = textBlocks(crlf.split('\n'))
+    if (!block) throw new Error('no block')
+    expect(pickInText(crlf, block, 'theirs')).toBe('a\r\nyours\r\nz\r\n')
   })
 })

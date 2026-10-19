@@ -1,14 +1,23 @@
+import { Button } from '@duck-diff/ui'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Code } from '../diff/Code'
 import type { Token } from '../diff/highlight'
 import { highlighter } from '../diff/highlighter'
 import { useSettings } from '../hooks/useSettings'
 import type { Settings } from '../state/settings'
-import { markerTints, type Tint } from './merge-model'
+import { markerTints, pickInText, type TextPick, type Tint, textBlocks } from './merge-model'
+import { SIDE } from './sides'
 
 const selectTabSize = (state: Settings) => state.tabSize
 // Colours wait for a pause in the typing, so each keystroke does not start a new highlight of the file.
 const SETTLE_MS = 150
+
+const PICKS: { pick: TextPick; label: string; tone: string }[] = [
+  { pick: 'ours', label: SIDE.ours.accept, tone: SIDE.ours.text },
+  { pick: 'theirs', label: SIDE.theirs.accept, tone: SIDE.theirs.text },
+  { pick: 'both', label: 'Both', tone: '' },
+  { pick: 'base', label: 'Base', tone: '' },
+]
 
 const TINT: Record<Exclude<Tint, null>, { row: string; edge: string }> = {
   ours: { row: 'bg-tn-blue/10', edge: 'border-tn-blue' },
@@ -58,6 +67,7 @@ export function MergeText({
 
   const lines = value.split('\n')
   const tints = markerTints(lines)
+  const blocks = textBlocks(lines)
   return (
     <div className="flex min-w-0 overflow-hidden rounded-md border border-border bg-background [font-variant-ligatures:none]">
       <div aria-hidden className="shrink-0 select-none py-2 text-end text-tn-gutter tabular-nums">
@@ -100,6 +110,29 @@ export function MergeText({
             onChange={(event) => onChange(event.target.value)}
             className="absolute inset-0 resize-none overflow-hidden whitespace-pre bg-transparent px-3 py-2 font-[inherit] text-transparent leading-6 caret-foreground outline-none selection:bg-tn-blue/30"
           />
+          {/* Each conflict's picks sit on its opening marker, past the marker's own text, over the text box. */}
+          {blocks.map((block, index) => (
+            <div
+              key={block.start}
+              className="absolute flex items-center gap-1"
+              style={{
+                top: `calc(${block.start * 1.5 + 0.625}rem)`,
+                left: `calc(${(lines[block.start] ?? '').trimEnd().length + 2}ch + 0.75rem)`,
+              }}>
+              {PICKS.filter(({ pick }) => pick !== 'base' || block.base !== null).map(({ pick, label: name, tone }) => (
+                <Button
+                  key={pick}
+                  type="button"
+                  variant="ghost"
+                  size="none"
+                  aria-label={`${name}, conflict ${index + 1}`}
+                  onClick={() => onChange(pickInText(value, block, pick))}
+                  className={`h-5 rounded-sm px-1.5 leading-5 hover:bg-accent ${tone}`}>
+                  {name}
+                </Button>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     </div>
