@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1
+
+- The windows git opens as its merge tool, diff tool and rebase editor carry the display settings (split or stacked,
+  theme, wrapping and the rest) and the keyboard shortcuts, and ? lists them there too.
+- The side panel's show and hide tooltips name Cmd+B on a Mac.
+
 ## 0.7.0
 
 - The diff's from and to stay as chosen: a page that opens without them (a reload from Neovim, a new window, a
