@@ -17,7 +17,7 @@
     },
     "apps/server": {
       "name": "@duck-diff/server",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "bin": {
         "duck-diff": "./src/cli.ts",
       },
