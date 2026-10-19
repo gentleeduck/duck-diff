@@ -48,7 +48,7 @@ against the release. The page brings its own fonts (JetBrains Mono and the Nerd 
 needs installing. Options go after `sh -s --`:
 
 ```sh
-curl -fsSL .../install.sh | sh -s -- --version 0.6.0   # a given release
+curl -fsSL .../install.sh | sh -s -- --version 0.7.0   # a given release
 curl -fsSL .../install.sh | sh -s -- --dir ~/bin       # another folder
 curl -fsSL .../install.sh | sh -s -- --uninstall       # take it out again
 ```
