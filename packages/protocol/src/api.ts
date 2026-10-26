@@ -37,7 +37,14 @@ export const RepoInfoSchema = z.object({
 })
 export type RepoInfo = z.infer<typeof RepoInfoSchema>
 
-export const OpenRequestSchema = z.object({ path: RepoPathSchema, line: z.number().int().min(1).default(1) })
+// Where Open sends a file: auto takes the attached Neovim, else the first code editor found (VS Code first).
+export const EDITORS = ['auto', 'nvim', 'code', 'code-insiders', 'codium', 'cursor', 'windsurf', 'zed', 'subl'] as const
+export type EditorChoice = (typeof EDITORS)[number]
+export const OpenRequestSchema = z.object({
+  path: RepoPathSchema,
+  line: z.number().int().min(1).default(1),
+  editor: z.enum(EDITORS).default('auto'),
+})
 export type OpenRequest = z.infer<typeof OpenRequestSchema>
 
 const WriteFileSchema = z.object({

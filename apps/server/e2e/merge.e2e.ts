@@ -45,6 +45,38 @@ test('a merge stops on three conflicts, each resolved its own way, and continues
   await expect.poll(() => repo.git('log', '-1', '--format=%P').split(' ').length).toBe(2)
 })
 
+test('a resolved file reopens to its conflict while the merge is still open', async ({ page, app, repo }) => {
+  repo.commit('work in progress')
+  repo.write('list.txt', 'one\nkeep\n')
+  repo.commit('base')
+  repo.git('checkout', '-q', '-b', 'feature')
+  repo.write('list.txt', 'one feature\nkeep\n')
+  repo.commit('feature')
+  repo.git('checkout', '-q', 'main')
+  repo.write('list.txt', 'one main\nkeep\n')
+  repo.commit('main')
+  expect(() => repo.git('merge', 'feature')).toThrow()
+
+  await page.goto(app.url)
+  await page.getByRole('button', { name: 'Resolve list.txt' }).first().click()
+  const editor = page.getByRole('region', { name: 'Merge list.txt' })
+  await editor.getByRole('button', { name: 'All incoming' }).click()
+  await editor.getByRole('button', { name: 'Mark resolved' }).click()
+  await expect(page.getByRole('main')).toContainText('Every conflict is resolved.')
+  await expect.poll(() => repo.git('ls-files', '-u')).toBe('')
+
+  await page.getByRole('button', { name: 'Reopen list.txt' }).first().click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Reopen' }).click()
+  await expect(editor).toContainText('1 of 1 left')
+  expect(repo.git('ls-files', '-u')).not.toBe('')
+  await editor
+    .getByRole('region', { name: 'Current change, conflict 1' })
+    .getByRole('button', { name: 'Accept current' })
+    .click()
+  await editor.getByRole('button', { name: 'Mark resolved' }).click()
+  await expect.poll(() => repo.git('show', ':list.txt')).toBe('one main\nkeep')
+})
+
 test("a conflict met in the page's terminal shows in the panel at once", async ({ page, app, repo }) => {
   repo.commit('work in progress')
   repo.write('list.txt', 'one\nkeep\n')

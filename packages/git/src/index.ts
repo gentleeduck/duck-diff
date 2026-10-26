@@ -9,6 +9,8 @@ export {
   type ParsedConflicts,
   parseConflicts,
   readConflict,
+  reopenConflict,
+  resolvedPaths,
   writeResolution,
 } from './conflicts'
 export { readSide, readSideBytes, type Side } from './content'

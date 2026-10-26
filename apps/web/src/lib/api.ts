@@ -28,6 +28,7 @@ import {
   DiscussionSchema,
   type DiscussionSummary,
   DiscussionSummarySchema,
+  type EditorChoice,
   ErrorBodySchema,
   type ErrorCode,
   encodeTarget,
@@ -148,7 +149,7 @@ export interface Api {
   diff(target: DiffTarget, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   content(target: DiffTarget, side: 'old' | 'new', file: Pick<ChangedFile, 'path' | 'oldPath'>): Promise<string | null>
   // Opens a file at a line in the best editor around; Neovim with none attached is left to the page to run.
-  open(path: string, line: number): Promise<OpenResult>
+  open(path: string, line: number, editor?: EditorChoice): Promise<OpenResult>
   write(request: WriteRequest): Promise<void>
   undo(): Promise<UndoResult>
   reviews(target: DiffTarget): Promise<ReviewComment[]>
@@ -187,6 +188,8 @@ export interface Api {
   // A conflicted file as blocks, with what each side had.
   conflict(path: string): Promise<ConflictFile>
   conflictBlame(path: string): Promise<ConflictBlame>
+  // Files resolved since git stopped, which can still go back to their conflict.
+  resolved(): Promise<string[]>
   // What git handed duck-diff as one of its tools, and the page's answer to it.
   tool(id: string): Promise<ToolSpec>
   finishTool(finish: ToolFinish): Promise<void>
@@ -334,6 +337,7 @@ export type GitAction =
   | 'resolve'
   | 'mark-resolved'
   | 'resolve-text'
+  | 'reopen-conflict'
   | 'rebase-interactive'
   | 'fixup'
   | 'cherry-pick-range'
@@ -562,6 +566,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     },
     conflict: (path) => json(`/api/conflict?${new URLSearchParams({ path })}`, ConflictFileSchema),
     conflictBlame: (path) => json(`/api/conflict-blame?${new URLSearchParams({ path })}`, ConflictBlameSchema),
+    resolved: () => json('/api/resolved', z.array(z.string())),
     tool: (id) => json(`/api/tool?${new URLSearchParams({ id })}`, ToolSpecSchema),
     finishTool: (finish) => post('/api/tool/finish', finish),
     file(path, ref) {
@@ -614,6 +619,6 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     async deleteReview(id) {
       await request(`/api/reviews/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' })
     },
-    open: (path, line) => send('POST', '/api/open', { path, line }, OpenResultSchema),
+    open: (path, line, editor) => send('POST', '/api/open', { path, line, editor }, OpenResultSchema),
   }
 }

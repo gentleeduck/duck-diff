@@ -282,3 +282,39 @@ export async function writeResolution(repo: string, path: string, text: string):
   await writeFile(join(repo, path), text)
   await runGit(['add', '--', path], { cwd: repo })
 }
+
+const pathsOf = (out: string) => [
+  ...new Set(
+    out
+      .split('\0')
+      .filter(Boolean)
+      .map((entry) => entry.slice(entry.indexOf('\t') + 1)),
+  ),
+]
+
+// Files resolved since the operation stopped. git keeps their conflict until the next merge or step rewrites the
+// index, and keeps it past the commit too, so only an operation still in progress counts.
+export async function resolvedPaths(repo: string): Promise<string[]> {
+  if (!(await readOperation(repo))) return []
+  const [undo, open] = await Promise.all([
+    runGit(['ls-files', '--resolve-undo', '-z'], { cwd: repo }),
+    runGit(['ls-files', '--unmerged', '-z'], { cwd: repo }),
+  ])
+  const still = new Set(pathsOf(open))
+  return pathsOf(undo).filter((path) => !still.has(path))
+}
+
+// Throws away a file's resolution and writes its conflict back as git first did. A file one side deleted has no
+// markers to write, so it comes back as the side that kept it, which is how git left it.
+export async function reopenConflict(repo: string, path: string): Promise<void> {
+  if (!(await resolvedPaths(repo)).includes(path))
+    throw new GitError('failed', null, '', `${path} was not resolved in this operation`)
+  await runGit(['update-index', '--unresolve', '--', path], { cwd: repo })
+  const stages = new Set(
+    (await runGit(['ls-files', '--unmerged', '--', path], { cwd: repo }))
+      .split('\n')
+      .map((line) => line.split('\t')[0]?.split(' ')[2]),
+  )
+  const both = stages.has('2') && stages.has('3')
+  await runGit(['checkout', both ? '-m' : stages.has('2') ? '--ours' : '--theirs', '--', path], { cwd: repo })
+}

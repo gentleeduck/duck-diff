@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../app/AppProvider'
+import { ask } from '../app/Ask'
 import { IconTool } from '../app/IconTool'
 import { CodeRowsSkeleton } from '../app/skeletons'
 import { useCodeScrollX } from '../diff/useCodeScrollX'
@@ -226,7 +227,7 @@ function Block({
       className={`${side === 'ours' && split ? 'ms-auto' : ''} ${
         side === 'ours' ? 'aria-pressed:text-tn-blue' : 'aria-pressed:text-tn-magenta'
       } aria-pressed:bg-accent`}
-      onClick={() => onChoose({ kind: side })}>
+      onClick={() => onChoose(choice?.kind === side ? undefined : { kind: side })}>
       {split && side === 'theirs' ? choice?.kind === side ? <Check /> : <ArrowLeftToLine /> : null}
       {SIDE[side].accept}
       {split && side === 'ours' ? choice?.kind === side ? <Check /> : <ArrowRightToLine /> : null}
@@ -443,6 +444,24 @@ function FileSection({
       return copy
     })
   const all = (kind: Side) => setChoices(Object.fromEntries(blocks.map((index) => [index, { kind }])))
+  const started = whole !== null || Object.keys(choices).length > 0
+  // Picks are quick to make again; text written by hand is asked about first.
+  const startOver = async () => {
+    const typed = whole !== null || Object.values(choices).some((choice) => choice.kind === 'edit')
+    if (
+      typed &&
+      !(await ask.confirm({
+        title: 'Start this file over?',
+        body: 'Every pick and the text written by hand are thrown away.',
+        detail: file.path,
+        action: 'Start over',
+        destructive: true,
+      }))
+    )
+      return
+    setChoices({})
+    setWhole(null)
+  }
   const save = async () => {
     const text = whole ?? resultText(file, choices)
     if (!(await run('resolve-text', { path: file.path, text }, `Resolved ${file.path}`))) return
@@ -531,6 +550,14 @@ function FileSection({
               </IconTool>
             </span>
           )}
+          {started ? (
+            <IconTool
+              label="Start over"
+              tip="Start over: every conflict back to needing a pick"
+              onClick={() => void startOver()}>
+              <RotateCcw />
+            </IconTool>
+          ) : null}
           <IconTool
             label="Open"
             tip="Open in your editor at the first conflict left"
