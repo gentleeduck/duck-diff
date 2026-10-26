@@ -8,11 +8,14 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@duck-diff/ui'
-import { Check, Copy, MessageSquare } from 'lucide-react'
+import { Check, Copy, MessageSquare, Trash2 } from 'lucide-react'
 import { useMemo } from 'react'
+import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { ask } from '../app/Ask'
 import { COPIED, useCopy } from '../app/CopyTool'
 import { COUNT, ICON_ONLY, LABEL } from '../app/fit'
+import { IconTool } from '../app/IconTool'
 import { useSession } from '../hooks/useSession'
 import { itemId } from '../lib/items'
 import { useKept } from '../lib/kept'
@@ -55,6 +58,20 @@ export function CommentsSheet() {
         ? { type: 'item', id: itemId(path), align: 'start' }
         : { type: 'line', id: itemId(path), lineNumber: anchored.line, side: anchored.comment.side, align: 'center' },
     )
+  }
+
+  // A comment whose file left the diff has no line to show it on, so the list is where it can go.
+  const remove = async (id: string) => {
+    const yes = await ask.confirm({
+      title: 'Delete comment',
+      body: 'Deletes it from the comments kept on this machine.',
+      action: 'Delete',
+      destructive: true,
+    })
+    if (yes)
+      await reviews
+        .remove(id)
+        .catch((error: Error) => toast.error('Could not delete the comment', { description: error.message }))
   }
 
   return (
@@ -100,17 +117,24 @@ export function CommentsSheet() {
               <h3 className="px-2 pb-1 font-mono text-muted-foreground">{path}</h3>
               <ul>
                 {entries.map((anchored) => (
-                  <li key={anchored.comment.id}>
+                  <li key={anchored.comment.id} className="flex items-start gap-1">
                     <Button
                       size="sm"
                       variant="ghost"
                       onClick={() => jump(path, anchored)}
-                      className="h-auto w-full flex-col items-stretch gap-0.5 px-2 py-1.5 text-start">
+                      className="h-auto min-w-0 flex-1 flex-col items-stretch gap-0.5 px-2 py-1.5 text-start">
                       <span className="text-muted-foreground">
                         {anchored.outdated ? 'Outdated' : `Line ${anchored.line}`}
                       </span>
                       <span className="line-clamp-2 whitespace-normal text-foreground">{anchored.comment.body}</span>
                     </Button>
+                    <IconTool
+                      destructive
+                      label={`Delete comment on ${path}${anchored.outdated ? '' : `, line ${anchored.line}`}`}
+                      tip="Delete comment"
+                      onClick={() => void remove(anchored.comment.id)}>
+                      <Trash2 />
+                    </IconTool>
                   </li>
                 ))}
               </ul>
