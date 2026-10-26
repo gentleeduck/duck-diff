@@ -392,4 +392,52 @@ describe('merge editor', () => {
     expect(within(editor).getByText('All resolved')).toBeTruthy()
     expect(within(editor).queryByRole('button', { name: /conflict 1/ })).toBeNull()
   })
+
+  it('takes a pick back when its side is pressed again, and starts a file over', async () => {
+    window.history.replaceState(null, '', '/?view=merge&path=a.txt')
+    render(<App api={fakeApi({ files: conflictedOnly, conflict: async () => file })} />)
+    const editor = await screen.findByRole('region', { name: 'Merge a.txt' })
+    const accept = within(screen.getByRole('region', { name: 'Current change, conflict 1' })).getByRole('button', {
+      name: /Accept current/,
+    })
+    fireEvent.click(accept)
+    expect(within(editor).getByText('1 of 2 left')).toBeTruthy()
+    fireEvent.click(accept)
+    expect(accept.getAttribute('aria-pressed')).toBe('false')
+    expect(within(editor).getByText('2 of 2 left')).toBeTruthy()
+
+    fireEvent.click(within(editor).getByRole('button', { name: 'All incoming' }))
+    expect(within(editor).getByText('All resolved')).toBeTruthy()
+    fireEvent.click(within(editor).getByRole('button', { name: 'Start over' }))
+    expect(within(editor).getByText('2 of 2 left')).toBeTruthy()
+  })
+
+  it('lists the files resolved in this merge and reopens one after asking', async () => {
+    window.history.replaceState(null, '', '/?view=merge')
+    const calls: unknown[][] = []
+    const api = fakeApi({
+      files: async () => [],
+      sync: async () => ({
+        branch: 'main',
+        upstream: null,
+        ahead: 0,
+        behind: 0,
+        staged: 1,
+        operation: 'merge',
+        incoming: 'feature',
+      }),
+      resolved: async () => ['a.txt'],
+      git: async (action, body) => {
+        calls.push([action, body])
+        return {}
+      },
+    })
+    render(<App api={api} />)
+    const [list] = await screen.findAllByRole('list', { name: 'Resolved files' })
+    fireEvent.click(within(list as HTMLElement).getByRole('button', { name: 'Reopen a.txt' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(calls).toEqual([])
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reopen' }))
+    await waitFor(() => expect(calls).toContainEqual(['reopen-conflict', { path: 'a.txt' }]))
+  })
 })

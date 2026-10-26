@@ -187,6 +187,8 @@ export interface Api {
   // A conflicted file as blocks, with what each side had.
   conflict(path: string): Promise<ConflictFile>
   conflictBlame(path: string): Promise<ConflictBlame>
+  // Files resolved since git stopped, which can still go back to their conflict.
+  resolved(): Promise<string[]>
   // What git handed duck-diff as one of its tools, and the page's answer to it.
   tool(id: string): Promise<ToolSpec>
   finishTool(finish: ToolFinish): Promise<void>
@@ -334,6 +336,7 @@ export type GitAction =
   | 'resolve'
   | 'mark-resolved'
   | 'resolve-text'
+  | 'reopen-conflict'
   | 'rebase-interactive'
   | 'fixup'
   | 'cherry-pick-range'
@@ -562,6 +565,7 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     },
     conflict: (path) => json(`/api/conflict?${new URLSearchParams({ path })}`, ConflictFileSchema),
     conflictBlame: (path) => json(`/api/conflict-blame?${new URLSearchParams({ path })}`, ConflictBlameSchema),
+    resolved: () => json('/api/resolved', z.array(z.string())),
     tool: (id) => json(`/api/tool?${new URLSearchParams({ id })}`, ToolSpecSchema),
     finishTool: (finish) => post('/api/tool/finish', finish),
     file(path, ref) {

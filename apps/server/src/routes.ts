@@ -18,6 +18,7 @@ import {
   readTreeBytes,
   readTreeFile,
   rebasePlan,
+  resolvedPaths,
   resolveRevision,
   runGit,
   streamDiff,
@@ -208,6 +209,8 @@ export async function handleApi(
       const { path } = z.object({ path: RepoPathSchema }).parse(Object.fromEntries(url.searchParams))
       return Response.json(await readConflict(repo, path))
     }
+    case '/api/resolved':
+      return Response.json(await resolvedPaths(repo))
     case '/api/conflict-blame': {
       const { path } = z.object({ path: RepoPathSchema }).parse(Object.fromEntries(url.searchParams))
       return Response.json(await conflictBlame(repo, path))
