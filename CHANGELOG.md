@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.2
+
+- A merge pick is never final before Continue: pressing the side taken again takes it back, Start over clears a
+  whole file, and a file already resolved is listed under Resolved, in the merge sidebar and the Merge tab, with
+  Reopen, which writes its conflict back as git first did.
+- Open files in, in the settings, picks the editor Open uses: Automatic as before, or Neovim, VS Code, VS Code
+  Insiders, VSCodium, Cursor, Windsurf, Zed or Sublime Text. One that is not installed is reported, never swapped.
+- The comments panel deletes comments, a comment on a file that has left the diff included.
+
 ## 0.7.1
 
 - The windows git opens as its merge tool, diff tool and rebase editor carry the display settings (split or stacked,
