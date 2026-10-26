@@ -28,6 +28,7 @@ import {
   DiscussionSchema,
   type DiscussionSummary,
   DiscussionSummarySchema,
+  type EditorChoice,
   ErrorBodySchema,
   type ErrorCode,
   encodeTarget,
@@ -148,7 +149,7 @@ export interface Api {
   diff(target: DiffTarget, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   content(target: DiffTarget, side: 'old' | 'new', file: Pick<ChangedFile, 'path' | 'oldPath'>): Promise<string | null>
   // Opens a file at a line in the best editor around; Neovim with none attached is left to the page to run.
-  open(path: string, line: number): Promise<OpenResult>
+  open(path: string, line: number, editor?: EditorChoice): Promise<OpenResult>
   write(request: WriteRequest): Promise<void>
   undo(): Promise<UndoResult>
   reviews(target: DiffTarget): Promise<ReviewComment[]>
@@ -618,6 +619,6 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     async deleteReview(id) {
       await request(`/api/reviews/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' })
     },
-    open: (path, line) => send('POST', '/api/open', { path, line }, OpenResultSchema),
+    open: (path, line, editor) => send('POST', '/api/open', { path, line, editor }, OpenResultSchema),
   }
 }

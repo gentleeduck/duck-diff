@@ -108,6 +108,7 @@ From Neovim it is `:DuckDiff`, with the same targets.
 
 Open on any file goes to the Neovim you started duck-diff from, else to VS Code at the line (then VSCodium,
 Cursor, Windsurf, Zed or Sublime), else to the app your system opens the file with. Never a terminal in the page.
+To always use one of them, pick it under Open files in, in the settings.
 
 ## Command line
 
