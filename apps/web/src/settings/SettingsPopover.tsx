@@ -1,3 +1,4 @@
+import { EDITORS } from '@duck-diff/protocol'
 import {
   Button,
   Popover,
@@ -16,6 +17,7 @@ import { Minus, Plus, Settings2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
+import { EDITOR_NAMES } from '../hooks/useOpenFile'
 import { useSettings } from '../hooks/useSettings'
 import { DEFAULT_SETTINGS, type Settings } from '../state/settings'
 import { ThemePicker } from './ThemePicker'
@@ -48,6 +50,7 @@ const INLINE: Options<'lineDiffType'> = [
   { value: 'char', label: 'Characters' },
   { value: 'none', label: 'Off' },
 ]
+const OPENERS: Options<'editor'> = EDITORS.map((value) => ({ value, label: EDITOR_NAMES[value] }))
 const SEPARATORS: Options<'hunkSeparators'> = [
   { value: 'line-info', label: 'Line ranges' },
   { value: 'line-info-basic', label: 'Line ranges, compact' },
@@ -69,7 +72,7 @@ export function SettingsPopover() {
   const settings = useSettings(selectAll)
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => store.set((prev) => ({ ...prev, [key]: value }))
 
-  const choice = <K extends 'diffIndicators' | 'lineDiffType' | 'hunkSeparators' | 'tests'>(
+  const choice = <K extends 'diffIndicators' | 'lineDiffType' | 'hunkSeparators' | 'tests' | 'editor'>(
     key: K,
     options: Options<K>,
     label: string,
@@ -200,6 +203,7 @@ export function SettingsPopover() {
           />
         </Row>
         {stepper('tabSize', 'Tab width', 1, 8)}
+        {choice('editor', OPENERS, 'Open files in')}
         <Row label="Desktop notifications">
           <Switch
             className="border-muted-foreground"

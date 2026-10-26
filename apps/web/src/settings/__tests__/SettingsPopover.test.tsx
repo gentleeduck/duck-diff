@@ -39,6 +39,14 @@ describe('SettingsPopover', () => {
     expect(read().theme).toBe('mallard')
   })
 
+  it('picks the editor files open in', async () => {
+    open()
+    expect(read().editor).toBe('auto')
+    fireEvent.click(screen.getByRole('combobox', { name: 'Open files in' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Cursor' }))
+    expect(read().editor).toBe('cursor')
+  })
+
   it('toggles the switches', () => {
     open()
     fireEvent.click(screen.getByLabelText('Wrap long lines'))

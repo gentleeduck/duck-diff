@@ -44,6 +44,7 @@ const DOING: Record<GitAction, string> = {
   resolve: 'Resolve',
   'mark-resolved': 'Mark resolved',
   'resolve-text': 'Resolve',
+  'reopen-conflict': 'Reopen conflict',
   'rebase-interactive': 'Rebase',
   fixup: 'Fixup',
   'cherry-pick-range': 'Cherry-pick',

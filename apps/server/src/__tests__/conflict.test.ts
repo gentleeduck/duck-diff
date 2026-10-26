@@ -47,4 +47,15 @@ describe('conflict routes', () => {
     expect((await send('/api/git/resolve-text', { path: '../x', text: '' })).status).toBe(400)
     expect((await fixture.get('/api/conflict?path=a.txt')).status).toBeGreaterThanOrEqual(400)
   })
+
+  it('lists a resolved file and reopens its conflict', async () => {
+    await conflicted()
+    await send('/api/git/resolve-text', { path: 'a.txt', text: 'one\nmain\n' })
+    expect(await (await fixture.get('/api/resolved')).json()).toEqual(['a.txt'])
+    expect((await send('/api/git/reopen-conflict', { path: 'a.txt' })).status).toBe(200)
+    expect(await (await fixture.get('/api/resolved')).json()).toEqual([])
+    const file = await (await fixture.get('/api/conflict?path=a.txt')).json()
+    expect(file.segments[1]).toMatchObject({ kind: 'conflict', ours: ['main'], theirs: ['feature'] })
+    expect((await send('/api/git/reopen-conflict', { path: 'a.txt' })).status).toBeGreaterThanOrEqual(400)
+  })
 })

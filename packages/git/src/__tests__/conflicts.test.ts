@@ -1,8 +1,16 @@
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, describe, expect, it } from 'vitest'
-import { conflictBlame, hasConflictMarkers, parseConflicts, readConflict, writeResolution } from '../index'
+import {
+  conflictBlame,
+  hasConflictMarkers,
+  parseConflicts,
+  readConflict,
+  reopenConflict,
+  resolvedPaths,
+  writeResolution,
+} from '../index'
 
 describe('parseConflicts', () => {
   it('splits a file into common lines and conflict blocks with their labels', () => {
@@ -256,5 +264,50 @@ describe('writeResolution', () => {
     conflicted()
     writeFileSync(join(repo.path, 'b.txt'), 'b\n')
     await expect(writeResolution(repo.path, 'b.txt', 'x\n')).rejects.toThrow(/not conflicted/)
+  })
+})
+
+describe('reopenConflict', () => {
+  it('lists a file resolved during the merge and puts its conflict back', async () => {
+    conflicted()
+    await writeResolution(repo.path, 'a.txt', 'one\nTWO both\nthree\n')
+    expect(await resolvedPaths(repo.path)).toEqual(['a.txt'])
+    await reopenConflict(repo.path, 'a.txt')
+    expect(await resolvedPaths(repo.path)).toEqual([])
+    const file = await readConflict(repo.path, 'a.txt')
+    expect(file.segments[1]).toMatchObject({ kind: 'conflict', ours: ['TWO main'], theirs: ['TWO feature'] })
+  })
+
+  it('lists nothing once the merge is committed', async () => {
+    conflicted()
+    await writeResolution(repo.path, 'a.txt', 'one\nTWO both\nthree\n')
+    repo.git('commit', '-q', '--no-edit')
+    expect(await resolvedPaths(repo.path)).toEqual([])
+    await expect(reopenConflict(repo.path, 'a.txt')).rejects.toThrow(/not resolved/)
+  })
+
+  it('brings back a file one side deleted as git left it', async () => {
+    repo = createRepo()
+    repo.write('a.txt', 'one\n')
+    repo.commit('base')
+    repo.git('checkout', '-q', '-b', 'feature')
+    repo.git('rm', '-q', 'a.txt')
+    repo.commit('feature')
+    repo.git('checkout', '-q', 'main')
+    repo.write('a.txt', 'one changed\n')
+    repo.commit('main')
+    try {
+      repo.git('merge', 'feature')
+    } catch {}
+    repo.git('rm', '-q', 'a.txt')
+    expect(await resolvedPaths(repo.path)).toEqual(['a.txt'])
+    await reopenConflict(repo.path, 'a.txt')
+    expect(repo.git('ls-files', '-u').trim()).not.toBe('')
+    expect(readFileSync(join(repo.path, 'a.txt'), 'utf8')).toBe('one changed\n')
+  })
+
+  it('refuses a file that was not resolved', async () => {
+    conflicted()
+    await expect(reopenConflict(repo.path, 'a.txt')).rejects.toThrow(/not resolved/)
   })
 })

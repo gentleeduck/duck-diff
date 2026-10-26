@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import type { EditorChoice } from '@duck-diff/protocol'
 
 // Where a file opens, best first: the Neovim the server was started from (the plugin), a code editor with
 // VS Code first, and last whatever the system opens files with. Never a terminal in the page.
@@ -24,17 +25,31 @@ const EDITORS: { command: string; args(file: string, line: number): string[] }[]
 // VS Code on a Mac is often installed without its `code` command on the PATH; the app carries it.
 const MAC_VSCODE = '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code'
 
+// An editor picked in the settings is used or reported missing, never swapped for another behind the user's back.
 export function pickOpener({
   nvim,
+  prefer = 'auto',
   which = (name: string) => Bun.which(name),
   platform = process.platform,
   exists = existsSync,
 }: {
   nvim: string | null
+  prefer?: EditorChoice
   which?: (name: string) => string | null
   platform?: NodeJS.Platform
   exists?: (path: string) => boolean
 }): Opener {
+  if (prefer === 'nvim') {
+    if (nvim) return { how: 'nvim' }
+    throw new Error('Neovim is not attached: start duck-diff from Neovim to open files there')
+  }
+  if (prefer !== 'auto') {
+    const chosen = EDITORS.find((entry) => entry.command === prefer)
+    if (chosen && which(chosen.command)) return { how: 'editor', ...chosen }
+    if (prefer === 'code' && platform === 'darwin' && exists(MAC_VSCODE))
+      return { how: 'editor', command: MAC_VSCODE, args: goTo }
+    throw new Error(`${prefer} is not on the PATH`)
+  }
   if (nvim) return { how: 'nvim' }
   const editor = EDITORS.find((entry) => which(entry.command))
   if (editor && editor.command === 'code') return { how: 'editor', ...editor }

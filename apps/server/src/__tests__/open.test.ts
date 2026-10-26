@@ -43,6 +43,28 @@ describe('/api/open', () => {
     expect(JSON.stringify(await response.json())).toContain('duck-diff-no-such-opener')
   })
 
+  it('opens with the editor the page asks for, and says when it is not there', async () => {
+    repo = createRepo()
+    const asked: unknown[] = []
+    server = await createServer({
+      repo: repo.path,
+      port: testPort(),
+      watch: false,
+      pickOpener: ({ prefer }) => {
+        asked.push(prefer)
+        if (prefer === 'zed') throw new Error('zed is not on the PATH')
+        return { how: 'editor', command: 'true', args: (file, line) => [`${file}:${line}`] }
+      },
+    })
+    expect((await post({ path: 'a.ts', line: 3, editor: 'cursor' })).status).toBe(200)
+    expect((await post({ path: 'a.ts', line: 3 })).status).toBe(200)
+    expect(asked).toEqual(['cursor', 'auto'])
+    const missing = await post({ path: 'a.ts', line: 3, editor: 'zed' })
+    expect(missing.status).toBe(409)
+    expect(JSON.stringify(await missing.json())).toContain('zed is not on the PATH')
+    expect((await post({ path: 'a.ts', line: 3, editor: 'ed; rm -rf /' })).status).toBe(400)
+  })
+
   it('sends the open keys to Neovim for paths inside the repo', async () => {
     repo = createRepo()
     const calls: string[][] = []

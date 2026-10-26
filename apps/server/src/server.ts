@@ -30,7 +30,7 @@ import type { ServerWebSocket } from 'bun'
 import { z } from 'zod'
 import { createToken, isAuthorized, tokenCookie } from './auth'
 import { createDiskCache } from './disk-cache'
-import { launch, pickOpener } from './editor'
+import { launch, type Opener, pickOpener } from './editor'
 import { errorResponse, HttpError } from './errors'
 import { createForge } from './forge'
 import type { GitHubOptions } from './github'
@@ -375,8 +375,13 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           return new Response(null, { status: 204 })
         }
         if (url.pathname === '/api/open' && request.method === 'POST') {
-          const { path, line } = OpenRequestSchema.parse(await request.json())
-          const opener = (options.pickOpener ?? pickOpener)({ nvim: options.nvim ?? null })
+          const { path, line, editor } = OpenRequestSchema.parse(await request.json())
+          let opener: Opener
+          try {
+            opener = (options.pickOpener ?? pickOpener)({ nvim: options.nvim ?? null, prefer: editor })
+          } catch (error) {
+            throw new HttpError(409, 'failed', (error as Error).message)
+          }
           if (opener.how === 'nvim' && options.nvim) {
             await (options.runNvim ?? runNvim)([
               '--server',

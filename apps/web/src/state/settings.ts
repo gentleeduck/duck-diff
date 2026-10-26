@@ -1,3 +1,4 @@
+import { EDITORS, type EditorChoice } from '@duck-diff/protocol'
 import type { DiffIndicators, HunkSeparators, LineDiffTypes } from '@pierre/diffs'
 import { z } from 'zod'
 import { DEFAULT_THEME, THEME_NAMES, type ThemeName } from '../app/themes'
@@ -32,6 +33,8 @@ export interface Settings {
   hiddenPanels: string[]
   // Browser notifications for review requests and failed runs of mine; off until asked for.
   desktopNotices: boolean
+  // Where Open sends a file.
+  editor: EditorChoice
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -53,6 +56,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hidePatterns: DEFAULT_HIDE,
   hiddenPanels: [],
   desktopNotices: false,
+  editor: 'auto',
 }
 
 export const panelShown = (settings: Settings, view: string) => !settings.hiddenPanels.includes(view)
@@ -87,6 +91,7 @@ const FIELDS = {
     .max(50),
   hiddenPanels: z.array(z.string()).max(30),
   desktopNotices: z.boolean(),
+  editor: z.enum(EDITORS),
 } satisfies { [K in keyof Settings]: z.ZodType<Settings[K]> }
 
 function load(storage: Pick<Storage, 'getItem'> | null): Settings {

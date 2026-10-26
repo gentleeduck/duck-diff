@@ -33,6 +33,7 @@ import {
   removeRemote,
   removeWorktree,
   renameBranch,
+  reopenConflict,
   resetTo,
   resolveConflict,
   restoreLatest,
@@ -227,6 +228,9 @@ export async function gitAction(
     case 'submodule-sync':
       await syncSubmodules(repo)
       return { reason: 'worktree', body: {} }
+    case 'reopen-conflict':
+      await reopenConflict(repo, PathRequestSchema.parse(await request.json()).path)
+      return { reason: 'index', body: {} }
     case 'mark-resolved':
       await markResolved(repo, PathRequestSchema.parse(await request.json()).path)
       return { reason: 'index', body: {} }
