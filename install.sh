@@ -2,7 +2,7 @@
 # duck-diff installer.
 #
 #   curl -fsSL https://raw.githubusercontent.com/gentleeduck/duck-diff/main/install.sh | sh
-#   curl -fsSL .../install.sh | sh -s -- --version 0.7.1 --dir ~/bin
+#   curl -fsSL .../install.sh | sh -s -- --version 0.7.2 --dir ~/bin
 #   curl -fsSL .../install.sh | sh -s -- --uninstall
 #
 # Downloads the release binary for this machine, checks its sha256 against the release's checksums.txt,
