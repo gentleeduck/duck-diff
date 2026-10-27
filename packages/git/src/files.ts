@@ -2,7 +2,16 @@ import { lstat, readFile, readlink, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ChangedFile, FileStatus } from '@duck-diff/protocol'
 import { runGit } from './run'
-import { type DiffTarget, excludeArgs, headOrEmpty, pathArgs, readsWorkTree, targetArgs, unmergedPaths } from './target'
+import {
+  assertRefs,
+  type DiffTarget,
+  excludeArgs,
+  headOrEmpty,
+  pathArgs,
+  readsWorkTree,
+  targetArgs,
+  unmergedPaths,
+} from './target'
 import { submoduleHead } from './worktrees'
 
 export type { ChangedFile, FileStatus }
@@ -212,6 +221,7 @@ async function markGenerated(repo: string, files: ChangedFile[]): Promise<void> 
 }
 
 export async function listFiles(repo: string, target: DiffTarget): Promise<ChangedFile[]> {
+  await assertRefs(repo, target)
   const unmerged = await unmergedPaths(repo, target)
   const args = [...(await targetArgs(repo, target)), ...pathArgs(target), ...excludeArgs(target, unmerged)]
   const worktree = readsWorkTree(target)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { parseArgs } from '../args'
+import { parseArgs, rootFile } from '../args'
 
 describe('parseArgs', () => {
   it('defaults serve to the cwd, a random port and ten minutes idle', () => {
@@ -82,6 +82,15 @@ describe('parseArgs', () => {
       browser: false,
       port: 9,
     })
+  })
+
+  it('reads a file named from inside the repo from where you are, as git does', () => {
+    // From /r/src, app.ts is src/app.ts; from outside the repo (with -C), the path is the repo's own.
+    expect(rootFile('/files?file=app.ts&line=4', '/r', '/r/src')).toBe('/files?file=src%2Fapp.ts&line=4')
+    expect(rootFile('/files?file=src%2Fapp.ts', '/r', '/r')).toBe('/files?file=src%2Fapp.ts')
+    expect(rootFile('/files?file=src%2Fapp.ts', '/r', '/elsewhere')).toBe('/files?file=src%2Fapp.ts')
+    expect(rootFile('/files', '/r', '/r/src')).toBe('/files')
+    expect(rootFile('/graph', '/r', '/r/src')).toBe('/graph')
   })
 
   it('says what is wrong, plainly', () => {

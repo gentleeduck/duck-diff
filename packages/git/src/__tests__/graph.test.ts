@@ -16,6 +16,12 @@ async function records(stream: AsyncIterable<string>) {
 }
 
 describe('streamGraph', () => {
+  it('draws nothing for a repo with no commits yet, from HEAD or every branch', async () => {
+    repo = createRepo()
+    expect(await records(streamGraph(repo.path, { all: false, limit: 50 }))).toEqual([])
+    expect(await records(streamGraph(repo.path, { all: true, limit: 50 }))).toEqual([])
+  })
+
   it('lists every branch newest first with parents and ref names', async () => {
     repo = createRepo()
     repo.write('a.txt', '1\n')

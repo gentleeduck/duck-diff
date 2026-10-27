@@ -1,4 +1,5 @@
 import type { DiffTarget } from '@duck-diff/protocol'
+import { GitError } from './errors'
 import { runGit } from './run'
 
 export type { DiffTarget }
@@ -29,6 +30,24 @@ export async function targetArgs(repo: string, target: DiffTarget): Promise<stri
       })
       return [parent.trim() ? `${target.sha}^1` : EMPTY_TREE, target.sha]
     }
+  }
+}
+
+// Throws naming the ref a target asks for that the repo lacks, where git would only say "ambiguous argument".
+// Targets on the index and working tree alone name none, so they cost nothing here.
+export async function assertRefs(repo: string, target: DiffTarget): Promise<void> {
+  const refs =
+    target.kind === 'range'
+      ? [target.from, target.to]
+      : target.kind === 'commit'
+        ? [target.sha]
+        : target.kind === 'unstaged'
+          ? []
+          : [target.base]
+  for (const ref of refs) {
+    if (!ref) continue
+    const found = await runGit(['rev-parse', '--verify', '--quiet', ref], { cwd: repo, okExitCodes: [1] })
+    if (!found.trim()) throw new GitError('unknown-ref', 1, '', `${ref} is not a branch, tag or commit in this repo`)
   }
 }
 

@@ -80,7 +80,7 @@ It opens the page as an app window (Chrome, Chromium or Brave; the default brows
 until Ctrl-C, or until no page has been open for a while. A second `duck-diff` in the same repo opens its page on
 the server already running.
 
-From Neovim it is `:DuckDiff`, with the same targets.
+From Neovim it is `:DuckDiff`, with the same targets and views (`:DuckDiff graph`, `:DuckDiff prs 12`).
 
 ## What it does
 
@@ -156,6 +156,7 @@ opts = {
 | Command | Does |
 | --- | --- |
 | `:DuckDiff [target]` | opens a diff, targets as above |
+| `:DuckDiff <view> [arg]` | opens a view: `graph`, `files [path[:line]]`, `prs [n]`, `issues [n]`, `inbox` and the rest |
 | `:DuckDiff status` / `close` | the server for this repo |
 | `:DuckDiff build` | builds the binary from this checkout with Bun |
 

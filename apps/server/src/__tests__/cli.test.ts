@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { HandshakeSchema } from '@duck-diff/protocol'
@@ -88,6 +88,15 @@ describe('cli', () => {
     const result = Bun.spawnSync(['bun', CLI, 'serve', '--repo', '/'], { env: env() })
     expect(result.exitCode).toBe(1)
     expect(result.stderr.toString()).toContain('not a git repository')
+  })
+
+  it('says a bare repository has no files to show, rather than that it is no repository', () => {
+    const bare = mkdtempSync(join(tmpdir(), 'duck-bare-'))
+    Bun.spawnSync(['git', 'init', '-q', '--bare', bare])
+    const result = Bun.spawnSync(['bun', CLI, 'serve', '--repo', bare], { env: env() })
+    rmSync(bare, { recursive: true, force: true })
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr.toString()).toContain(`${bare} is a bare repository; duck-diff needs one with a working tree`)
   })
 
   it('prints a help page with every command, and one for a command', () => {

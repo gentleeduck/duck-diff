@@ -5,7 +5,7 @@ local target = require('duck-diff.target')
 
 local M = {}
 
-local SUBCOMMANDS = { 'staged', 'unstaged', 'local', 'commit', 'status', 'close', 'build' }
+local SUBCOMMANDS = vim.list_extend({ 'staged', 'unstaged', 'local', 'commit', 'status', 'close', 'build' }, target.VIEWS)
 
 local function notify(message, level)
   vim.notify('duck-diff: ' .. message, level or vim.log.levels.INFO)
@@ -58,6 +58,18 @@ function M.run(args)
   if args == 'close' then
     server.stop(root)
     return notify('stopped')
+  end
+  local read, view = pcall(target.view, args, root, vim.fn.resolve(vim.fn.getcwd()))
+  if not read then
+    return notify(view, vim.log.levels.ERROR)
+  end
+  if view then
+    return server.ensure(root, function(err, running)
+      if err then
+        return notify(err, vim.log.levels.ERROR)
+      end
+      open.open(target.page_url(running, view), config.get())
+    end)
   end
   local ok, diff_target = pcall(target.parse, args)
   if not ok then

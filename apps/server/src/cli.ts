@@ -4,7 +4,7 @@ import { realpathSync } from 'node:fs'
 import { relative } from 'node:path'
 import { duckHome, resolveRepo, runGit, snapshotCommit } from '@duck-diff/git'
 import type { Handshake } from '@duck-diff/protocol'
-import { type Command, parseArgs, VERSION } from './args'
+import { type Command, parseArgs, rootFile, VERSION } from './args'
 import { startBanner } from './banner'
 import { ansi, createReporter, header, paintFor } from './cli-ui'
 import { clearCaches } from './disk-cache'
@@ -163,10 +163,16 @@ async function main(): Promise<number> {
   try {
     repo = await resolveRepo(command.repo)
   } catch {
-    fail(`${command.repo} is not a git repository, or inside one`)
+    const bare = await runGit(['rev-parse', '--is-bare-repository'], { cwd: command.repo }).catch(() => '')
+    fail(
+      bare.trim() === 'true'
+        ? `${command.repo} is a bare repository; duck-diff needs one with a working tree`
+        : `${command.repo} is not a git repository, or inside one`,
+    )
     return 1
   }
   const record = instanceFile(duckHome(), repo)
+  const page = command.name === 'open' ? rootFile(command.path, repo, process.cwd()) : '/'
 
   if (command.name === 'mergetool' || command.name === 'difftool' || command.name === 'rebase-todo') {
     try {
@@ -181,7 +187,7 @@ async function main(): Promise<number> {
   if (command.name === 'open') {
     const running = await liveInstance(record)
     if (running) {
-      const url = pageUrl(running, command.path)
+      const url = pageUrl(running, page)
       // Without a browser to open, the link alone, for whoever runs this from a script.
       if (command.browser && openBrowser(url)) {
         showHeader()
@@ -236,7 +242,7 @@ async function main(): Promise<number> {
       process.stdin.resume()
     }
   } else if (!takeover.port) {
-    const url = pageUrl(server, command.path)
+    const url = pageUrl(server, page)
     const branch = (
       await runGit(['symbolic-ref', '--short', 'HEAD'], { cwd: repo, okExitCodes: [128] }).catch(() => '')
     ).trim()

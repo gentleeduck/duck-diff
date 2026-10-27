@@ -1,2 +1,4 @@
 [install]
 linker = "hoisted"
+# Packages younger than a week are not installed: most hijacked releases are caught and pulled by then.
+minimumReleaseAge = 604800

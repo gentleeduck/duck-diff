@@ -6,6 +6,8 @@ import type { Session } from './session'
 export interface RefList {
   refs: Ref[]
   commits: Commit[]
+  // False until the first read answers; a repo with no commits yet has no refs at all.
+  loaded: boolean
 }
 
 export interface Refs extends Store<RefList> {
@@ -29,12 +31,12 @@ export function createRefs(
   session: Session,
   reads: RefReads = { refs: () => api.refs(), commits: () => api.commits({ head: 'HEAD', limit: 50 }) },
 ): Refs {
-  const store = createStore<RefList>({ refs: reads.cached?.() ?? [], commits: [] })
+  const store = createStore<RefList>({ refs: reads.cached?.() ?? [], commits: [], loaded: false })
   let started = false
 
   const read = async () => {
     const [refs, commits] = await Promise.all([reads.refs(), reads.commits().catch(() => [])])
-    store.set({ refs, commits })
+    store.set({ refs, commits, loaded: true })
   }
 
   const afterFirstDiff = () =>

@@ -103,3 +103,10 @@ test('a push still going shows after a reload, and ends there', async ({ page, a
     rmSync(remote, { recursive: true, force: true })
   }
 })
+
+test('a branch has nowhere to publish until the repo has a remote', async ({ page, app }) => {
+  await page.goto(app.url)
+  const publish = page.getByRole('button', { name: 'Publish branch' })
+  await expect(publish).toBeDisabled()
+  await expect(publish).toHaveAttribute('title', /No remote to publish to/)
+})

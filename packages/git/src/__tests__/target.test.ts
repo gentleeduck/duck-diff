@@ -1,6 +1,6 @@
 import { createRepo, type TestRepo } from '@duck-diff/testing'
 import { afterEach, describe, expect, it } from 'vitest'
-import { targetArgs } from '../index'
+import { assertRefs, listFiles, targetArgs } from '../index'
 
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
@@ -42,5 +42,26 @@ describe('targetArgs', () => {
     const second = repo.commit('second')
     expect(await targetArgs(repo.path, { kind: 'commit', sha: second })).toEqual([`${second}^1`, second])
     expect(await targetArgs(repo.path, { kind: 'commit', sha: root })).toEqual([EMPTY_TREE, root])
+  })
+})
+
+describe('assertRefs', () => {
+  let repo: TestRepo
+  afterEach(() => repo.cleanup())
+
+  it('names the ref a target asks for that the repo does not have', async () => {
+    repo = createRepo()
+    repo.write('a.txt', '1\n')
+    repo.commit('first')
+    const nope = { kind: 'range', from: 'nope', to: 'HEAD', mode: 'merge-base' } as const
+    await expect(assertRefs(repo.path, nope)).rejects.toThrow('nope is not a branch, tag or commit in this repo')
+    await expect(listFiles(repo.path, nope)).rejects.toThrow('nope is not a branch, tag or commit in this repo')
+    await expect(assertRefs(repo.path, { kind: 'commit', sha: 'deadbeef' })).rejects.toThrow(
+      'deadbeef is not a branch, tag or commit in this repo',
+    )
+    await expect(assertRefs(repo.path, { kind: 'range', from: 'main', to: 'HEAD', mode: 'two-dot' })).resolves.toBe(
+      undefined,
+    )
+    await expect(assertRefs(repo.path, { kind: 'local' })).resolves.toBe(undefined)
   })
 })

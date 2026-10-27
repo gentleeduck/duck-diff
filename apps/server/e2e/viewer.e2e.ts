@@ -300,3 +300,11 @@ test('settings live on the server, so a browser with nothing saved still has the
     [],
   )
 })
+
+test('a comparison with a ref the repo does not have says which, not that nothing changed', async ({ page, app }) => {
+  const target = { kind: 'range', from: 'nope', to: 'HEAD', mode: 'merge-base' }
+  await page.goto(`${app.url}&target=${encodeURIComponent(JSON.stringify(target))}`)
+  const message = 'nope is not a branch, tag or commit in this repo'
+  await expect(page.getByRole('navigation', { name: 'Changed files' }).getByText(message)).toBeVisible()
+  await expect(page.getByText('No changes in this comparison')).toHaveCount(0)
+})

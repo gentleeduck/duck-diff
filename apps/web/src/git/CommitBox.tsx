@@ -5,9 +5,10 @@ import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { BisectBanner } from '../graph/BisectBanner'
 import { useKept } from '../lib/kept'
+import { useStage } from '../state/stage'
 import { VISIBLE_BOX } from '../viewer/FileActions'
 import { useGit } from './GitProvider'
-import { OperationBanner } from './OperationBanner'
+import { countConflicts, OperationBanner } from './OperationBanner'
 
 function MoreItem({ onSelect, children }: { onSelect(): void; children: ReactNode }) {
   return (
@@ -27,9 +28,10 @@ export function CommitBox() {
   const amendId = useId()
   const signoffId = useId()
   const staged = status?.staged ?? 0
+  const conflicts = countConflicts(useStage())
   // An unfinished merge or pick commits its resolution even when nothing new is staged.
   const finishing = Boolean(status?.operation && status.operation !== 'rebase')
-  const ready = message.trim().length > 0 && (staged > 0 || amend || finishing) && busy === null
+  const ready = message.trim().length > 0 && (staged > 0 || amend || finishing) && !conflicts && busy === null
 
   const commit = async (andPush: boolean) => {
     const ok = await run('commit', { message, amend, signoff }, amend ? 'Amended the last commit' : 'Committed')
@@ -63,7 +65,11 @@ export function CommitBox() {
       <Textarea
         aria-label="Commit message"
         placeholder={
-          staged ? `Message for ${staged} staged ${staged === 1 ? 'file' : 'files'}` : 'Stage changes to commit'
+          conflicts
+            ? `Resolve ${conflicts} ${conflicts === 1 ? 'conflict' : 'conflicts'} before committing`
+            : staged
+              ? `Message for ${staged} staged ${staged === 1 ? 'file' : 'files'}`
+              : 'Stage changes to commit'
         }
         value={message}
         rows={3}

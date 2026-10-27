@@ -15,7 +15,9 @@ describe('failureReason', () => {
   })
 
   it('names a rejected push, refused credentials and an unreachable remote', () => {
-    expect(failureReason('git push exited 1: ! [rejected] main -> main (fetch first)')).toMatch(/Pull, then try again/)
+    expect(failureReason('git push exited 1: ! [rejected] main -> main (fetch first)')).toBe(
+      'The remote has commits you do not have. Pull, then try again; after an amend or rebase, force push (with lease).',
+    )
     expect(failureReason('fatal: Authentication failed for https://x')).toBe('The remote refused your credentials.')
     expect(failureReason("fatal: unable to access 'https://x/': Could not resolve host: x")).toBe(
       'Could not reach the remote.',
