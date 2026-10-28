@@ -94,9 +94,10 @@ describe('cli', () => {
     // git names the folder by its real path (/private/var on macOS, not /var).
     const other = realpathSync(mkdtempSync(join(tmpdir(), 'duck-other-')))
     Bun.spawnSync(['git', 'init', '-q', other])
-    // git's own switch for tests that need a repository owned by someone else.
+    // git's own switch for tests that need a repository owned by someone else; CI runners trust every folder
+    // (safe.directory=*) in their own config, so none of it is read.
     const result = Bun.spawnSync(['bun', CLI, 'serve', '--repo', other], {
-      env: { ...env(), GIT_TEST_ASSUME_DIFFERENT_OWNER: '1' },
+      env: { ...env(), GIT_TEST_ASSUME_DIFFERENT_OWNER: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' },
     })
     rmSync(other, { recursive: true, force: true })
     expect(result.exitCode).toBe(1)
