@@ -68,4 +68,20 @@ describe('assertRefs', () => {
     )
     await expect(assertRefs(repo.path, { kind: 'local' })).resolves.toBe(undefined)
   })
+
+  it('says when two branches share no history to compare from, before anything streams', async () => {
+    repo = createRepo()
+    repo.write('a.txt', '1\n')
+    repo.commit('first')
+    repo.git('checkout', '-q', '--orphan', 'pages')
+    repo.git('rm', '-rqf', '.')
+    repo.write('index.html', 'hi\n')
+    repo.commit('pages')
+    const split = { kind: 'range', from: 'main', to: 'pages', mode: 'merge-base' } as const
+    await expect(assertRefs(repo.path, split)).rejects.toThrow(
+      'main and pages share no history; compare them directly with main..pages',
+    )
+    await expect(listFiles(repo.path, split)).rejects.toThrow('share no history')
+    await expect(assertRefs(repo.path, { ...split, mode: 'two-dot' })).resolves.toBe(undefined)
+  })
 })

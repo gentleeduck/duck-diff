@@ -109,6 +109,22 @@ return {
     eq({ 'main...feature' }, commands.complete('main...fe'))
   end,
 
+  ['completes a path after files, and nothing after views that take none'] = function()
+    local commands = require('duck-diff.commands')
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir .. '/src', 'p')
+    vim.fn.writefile({}, dir .. '/src/app.ts')
+    vim.fn.system({ 'git', '-C', dir, 'init', '-q', '-b', 'main' })
+    vim.fn.system({ 'git', '-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'base', '--allow-empty' })
+    vim.cmd.cd(dir)
+    eq({ 'src/' }, commands.complete('sr', 'DuckDiff files sr'))
+    eq({ 'src/app.ts' }, commands.complete('src/a', 'DuckDiff files src/a'))
+    eq({}, commands.complete('', 'DuckDiff files src/app.ts '))
+    eq({}, commands.complete('', 'DuckDiff graph '))
+    eq({}, commands.complete('1', 'DuckDiff prs 1'))
+    eq({ 'main' }, commands.complete('ma', 'DuckDiff diff ma'))
+  end,
+
   ['the plugin file registers the command'] = function()
     vim.g.loaded_duck_diff = nil
     vim.cmd.runtime('plugin/duck-diff.lua')

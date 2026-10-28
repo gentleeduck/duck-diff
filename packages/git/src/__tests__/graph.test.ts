@@ -38,6 +38,15 @@ describe('streamGraph', () => {
     expect(rows[1]?.[2]).toContain('feat')
   })
 
+  it('names refs short even when the user config decorates them in full', async () => {
+    repo = createRepo()
+    repo.write('a.txt', '1\n')
+    repo.commit('base')
+    repo.git('config', 'log.decorate', 'full')
+    const [row] = await records(streamGraph(repo.path, { all: true, limit: 1 }))
+    expect(row?.[2]).toBe('HEAD -> main')
+  })
+
   it('respects the limit and HEAD-only mode', async () => {
     repo = createRepo()
     repo.write('a.txt', '1\n')

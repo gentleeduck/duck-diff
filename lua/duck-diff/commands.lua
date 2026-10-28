@@ -81,7 +81,18 @@ function M.run(args, fargs)
   show(root, diff_target)
 end
 
-function M.complete(lead)
+---@param lead string the word being completed
+---@param cmdline? string the whole command line, to see which subcommand the word belongs to
+function M.complete(lead, cmdline)
+  local before = vim.split(vim.trim((cmdline or ''):sub(1, #(cmdline or '') - #lead)), '%s+', { trimempty = true })
+  local sub = before[2]
+  -- `files` takes a path, read from where Neovim is; the other views take a number or nothing.
+  if sub == 'files' then
+    return #before == 2 and vim.fn.getcompletion(lead, 'file') or {}
+  end
+  if sub and vim.tbl_contains(target.VIEWS, sub) then
+    return {}
+  end
   local refs = vim.fn.systemlist({ 'git', 'for-each-ref', '--format=%(refname:short)', 'refs/heads', 'refs/tags', 'refs/remotes' })
   if vim.v.shell_error ~= 0 then
     refs = {}

@@ -162,12 +162,16 @@ async function main(): Promise<number> {
   let repo: string
   try {
     repo = await resolveRepo(command.repo)
-  } catch {
+  } catch (error) {
+    // git will not read a repository another user owns until it is trusted, and it says which folder.
+    const distrusted = /dubious ownership in repository at '([^']+)'/.exec((error as Error).message)?.[1]
     const bare = await runGit(['rev-parse', '--is-bare-repository'], { cwd: command.repo }).catch(() => '')
     fail(
-      bare.trim() === 'true'
-        ? `${command.repo} is a bare repository; duck-diff needs one with a working tree`
-        : `${command.repo} is not a git repository, or inside one`,
+      distrusted
+        ? `git does not trust ${distrusted}: another user owns it. To trust it: git config --global --add safe.directory ${distrusted}`
+        : bare.trim() === 'true'
+          ? `${command.repo} is a bare repository; duck-diff needs one with a working tree`
+          : `${command.repo} is not a git repository, or inside one`,
     )
     return 1
   }

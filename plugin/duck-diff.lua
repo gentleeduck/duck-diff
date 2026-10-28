@@ -8,7 +8,7 @@ vim.api.nvim_create_user_command('DuckDiff', function(command)
 end, {
   nargs = '*',
   desc = 'Open the duck-diff viewer for a comparison',
-  complete = function(lead)
-    return require('duck-diff.commands').complete(lead)
+  complete = function(lead, cmdline)
+    return require('duck-diff.commands').complete(lead, cmdline)
   end,
 })

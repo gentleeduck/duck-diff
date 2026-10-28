@@ -236,8 +236,11 @@ function withBases(segments: ConflictSegment[], stages: ConflictFile['stages']):
   })
 }
 
+// Resolved since the page listed it, in the merge page or a terminal: stale, not a failure.
+const notConflicted = (path: string) => new GitError('stale', null, '', `${path} is not conflicted`)
+
 export async function readConflict(repo: string, path: string): Promise<ConflictFile> {
-  if (!(await isConflicted(repo, path))) throw new GitError('failed', null, '', `${path} is not conflicted`)
+  if (!(await isConflicted(repo, path))) throw notConflicted(path)
   const [text, size, base, ours, theirs, sides] = await Promise.all([
     readFile(join(repo, path), 'utf8').catch(() => ''),
     markerSize(repo, path),
@@ -278,7 +281,7 @@ export async function conflictBlame(repo: string, path: string): Promise<Conflic
 
 // The merged text replaces the working file and is staged, which is what marks the conflict resolved.
 export async function writeResolution(repo: string, path: string, text: string): Promise<void> {
-  if (!(await isConflicted(repo, path))) throw new GitError('failed', null, '', `${path} is not conflicted`)
+  if (!(await isConflicted(repo, path))) throw notConflicted(path)
   await writeFile(join(repo, path), text)
   await runGit(['add', '--', path], { cwd: repo })
 }

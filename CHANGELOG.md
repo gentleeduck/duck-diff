@@ -17,6 +17,17 @@
 - Publish is off in a repo with no remote, with the reason on hover and on keyboard focus, and turns on as soon as
   a remote is added, from the page or a terminal. A push the remote rejects says to pull, and to check the remote
   history before a force push after an amend or rebase.
+- Staging a hunk or single lines, and discarding lines, work when your git config sets `diff.noprefix` (or
+  `diff.mnemonicPrefix`); they failed with "does not exist in index". Settings that only change the shape of
+  git's output (`diff.noprefix`, `log.decorate=full`, `log.showSignature` and the like) no longer reach what
+  duck-diff reads, so the graph names branches short whatever `log.decorate` says.
+- duck-diff as the rebase editor reads a todo whose comments start with another `core.commentChar` (`;`, `%`,
+  `auto`), where it used to hand the rebase back to your own editor.
+- Comparing two branches that share no history (a gh-pages branch) from where they split says so and offers
+  the direct comparison, instead of git's error and an empty diff.
+- A repository another user owns is named as one git does not trust, with the `safe.directory` command that
+  trusts it, instead of "not a git repository".
+- In Neovim, `:DuckDiff files <Tab>` completes paths, and views that take no argument complete nothing.
 - `duck-diff git-setup` leaves the prompts and backups of a merge or diff tool you chose yourself alone.
 - `duck-diff update <version>` says when there is no such release (or none the token can read), and a bare
   repository is named as one.

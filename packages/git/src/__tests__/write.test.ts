@@ -9,6 +9,7 @@ import {
   splitPatch,
   stageFile,
   stageHunk,
+  stageLines,
   unstageFile,
   unstageHunk,
 } from '../index'
@@ -56,6 +57,25 @@ describe('hunk writes', () => {
     expect(repo.git('diff', '--cached')).toContain('+line 28 changed')
     expect(repo.git('diff', '--cached')).not.toContain('line 2 changed')
     expect(repo.git('diff')).toContain('+line 2 changed')
+  })
+
+  it('stages a hunk and single lines when the user config drops the a/ and b/ prefixes', async () => {
+    repo = createRepo()
+    repo.write('src/deep/a.txt', BASE)
+    repo.commit('base')
+    repo.git('config', 'diff.noprefix', 'true')
+    repo.git('config', 'diff.mnemonicPrefix', 'true')
+    repo.write('src/deep/a.txt', twoHunks(BASE))
+    const [file] = await listFiles(repo.path, { kind: 'unstaged' })
+    if (!file) throw new Error('expected a change')
+    const [, second = ''] = await headers(repo, 'unstaged', file)
+    await stageHunk(repo.path, file, 1, second)
+    expect(repo.git('diff', '--cached')).toContain('+line 28 changed')
+    await stageLines(repo.path, file, [
+      { side: 'old', line: 2, text: 'line 2' },
+      { side: 'new', line: 2, text: 'line 2 changed' },
+    ])
+    expect(repo.git('diff', '--cached')).toContain('+line 2 changed')
   })
 
   it('refuses a hunk whose header no longer matches', async () => {

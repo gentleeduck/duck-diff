@@ -35,6 +35,10 @@ describe('rebase todo', () => {
     ])
     expect(parseTodo('pick abc1234 one\nexec make test\n')).toBeNull()
     expect(parseTodo('fixup -C abc1234 one\n')).toBeNull()
+    // core.commentChar may be anything, ; and % included.
+    expect(parseTodo('p abc1234 one # c1 ; empty\n\n; Rebase 1..2 onto 1\n% Commands:\n')).toEqual([
+      { sha: 'abc1234', action: 'pick' },
+    ])
   })
 
   it('names each commit of the todo and writes the plan back, rewording through a message file', async () => {

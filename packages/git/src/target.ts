@@ -50,6 +50,19 @@ export async function assertRefs(repo: string, target: DiffTarget): Promise<void
     const found = await runGit(['rev-parse', '--verify', '--quiet', `${ref}^{object}`], { cwd: repo, okExitCodes: [1] })
     if (!found.trim()) throw new GitError('unknown-ref', 1, '', `${ref} is not a branch, tag or commit in this repo`)
   }
+  // Comparing from where two branches split needs a commit they share; unrelated histories (gh-pages) have none.
+  if (target.kind === 'range' && target.mode === 'merge-base') {
+    const base = await runGit(['merge-base', target.from, target.to], { cwd: repo, okExitCodes: [1] })
+    if (!base.trim()) {
+      const { from, to } = target
+      throw new GitError(
+        'unknown-ref',
+        1,
+        '',
+        `${from} and ${to} share no history; compare them directly with ${from}..${to}`,
+      )
+    }
+  }
 }
 
 // Targets whose new side is the working tree, so blob shas must be computed from the files.

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { HandshakeSchema } from '@duck-diff/protocol'
@@ -88,6 +88,20 @@ describe('cli', () => {
     const result = Bun.spawnSync(['bun', CLI, 'serve', '--repo', '/'], { env: env() })
     expect(result.exitCode).toBe(1)
     expect(result.stderr.toString()).toContain('not a git repository')
+  })
+
+  it('says git distrusts a repository another user owns, and how to trust it', () => {
+    // git names the folder by its real path (/private/var on macOS, not /var).
+    const other = realpathSync(mkdtempSync(join(tmpdir(), 'duck-other-')))
+    Bun.spawnSync(['git', 'init', '-q', other])
+    // git's own switch for tests that need a repository owned by someone else.
+    const result = Bun.spawnSync(['bun', CLI, 'serve', '--repo', other], {
+      env: { ...env(), GIT_TEST_ASSUME_DIFFERENT_OWNER: '1' },
+    })
+    rmSync(other, { recursive: true, force: true })
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr.toString()).toContain(`git does not trust ${other}: another user owns it`)
+    expect(result.stderr.toString()).toContain(`safe.directory ${other}`)
   })
 
   it('says a bare repository has no files to show, rather than that it is no repository', () => {
