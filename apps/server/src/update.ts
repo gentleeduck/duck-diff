@@ -27,6 +27,8 @@ interface Release {
   assets: { name: string; url: string; size?: number }[]
 }
 
+const PRIVATE_HINT = ' (a private repo needs GITHUB_TOKEN or gh auth login)'
+
 async function github(
   api: string,
   path: string,
@@ -39,8 +41,8 @@ async function github(
     headers: { accept, 'user-agent': 'duck-diff', ...(auth ? { authorization: `Bearer ${auth}` } : {}) },
   })
   if (!response.ok) {
-    const hint = response.status === 404 && !auth ? ' (a private repo needs GITHUB_TOKEN or gh auth login)' : ''
-    throw new Error(`GitHub answered ${response.status} for ${path}${hint}`)
+    const hint = response.status === 404 && !auth ? PRIVATE_HINT : ''
+    throw Object.assign(new Error(`GitHub answered ${response.status} for ${path}${hint}`), { status: response.status })
   }
   return response
 }
@@ -111,7 +113,14 @@ export async function update(options: UpdateOptions): Promise<boolean> {
     const auth = options.auth === undefined ? token() : options.auth
     step = report.step(wanted ? `Finding release ${wanted}` : 'Finding the latest release')
     const path = `/repos/${repo}/releases/${wanted ? `tags/v${wanted}` : 'latest'}`
-    const release = (await (await github(api, path, auth)).json()) as Release
+    const found = await github(api, path, auth).catch((error: Error & { status?: number }) => {
+      if (!wanted || error.status !== 404) throw error
+      // GitHub answers 404 for a repo the token cannot read, too.
+      throw new Error(
+        `there is no release ${wanted}${auth ? ' that this token can read' : ''}; see https://github.com/${repo}/releases${auth ? '' : PRIVATE_HINT}`,
+      )
+    })
+    const release = (await found.json()) as Release
     const version = release.tag_name.replace(/^v/, '')
     if (version === current && !wanted) {
       step.done(`Already on ${current}, the newest release`)

@@ -11,6 +11,11 @@ export interface GraphOptions {
 
 // Newest first in topological order, so a child always comes before its parents; the page lays out lanes from it.
 export async function* streamGraph(repo: string, options: GraphOptions): AsyncIterable<string> {
+  // A repo with no commits yet has a HEAD that names nothing, so there is nothing to walk from it.
+  if (!options.all) {
+    const head = await runGit(['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: repo, okExitCodes: [1] })
+    if (!head.trim()) return
+  }
   yield* streamGit(
     [
       'log',

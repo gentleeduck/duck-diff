@@ -1,4 +1,4 @@
-import { resolve } from 'node:path'
+import { isAbsolute, relative, resolve } from 'node:path'
 import type { DiffTarget } from '@duck-diff/protocol'
 import pkg from '../package.json' with { type: 'json' }
 
@@ -114,6 +114,19 @@ function viewPath(view: View, args: string[]): string {
   }
   if (first !== undefined) throw new Error(`${view} takes no argument`)
   return `/${view}`
+}
+
+// `files <path>` names the file from `cwd` (where you are, or the -C folder), as git does, and the page reads
+// paths from the repo's root. A path that does not land inside the repo is taken as the repo's own.
+export function rootFile(path: string, repo: string, cwd: string): string {
+  if (!path.startsWith('/files?')) return path
+  const params = new URLSearchParams(path.slice('/files?'.length))
+  const file = params.get('file')
+  if (!file) return path
+  const inside = relative(repo, resolve(cwd, file))
+  if (!inside || inside.startsWith('..') || isAbsolute(inside)) return path
+  params.set('file', inside)
+  return `/files?${params}`
 }
 
 const diffPath = (target: DiffTarget) =>

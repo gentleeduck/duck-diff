@@ -21,6 +21,8 @@ describe('file tree', () => {
     setup()
     expect(await listTree(repo.path, null)).toEqual(['.gitignore', 'logo.bin', 'notes.txt', 'src/a.ts'])
     expect(await listTree(repo.path, 'HEAD')).toEqual(['.gitignore', 'logo.bin', 'src/a.ts'])
+    // A ref git cannot find is the caller's mistake, not the server's.
+    await expect(listTree(repo.path, 'nope')).rejects.toMatchObject({ code: 'unknown-ref' })
   })
 
   it('reads a file from the working tree or a commit, and flags binaries', async () => {

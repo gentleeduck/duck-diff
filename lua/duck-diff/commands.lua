@@ -5,7 +5,7 @@ local target = require('duck-diff.target')
 
 local M = {}
 
-local SUBCOMMANDS = { 'staged', 'unstaged', 'local', 'commit', 'status', 'close', 'build' }
+local SUBCOMMANDS = vim.list_extend({ 'staged', 'unstaged', 'local', 'commit', 'diff', 'status', 'close', 'build' }, target.VIEWS)
 
 local function notify(message, level)
   vim.notify('duck-diff: ' .. message, level or vim.log.levels.INFO)
@@ -43,7 +43,10 @@ local function build()
   end))
 end
 
-function M.run(args)
+---@param args string
+---@param fargs? string[] the words as Neovim split them; read from `args` when left out
+function M.run(args, fargs)
+  fargs = fargs or vim.split(vim.trim(args or ''), '%s+', { trimempty = true })
   local root = M.root()
   if args == 'build' then
     return build()
@@ -59,6 +62,18 @@ function M.run(args)
     server.stop(root)
     return notify('stopped')
   end
+  local read, view = pcall(target.view, fargs, root, vim.fn.resolve(vim.fn.getcwd()))
+  if not read then
+    return notify(view, vim.log.levels.ERROR)
+  end
+  if view then
+    return server.ensure(root, function(err, running)
+      if err then
+        return notify(err, vim.log.levels.ERROR)
+      end
+      open.open(target.page_url(running, view), config.get())
+    end)
+  end
   local ok, diff_target = pcall(target.parse, args)
   if not ok then
     return notify(diff_target, vim.log.levels.ERROR)
@@ -66,7 +81,18 @@ function M.run(args)
   show(root, diff_target)
 end
 
-function M.complete(lead)
+---@param lead string the word being completed
+---@param cmdline? string the whole command line, to see which subcommand the word belongs to
+function M.complete(lead, cmdline)
+  local before = vim.split(vim.trim((cmdline or ''):sub(1, #(cmdline or '') - #lead)), '%s+', { trimempty = true })
+  local sub = before[2]
+  -- `files` takes a path, read from where Neovim is; the other views take a number or nothing.
+  if sub == 'files' then
+    return #before == 2 and vim.fn.getcompletion(lead, 'file') or {}
+  end
+  if sub and vim.tbl_contains(target.VIEWS, sub) then
+    return {}
+  end
   local refs = vim.fn.systemlist({ 'git', 'for-each-ref', '--format=%(refname:short)', 'refs/heads', 'refs/tags', 'refs/remotes' })
   if vim.v.shell_error ~= 0 then
     refs = {}

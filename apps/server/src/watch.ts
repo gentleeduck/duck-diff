@@ -15,7 +15,9 @@ export function classifyPath(relative: string): RepoChange | null {
   if (!path.startsWith('.git/') && path !== '.git') return 'worktree'
   if (path.endsWith('.lock')) return null
   if (path === '.git/index') return 'index'
-  if (path === '.git/HEAD' || path === '.git/packed-refs' || path.startsWith('.git/refs/')) return 'refs'
+  // Remotes and the branches' upstreams live in .git/config.
+  if (path === '.git/HEAD' || path === '.git/packed-refs' || path === '.git/config' || path.startsWith('.git/refs/'))
+    return 'refs'
   return null
 }
 

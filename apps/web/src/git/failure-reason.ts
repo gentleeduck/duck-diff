@@ -10,7 +10,7 @@ export function failureReason(message: string): string {
     .filter(Boolean)
   const text = lines.join('\n')
   if (/\[rejected\]|non-fast-forward|fetch first/.test(text))
-    return 'The remote has commits you do not have. Pull, then try again.'
+    return 'The remote has commits you do not have; pull to bring them in. After an amend or rebase, check the remote history before you force push.'
   if (/permission denied|authentication failed|could not read username/i.test(text))
     return 'The remote refused your credentials.'
   if (/could not resolve host|connection (timed out|refused)|unable to access/i.test(text))

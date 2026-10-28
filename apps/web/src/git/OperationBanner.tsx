@@ -14,7 +14,8 @@ const NAMES: Record<NonNullable<SyncStatus['operation']>, string> = {
   rebase: 'A rebase',
 }
 
-const countConflicts = (state: StageState) => state.unstaged.filter((file) => file.status === 'conflicted').length
+export const countConflicts = (state: StageState) =>
+  state.unstaged.filter((file) => file.status === 'conflicted').length
 
 // Continue, skip and abort for the operation git is waiting on; with resolve, a way to the conflicts first.
 export function OperationActions({ resolve }: { resolve: boolean }) {

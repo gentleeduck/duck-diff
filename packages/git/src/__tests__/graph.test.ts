@@ -16,6 +16,12 @@ async function records(stream: AsyncIterable<string>) {
 }
 
 describe('streamGraph', () => {
+  it('draws nothing for a repo with no commits yet, from HEAD or every branch', async () => {
+    repo = createRepo()
+    expect(await records(streamGraph(repo.path, { all: false, limit: 50 }))).toEqual([])
+    expect(await records(streamGraph(repo.path, { all: true, limit: 50 }))).toEqual([])
+  })
+
   it('lists every branch newest first with parents and ref names', async () => {
     repo = createRepo()
     repo.write('a.txt', '1\n')
@@ -30,6 +36,15 @@ describe('streamGraph', () => {
     expect(rows[0]?.[1]?.split(' ')).toHaveLength(2)
     expect(rows[0]?.[2]).toContain('HEAD -> main')
     expect(rows[1]?.[2]).toContain('feat')
+  })
+
+  it('names refs short even when the user config decorates them in full', async () => {
+    repo = createRepo()
+    repo.write('a.txt', '1\n')
+    repo.commit('base')
+    repo.git('config', 'log.decorate', 'full')
+    const [row] = await records(streamGraph(repo.path, { all: true, limit: 1 }))
+    expect(row?.[2]).toBe('HEAD -> main')
   })
 
   it('respects the limit and HEAD-only mode', async () => {

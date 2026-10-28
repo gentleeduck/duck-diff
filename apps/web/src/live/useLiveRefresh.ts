@@ -70,7 +70,8 @@ export function useLiveRefresh(): LiveState {
           return
         }
         if (event.type === 'navigate') {
-          place.set((now) => ({ ...now, target: event.target }))
+          // A diff sent from Neovim shows in Changes, whatever page was open.
+          place.set((now) => ({ ...now, view: 'changes', target: event.target }))
           window.focus()
           return
         }

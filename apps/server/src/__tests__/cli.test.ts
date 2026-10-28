@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdtempSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { HandshakeSchema } from '@duck-diff/protocol'
@@ -90,6 +90,30 @@ describe('cli', () => {
     expect(result.stderr.toString()).toContain('not a git repository')
   })
 
+  it('says git distrusts a repository another user owns, and how to trust it', () => {
+    // git names the folder by its real path (/private/var on macOS, not /var).
+    const other = realpathSync(mkdtempSync(join(tmpdir(), 'duck-other-')))
+    Bun.spawnSync(['git', 'init', '-q', other])
+    // git's own switch for tests that need a repository owned by someone else; CI runners trust every folder
+    // (safe.directory=*) in their own config, so none of it is read.
+    const result = Bun.spawnSync(['bun', CLI, 'serve', '--repo', other], {
+      env: { ...env(), GIT_TEST_ASSUME_DIFFERENT_OWNER: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' },
+    })
+    rmSync(other, { recursive: true, force: true })
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr.toString()).toContain(`git does not trust ${other}: another user owns it`)
+    expect(result.stderr.toString()).toContain(`safe.directory ${other}`)
+  })
+
+  it('says a bare repository has no files to show, rather than that it is no repository', () => {
+    const bare = mkdtempSync(join(tmpdir(), 'duck-bare-'))
+    Bun.spawnSync(['git', 'init', '-q', '--bare', bare])
+    const result = Bun.spawnSync(['bun', CLI, 'serve', '--repo', bare], { env: env() })
+    rmSync(bare, { recursive: true, force: true })
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr.toString()).toContain(`${bare} is a bare repository; duck-diff needs one with a working tree`)
+  })
+
   it('prints a help page with every command, and one for a command', () => {
     const page = Bun.spawnSync(['bun', CLI, '--help'], { env: env() }).stdout.toString()
     for (const part of ['Usage', 'Targets', 'Views', 'Commands', 'Options', 'Examples', 'prs [<number>]', 'update'])
@@ -119,5 +143,13 @@ describe('cli', () => {
     const again = Bun.spawnSync(['bun', CLI, 'prs', '12', '-C', repo.path, '--no-open'], { env: home })
     expect(again.exitCode).toBe(0)
     expect(again.stdout.toString().trim()).toBe(url.replace('/graph?', '/prs/12?'))
+
+    // A file is read from the -C folder, as git reads it, wherever the command runs.
+    mkdirSync(join(repo.path, 'src'))
+    const file = Bun.spawnSync(['bun', CLI, 'files', 'app.ts:4', '-C', join(repo.path, 'src'), '--no-open'], {
+      env: home,
+      cwd: tmpdir(),
+    })
+    expect(file.stdout.toString().trim()).toBe(url.replace('/graph?', '/files?file=src%2Fapp.ts&line=4&'))
   })
 })
