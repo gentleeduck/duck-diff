@@ -52,7 +52,7 @@ function fakeGitHub(tag: string, binary: string, sum = new Bun.CryptoHasher('sha
 }
 
 describe('updating', () => {
-  const run = async (tag: string, sum?: string) => {
+  const run = async (tag: string, sum?: string, wanted: string | null = null, auth: string | null = null) => {
     data = mkdtempSync(join(tmpdir(), 'duck-update-'))
     const binary = join(data, 'duck-diff')
     writeFileSync(binary, 'old')
@@ -67,11 +67,11 @@ describe('updating', () => {
     const ok = await update({
       binary,
       current: '0.5.1',
-      wanted: null,
+      wanted,
       report,
       api: `http://127.0.0.1:${github.port}`,
       repo: 'o/r',
-      auth: null,
+      auth,
     })
     github.stop(true)
     return { ok, text, binary }
@@ -100,6 +100,19 @@ describe('updating', () => {
     expect(ok).toBe(true)
     expect(text).toBe('✔ Already on 0.5.1, the newest release\n')
     expect(readFileSync(binary, 'utf8')).toBe('old')
+  })
+
+  it('says when the release asked for does not exist, and changes nothing', async () => {
+    const { ok, text, binary } = await run('v9.9.9', undefined, '7.7.7')
+    expect(ok).toBe(false)
+    expect(text).toContain('✖ there is no release 7.7.7; see https://github.com/o/r/releases')
+    expect(readFileSync(binary, 'utf8')).toBe('old')
+  })
+
+  it('with a token, allows that the release may be one the token cannot read', async () => {
+    const { ok, text } = await run('v9.9.9', undefined, '7.7.7', 'token')
+    expect(ok).toBe(false)
+    expect(text).toContain('✖ there is no release 7.7.7 that this token can read; see https://github.com/o/r/releases')
   })
 
   it('refuses a download that does not match its checksum and keeps the old binary', async () => {

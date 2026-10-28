@@ -88,7 +88,11 @@ export function StatusBar({ live }: { live: LiveState }) {
       <OperationStatus />
       <span className="ml-auto" aria-live="polite">
         {status === 'loading' && 'Loading changes'}
-        {status === 'error' && <span className="text-removed">Could not load changes: {error}</span>}
+        {status === 'error' && (
+          <span className="block max-w-[60vw] truncate text-removed" title={error ?? undefined}>
+            Could not load changes: {error}
+          </span>
+        )}
         {status === 'ready' && `Updated ${relativeTime(Number(loadedAt) / 1000)}`}
       </span>
     </>

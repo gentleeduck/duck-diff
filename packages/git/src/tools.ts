@@ -53,7 +53,8 @@ export function parseTodo(text: string): { sha: string; action: RebaseStep['acti
   const steps: { sha: string; action: RebaseStep['action'] }[] = []
   for (const raw of text.split('\n')) {
     const line = raw.trim()
-    if (!line || line.startsWith('#') || line === 'noop') continue
+    // Comments start with core.commentChar, which need not be #; every command starts with a letter.
+    if (!line || !/^[a-z]/i.test(line) || line === 'noop') continue
     const [word = '', sha = ''] = line.split(/\s+/)
     const action = SHORT[word]
     if (!action || !/^[0-9a-f]{4,64}$/i.test(sha)) return null

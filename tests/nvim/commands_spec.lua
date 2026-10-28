@@ -18,6 +18,13 @@ return {
     eq({ kind = 'range', from = 'main', to = 'HEAD', mode = 'merge-base' }, target.parse('main'))
   end,
 
+  ['takes diff <target> as a diff, even for a ref named like a view'] = function()
+    eq({ kind = 'range', from = 'graph', to = 'HEAD', mode = 'merge-base' }, target.parse('diff graph'))
+    eq({ kind = 'staged' }, target.parse('diff staged'))
+    eq({ kind = 'local' }, target.parse('diff'))
+    eq(nil, target.view({ 'diff', 'graph' }))
+  end,
+
   ['parses commits, defaulting to HEAD'] = function()
     eq({ kind = 'commit', sha = 'abc1234' }, target.parse('commit abc1234'))
     eq({ kind = 'commit', sha = 'HEAD' }, target.parse('commit'))
@@ -25,6 +32,40 @@ return {
 
   ['rejects refs that look like options'] = function()
     eq(false, (pcall(target.parse, '--exec=x')))
+  end,
+
+  ['reads views by name as the command line does, and leaves diffs alone'] = function()
+    eq('/graph', target.view({ 'graph' }))
+    eq('/prs', target.view({ 'prs' }))
+    eq('/prs/12', target.view({ 'prs', '#12' }))
+    eq('/issues/3', target.view({ 'issues', '3' }))
+    eq('/files', target.view({ 'files' }))
+    eq('/files?file=src%2Fapp.ts&line=40', target.view({ 'files', 'src/app.ts:40' }))
+    eq('/files?file=README.md', target.view({ 'files', 'README.md' }))
+    eq(nil, target.view({}))
+    eq(nil, target.view({ 'main...feat/x' }))
+    eq(nil, target.view({ 'commit', 'abc1234' }))
+    eq(false, (pcall(target.view, { 'prs', 'abc' })))
+    eq(false, (pcall(target.view, { 'graph', 'x' })))
+    eq(false, (pcall(target.view, { 'files', 'a', 'b' })))
+  end,
+
+  ['reads a file named from inside the repo from where Neovim is, as git does'] = function()
+    eq('/files?file=src%2Fapp.ts&line=4', target.view({ 'files', 'app.ts:4' }, '/r', '/r/src'))
+    eq('/files?file=src%2Fapp.ts', target.view({ 'files', 'src/app.ts' }, '/r', '/r'))
+    eq('/files?file=src%2Fapp.ts', target.view({ 'files', 'src/app.ts' }, '/r', '/elsewhere'))
+    eq('/files?file=lib%2Fa.ts', target.view({ 'files', '../lib/a.ts' }, '/r', '/r/src'))
+  end,
+
+  ['keeps a path with a space, as Neovim splits an escaped one, and a $name as written'] = function()
+    eq('/files?file=docs%2Fmy%20file.md', target.view({ 'files', 'my file.md' }, '/r', '/r/docs'))
+    eq('/files?file=src%2F%24USER.tsx', target.view({ 'files', '$USER.tsx' }, '/r', '/r/src'))
+  end,
+
+  ['puts the token on a view path'] = function()
+    local server = { origin = 'http://127.0.0.1:9', token = 'ab' }
+    eq('http://127.0.0.1:9/graph?token=ab', target.page_url(server, '/graph'))
+    eq('http://127.0.0.1:9/files?file=a&token=ab', target.page_url(server, '/files?file=a'))
   end,
 
   ['adds the target to the page url'] = function()
@@ -62,8 +103,26 @@ return {
     vim.fn.system({ 'git', '-C', dir, 'branch', 'feature' })
     vim.cmd.cd(dir)
     eq({ 'staged', 'status' }, commands.complete('sta'))
+    eq({ 'graph' }, commands.complete('gra'))
+    eq({ 'diff', 'discussions' }, commands.complete('di'))
     eq({ 'feature' }, commands.complete('fea'))
     eq({ 'main...feature' }, commands.complete('main...fe'))
+  end,
+
+  ['completes a path after files, and nothing after views that take none'] = function()
+    local commands = require('duck-diff.commands')
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir .. '/src', 'p')
+    vim.fn.writefile({}, dir .. '/src/app.ts')
+    vim.fn.system({ 'git', '-C', dir, 'init', '-q', '-b', 'main' })
+    vim.fn.system({ 'git', '-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'base', '--allow-empty' })
+    vim.cmd.cd(dir)
+    eq({ 'src/' }, commands.complete('sr', 'DuckDiff files sr'))
+    eq({ 'src/app.ts' }, commands.complete('src/a', 'DuckDiff files src/a'))
+    eq({}, commands.complete('', 'DuckDiff files src/app.ts '))
+    eq({}, commands.complete('', 'DuckDiff graph '))
+    eq({}, commands.complete('1', 'DuckDiff prs 1'))
+    eq({ 'main' }, commands.complete('ma', 'DuckDiff diff ma'))
   end,
 
   ['the plugin file registers the command'] = function()

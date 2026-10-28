@@ -25,6 +25,12 @@ describe('listCommits', () => {
     expect(commits[0]?.parents).toEqual([commits[1]?.sha])
   })
 
+  it('lists nothing for a repo with no commits yet, and still rejects a bad ref', async () => {
+    repo = createRepo()
+    expect(await listCommits(repo.path, { head: 'HEAD', limit: 50 })).toEqual([])
+    await expect(listCommits(repo.path, { head: 'nope' })).rejects.toThrow()
+  })
+
   it('lists all history without a base, respecting the limit', async () => {
     history()
     expect((await listCommits(repo.path, { head: 'feat' })).length).toBe(3)

@@ -1,4 +1,5 @@
 import {
+  assertRefs,
   conflictBlame,
   findSymbol,
   graphTips,
@@ -300,6 +301,8 @@ export async function handleApi(
       const kept = memo?.get(key)
       if (kept !== undefined) return new Response(kept, { headers })
       const stamp = memo?.stamp() ?? 0
+      // A missing ref answers here; once the stream has started, git's failure could only cut it short.
+      await assertRefs(repo, target)
       const stream = streamDiff(repo, target)
       return new Response(iterableToStream(memo ? remembering(stream, (text) => memo.set(key, text, stamp)) : stream), {
         headers,

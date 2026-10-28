@@ -176,9 +176,17 @@ export function createSession(api: Api, initial: DiffTarget, seed: Seed | null =
       if (!done) return
       store.set((prev) => ({ ...prev, ...done, status: 'ready', streaming: false }))
     } catch (error) {
-      // A failed quiet refresh leaves the diff that is showing.
+      // A failed quiet refresh leaves the diff that is showing; a new comparison that fails shows no files, not
+      // the ones of the comparison before it.
       if (controller.signal.aborted || memory) return
-      store.set((prev) => ({ ...prev, status: 'error', error: (error as Error).message, streaming: false }))
+      store.set((prev) => ({
+        ...prev,
+        files: [],
+        items: [],
+        status: 'error',
+        error: (error as Error).message,
+        streaming: false,
+      }))
     }
   }
 

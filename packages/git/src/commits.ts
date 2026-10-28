@@ -1,4 +1,5 @@
 import type { Commit } from '@duck-diff/protocol'
+import { GitError } from './errors'
 import { runGit } from './run'
 
 export type { Commit }
@@ -7,6 +8,9 @@ export type { Commit }
 const FIELD = '\x1f'
 const RECORD = '\x1e'
 const FORMAT = `${['%H', '%P', '%an', '%ae', '%at', '%s'].join('%x1f')}%x1e`
+
+const born = async (repo: string) =>
+  (await runGit(['rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: repo, okExitCodes: [1] })).trim() !== ''
 
 export async function listCommits(
   repo: string,
@@ -18,7 +22,14 @@ export async function listCommits(
   const grep = range.grep ? ['-i', '--fixed-strings', `--grep=${range.grep}`] : []
   // --follow keeps a file's history across renames; git allows it for exactly one path.
   const path = range.path ? ['--follow', '--', range.path] : ['--']
-  const out = await runGit(['log', `--format=${FORMAT}`, ...limit, ...grep, revision, ...path], { cwd: repo })
+  const out = await runGit(['log', `--format=${FORMAT}`, ...limit, ...grep, revision, ...path], { cwd: repo }).catch(
+    async (error) => {
+      // A repo with no commits yet has a HEAD that names nothing: no history, rather than a bad ref.
+      if (error instanceof GitError && error.code === 'unknown-ref' && revision === 'HEAD' && !(await born(repo)))
+        return ''
+      throw error
+    },
+  )
   return out
     .split(RECORD)
     .map((record) => record.replace(/^\n/, ''))

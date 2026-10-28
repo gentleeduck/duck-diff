@@ -13,7 +13,14 @@ export interface Fixture {
 // the next listener, and a probe listener still closing took the next server's first connection.
 let nextPort = 20_000 + Math.floor(Math.random() * 10_000)
 export function testPort(): number {
-  return nextPort++
+  // A port another program listens on (Syncthing takes 22000) is skipped.
+  for (;;) {
+    const port = nextPort++
+    try {
+      Bun.listen({ hostname: '127.0.0.1', port, socket: { data() {} } }).stop(true)
+      return port
+    } catch {}
+  }
 }
 
 export async function startFixture(setup: (repo: TestRepo) => void, watch = false): Promise<Fixture> {

@@ -38,10 +38,7 @@ describe('git-setup', () => {
     await put('merge.tool', 'meld')
     await put('mergetool.prompt', 'true')
     const { kept } = await gitSetup('duck-diff', home, config)
-    expect(kept).toEqual([
-      { key: 'merge.tool', value: 'meld' },
-      { key: 'mergetool.prompt', value: 'true' },
-    ])
+    expect(kept).toEqual([{ key: 'merge.tool', value: 'meld' }])
     expect(await get('merge.tool')).toBe('meld')
     expect(await get('mergetool.duck-diff.cmd')).toBe('duck-diff mergetool "$MERGED"')
 
@@ -52,6 +49,19 @@ describe('git-setup', () => {
     expect(await get('diff.tool')).toBeNull()
     expect(await get('sequence.editor')).toBeNull()
     expect(await get('mergetool.keepBackup')).toBeNull()
+  })
+
+  it("leaves the prompts and backups of the user's own tools alone", async () => {
+    const { config, home, get, put } = sandbox()
+    await put('merge.tool', 'meld')
+    await put('diff.tool', 'meld')
+    await gitSetup('duck-diff', home, config)
+    expect(await get('merge.tool')).toBe('meld')
+    expect(await get('mergetool.prompt')).toBeNull()
+    expect(await get('mergetool.keepBackup')).toBeNull()
+    expect(await get('difftool.prompt')).toBeNull()
+    // Its own entries are still there for `git mergetool --tool duck-diff`.
+    expect(await get('mergetool.duck-diff.cmd')).toBe('duck-diff mergetool "$MERGED"')
   })
 
   it('points its own entries at a moved binary when run again', async () => {

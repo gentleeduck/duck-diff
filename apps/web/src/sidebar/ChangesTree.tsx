@@ -23,6 +23,7 @@ import { ViewedProgress } from './ViewedProgress'
 
 const selectFiles = (state: SessionState) => state.files
 const selectLoading = (state: SessionState) => state.status === 'loading' && state.files.length === 0
+const selectFailure = (state: SessionState) => (state.status === 'error' ? state.error : null)
 const selectPatterns = (state: Settings) => state.hidePatterns
 const selectFolders = (folders: ReadonlySet<string>) => folders
 const selectTop = (path: string | null) => path
@@ -36,6 +37,7 @@ export function ChangesTree() {
   const openInEditor = useOpenFile()
   const files = useSession(selectFiles)
   const loading = useSession(selectLoading)
+  const failure = useSession(selectFailure)
   const [statusList, setStatusList] = useKept<TreeStatus[]>('changes-statuses', [])
   const statuses = useMemo(() => new Set(statusList), [statusList])
   const [query, setQuery] = useKept('changes-query', '')
@@ -109,7 +111,9 @@ export function ChangesTree() {
         />
       ) : files.length > 0 && shown.length === 0 ? (
         <HiddenNotice count={files.length} />
-      ) : loading ? null : (
+      ) : loading ? null : failure ? (
+        <p className="p-3 text-removed">{failure}</p>
+      ) : (
         <p className="p-3 text-tn-comment">
           {files.length === 0
             ? 'No changes in this comparison. Nothing to see, waddle along.'

@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+- `:DuckDiff` opens views as the command line does: `:DuckDiff graph`, `:DuckDiff prs 12`, `:DuckDiff files
+  src/app.ts:40` and the rest, completed with the targets. A file is named from where you are (or the `-C`
+  folder), there and in `duck-diff files`, as git names paths; `my\ file.md` keeps its space and `$USER.tsx` its
+  name. `:DuckDiff diff graph` compares a branch named like a view, and a diff sent from Neovim while the page
+  shows another view switches it to Changes.
+- The commit box waits while a merge, pick, revert or popped stash still has conflicts: it says how many are left,
+  below the message so typing does not hide it, and Commit stays off until the conflicts are known and resolved,
+  where it used to count the conflicted file as staged and let git refuse.
+- A repo with no commits yet opens cleanly: the graph and the branch list say there is nothing yet instead of
+  failing or loading forever, and the first commit is made from the page as any other.
+- A comparison with a ref the repo does not have (a full hash of no commit included) says which ref, in the file
+  list and the status bar, instead of showing no changes, or the files of the comparison before it.
+- Publish is off in a repo with no remote, with the reason on hover and on keyboard focus, and turns on as soon as
+  a remote is added, from the page or a terminal. A push the remote rejects says to pull, and to check the remote
+  history before a force push after an amend or rebase.
+- Staging a hunk or single lines, and discarding lines, work when your git config sets `diff.noprefix` (or
+  `diff.mnemonicPrefix`); they failed with "does not exist in index". Settings that only change the shape of
+  git's output (`diff.noprefix`, `log.decorate=full`, `log.showSignature` and the like) no longer reach what
+  duck-diff reads, so the graph names branches short whatever `log.decorate` says.
+- duck-diff as the rebase editor reads a todo whose comments start with another `core.commentChar` (`;`, `%`,
+  `auto`), where it used to hand the rebase back to your own editor.
+- Comparing two branches that share no history (a gh-pages branch) from where they split says so and offers
+  the direct comparison, instead of git's error and an empty diff.
+- A repository another user owns is named as one git does not trust, with the `safe.directory` command that
+  trusts it, instead of "not a git repository".
+- In Neovim, `:DuckDiff files <Tab>` completes paths, and views that take no argument complete nothing.
+- `duck-diff git-setup` leaves the prompts and backups of a merge or diff tool you chose yourself alone.
+- `duck-diff update <version>` says when there is no such release (or none the token can read), and a bare
+  repository is named as one.
+- The Neovim plugin finishes installing even when the downloaded binary cannot run, and says why when it starts.
+- Development: packages no longer share Vitest's module cache, which made parallel test runs fail at random; dev
+  dependencies with advisories (fast-uri, undici) are pinned to fixed versions, packages younger than a week are
+  not installed, and each workflow's token can only write what its job needs.
+
 ## 0.7.2
 
 - A merge pick is never final before Continue: pressing the side taken again takes it back, Start over clears a

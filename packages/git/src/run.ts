@@ -18,8 +18,39 @@ export interface RunOptions {
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
+// Settings that change the shape of git's output, held at git's defaults whatever the user's config says: patches
+// here are read and applied with a/ and b/ prefixes, decorations as short names, logs without signature lines.
+const PINNED_CONFIG: Readonly<Record<string, string>> = {
+  'diff.noprefix': 'false',
+  'diff.mnemonicPrefix': 'false',
+  'diff.srcPrefix': 'a/',
+  'diff.dstPrefix': 'b/',
+  'diff.relative': 'false',
+  'diff.suppressBlankEmpty': 'false',
+  'log.decorate': 'short',
+  'log.showSignature': 'false',
+}
+
+// As `git -c`, through the environment, after any pairs the environment already carries.
+function pinnedEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const start = Number(env.GIT_CONFIG_COUNT) || 0
+  const pairs = Object.entries(PINNED_CONFIG)
+  const out: Record<string, string> = { GIT_CONFIG_COUNT: String(start + pairs.length) }
+  pairs.forEach(([key, value], at) => {
+    out[`GIT_CONFIG_KEY_${start + at}`] = key
+    out[`GIT_CONFIG_VALUE_${start + at}`] = value
+  })
+  return out
+}
+
 // GIT_OPTIONAL_LOCKS=0 keeps reads from rewriting .git/index (the repo may be a receive-only sync copy).
-const ENV = { ...process.env, GIT_OPTIONAL_LOCKS: '0', LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0' }
+const ENV = {
+  ...process.env,
+  GIT_OPTIONAL_LOCKS: '0',
+  LC_ALL: 'C',
+  GIT_TERMINAL_PROMPT: '0',
+  ...pinnedEnv(process.env),
+}
 
 // Where a user action's commands and output go, so the page can show what ran instead of working headless.
 export interface OutputSink {

@@ -46,6 +46,22 @@ describe('session', () => {
     expect(session.get()).toMatchObject({ status: 'error', error: 'boom' })
   })
 
+  it('shows no files for a comparison that fails, rather than the files of the one before', async () => {
+    const session = createSession(
+      fakeApi({
+        files: async (target) => {
+          if (target.kind === 'staged') throw new Error('nope is not a branch, tag or commit in this repo')
+          return FILES
+        },
+      }),
+      { kind: 'local' },
+    )
+    await session.load({ kind: 'local' })
+    expect(session.get().files.length).toBe(2)
+    await session.load({ kind: 'staged' })
+    expect(session.get()).toMatchObject({ status: 'error', files: [], items: [] })
+  })
+
   it('drops a load that a newer load replaced', async () => {
     let release: () => void = () => {}
     const slow = new Promise<void>((resolve) => {

@@ -63,7 +63,7 @@ export async function readOperation(repo: string): Promise<Operation | null> {
 }
 
 // `git status --porcelain=v2 --branch` headers: "# branch.head main", "# branch.upstream origin/main", "# branch.ab +1 -2";
-// entry lines start "1 XY" (or "2 XY" for renames), where X is the index side.
+// entry lines start "1 XY" (or "2 XY" for renames), where X is the index side. "u" lines are conflicts, not staged.
 export async function readSyncStatus(repo: string): Promise<SyncStatus> {
   const [out, operation] = await Promise.all([
     runGit(['status', '--porcelain=v2', '--branch', '--untracked-files=no'], { cwd: repo }),
@@ -87,7 +87,7 @@ export async function readSyncStatus(repo: string): Promise<SyncStatus> {
       const [ahead = '+0', behind = '-0'] = line.slice(12).split(' ')
       status.ahead = Number(ahead.slice(1))
       status.behind = Number(behind.slice(1))
-    } else if (/^[12u] /.test(line) && line[2] !== '.') status.staged++
+    } else if (/^[12] /.test(line) && line[2] !== '.') status.staged++
   }
   return status
 }

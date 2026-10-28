@@ -134,7 +134,7 @@ function BranchActions({ name, local }: { name: string; local: boolean }) {
 
 export function GraphSidebar() {
   const { graph, graphSelection } = useApp()
-  const { refs } = useRefs()
+  const { refs, loaded } = useRefs()
   const all = useStore(graph, selectAll)
   const allId = useId()
   const [branchFrom, setBranchFrom] = useState<string | null>(null)
@@ -152,8 +152,13 @@ export function GraphSidebar() {
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {/* A repo with commits always has a ref; none yet means they are still being read. */}
-        {refs.length === 0 ? <TreeSkeleton count={10} /> : null}
+        {refs.length === 0 ? (
+          loaded ? (
+            <p className="px-2 text-muted-foreground">No branches yet: the first commit makes one.</p>
+          ) : (
+            <TreeSkeleton count={10} />
+          )
+        ) : null}
         {GROUPS.map(({ kind, title, glyph }) => {
           const list = refs.filter((ref) => ref.kind === kind)
           if (list.length === 0) return null

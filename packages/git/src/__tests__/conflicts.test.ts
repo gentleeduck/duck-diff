@@ -263,7 +263,11 @@ describe('writeResolution', () => {
   it('refuses a file that is not conflicted', async () => {
     conflicted()
     writeFileSync(join(repo.path, 'b.txt'), 'b\n')
-    await expect(writeResolution(repo.path, 'b.txt', 'x\n')).rejects.toThrow(/not conflicted/)
+    await expect(writeResolution(repo.path, 'b.txt', 'x\n')).rejects.toMatchObject({ code: 'stale' })
+    await expect(readConflict(repo.path, 'b.txt')).rejects.toMatchObject({
+      code: 'stale',
+      message: 'b.txt is not conflicted',
+    })
   })
 })
 

@@ -16,6 +16,9 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
     },
     exclude: ARTIFACTS,
+    // Each package keeps its own: turbo runs them at once, and a shared one at the root is wiped by one
+    // run while another is writing to it (ENOTEMPTY).
+    fsModuleCachePath: 'node_modules/.vitest-cache',
     include: ['src/**/__tests__/**/*.test.ts'],
     maxWorkers: MAX_WORKERS,
     passWithNoTests: true,

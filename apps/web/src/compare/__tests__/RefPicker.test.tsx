@@ -49,7 +49,7 @@ function open(value = '') {
         label="HEAD"
         side="from"
         value={value}
-        refs={{ refs: [ref('main'), ref('feat/x')], commits: [] }}
+        refs={{ refs: [ref('main'), ref('feat/x')], commits: [], loaded: true }}
         onPick={onPick}
         onRange={onRange}
       />

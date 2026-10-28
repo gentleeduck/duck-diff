@@ -179,7 +179,8 @@ describe('merge, cherry-pick and revert', () => {
   it('stops a conflicting merge for resolving, reports it, and aborts it', async () => {
     diverged()
     expect(await mergeRef(repo.path, 'side')).toEqual({ conflicts: true })
-    expect(await readSyncStatus(repo.path)).toMatchObject({ operation: 'merge', incoming: 'side' })
+    // The conflicted file is waiting on a resolution, not staged.
+    expect(await readSyncStatus(repo.path)).toMatchObject({ operation: 'merge', incoming: 'side', staged: 0 })
     await abortOperation(repo.path)
     expect((await readSyncStatus(repo.path)).operation).toBeNull()
     expect(repo.git('status', '--porcelain')).toBe('')

@@ -10,10 +10,13 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   semgrep:
+    # Only the job that uploads its findings may write them.
+    permissions:
+      contents: read
+      security-events: write
     name: scan
     runs-on: ubuntu-latest
     container:

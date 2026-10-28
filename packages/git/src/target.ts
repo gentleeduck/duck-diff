@@ -1,4 +1,5 @@
 import type { DiffTarget } from '@duck-diff/protocol'
+import { GitError } from './errors'
 import { runGit } from './run'
 
 export type { DiffTarget }
@@ -28,6 +29,38 @@ export async function targetArgs(repo: string, target: DiffTarget): Promise<stri
         okExitCodes: [1],
       })
       return [parent.trim() ? `${target.sha}^1` : EMPTY_TREE, target.sha]
+    }
+  }
+}
+
+// Throws naming the ref a target asks for that the repo lacks, where git would only say "ambiguous argument".
+// Targets on the index and working tree alone name none, so they cost nothing here.
+export async function assertRefs(repo: string, target: DiffTarget): Promise<void> {
+  const refs =
+    target.kind === 'range'
+      ? [target.from, target.to]
+      : target.kind === 'commit'
+        ? [target.sha]
+        : target.kind === 'unstaged'
+          ? []
+          : [target.base]
+  for (const ref of refs) {
+    if (!ref) continue
+    // A full hash verifies as itself even when no such object exists; ^{object} asks git to find it.
+    const found = await runGit(['rev-parse', '--verify', '--quiet', `${ref}^{object}`], { cwd: repo, okExitCodes: [1] })
+    if (!found.trim()) throw new GitError('unknown-ref', 1, '', `${ref} is not a branch, tag or commit in this repo`)
+  }
+  // Comparing from where two branches split needs a commit they share; unrelated histories (gh-pages) have none.
+  if (target.kind === 'range' && target.mode === 'merge-base') {
+    const base = await runGit(['merge-base', target.from, target.to], { cwd: repo, okExitCodes: [1] })
+    if (!base.trim()) {
+      const { from, to } = target
+      throw new GitError(
+        'unknown-ref',
+        1,
+        '',
+        `${from} and ${to} share no history; compare them directly with ${from}..${to}`,
+      )
     }
   }
 }

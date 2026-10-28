@@ -47,27 +47,32 @@ export async function gitSetup(command: string, home: string, config?: string): 
   const changes: Change[] = []
   const kept: SetupResult['kept'] = []
   const claimed = new Set(await readLedger(home))
+  // True when the key is duck-diff's after this, false when the user's own value stays.
   const put = async (key: string, value: string, mode: 'ours' | 'default') => {
     const was = await read(key)
-    if (was === value) return
+    if (was === value) return true
     if (mode === 'default' && was !== null && !was.includes(NAME)) {
       kept.push({ key, value: was })
-      return
+      return false
     }
     await set(key, value)
     if (was === null) claimed.add(key)
     changes.push({ key, was, now: value })
+    return true
   }
   await put(`mergetool.${NAME}.cmd`, `${command} mergetool "$MERGED"`, 'ours')
   await put(`mergetool.${NAME}.trustExitCode`, 'true', 'ours')
   await put(`difftool.${NAME}.cmd`, `${command} difftool "$LOCAL" "$REMOTE" "$MERGED"`, 'ours')
   await put(`difftool.${NAME}.trustExitCode`, 'true', 'ours')
-  await put('merge.tool', NAME, 'default')
-  await put('diff.tool', NAME, 'default')
+  const merges = await put('merge.tool', NAME, 'default')
+  const diffs = await put('diff.tool', NAME, 'default')
   await put('sequence.editor', `${command} rebase-todo`, 'default')
-  await put('mergetool.prompt', 'false', 'default')
-  await put('mergetool.keepBackup', 'false', 'default')
-  await put('difftool.prompt', 'false', 'default')
+  // The prompts and backups apply to whichever tool git runs, so another tool the user chose keeps its own.
+  if (merges) {
+    await put('mergetool.prompt', 'false', 'default')
+    await put('mergetool.keepBackup', 'false', 'default')
+  }
+  if (diffs) await put('difftool.prompt', 'false', 'default')
   await mkdir(dirname(ledger(home)), { recursive: true })
   await writeFile(ledger(home), JSON.stringify([...claimed]))
   return { changes, kept }
