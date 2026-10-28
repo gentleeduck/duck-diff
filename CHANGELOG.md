@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.3
 
 - `:DuckDiff` opens views as the command line does: `:DuckDiff graph`, `:DuckDiff prs 12`, `:DuckDiff files
   src/app.ts:40` and the rest, completed with the targets. A file is named from where you are (or the `-C`
