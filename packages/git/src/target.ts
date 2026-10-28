@@ -46,7 +46,8 @@ export async function assertRefs(repo: string, target: DiffTarget): Promise<void
           : [target.base]
   for (const ref of refs) {
     if (!ref) continue
-    const found = await runGit(['rev-parse', '--verify', '--quiet', ref], { cwd: repo, okExitCodes: [1] })
+    // A full hash verifies as itself even when no such object exists; ^{object} asks git to find it.
+    const found = await runGit(['rev-parse', '--verify', '--quiet', `${ref}^{object}`], { cwd: repo, okExitCodes: [1] })
     if (!found.trim()) throw new GitError('unknown-ref', 1, '', `${ref} is not a branch, tag or commit in this repo`)
   }
 }

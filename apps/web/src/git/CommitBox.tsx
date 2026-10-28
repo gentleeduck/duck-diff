@@ -1,5 +1,5 @@
 import { Button, Checkbox, Label, Popover, PopoverContent, PopoverTrigger, Textarea } from '@duck-diff/ui'
-import { Archive, ArchiveX, Brush, Ellipsis, GitCommitHorizontal, Undo2, Upload } from 'lucide-react'
+import { Archive, ArchiveX, Brush, Ellipsis, GitCommitHorizontal, TriangleAlert, Undo2, Upload } from 'lucide-react'
 import { type ReactNode, useId } from 'react'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
@@ -28,10 +28,13 @@ export function CommitBox() {
   const amendId = useId()
   const signoffId = useId()
   const staged = status?.staged ?? 0
-  const conflicts = countConflicts(useStage())
+  const stage = useStage()
+  const conflicts = countConflicts(stage)
   // An unfinished merge or pick commits its resolution even when nothing new is staged.
   const finishing = Boolean(status?.operation && status.operation !== 'rebase')
-  const ready = message.trim().length > 0 && (staged > 0 || amend || finishing) && !conflicts && busy === null
+  // Until the stage is read, conflicts are unknown and a commit could be refused for them.
+  const ready =
+    message.trim().length > 0 && (staged > 0 || amend || finishing) && stage.loaded && !conflicts && busy === null
 
   const commit = async (andPush: boolean) => {
     const ok = await run('commit', { message, amend, signoff }, amend ? 'Amended the last commit' : 'Committed')
@@ -65,11 +68,7 @@ export function CommitBox() {
       <Textarea
         aria-label="Commit message"
         placeholder={
-          conflicts
-            ? `Resolve ${conflicts} ${conflicts === 1 ? 'conflict' : 'conflicts'} before committing`
-            : staged
-              ? `Message for ${staged} staged ${staged === 1 ? 'file' : 'files'}`
-              : 'Stage changes to commit'
+          staged ? `Message for ${staged} staged ${staged === 1 ? 'file' : 'files'}` : 'Stage changes to commit'
         }
         value={message}
         rows={3}
@@ -78,6 +77,15 @@ export function CommitBox() {
           if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && ready) void commit(false)
         }}
       />
+      {/* Outside the box, so it stays once a message is typed; a stash that conflicts has no banner above. */}
+      {conflicts ? (
+        <p role="status" className="flex gap-2 text-warning">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          <span className="min-w-0">
+            Resolve {conflicts} {conflicts === 1 ? 'conflict' : 'conflicts'} before committing
+          </span>
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-2">
           <Checkbox

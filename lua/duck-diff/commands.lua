@@ -5,7 +5,7 @@ local target = require('duck-diff.target')
 
 local M = {}
 
-local SUBCOMMANDS = vim.list_extend({ 'staged', 'unstaged', 'local', 'commit', 'status', 'close', 'build' }, target.VIEWS)
+local SUBCOMMANDS = vim.list_extend({ 'staged', 'unstaged', 'local', 'commit', 'diff', 'status', 'close', 'build' }, target.VIEWS)
 
 local function notify(message, level)
   vim.notify('duck-diff: ' .. message, level or vim.log.levels.INFO)
@@ -43,7 +43,10 @@ local function build()
   end))
 end
 
-function M.run(args)
+---@param args string
+---@param fargs? string[] the words as Neovim split them; read from `args` when left out
+function M.run(args, fargs)
+  fargs = fargs or vim.split(vim.trim(args or ''), '%s+', { trimempty = true })
   local root = M.root()
   if args == 'build' then
     return build()
@@ -59,7 +62,7 @@ function M.run(args)
     server.stop(root)
     return notify('stopped')
   end
-  local read, view = pcall(target.view, args, root, vim.fn.resolve(vim.fn.getcwd()))
+  local read, view = pcall(target.view, fargs, root, vim.fn.resolve(vim.fn.getcwd()))
   if not read then
     return notify(view, vim.log.levels.ERROR)
   end

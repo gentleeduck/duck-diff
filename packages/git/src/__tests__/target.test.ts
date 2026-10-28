@@ -59,6 +59,10 @@ describe('assertRefs', () => {
     await expect(assertRefs(repo.path, { kind: 'commit', sha: 'deadbeef' })).rejects.toThrow(
       'deadbeef is not a branch, tag or commit in this repo',
     )
+    const missing = 'f'.repeat(40)
+    await expect(assertRefs(repo.path, { kind: 'commit', sha: missing })).rejects.toThrow(
+      `${missing} is not a branch, tag or commit in this repo`,
+    )
     await expect(assertRefs(repo.path, { kind: 'range', from: 'main', to: 'HEAD', mode: 'two-dot' })).resolves.toBe(
       undefined,
     )

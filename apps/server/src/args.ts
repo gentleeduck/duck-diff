@@ -116,8 +116,8 @@ function viewPath(view: View, args: string[]): string {
   return `/${view}`
 }
 
-// `files <path>` names the file from where you are, as git does, and the page reads paths from the repo's root.
-// A path that does not land inside the repo (one named with -C from elsewhere) is the repo's own already.
+// `files <path>` names the file from `cwd` (where you are, or the -C folder), as git does, and the page reads
+// paths from the repo's root. A path that does not land inside the repo is taken as the repo's own.
 export function rootFile(path: string, repo: string, cwd: string): string {
   if (!path.startsWith('/files?')) return path
   const params = new URLSearchParams(path.slice('/files?'.length))

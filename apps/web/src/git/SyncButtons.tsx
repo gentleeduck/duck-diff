@@ -12,6 +12,30 @@ export function SyncButtons() {
   const publish = status?.branch && !status.upstream
   // A branch with nowhere to go: publishing would only fail.
   const nowhere = Boolean(publish && remotes?.length === 0)
+  // aria-disabled rather than disabled when there is nowhere to go: a disabled button takes no focus, and the
+  // reason has to be reachable from the keyboard.
+  const push = (
+    <Button
+      size="sm"
+      variant={status?.ahead || (publish && !nowhere) ? 'default' : 'outline'}
+      aria-label={publish ? 'Publish branch' : 'Push'}
+      aria-disabled={nowhere || undefined}
+      title={nowhere ? undefined : publish ? 'Publish branch' : 'Push'}
+      className={`${ICON_ONLY.mid} aria-disabled:opacity-50`}
+      loading={busy === 'push'}
+      disabled={busy !== null || !status?.branch}
+      onClick={() => {
+        if (!nowhere) void run('push', undefined, publish ? `Published ${status?.branch}` : 'Pushed')
+      }}>
+      <ArrowUp />
+      <span className={LABEL.mid}>{publish ? 'Publish' : 'Push'}</span>
+      {status?.ahead ? (
+        <Badge variant="secondary" size="sm" className={`rounded-full tabular-nums ${COUNT.mid}`}>
+          {status.ahead}
+        </Badge>
+      ) : null}
+    </Button>
+  )
   return (
     <span className="flex shrink-0 items-center gap-1.5">
       <Tooltip>
@@ -45,25 +69,14 @@ export function SyncButtons() {
           </Badge>
         ) : null}
       </Button>
-      <Button
-        size="sm"
-        variant={status?.ahead || (publish && !nowhere) ? 'default' : 'outline'}
-        aria-label={publish ? 'Publish branch' : 'Push'}
-        title={
-          nowhere ? 'No remote to publish to; add one under Remotes in the graph' : publish ? 'Publish branch' : 'Push'
-        }
-        className={ICON_ONLY.mid}
-        loading={busy === 'push'}
-        disabled={busy !== null || !status?.branch || nowhere}
-        onClick={() => void run('push', undefined, publish ? `Published ${status?.branch}` : 'Pushed')}>
-        <ArrowUp />
-        <span className={LABEL.mid}>{publish ? 'Publish' : 'Push'}</span>
-        {status?.ahead ? (
-          <Badge variant="secondary" size="sm" className={`rounded-full tabular-nums ${COUNT.mid}`}>
-            {status.ahead}
-          </Badge>
-        ) : null}
-      </Button>
+      {nowhere ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{push}</TooltipTrigger>
+          <TooltipContent>No remote to publish to; add one under Remotes in the graph</TooltipContent>
+        </Tooltip>
+      ) : (
+        push
+      )}
     </span>
   )
 }

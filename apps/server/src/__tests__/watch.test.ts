@@ -9,6 +9,7 @@ describe('classifyPath', () => {
     ['.git/HEAD', 'refs'],
     ['.git/refs/heads/main', 'refs'],
     ['.git/packed-refs', 'refs'],
+    ['.git/config', 'refs'],
     ['.git/objects/ab/cdef', null],
     ['.git/logs/HEAD', null],
     ['.git/index.lock', null],
@@ -78,6 +79,16 @@ describe('watchRepo', () => {
     const change = changeOf('refs')
     await Bun.sleep(100)
     repo.git('commit', '-q', '--allow-empty', '-m', 'empty')
+    expect(await change).toBe('refs')
+  })
+
+  it('reports a remote added from a terminal as a ref change', async () => {
+    repo = createRepo()
+    repo.write('a.txt', '1\n')
+    repo.commit('base')
+    const change = changeOf('refs')
+    await Bun.sleep(100)
+    repo.git('remote', 'add', 'origin', 'https://example.com/r.git')
     expect(await change).toBe('refs')
   })
 

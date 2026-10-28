@@ -3,18 +3,23 @@
 ## Unreleased
 
 - `:DuckDiff` opens views as the command line does: `:DuckDiff graph`, `:DuckDiff prs 12`, `:DuckDiff files
-  src/app.ts:40` and the rest, completed with the targets. A file is named from where you are, there and in
-  `duck-diff files`, as git names paths.
-- The commit box waits while a merge, pick or revert still has conflicts: it says how many are left and Commit
-  stays off, where it used to count the conflicted file as staged and let git refuse.
+  src/app.ts:40` and the rest, completed with the targets. A file is named from where you are (or the `-C`
+  folder), there and in `duck-diff files`, as git names paths; `my\ file.md` keeps its space and `$USER.tsx` its
+  name. `:DuckDiff diff graph` compares a branch named like a view, and a diff sent from Neovim while the page
+  shows another view switches it to Changes.
+- The commit box waits while a merge, pick, revert or popped stash still has conflicts: it says how many are left,
+  below the message so typing does not hide it, and Commit stays off until the conflicts are known and resolved,
+  where it used to count the conflicted file as staged and let git refuse.
 - A repo with no commits yet opens cleanly: the graph and the branch list say there is nothing yet instead of
   failing or loading forever, and the first commit is made from the page as any other.
-- A comparison with a ref the repo does not have says which ref, in the file list and the status bar, instead of
-  showing no changes and git's message about ambiguous arguments.
-- Publish is off, with the reason, in a repo with no remote. A push the remote rejects suggests force push (with
-  lease) after an amend or rebase, not only a pull.
+- A comparison with a ref the repo does not have (a full hash of no commit included) says which ref, in the file
+  list and the status bar, instead of showing no changes, or the files of the comparison before it.
+- Publish is off in a repo with no remote, with the reason on hover and on keyboard focus, and turns on as soon as
+  a remote is added, from the page or a terminal. A push the remote rejects says to pull, and to check the remote
+  history before a force push after an amend or rebase.
 - `duck-diff git-setup` leaves the prompts and backups of a merge or diff tool you chose yourself alone.
-- `duck-diff update <version>` says when there is no such release, and a bare repository is named as one.
+- `duck-diff update <version>` says when there is no such release (or none the token can read), and a bare
+  repository is named as one.
 - The Neovim plugin finishes installing even when the downloaded binary cannot run, and says why when it starts.
 - Development: packages no longer share Vitest's module cache, which made parallel test runs fail at random; dev
   dependencies with advisories (fast-uri, undici) are pinned to fixed versions, packages younger than a week are

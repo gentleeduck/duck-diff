@@ -13,6 +13,8 @@ end
 ---@param args string
 function M.parse(args)
   args = vim.trim(args or '')
+  -- `diff <target>` is a diff even for a ref named like a view, as the command line takes it.
+  args = args == 'diff' and '' or args:match('^diff%s+(.+)$') or args
   if STATES[args] then
     return { kind = STATES[args] }
   end
@@ -51,19 +53,19 @@ local function from_root(file, root, cwd)
   if not root then
     return file
   end
-  local full = vim.fs.normalize(file:sub(1, 1) == '/' and file or cwd .. '/' .. file)
+  -- A name such as $USER.tsx is a file's own name, not a variable.
+  local full = vim.fs.normalize(file:sub(1, 1) == '/' and file or cwd .. '/' .. file, { expand_env = false })
   if vim.startswith(full, root .. '/') then
     return full:sub(#root + 2)
   end
   return file
 end
 
----The page path for a view named by `:DuckDiff` arguments, or nil when they name a diff.
----@param args string
+---The page path for a view named by `:DuckDiff` words, or nil when they name a diff.
+---@param words string[] as Neovim splits the command's arguments, so `my\ file.txt` is one word
 ---@param root? string the repo, to read a file's path from `cwd`
 ---@param cwd? string
-function M.view(args, root, cwd)
-  local words = vim.split(vim.trim(args or ''), '%s+', { trimempty = true })
+function M.view(words, root, cwd)
   local name, arg = words[1], words[2]
   if not vim.tbl_contains(M.VIEWS, name) then
     return nil

@@ -172,7 +172,8 @@ async function main(): Promise<number> {
     return 1
   }
   const record = instanceFile(duckHome(), repo)
-  const page = command.name === 'open' ? rootFile(command.path, repo, process.cwd()) : '/'
+  // A file is named from the -C folder when one is given, as git reads paths after -C.
+  const page = command.name === 'open' ? rootFile(command.path, repo, realpathSync(command.repo)) : '/'
 
   if (command.name === 'mergetool' || command.name === 'difftool' || command.name === 'rebase-todo') {
     try {

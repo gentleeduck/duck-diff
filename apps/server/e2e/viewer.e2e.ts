@@ -308,3 +308,20 @@ test('a comparison with a ref the repo does not have says which, not that nothin
   await expect(page.getByRole('navigation', { name: 'Changed files' }).getByText(message)).toBeVisible()
   await expect(page.getByText('No changes in this comparison')).toHaveCount(0)
 })
+
+test('a diff sent from Neovim leaves the graph for Changes', async ({ page, app }) => {
+  await page.goto(`${app.url}&view=graph`)
+  await expect(page.getByRole('region', { name: 'Worktrees' })).toBeVisible()
+  const url = new URL(app.url)
+  const send = async () => {
+    const response = await page.request.post(`${url.origin}/api/navigate`, {
+      headers: { 'x-duck-diff-token': url.searchParams.get('token') ?? '' },
+      data: { target: { kind: 'staged' } },
+    })
+    return ((await response.json()) as { pages: number }).pages
+  }
+  // The page counts once its live connection is up.
+  await expect.poll(send).toBeGreaterThan(0)
+  await expect(page.getByRole('navigation', { name: 'Changed files' })).toBeVisible()
+  await expect(page).toHaveURL(/\/changes/)
+})

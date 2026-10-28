@@ -115,8 +115,9 @@ export async function update(options: UpdateOptions): Promise<boolean> {
     const path = `/repos/${repo}/releases/${wanted ? `tags/v${wanted}` : 'latest'}`
     const found = await github(api, path, auth).catch((error: Error & { status?: number }) => {
       if (!wanted || error.status !== 404) throw error
+      // GitHub answers 404 for a repo the token cannot read, too.
       throw new Error(
-        `there is no release ${wanted}; see https://github.com/${repo}/releases${auth ? '' : PRIVATE_HINT}`,
+        `there is no release ${wanted}${auth ? ' that this token can read' : ''}; see https://github.com/${repo}/releases${auth ? '' : PRIVATE_HINT}`,
       )
     })
     const release = (await found.json()) as Release

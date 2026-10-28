@@ -157,6 +157,7 @@ opts = {
 | --- | --- |
 | `:DuckDiff [target]` | opens a diff, targets as above |
 | `:DuckDiff <view> [arg]` | opens a view: `graph`, `files [path[:line]]`, `prs [n]`, `issues [n]`, `inbox` and the rest |
+| `:DuckDiff diff <target>` | a diff, for a ref named like a view (`:DuckDiff diff graph`) |
 | `:DuckDiff status` / `close` | the server for this repo |
 | `:DuckDiff build` | builds the binary from this checkout with Bun |
 

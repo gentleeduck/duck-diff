@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { HandshakeSchema } from '@duck-diff/protocol'
@@ -128,5 +128,13 @@ describe('cli', () => {
     const again = Bun.spawnSync(['bun', CLI, 'prs', '12', '-C', repo.path, '--no-open'], { env: home })
     expect(again.exitCode).toBe(0)
     expect(again.stdout.toString().trim()).toBe(url.replace('/graph?', '/prs/12?'))
+
+    // A file is read from the -C folder, as git reads it, wherever the command runs.
+    mkdirSync(join(repo.path, 'src'))
+    const file = Bun.spawnSync(['bun', CLI, 'files', 'app.ts:4', '-C', join(repo.path, 'src'), '--no-open'], {
+      env: home,
+      cwd: tmpdir(),
+    })
+    expect(file.stdout.toString().trim()).toBe(url.replace('/graph?', '/files?file=src%2Fapp.ts&line=4&'))
   })
 })

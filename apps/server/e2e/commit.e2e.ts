@@ -55,13 +55,38 @@ test('the commit box waits for every conflict of a merge to be resolved', async 
   await page.goto(app.url)
   const box = page.getByRole('form', { name: 'Commit' })
   const message = box.getByRole('textbox', { name: 'Commit message' })
-  await expect(message).toHaveAttribute('placeholder', 'Resolve 1 conflict before committing')
+  const waiting = box.getByText('Resolve 1 conflict before committing')
+  await expect(waiting).toBeVisible()
   await message.fill('merge feature')
+  // Still said once a message is typed, which would hide a placeholder.
+  await expect(waiting).toBeVisible()
   await expect(box.getByRole('button', { name: 'Commit', exact: true })).toBeDisabled()
 
   repo.write('list.txt', 'one both\n')
   repo.git('add', 'list.txt')
+  await expect(waiting).toBeHidden()
   await expect(message).toHaveAttribute('placeholder', 'Message for 1 staged file')
   await box.getByRole('button', { name: 'Commit', exact: true }).click()
   await expect.poll(() => repo.git('log', '-1', '--format=%P').split(' ').length).toBe(2)
+})
+
+test('a stash that conflicts says so in the commit box, with no operation banner to say it', async ({
+  page,
+  app,
+  repo,
+}) => {
+  repo.commit('work in progress')
+  repo.write('list.txt', 'one\n')
+  repo.commit('base')
+  repo.write('list.txt', 'one stashed\n')
+  repo.git('stash')
+  repo.write('list.txt', 'one committed\n')
+  repo.commit('moved on')
+  expect(() => repo.git('stash', 'pop')).toThrow()
+
+  await page.goto(app.url)
+  const box = page.getByRole('form', { name: 'Commit' })
+  await box.getByRole('textbox', { name: 'Commit message' }).fill('after the stash')
+  await expect(box.getByText('Resolve 1 conflict before committing')).toBeVisible()
+  await expect(box.getByText(/is in progress/)).toHaveCount(0)
 })

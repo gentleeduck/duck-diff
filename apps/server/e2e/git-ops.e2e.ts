@@ -104,9 +104,15 @@ test('a push still going shows after a reload, and ends there', async ({ page, a
   }
 })
 
-test('a branch has nowhere to publish until the repo has a remote', async ({ page, app }) => {
+test('a branch has nowhere to publish until the repo has a remote', async ({ page, app, repo }) => {
   await page.goto(app.url)
   const publish = page.getByRole('button', { name: 'Publish branch' })
   await expect(publish).toBeDisabled()
-  await expect(publish).toHaveAttribute('title', /No remote to publish to/)
+  // The reason is reachable from the keyboard, not only by hovering.
+  await publish.focus()
+  await expect(page.getByRole('tooltip')).toContainText('No remote to publish to')
+
+  // A remote added in a terminal turns it on without a reload.
+  repo.git('remote', 'add', 'origin', 'https://example.com/r.git')
+  await expect(publish).toBeEnabled()
 })
