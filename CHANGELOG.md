@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.4
 
 - Comments belong to the branch they were written on. A comment on the working tree, the index or a comparison
   with `HEAD` in it (`duck-diff main`) shows on that branch only, where it used to show on whatever branch was
