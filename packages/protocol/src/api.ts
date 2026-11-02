@@ -156,12 +156,29 @@ export type CreateReview = z.infer<typeof CreateReviewSchema>
 export const UpdateReviewSchema = z.object({ body: CreateReviewSchema.shape.body })
 export type UpdateReview = z.infer<typeof UpdateReviewSchema>
 
+// The server stores target with HEAD read as the branch (or commit) it was, so a comment stays on the diff it was
+// written on. Both fields are missing only on comments from before that, until the server first reads them.
 export const ReviewCommentSchema = CreateReviewSchema.extend({
   id: z.string().min(1),
   createdAt: z.number(),
   updatedAt: z.number(),
+  // Where HEAD was, for comments on the working tree or the index: a branch, or a commit when detached.
+  on: z.string().min(1).optional(),
+  // The local branch the comparison is about; deleting it deletes the comment, losing it otherwise orphans it.
+  branches: z.array(RefNameSchema).optional(),
 })
 export type ReviewComment = z.infer<typeof ReviewCommentSchema>
+
+export const OrphanedCommentSchema = ReviewCommentSchema.extend({ missing: z.array(RefNameSchema).min(1) })
+export type OrphanedComment = z.infer<typeof OrphanedCommentSchema>
+
+export const ReviewOverviewSchema = z.object({
+  counts: z.record(z.string(), z.number().int()),
+  orphaned: z.array(OrphanedCommentSchema),
+})
+export type ReviewOverview = z.infer<typeof ReviewOverviewSchema>
+
+export const AdoptReviewsSchema = z.object({ ids: z.array(z.string().min(1)).min(1).max(1000) })
 
 export const ResolveSchema = z.object({ path: RepoPathSchema, side: z.enum(['ours', 'theirs']) })
 // A merged text written over a conflicted file and staged.

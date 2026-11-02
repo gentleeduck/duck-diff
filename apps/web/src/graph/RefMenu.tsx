@@ -29,6 +29,7 @@ import { ask } from '../app/Ask'
 import { useGit } from '../git/GitProvider'
 import { useTarget } from '../hooks/useTarget'
 import { useView } from '../hooks/useView'
+import { deleteBranchNote, useBranchActions, useBranchComments } from './branch-actions'
 import { useCommitActions } from './commit-actions'
 
 // Right-click on a branch, remote branch, tag or stash in the graph sidebar.
@@ -50,14 +51,28 @@ export function RefMenu({
   const slash = name.indexOf('/')
   const remoteName = kind === 'remote' && slash > 0 ? name.slice(0, slash) : null
   const remoteBranch = remoteName ? name.slice(slash + 1) : null
+  const comments = useBranchComments(name)
+  const branch = useBranchActions()
+  // Asks only when comments would go with it.
+  const deleteBranch = async () => {
+    const yes =
+      comments === 0 ||
+      (await ask.confirm({
+        title: `Delete ${name}`,
+        body: deleteBranchNote(name, comments),
+        action: 'Delete',
+        destructive: true,
+      }))
+    if (yes) await branch.remove(name, false)
+  }
   const rename = async () => {
     const values = await ask.prompt({
       title: `Rename ${name}`,
       fields: [{ name: 'to', label: 'New name', initial: name }],
       action: 'Rename',
     })
-    if (values && values.to !== name)
-      await run('branch-rename', { from: name, to: values.to }, `Renamed to ${values.to}`)
+    const to = values?.to
+    if (to && to !== name) await branch.rename(name, to)
   }
   const upstream = async () => {
     const values = await ask.prompt({
@@ -188,9 +203,7 @@ export function RefMenu({
               </>
             ) : null}
             {kind === 'branch' && !refEntry.current ? (
-              <ContextMenuItem
-                destructive
-                onSelect={() => void run('branch-delete', { name, force: false }, `Deleted ${name}`)}>
+              <ContextMenuItem destructive onSelect={() => void deleteBranch()}>
                 <Trash2 />
                 Delete if merged
               </ContextMenuItem>

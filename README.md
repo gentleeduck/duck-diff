@@ -86,7 +86,7 @@ From Neovim it is `:DuckDiff`, with the same targets and views (`:DuckDiff graph
 
 - **Changes**: the diff in tabs (working tree, commits, ranges, pull requests), a file tree with filters, hide
   patterns and viewed marks, stage, unstage and discard by file, hunk or selected lines, blame on both sides,
-  comments that follow their line, and a commit box (amend, sign off, commit and push).
+  comments kept per branch that follow their line, and a commit box (amend, sign off, commit and push).
 - **Commit graph**: every branch's lanes, find by message, author or sha; check out, branch, cherry-pick, revert,
   rebase interactively, bisect, worktrees and submodules.
 - **Files**: the whole tree, markdown rendered, blame and history per file, go to definition and references
@@ -168,7 +168,7 @@ clearing the browser loses none of it.
 
 - `state.json`: settings, panel sizes, and each repo's open tabs, viewed files and unsent reviews.
 - `repos.json`: the repositories the switcher lists.
-- `<repo id>/`: that repo's comments (`reviews.json`), undo snapshots for discards, and its cache of GitHub and
+- `<repo id>/`: that repo's comments (`reviews.json`, each one with the branch it belongs to), undo snapshots for discards, and its cache of GitHub and
   commit answers (`duck-diff cache clear` empties the caches).
 
 Data from older versions, in `~/.local/share/duck-diff` and `~/.cache/duck-diff`, moves here the first time a newer

@@ -102,3 +102,26 @@ describe('restoring tabs of one comparison', () => {
     expect(tabs.get().tabs.map((tab) => tab.target.kind)).toEqual(['local', 'range'])
   })
 })
+
+describe('tabs of a branch renamed or deleted from duck-diff', () => {
+  const range = (from: string, to: string) => ({ kind: 'range' as const, from, to, mode: 'merge-base' as const })
+
+  it('follows a rename, and says when the tab showing changed', () => {
+    const tabs = createTabs({ kind: 'local', base: 'feat' })
+    tabs.open(range('main', 'feat~1'))
+    const shown = tabs.followRename('feat', 'next')
+    expect(tabs.get().tabs.map((tab) => tab.target)).toEqual([{ kind: 'local', base: 'next' }, range('main', 'next~1')])
+    expect(shown?.target).toEqual(range('main', 'next~1'))
+    expect(tabs.followRename('feature', 'x')).toBeNull()
+  })
+
+  it('closes the tabs that compare a deleted branch, and moves off the one showing', () => {
+    const tabs = createTabs({ kind: 'local', base: 'feat' })
+    tabs.open(commit('a'))
+    tabs.open(range('feat', 'main'))
+    const shown = tabs.dropBranch('feat')
+    expect(tabs.get().tabs.map((tab) => tab.target)).toEqual([{ kind: 'local' }, commit('a')])
+    expect(shown?.target).toEqual(commit('a'))
+    expect(tabs.dropBranch('feat')).toBeNull()
+  })
+})

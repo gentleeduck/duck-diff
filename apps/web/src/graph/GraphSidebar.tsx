@@ -19,6 +19,7 @@ import { TreeSkeleton } from '../app/skeletons'
 import { useGit } from '../git/GitProvider'
 import { useRefs } from '../hooks/useRefs'
 import { useStore } from '../lib/store'
+import { deleteBranchNote, useBranchActions, useBranchComments } from './branch-actions'
 import { Submodules, Worktrees } from './Checkouts'
 import { useCommitActions } from './commit-actions'
 import { NewBranchDialog } from './NewBranchDialog'
@@ -81,6 +82,8 @@ function StashActions({ name, sha }: { name: string; sha: string }) {
 function BranchActions({ name, local }: { name: string; local: boolean }) {
   const { status, run } = useGit()
   const current = status?.branch
+  const comments = useBranchComments(name)
+  const branch = useBranchActions()
   return (
     <span className="flex opacity-0 group-focus-within:opacity-100 group-hover:opacity-100">
       {local ? (
@@ -110,18 +113,12 @@ function BranchActions({ name, local }: { name: string; local: boolean }) {
             <TooltipContent>Delete {name}</TooltipContent>
           </Tooltip>
           <PopoverContent className="flex w-72 flex-col gap-2">
-            <p>Delete the branch {name}? Its commits stay reachable only if another branch has them.</p>
+            <p>{deleteBranchNote(name, comments)}</p>
             <div className="flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void run('branch-delete', { name, force: false }, `Deleted ${name}`)}>
+              <Button size="sm" variant="outline" onClick={() => void branch.remove(name, false)}>
                 Delete if merged
               </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => void run('branch-delete', { name, force: true }, `Deleted ${name}`)}>
+              <Button size="sm" variant="destructive" onClick={() => void branch.remove(name, true)}>
                 Force delete
               </Button>
             </div>

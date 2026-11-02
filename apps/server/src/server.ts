@@ -12,6 +12,7 @@ import {
   resolveRepo,
 } from '@duck-diff/git'
 import {
+  AdoptReviewsSchema,
   BlameQuerySchema,
   type ChangeReason,
   ClientMessageSchema,
@@ -266,7 +267,7 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         if (url.pathname.startsWith('/api/git/') && request.method === 'POST') {
           const result = await enqueue(() => {
             const action = url.pathname.slice(9)
-            return jobs.run(jobTitle(action), () => gitAction(repo, action, request), action)
+            return jobs.run(jobTitle(action), () => gitAction(repo, action, request, reviews), action)
           })
           notify(result.reason)
           return Response.json(result.body)
@@ -323,6 +324,18 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
           return new Response(await reviewPrompt(repo, target, picked), {
             headers: { 'content-type': 'text/plain; charset=utf-8' },
           })
+        }
+        if (url.pathname === '/api/reviews/overview') return Response.json(await reviews.overview())
+        if (url.pathname === '/api/reviews/adopt' && request.method === 'POST') {
+          const { ids } = AdoptReviewsSchema.parse(await request.json())
+          await enqueue(() => reviews.adopt(ids))
+          notify('reviews')
+          return new Response(null, { status: 204 })
+        }
+        if (url.pathname === '/api/reviews/orphaned' && request.method === 'DELETE') {
+          await enqueue(() => reviews.clearOrphaned())
+          notify('reviews')
+          return new Response(null, { status: 204 })
         }
         if (url.pathname.startsWith('/api/reviews/')) {
           const id = decodeURIComponent(url.pathname.slice('/api/reviews/'.length))
