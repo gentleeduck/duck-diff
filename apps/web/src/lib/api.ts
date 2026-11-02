@@ -77,6 +77,7 @@ import {
   PullRefsSchema,
   type PullSummary,
   PullSummarySchema,
+  REVIEW_IDS_MAX,
   type Reaction,
   type Ref,
   RefSchema,
@@ -90,6 +91,8 @@ import {
   ResolvedRevisionSchema,
   type ReviewComment,
   ReviewCommentSchema,
+  type ReviewOverview,
+  ReviewOverviewSchema,
   type ReviewState,
   ReviewStateSchema,
   type SecurityAlert,
@@ -158,6 +161,11 @@ export interface Api {
   createReview(input: CreateReview): Promise<ReviewComment>
   updateReview(id: string, body: string): Promise<ReviewComment>
   deleteReview(id: string): Promise<void>
+  // Each branch's comment count, and the comments whose branch is gone.
+  reviewOverview(): Promise<ReviewOverview>
+  // Moves orphaned comments to the branch checked out.
+  adoptReviews(ids: string[]): Promise<void>
+  clearOrphanedReviews(ids: string[]): Promise<void>
   graph(query: { all: boolean; limit: number }, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>>
   commit(sha: string): Promise<CommitDetails>
   // Files and lines a commit changed, without listing them.
@@ -407,6 +415,12 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     })
   }
 
+  // The server takes at most REVIEW_IDS_MAX ids a request.
+  async function inBatches(ids: string[], send: (batch: string[]) => Promise<void>): Promise<void> {
+    for (let start = 0; start < ids.length; start += REVIEW_IDS_MAX)
+      await send(ids.slice(start, start + REVIEW_IDS_MAX))
+  }
+
   async function post(path: string, body: unknown): Promise<void> {
     await request(path, undefined, {
       method: 'POST',
@@ -619,6 +633,10 @@ export function createApi(fetcher: typeof fetch = fetch, base = ''): Api {
     async deleteReview(id) {
       await request(`/api/reviews/${encodeURIComponent(id)}`, undefined, { method: 'DELETE' })
     },
+    reviewOverview: () => json('/api/reviews/overview', ReviewOverviewSchema),
+    adoptReviews: (ids) => inBatches(ids, (batch) => sendEmpty('POST', '/api/reviews/adopt', { ids: batch })),
+    clearOrphanedReviews: (ids) =>
+      inBatches(ids, (batch) => sendEmpty('DELETE', '/api/reviews/orphaned', { ids: batch })),
     open: (path, line, editor) => send('POST', '/api/open', { path, line, editor }, OpenResultSchema),
   }
 }

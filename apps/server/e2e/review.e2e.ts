@@ -128,3 +128,23 @@ test('a line picked for a comment keeps its diff colour, the selection tinted ov
   expect(picked.color).toBe(before)
   expect(picked.image).toContain('linear-gradient')
 })
+
+test('shows a comment only on the branch it was written on', async ({ page, app, repo }) => {
+  await page.goto(app.url)
+  await expect(page.getByRole('banner')).toContainText('2 files')
+  const button = page.getByRole('button', { name: 'Comment on line' })
+  await expect(async () => {
+    await page.mouse.move(0, 0)
+    await page.getByText('export const name = "duck"').last().hover()
+    await button.click({ timeout: 1000 })
+  }).toPass()
+  await page.getByRole('textbox', { name: 'New comment' }).fill('Only on main')
+  await page.getByRole('button', { name: 'Save comment' }).click()
+  await expect(page.getByText('Only on main')).toBeVisible()
+
+  // The edits come along to the new branch; the comment stays with main.
+  repo.git('switch', '-q', '-c', 'other')
+  await expect(page.getByText('Only on main')).toBeHidden()
+  repo.git('switch', '-q', 'main')
+  await expect(page.getByText('Only on main')).toBeVisible()
+})

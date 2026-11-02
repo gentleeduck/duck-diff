@@ -1,3 +1,4 @@
+import type { OrphanedComment } from '@duck-diff/protocol'
 import {
   Badge,
   Button,
@@ -8,14 +9,16 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@duck-diff/ui'
-import { Check, Copy, MessageSquare, Trash2 } from 'lucide-react'
-import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { ArrowRightLeft, Check, Copy, MessageSquare, Trash2 } from 'lucide-react'
+import { useId, useMemo } from 'react'
 import { toast } from 'sonner'
 import { useApp } from '../app/AppProvider'
 import { ask } from '../app/Ask'
 import { COPIED, useCopy } from '../app/CopyTool'
 import { COUNT, ICON_ONLY, LABEL } from '../app/fit'
 import { IconTool } from '../app/IconTool'
+import { useGit } from '../git/GitProvider'
 import { useSession } from '../hooks/useSession'
 import { itemId } from '../lib/items'
 import { useKept } from '../lib/kept'
@@ -28,8 +31,12 @@ const selectItems = (state: SessionState) => state.items
 const selectComments = (state: ReviewsState) => state.comments
 const selectTarget = (state: ReviewsState) => state.target
 
+const fromDeleted = (count: number) => `${count} from ${count === 1 ? 'a deleted branch' : 'deleted branches'}`
+
 export function CommentsSheet() {
-  const { api, reviews, viewer } = useApp()
+  const { api, reviews, viewer, queries } = useApp()
+  const orphaned = useQuery(queries.git.reviewOverview()).data?.orphaned ?? []
+  const branch = useGit().status?.branch ?? null
   const items = useSession(selectItems)
   const comments = useStore(reviews, selectComments)
   const target = useStore(reviews, selectTarget)
@@ -74,20 +81,40 @@ export function CommentsSheet() {
         .catch((error: Error) => toast.error('Could not delete the comment', { description: error.message }))
   }
 
+  const clearOrphaned = async () => {
+    const ids = orphaned.map((comment) => comment.id)
+    const count = ids.length
+    const yes = await ask.confirm({
+      title: `Delete ${count} orphaned comment${count === 1 ? '' : 's'}`,
+      body: 'Deletes every comment whose branch is gone. A branch that comes back later comes back without them.',
+      action: 'Delete',
+      destructive: true,
+    })
+    if (yes)
+      await api
+        .clearOrphanedReviews(ids)
+        .catch((error: Error) => toast.error('Could not delete the comments', { description: error.message }))
+  }
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button
           size="sm"
           variant="outline"
-          aria-label="Comments"
-          title="Comments"
+          aria-label={orphaned.length ? `Comments, ${fromDeleted(orphaned.length)}` : 'Comments'}
+          title={orphaned.length ? `Comments, ${fromDeleted(orphaned.length)}` : 'Comments'}
           className={`shrink-0 ${ICON_ONLY.wide}`}>
           <MessageSquare />
           <span className={LABEL.wide}>Comments</span>
           {comments.length > 0 ? (
             <Badge variant="soft-info" size="sm" className={`rounded-full tabular-nums ${COUNT.wide}`}>
               {comments.length}
+            </Badge>
+          ) : null}
+          {orphaned.length > 0 ? (
+            <Badge variant="soft-warning" size="sm" className={`rounded-full tabular-nums ${COUNT.wide}`}>
+              {orphaned.length}
             </Badge>
           ) : null}
         </Button>
@@ -140,8 +167,66 @@ export function CommentsSheet() {
               </ul>
             </section>
           ))}
+          {orphaned.length > 0 ? (
+            <Orphaned comments={orphaned} branch={branch} onClear={() => void clearOrphaned()} />
+          ) : null}
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+// Comments whose branch was deleted outside duck-diff. They come back on their own if the branch does; until then
+// they can move to the branch checked out, or go.
+function Orphaned({
+  comments,
+  branch,
+  onClear,
+}: {
+  comments: OrphanedComment[]
+  branch: string | null
+  onClear(): void
+}) {
+  const { api } = useApp()
+  const heading = useId()
+  const move = (ids: string[]) =>
+    api
+      .adoptReviews(ids)
+      .catch((error: Error) => toast.error('Could not move the comments', { description: error.message }))
+  return (
+    <section aria-labelledby={heading} className="mt-2 border-border border-t pt-3">
+      <div className="flex items-center gap-2 px-2 pb-1">
+        <h3 id={heading} className="flex-1 text-warning">
+          From deleted branches
+        </h3>
+        {branch ? (
+          <Button size="sm" variant="outline" onClick={() => void move(comments.map((entry) => entry.id))}>
+            <ArrowRightLeft />
+            Move all here
+          </Button>
+        ) : null}
+        <Button size="sm" variant="outline" onClick={onClear}>
+          <Trash2 />
+          Delete all
+        </Button>
+      </div>
+      <ul>
+        {comments.map((comment) => (
+          <li key={comment.id} className="flex items-start gap-1 px-2 py-1.5">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-muted-foreground">
+                <span className="font-mono">{comment.missing.join(', ')}</span>, {comment.path}
+              </span>
+              <span className="line-clamp-2 whitespace-normal text-foreground">{comment.body}</span>
+            </div>
+            {branch ? (
+              <IconTool label={`Move to ${branch}`} onClick={() => void move([comment.id])}>
+                <ArrowRightLeft />
+              </IconTool>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

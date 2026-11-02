@@ -32,6 +32,9 @@ export function fakeApi(overrides: Partial<Api> = {}): Api {
       throw new Error('not faked')
     },
     deleteReview: async () => {},
+    reviewOverview: async () => ({ counts: {}, orphaned: [] }),
+    adoptReviews: async () => {},
+    clearOrphanedReviews: async () => {},
     reviewPrompt: async () => '',
     tree: async () => ['a.ts', 'b.ts'],
     sync: async () => ({

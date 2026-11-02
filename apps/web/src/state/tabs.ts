@@ -30,6 +30,10 @@ export interface Tabs extends Store<TabsState> {
   close(id: string): DiffTab | null
   move(id: string, before: string | null): void
   rememberPath(path: string | null): void
+  // A branch renamed or deleted from here: its tabs follow the new name, or close. Both give the tab now showing
+  // when what it shows changed, so its diff can load.
+  followRename(from: string, to: string): DiffTab | null
+  dropBranch(name: string): DiffTab | null
   // Brings back the tabs saved for a repository, keeping the one open now.
   restore(repo: string, storage?: Pick<Storage, 'getItem' | 'setItem'> | null): void
 }
@@ -40,6 +44,21 @@ function sameComparison(a: DiffTarget, b: DiffTarget): boolean {
   if (a.kind !== 'range' || b.kind !== 'range') return false
   if (a.from === b.from && a.to === b.to) return true
   return a.to === b.to && PULL.test(a.to)
+}
+
+// feat~2 and feat^ are about feat.
+const names = (ref: string, branch: string) => ref.replace(/[~^].*$/, '') === branch
+
+function comparesBranch(target: DiffTarget, branch: string): boolean {
+  if (target.kind === 'range') return names(target.from, branch) || names(target.to, branch)
+  return (target.kind === 'local' || target.kind === 'staged') && Boolean(target.base && names(target.base, branch))
+}
+
+function renameIn(target: DiffTarget, from: string, to: string): DiffTarget {
+  const swap = (ref: string) => (names(ref, from) ? to + ref.slice(from.length) : ref)
+  if (!comparesBranch(target, from)) return target
+  if (target.kind === 'range') return { ...target, from: swap(target.from), to: swap(target.to) }
+  return 'base' in target && target.base ? { ...target, base: swap(target.base) } : target
 }
 
 let counter = 0
@@ -123,6 +142,43 @@ export function createTabs(initial: DiffTarget): Tabs {
         ...state,
         tabs: state.tabs.map((tab) => (tab.id === state.active && tab.path !== path ? { ...tab, path } : tab)),
       }))
+    },
+    followRename(from, to) {
+      const { tabs, active } = store.get()
+      let shown: DiffTab | null = null
+      const next = tabs.map((tab) => {
+        const target = renameIn(tab.target, from, to)
+        if (target === tab.target) return tab
+        const renamed = { ...tab, target }
+        if (tab.id === active) shown = renamed
+        return renamed
+      })
+      if (next.some((tab, at) => tab !== tabs[at])) set({ tabs: next, active })
+      return shown
+    },
+    dropBranch(name) {
+      const { tabs, active } = store.get()
+      if (!tabs.some((tab) => comparesBranch(tab.target, name))) return null
+      // The root tab stays, back on the working tree against HEAD.
+      const kept = tabs.flatMap((tab) =>
+        !comparesBranch(tab.target, name)
+          ? [tab]
+          : tab.id === ROOT
+            ? [{ ...tab, target: { kind: 'local' as const } }]
+            : [],
+      )
+      const byId = new Map(kept.map((tab) => [tab.id, tab]))
+      const at = tabs.findIndex((tab) => tab.id === active)
+      // The tab showing stays if it can; otherwise the nearest one before it that does.
+      const next =
+        byId.get(active) ??
+        tabs
+          .slice(0, at)
+          .reverse()
+          .flatMap((tab) => byId.get(tab.id) ?? [])[0] ??
+        (kept[0] as DiffTab)
+      set({ tabs: kept, active: next.id })
+      return next !== tabs[at] ? next : null
     },
     restore(repo, storage = saved) {
       const key = KEY + repo

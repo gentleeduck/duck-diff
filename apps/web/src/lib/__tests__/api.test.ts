@@ -92,4 +92,25 @@ describe('createApi', () => {
       ['DELETE', '/api/reviews/c%201'],
     ])
   })
+
+  it('moves and deletes orphaned comments in batches the server accepts', async () => {
+    const fetcher = vi.fn(async () => new Response(null, { status: 204 })) as unknown as typeof fetch
+    const api = createApi(fetcher)
+    const ids = Array.from({ length: 1500 }, (_, index) => `c${index}`)
+    await api.adoptReviews(ids)
+    await api.clearOrphanedReviews(ids)
+    const sent = vi
+      .mocked(fetcher)
+      .mock.calls.map(([url, init]) => [
+        init?.method,
+        url,
+        (JSON.parse(String(init?.body)) as { ids: string[] }).ids.length,
+      ])
+    expect(sent).toEqual([
+      ['POST', '/api/reviews/adopt', 1000],
+      ['POST', '/api/reviews/adopt', 500],
+      ['DELETE', '/api/reviews/orphaned', 1000],
+      ['DELETE', '/api/reviews/orphaned', 500],
+    ])
+  })
 })
