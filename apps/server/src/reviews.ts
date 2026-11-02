@@ -108,10 +108,11 @@ export function createReviewStore(repo: string, dataDir = duckHome()) {
     async overview(): Promise<ReviewOverview> {
       const { branches } = await where()
       const comments = await load()
-      const counts: Record<string, number> = {}
+      // A Map, since a branch can be called constructor.
+      const counts = new Map<string, number>()
       for (const comment of comments)
-        for (const name of comment.branches) if (branches.has(name)) counts[name] = (counts[name] ?? 0) + 1
-      return { counts, orphaned: orphans(comments, branches) }
+        for (const name of comment.branches) if (branches.has(name)) counts.set(name, (counts.get(name) ?? 0) + 1)
+      return { counts: Object.fromEntries(counts), orphaned: orphans(comments, branches) }
     },
     async dropBranch(name: string): Promise<void> {
       const comments = await load()
@@ -119,9 +120,10 @@ export function createReviewStore(repo: string, dataDir = duckHome()) {
       if (kept.length !== comments.length) await save(kept)
     },
     async renameBranch(from: string, to: string): Promise<void> {
+      // Not only the comments it owns: a comparison with it, as the base or the from side, names it too.
       const comments = await load()
-      if (comments.some((comment) => comment.branches.includes(from) || comment.on === from))
-        await save(comments.map((comment) => renamed(comment, from, to)))
+      const next = comments.map((comment) => renamed(comment, from, to))
+      if (JSON.stringify(next) !== JSON.stringify(comments)) await save(next)
     },
     // A branch created and switched to from here takes the working tree with it, so its comments go along.
     async carryWorkTree(from: string, to: string): Promise<void> {
@@ -146,10 +148,12 @@ export function createReviewStore(repo: string, dataDir = duckHome()) {
         ),
       )
     },
-    async clearOrphaned(): Promise<void> {
+    // Only the ones asked for, so a branch deleted while the question was open keeps its comments.
+    async clearOrphaned(ids: string[]): Promise<void> {
       const { branches } = await where()
       const comments = await load()
-      const gone = new Set(orphans(comments, branches).map((comment) => comment.id))
+      const asked = new Set(ids)
+      const gone = new Set(orphans(comments, branches).flatMap(({ id }) => (asked.has(id) ? [id] : [])))
       if (gone.size) await save(comments.filter((comment) => !gone.has(comment.id)))
     },
   }

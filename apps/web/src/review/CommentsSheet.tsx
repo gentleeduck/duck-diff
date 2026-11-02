@@ -82,7 +82,8 @@ export function CommentsSheet() {
   }
 
   const clearOrphaned = async () => {
-    const count = orphaned.length
+    const ids = orphaned.map((comment) => comment.id)
+    const count = ids.length
     const yes = await ask.confirm({
       title: `Delete ${count} orphaned comment${count === 1 ? '' : 's'}`,
       body: 'Deletes every comment whose branch is gone. A branch that comes back later comes back without them.',
@@ -91,7 +92,7 @@ export function CommentsSheet() {
     })
     if (yes)
       await api
-        .clearOrphanedReviews()
+        .clearOrphanedReviews(ids)
         .catch((error: Error) => toast.error('Could not delete the comments', { description: error.message }))
   }
 

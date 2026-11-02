@@ -168,8 +168,9 @@ clearing the browser loses none of it.
 
 - `state.json`: settings, panel sizes, and each repo's open tabs, viewed files and unsent reviews.
 - `repos.json`: the repositories the switcher lists.
-- `<repo id>/`: that repo's comments (`reviews.json`, each one with the branch it belongs to), undo snapshots for discards, and its cache of GitHub and
-  commit answers (`duck-diff cache clear` empties the caches).
+- `<repo id>/`: that repo's comments (`reviews.json`, each one with the branch it belongs to when it has one, which a
+  commit's does not), undo snapshots for discards, and its cache of GitHub and commit answers (`duck-diff cache
+  clear` empties the caches).
 
 Data from older versions, in `~/.local/share/duck-diff` and `~/.cache/duck-diff`, moves here the first time a newer
 duck-diff starts. The Neovim plugin's downloaded binaries stay in Neovim's own data folder. The GitHub token never

@@ -39,6 +39,7 @@ describe('comments panel', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(deleteReview).toHaveBeenCalledWith('n2'))
   })
+
   it('lists comments whose branch is gone, and moves them to this branch', async () => {
     const adoptReviews = vi.fn(async () => {})
     const orphan = { ...comment, id: 'o1', body: 'Left on feat', branches: ['feat'], missing: ['feat'] }
@@ -51,7 +52,7 @@ describe('comments panel', () => {
     await waitFor(() => expect(adoptReviews).toHaveBeenCalledWith(['o1']))
   })
 
-  it('clears every orphaned comment after asking', async () => {
+  it('clears the orphaned comments it asked about', async () => {
     const clearOrphanedReviews = vi.fn(async () => {})
     const orphan = { ...comment, id: 'o1', branches: ['feat'], missing: ['feat'] }
     render(
@@ -67,7 +68,7 @@ describe('comments panel', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Delete 2 orphaned comments' })
     expect(clearOrphanedReviews).not.toHaveBeenCalled()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
-    await waitFor(() => expect(clearOrphanedReviews).toHaveBeenCalled())
+    await waitFor(() => expect(clearOrphanedReviews).toHaveBeenCalledWith(['o1', 'o2']))
   })
 
   it('says on the button when comments are waiting from a deleted branch', async () => {

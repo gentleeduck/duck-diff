@@ -178,7 +178,8 @@ export const ReviewOverviewSchema = z.object({
 })
 export type ReviewOverview = z.infer<typeof ReviewOverviewSchema>
 
-export const AdoptReviewsSchema = z.object({ ids: z.array(z.string().min(1)).min(1).max(1000) })
+export const REVIEW_IDS_MAX = 1000
+export const ReviewIdsSchema = z.object({ ids: z.array(z.string().min(1)).min(1).max(REVIEW_IDS_MAX) })
 
 export const ResolveSchema = z.object({ path: RepoPathSchema, side: z.enum(['ours', 'theirs']) })
 // A merged text written over a conflicted file and staged.

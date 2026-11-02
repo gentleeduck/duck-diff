@@ -16,4 +16,10 @@ describe('deleting a branch', () => {
       'Delete the branch feat? Its commits stay reachable only if another branch has them, and its 3 comments are deleted with it.',
     )
   })
+
+  it('warns that comments may go while their count is still unknown', () => {
+    expect(deleteBranchNote('feat', undefined)).toBe(
+      'Delete the branch feat? Its commits stay reachable only if another branch has them, and any comments on it are deleted with it.',
+    )
+  })
 })

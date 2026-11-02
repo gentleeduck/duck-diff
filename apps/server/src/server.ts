@@ -12,7 +12,6 @@ import {
   resolveRepo,
 } from '@duck-diff/git'
 import {
-  AdoptReviewsSchema,
   BlameQuerySchema,
   type ChangeReason,
   ClientMessageSchema,
@@ -22,6 +21,7 @@ import {
   NavigateRequestSchema,
   OpenRepoSchema,
   OpenRequestSchema,
+  ReviewIdsSchema,
   ToolFinishSchema,
   targetKey,
   UpdateReviewSchema,
@@ -327,13 +327,14 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
         }
         if (url.pathname === '/api/reviews/overview') return Response.json(await reviews.overview())
         if (url.pathname === '/api/reviews/adopt' && request.method === 'POST') {
-          const { ids } = AdoptReviewsSchema.parse(await request.json())
+          const { ids } = ReviewIdsSchema.parse(await request.json())
           await enqueue(() => reviews.adopt(ids))
           notify('reviews')
           return new Response(null, { status: 204 })
         }
         if (url.pathname === '/api/reviews/orphaned' && request.method === 'DELETE') {
-          await enqueue(() => reviews.clearOrphaned())
+          const { ids } = ReviewIdsSchema.parse(await request.json())
+          await enqueue(() => reviews.clearOrphaned(ids))
           notify('reviews')
           return new Response(null, { status: 204 })
         }

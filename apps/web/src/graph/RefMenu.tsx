@@ -53,7 +53,7 @@ export function RefMenu({
   const remoteBranch = remoteName ? name.slice(slash + 1) : null
   const comments = useBranchComments(name)
   const branch = useBranchActions()
-  // Asks only when comments would go with it.
+  // Asks unless it is known that no comment goes with it.
   const deleteBranch = async () => {
     const yes =
       comments === 0 ||

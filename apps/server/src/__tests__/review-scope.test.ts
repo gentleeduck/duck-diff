@@ -110,6 +110,13 @@ describe('comments belong to the branch they were written on', () => {
     await comment(UNSTAGED)
     expect((await overview()).counts).toEqual({ feat: 2, main: 1 })
   })
+
+  it('counts a branch named like an object property', async () => {
+    await setup()
+    repo.git('switch', '-q', '-c', 'constructor')
+    await comment(UNSTAGED)
+    expect((await overview()).counts).toEqual({ constructor: 1 })
+  })
 })
 
 describe('when a branch goes away', () => {
@@ -135,6 +142,16 @@ describe('when a branch goes away', () => {
     expect(await list(UNSTAGED)).toEqual(['working tree'])
     expect(await list(AHEAD_OF_MAIN)).toEqual(['range'])
     expect((await overview()).counts).toEqual({ renamed: 2 })
+  })
+
+  it('renames it where a comparison only compares with it', async () => {
+    await setup()
+    repo.git('switch', '-q', 'main')
+    await comment({ kind: 'range', from: 'feat', to: 'main', mode: 'merge-base' }, 'range')
+    await comment({ kind: 'local', base: 'feat' }, 'base')
+    expect((await call('POST', '/api/git/branch-rename', { from: 'feat', to: 'renamed' })).status).toBe(200)
+    expect(await list({ kind: 'range', from: 'renamed', to: 'main', mode: 'merge-base' })).toEqual(['range'])
+    expect(await list({ kind: 'local', base: 'renamed' })).toEqual(['base'])
   })
 
   it('moves the working tree comments to a branch created from duck-diff, with the edits', async () => {
@@ -171,15 +188,15 @@ describe('when a branch goes away', () => {
     expect(await list(AHEAD_OF_MAIN)).toEqual(['moved'])
   })
 
-  it('clears every orphaned comment at once, and only those', async () => {
+  it('clears the orphaned comments asked for, and only those', async () => {
     await setup()
-    await comment(UNSTAGED, 'gone')
-    await comment(AHEAD_OF_MAIN, 'gone too')
+    const gone = await comment(UNSTAGED, 'gone')
+    const kept = await comment(AHEAD_OF_MAIN, 'not asked for')
     repo.git('switch', '-q', 'main')
-    await comment(UNSTAGED, 'stays')
+    const stays = await comment(UNSTAGED, 'stays')
     repo.git('branch', '-D', 'feat')
-    expect((await call('DELETE', '/api/reviews/orphaned')).status).toBe(204)
-    expect((await overview()).orphaned).toEqual([])
+    expect((await call('DELETE', '/api/reviews/orphaned', { ids: [gone.id, stays.id] })).status).toBe(204)
+    expect((await overview()).orphaned.map((entry) => entry.id)).toEqual([kept.id])
     expect(await list(UNSTAGED)).toEqual(['stays'])
   })
 
