@@ -1,5 +1,4 @@
-import type { DiffTarget, LspQuery } from '@duck-diff/protocol'
-import { targetKey } from '@duck-diff/protocol'
+import type { LspQuery } from '@duck-diff/protocol'
 import { queryOptions } from '@tanstack/react-query'
 import { loadSymbol } from '../code-nav/load-symbol'
 import type { SymbolTarget } from '../code-nav/symbol-at'
@@ -154,11 +153,12 @@ export function gitQueries(api: Api) {
         queryFn: () => api.lsp.hover(query).catch(() => null),
         staleTime: CODE_MS,
       }),
-    reviews: (target: DiffTarget) =>
+    // Which branch a comment is on follows HEAD, so a branch switch changes it as much as a new comment does.
+    reviewOverview: () =>
       queryOptions({
-        queryKey: ['git', 'reviews', targetKey(target)],
-        queryFn: () => api.reviews(target),
-        meta: { topics: ['reviews'] },
+        queryKey: ['git', 'review-overview'],
+        queryFn: () => api.reviewOverview(),
+        meta: { topics: ['reviews', 'refs'] },
       }),
   }
 }

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Comments belong to the branch they were written on. A comment on the working tree, the index or a comparison
+  with `HEAD` in it (`duck-diff main`) shows on that branch only, where it used to show on whatever branch was
+  checked out. One on `commit HEAD` or a stash stays on that commit, and a short sha finds the comments of the
+  full one.
+- Deleting a branch from duck-diff deletes its comments and closes its tabs; the confirmation says how many
+  comments go. Renaming it carries both to the new name, and a branch made from the page takes the working tree's
+  comments along with the edits.
+- A branch deleted any other way leaves its comments in the comments panel under From deleted branches, with a
+  count on the Comments button. They show again by themselves if the branch comes back, can move to the branch
+  checked out, or can all be deleted at once.
+- Comments from earlier versions go to the branch checked out the first time this version reads them.
+
 ## 0.7.3
 
 - `:DuckDiff` opens views as the command line does: `:DuckDiff graph`, `:DuckDiff prs 12`, `:DuckDiff files

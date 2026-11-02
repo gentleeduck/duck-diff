@@ -39,4 +39,41 @@ describe('comments panel', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
     await waitFor(() => expect(deleteReview).toHaveBeenCalledWith('n2'))
   })
+
+  it('lists comments whose branch is gone, and moves them to this branch', async () => {
+    const adoptReviews = vi.fn(async () => {})
+    const orphan = { ...comment, id: 'o1', body: 'Left on feat', branches: ['feat'], missing: ['feat'] }
+    render(<App api={fakeApi({ reviewOverview: async () => ({ counts: {}, orphaned: [orphan] }), adoptReviews })} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Comments, 1 from a deleted branch' }))
+    const group = await screen.findByRole('region', { name: 'From deleted branches' })
+    expect(within(group).getByText('Left on feat')).toBeTruthy()
+    expect(within(group).getByText('feat')).toBeTruthy()
+    fireEvent.click(within(group).getByRole('button', { name: 'Move to main' }))
+    await waitFor(() => expect(adoptReviews).toHaveBeenCalledWith(['o1']))
+  })
+
+  it('clears the orphaned comments it asked about', async () => {
+    const clearOrphanedReviews = vi.fn(async () => {})
+    const orphan = { ...comment, id: 'o1', branches: ['feat'], missing: ['feat'] }
+    render(
+      <App
+        api={fakeApi({
+          reviewOverview: async () => ({ counts: {}, orphaned: [orphan, { ...orphan, id: 'o2' }] }),
+          clearOrphanedReviews,
+        })}
+      />,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Comments, 2 from deleted branches' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete all' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete 2 orphaned comments' })
+    expect(clearOrphanedReviews).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(clearOrphanedReviews).toHaveBeenCalledWith(['o1', 'o2']))
+  })
+
+  it('says on the button when comments are waiting from a deleted branch', async () => {
+    const orphan = { ...comment, id: 'o1', branches: ['feat'], missing: ['feat'] }
+    render(<App api={fakeApi({ reviewOverview: async () => ({ counts: {}, orphaned: [orphan] }) })} />)
+    expect(await screen.findByRole('button', { name: 'Comments, 1 from a deleted branch' })).toBeTruthy()
+  })
 })

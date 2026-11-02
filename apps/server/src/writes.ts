@@ -96,6 +96,8 @@ import {
   type WriteRequest,
 } from '@duck-diff/protocol'
 import { HttpError } from './errors'
+import { readHead } from './review-scope'
+import type { ReviewStore } from './reviews'
 
 // Writes touch the index and working tree, so they run one at a time in arrival order.
 export function createWriteQueue() {
@@ -147,6 +149,8 @@ export async function gitAction(
   repo: string,
   action: string,
   request: Request,
+  // A branch deleted, renamed or created here takes its comments with it.
+  reviews?: Pick<ReviewStore, 'dropBranch' | 'renameBranch' | 'carryWorkTree'>,
 ): Promise<{ reason: ChangeReason; body: Record<string, unknown> }> {
   switch (action) {
     case 'commit': {
@@ -162,9 +166,13 @@ export async function gitAction(
     case 'fetch':
       await fetchAll(repo)
       return { reason: 'refs', body: {} }
-    case 'switch':
-      await switchBranch(repo, SwitchRequestSchema.parse(await request.json()))
+    case 'switch': {
+      const options = SwitchRequestSchema.parse(await request.json())
+      const left = options.create ? (await readHead(repo)).branch : null
+      await switchBranch(repo, options)
+      if (left) await reviews?.carryWorkTree(left, options.branch)
       return { reason: 'refs', body: {} }
+    }
     case 'checkout':
       await checkoutDetached(repo, CheckoutRequestSchema.parse(await request.json()).sha)
       return { reason: 'refs', body: {} }
@@ -183,9 +191,12 @@ export async function gitAction(
     case 'abort':
       await abortOperation(repo)
       return { reason: 'refs', body: {} }
-    case 'branch-delete':
-      await deleteBranch(repo, DeleteBranchSchema.parse(await request.json()))
+    case 'branch-delete': {
+      const options = DeleteBranchSchema.parse(await request.json())
+      await deleteBranch(repo, options)
+      await reviews?.dropBranch(options.name)
       return { reason: 'refs', body: {} }
+    }
     case 'resolve':
       await resolveConflict(repo, ResolveSchema.parse(await request.json()))
       return { reason: 'index', body: {} }
@@ -240,9 +251,12 @@ export async function gitAction(
     case 'reset':
       await resetTo(repo, ResetSchema.parse(await request.json()))
       return { reason: 'refs', body: {} }
-    case 'branch-rename':
-      await renameBranch(repo, RenameBranchSchema.parse(await request.json()))
+    case 'branch-rename': {
+      const { from, to } = RenameBranchSchema.parse(await request.json())
+      await renameBranch(repo, { from, to })
+      await reviews?.renameBranch(from, to)
       return { reason: 'refs', body: {} }
+    }
     case 'set-upstream':
       await setUpstream(repo, UpstreamSchema.parse(await request.json()))
       return { reason: 'refs', body: {} }

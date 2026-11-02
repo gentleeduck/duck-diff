@@ -81,6 +81,8 @@ export function useLiveRefresh(): LiveState {
         refresher.notify()
         if (event.reason === 'refs') {
           void refs.reload()
+          // Comments on the working tree or HEAD belong to the branch, so a switch changes which ones show.
+          void reviews.reload().catch(() => {})
           client.fetchQuery(queries.git.repo()).then(
             (repo) => setState((prev) => ({ ...prev, repo })),
             () => {},
