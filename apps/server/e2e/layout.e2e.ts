@@ -189,7 +189,10 @@ test('the status bar stays one line with a long branch name, during a merge too'
   repo.write('src/app.ts', 'export const answer = 2\n')
   repo.commit('main')
   expect(() => repo.git('merge', LONG_BRANCH)).toThrow()
-  await expect(footer.getByTitle('Open the conflicts')).toBeVisible()
+  // Cut short, the whole line is on hover.
+  await expect(
+    footer.getByTitle(`Merging ${LONG_BRANCH} into main, 1 file to resolve. Open the conflicts`),
+  ).toBeVisible()
   expect(await footer.evaluate(spills)).toBe(false)
   expect(await footer.evaluate(leaks)).toBe(false)
 })

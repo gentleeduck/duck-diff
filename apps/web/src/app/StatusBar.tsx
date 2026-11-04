@@ -32,19 +32,20 @@ function OperationStatus() {
   const count = conflicts ? conflicts.split('\n').length : 0
   const operation = status?.operation ?? null
   if (!operation) return null
+  const text = `${headline(operation, status?.branch ?? null, status?.incoming ?? null)}${
+    count ? `, ${count} ${count === 1 ? 'file' : 'files'} to resolve` : ', ready to continue'
+  }`
+  // Cut short on a narrow window, so the whole line is on hover.
   return (
     <Button
       variant="nothing"
       size="none"
       type="button"
-      title="Open the conflicts"
+      title={`${text}. Open the conflicts`}
       onClick={() => openMerge(app, show, null)}
       className="flex min-w-0 shrink cursor-pointer items-center gap-1.5 justify-start rounded-none text-warning hover:text-foreground">
       <GitMerge className="size-3.5" />
-      <span className="min-w-0 truncate">
-        {headline(operation, status?.branch ?? null, status?.incoming ?? null)}
-        {count ? `, ${count} ${count === 1 ? 'file' : 'files'} to resolve` : ', ready to continue'}
-      </span>
+      <span className="min-w-0 truncate">{text}</span>
     </Button>
   )
 }
@@ -70,7 +71,9 @@ export function StatusBar({ live }: { live: LiveState }) {
       </span>
       {live.repo && (
         // Never narrower than the hash beside the name (7ch and its margin), so the name gives way and the hash stays.
-        <span className="flex min-w-[calc(7ch+0.375rem)] font-mono" title={live.repo.branch ?? undefined}>
+        <span
+          className={`flex font-mono ${live.repo.head ? 'min-w-[calc(7ch+0.375rem)]' : 'min-w-0'}`}
+          title={live.repo.branch ?? undefined}>
           <span className="min-w-0 truncate">{live.repo.branch ?? 'detached'}</span>
           {live.repo.head && <span className="ml-1.5 shrink-0 opacity-70">{live.repo.head.slice(0, 7)}</span>}
         </span>

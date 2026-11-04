@@ -392,6 +392,13 @@ describe('GitHub views', () => {
     await waitFor(() => expect(setBase).toHaveBeenCalledWith(7, 'next'))
   })
 
+  it('names each tab with its count, which a narrow page shows without the name', async () => {
+    render(<App api={fakeApi({ github: githubApi() })} />)
+    fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))
+    expect(await screen.findByRole('tab', { name: 'Commits, 3' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Checks' })).toBeTruthy()
+  })
+
   it('steps back to the list and forward to the pull request with the page buttons', async () => {
     render(<App api={fakeApi({ github: githubApi() })} />)
     fireEvent.click(await screen.findByRole('option', { name: /Add things/ }))

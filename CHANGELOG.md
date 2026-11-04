@@ -14,6 +14,9 @@
 - A pull request's tabs fold to their icons and counts on a narrow page, and Review changes to its icon, so the
   button is no longer cut off.
 - A file name too long for the changed files tree ends in an ellipsis instead of being cut mid-letter.
+- A switch, commit and merge run together outside duck-diff no longer leave the page thinking nothing conflicts:
+  the status bar said ready to continue with a conflict open, because the change arrived as a branch change only
+  and the page read the staged and unstaged files again only on index and working tree changes.
 
 ## 0.7.4
 

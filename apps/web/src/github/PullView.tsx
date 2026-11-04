@@ -68,7 +68,7 @@ function TabButton({ id, icon, label, count }: { id: Tab; icon: ReactNode; label
   return (
     <TabsTrigger
       value={id}
-      aria-label={label}
+      aria-label={count !== undefined ? `${label}, ${count}` : label}
       title={label}
       className="-mb-px h-auto gap-2 rounded-none border-transparent border-b-2 bg-transparent px-3 py-2 text-muted-foreground shadow-none hover:text-foreground aria-selected:border-tn-orange aria-selected:text-foreground">
       {icon}
