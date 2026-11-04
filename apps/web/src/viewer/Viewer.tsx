@@ -37,7 +37,6 @@ import { useWrites } from '../writes/WritesProvider'
 import { actionsFor, type WriteKind } from './actions'
 import { FileActions } from './FileActions'
 import { FileHeader } from './FileHeader'
-import { fileNote } from './file-info'
 import { type CodeSelection, useLineSelection } from './line-selection'
 import { type PickedLine, pickedLines, selectedCells } from './picked-lines'
 import { SelectionBar } from './SelectionBar'
@@ -668,7 +667,6 @@ export default function Viewer() {
                     return next
                   }),
               }}
-              note={file ? fileNote(file) : null}
               onOpen={() => void openInEditor(path, firstLine)}
               writes={
                 file && file.status !== 'conflicted' && kinds.length > 0 ? (

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- A file header short of room keeps everything on one line: a note such as Renamed without changes is cut short
+  first (its full text on hover), then the path, and the buttons always stay. A path too long for the row is cut
+  with an ellipsis where it used to vanish whole, and a file with no line changed leaves out +0 -0.
+
 ## 0.7.4
 
 - Comments belong to the branch they were written on. A comment on the working tree, the index or a comparison

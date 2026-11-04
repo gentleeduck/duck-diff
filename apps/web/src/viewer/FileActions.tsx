@@ -14,7 +14,6 @@ export function FileActions({
   viewed,
   onViewed,
   onHistory,
-  note,
   blame,
 }: {
   path: string
@@ -23,13 +22,11 @@ export function FileActions({
   viewed: boolean
   onViewed(): void
   onHistory(): void
-  note?: string | null
   // Who changed each line, on both sides of the diff.
   blame?: { on: boolean; toggle(): void }
 }) {
   return (
     <span className="flex items-center gap-1">
-      {note ? <span className="mr-2 text-muted-foreground">{note}</span> : null}
       {writes}
       {onOpen && (
         <IconTool label="Open" tip="Open in your editor" onClick={onOpen}>

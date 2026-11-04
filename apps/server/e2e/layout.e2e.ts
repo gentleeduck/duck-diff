@@ -129,3 +129,33 @@ test('a full page reads in a column as wide as GitHub keeps its own, centred on 
     })
     .toEqual({ narrow: true, centred: true })
 })
+
+test('a file header short of room cuts its note first, then the path, and keeps every button', async ({
+  page,
+  app,
+  repo,
+}) => {
+  const moved = 'docs/a/folder/name/long/enough/to/fill/the/header/on/a/small/window/README.md'
+  repo.write(moved, '# demo\n')
+  repo.git('rm', '-q', 'README.md')
+  repo.git('add', moved)
+  await page.setViewportSize({ width: 900, height: 700 })
+  await page.goto(app.url)
+  const header = page.getByRole('button', { name: `Hide ${moved}` }).locator('..')
+  const viewed = header.getByRole('checkbox', { name: 'Viewed' })
+  await expect(viewed).toBeVisible()
+  const [row, box] = await Promise.all([header.boundingBox(), viewed.boundingBox()])
+  expect(row && box && box.x + box.width <= row.x + row.width).toBe(true)
+  // The path keeps enough room to tell which file it is, cut short inside its own box rather than hidden.
+  const shown = header.getByRole('button', { name: moved, exact: true })
+  expect((await shown.boundingBox())?.width).toBeGreaterThan(100)
+  expect(await shown.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
+  await expect(header.getByText('+0')).toHaveCount(0)
+
+  // With room to spare the note reads in full, on one line.
+  await page.setViewportSize({ width: 1800, height: 700 })
+  const note = header.getByTitle('Renamed without changes')
+  await expect(note).toBeVisible()
+  expect(await note.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  expect((await note.boundingBox())?.height).toBeLessThan(30)
+})
