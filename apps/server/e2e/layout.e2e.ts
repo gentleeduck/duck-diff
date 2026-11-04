@@ -129,3 +129,126 @@ test('a full page reads in a column as wide as GitHub keeps its own, centred on 
     })
     .toEqual({ narrow: true, centred: true })
 })
+
+test('a file header short of room cuts its note first, then the path, and keeps every button', async ({
+  page,
+  app,
+  repo,
+}) => {
+  const moved = 'docs/a/folder/name/long/enough/to/fill/the/header/on/a/small/window/README.md'
+  repo.write(moved, '# demo\n')
+  repo.git('rm', '-q', 'README.md')
+  repo.git('add', moved)
+  await page.setViewportSize({ width: 900, height: 700 })
+  await page.goto(app.url)
+  const header = page.getByRole('button', { name: `Hide ${moved}` }).locator('..')
+  const viewed = header.getByRole('checkbox', { name: 'Viewed' })
+  await expect(viewed).toBeVisible()
+  const [row, box] = await Promise.all([header.boundingBox(), viewed.boundingBox()])
+  expect(row && box && box.x + box.width <= row.x + row.width).toBe(true)
+  // The path keeps enough room to tell which file it is, cut short inside its own box rather than hidden.
+  const shown = header.getByRole('button', { name: moved, exact: true })
+  expect((await shown.boundingBox())?.width).toBeGreaterThan(100)
+  expect(await shown.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
+  await expect(header.getByText('+0')).toHaveCount(0)
+
+  // With room to spare the note reads in full, on one line.
+  await page.setViewportSize({ width: 1800, height: 700 })
+  const note = header.getByTitle('Renamed without changes')
+  await expect(note).toBeVisible()
+  expect(await note.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  expect((await note.boundingBox())?.height).toBeLessThan(30)
+})
+
+const LONG_BRANCH = 'feature/a-very-long-branch-name-that-keeps-going-to-check-every-toolbar-and-menu'
+// Overflowing its own box: what spills out of a row instead of being cut short inside it.
+const spills = (element: Element) =>
+  element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1
+// Anything drawn past the side of a parent that does not clip it, onto whatever sits next to it.
+const leaks = (root: Element) =>
+  [...root.querySelectorAll('*')].some((element) => {
+    const parent = element.parentElement
+    if (!parent || getComputedStyle(parent).overflowX !== 'visible') return false
+    const [box, outer] = [element.getBoundingClientRect(), parent.getBoundingClientRect()]
+    return box.width > 0 && (box.left < outer.left - 1 || box.right > outer.right + 1)
+  })
+
+test('the status bar stays one line with a long branch name, during a merge too', async ({ page, app, repo }) => {
+  repo.commit('work in progress')
+  repo.git('checkout', '-q', '-b', LONG_BRANCH)
+  repo.write('src/app.ts', 'export const answer = 1\n')
+  repo.commit('feature')
+  await page.setViewportSize({ width: 900, height: 700 })
+  await page.goto(app.url)
+  const footer = page.locator('footer')
+  await expect(footer).toContainText(LONG_BRANCH)
+  expect(await footer.evaluate(spills)).toBe(false)
+  expect(await footer.evaluate(leaks)).toBe(false)
+
+  repo.git('checkout', '-q', 'main')
+  repo.write('src/app.ts', 'export const answer = 2\n')
+  repo.commit('main')
+  expect(() => repo.git('merge', LONG_BRANCH)).toThrow()
+  // Cut short, the whole line is on hover.
+  await expect(
+    footer.getByTitle(`Merging ${LONG_BRANCH} into main, 1 file to resolve. Open the conflicts`),
+  ).toBeVisible()
+  expect(await footer.evaluate(spills)).toBe(false)
+  expect(await footer.evaluate(leaks)).toBe(false)
+})
+
+test('the commit panel keeps its close button and its details inside a narrow window', async ({ page, app, repo }) => {
+  repo.commit('work in progress')
+  await page.setViewportSize({ width: 900, height: 700 })
+  await page.goto(app.url)
+  await page.getByRole('button', { name: 'Commit graph', exact: true }).click()
+  await page.getByText('work in progress').first().click()
+  const panel = page.getByRole('complementary', { name: 'Commit' })
+  await expect(panel.getByText('test@duck.local')).toBeVisible()
+  const [box, close] = await Promise.all([
+    panel.boundingBox(),
+    panel.getByRole('button', { name: 'Close commit' }).boundingBox(),
+  ])
+  expect(box && close && close.x + close.width <= box.x + box.width).toBe(true)
+  expect(await panel.locator('header').evaluate(spills)).toBe(false)
+  expect(await panel.locator('dl').evaluate(spills)).toBe(false)
+  for (const action of ['Compare with HEAD', 'New branch here']) {
+    const button = await panel.getByRole('button', { name: new RegExp(action) }).boundingBox()
+    expect(box && button && button.x + button.width <= box.x + box.width).toBe(true)
+  }
+})
+
+test('the merge columns name each side inside its own column', async ({ page, app, repo }) => {
+  repo.commit('work in progress')
+  repo.git('checkout', '-q', '-b', LONG_BRANCH)
+  repo.write('src/app.ts', 'export const answer = 1\n')
+  repo.commit('feature')
+  repo.git('checkout', '-q', 'main')
+  repo.write('src/app.ts', 'export const answer = 2\n')
+  repo.commit('main')
+  expect(() => repo.git('merge', LONG_BRANCH)).toThrow()
+  await page.setViewportSize({ width: 900, height: 700 })
+  await page.goto(app.url)
+  await page.getByRole('button', { name: 'Resolve src/app.ts' }).first().click()
+  const editor = page.getByRole('region', { name: 'Merge src/app.ts' })
+  await expect(editor).toBeVisible()
+  const heads = page.getByText('Current change', { exact: true }).locator('xpath=../..').locator('> *')
+  await expect(heads).toHaveCount(3)
+  expect(await heads.first().locator('..').evaluate(leaks)).toBe(false)
+})
+
+test('a file name too long for the tree ends in an ellipsis', async ({ page, app, repo }) => {
+  const name = 'a-file-name-long-enough-that-the-changed-files-tree-has-to-cut-it-short.ts'
+  repo.write(name, 'x\n')
+  await page.setViewportSize({ width: 900, height: 700 })
+  await page.goto(app.url)
+  const label = page.getByRole('tree', { name: 'Changed files' }).getByText(name, { exact: true })
+  await expect(label).toBeVisible()
+  expect(
+    await label.evaluate((element) => {
+      const style = getComputedStyle(element)
+      const cut = element.scrollWidth > element.clientWidth
+      return cut && style.textOverflow === 'ellipsis' && !style.display.includes('flex')
+    }),
+  ).toBe(true)
+})

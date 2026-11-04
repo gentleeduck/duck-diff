@@ -28,13 +28,20 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
 
   const [subject = '', ...body] = loaded?.details.message.split('\n') ?? []
   return (
-    <aside aria-label="Commit" className="flex h-full flex-col bg-card">
+    // A container, so a narrow panel folds Show changes to its icon.
+    <aside aria-label="Commit" className="@container/commit flex h-full flex-col bg-card">
       <header className="flex h-11 shrink-0 items-center gap-2 border-border border-b px-3">
-        <span className="text-tn-comment">{sha.slice(0, 10)}</span>
+        <span className="min-w-0 truncate text-tn-comment">{sha.slice(0, 10)}</span>
         <CopyTool label="Copy commit sha" text={sha} />
-        <Button size="sm" variant="outline" className="ms-auto" onClick={() => openChanges()}>
+        <Button
+          size="sm"
+          variant="outline"
+          aria-label="Show changes"
+          title="Show changes"
+          className="ms-auto @max-[22rem]/commit:size-7 @max-[22rem]/commit:px-0!"
+          onClick={() => openChanges()}>
           <FileDiff />
-          Show changes
+          <span className="hidden @[22rem]/commit:inline">Show changes</span>
         </Button>
         <Button size="icon" variant="ghost" aria-label="Close commit" onClick={onClose}>
           <X />
@@ -48,7 +55,7 @@ export function CommitPanel({ sha, onClose }: { sha: string; onClose(): void }) 
           {body.join('\n').trim() ? (
             <p className="mt-2 whitespace-pre-wrap text-muted-foreground">{body.join('\n').trim()}</p>
           ) : null}
-          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-muted-foreground">
+          <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-muted-foreground [&_dd]:wrap-anywhere">
             <dt>Author</dt>
             <dd className="text-foreground">
               {loaded.details.authorName} <span className="text-muted-foreground">{loaded.details.authorEmail}</span>

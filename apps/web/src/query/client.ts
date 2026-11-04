@@ -1,3 +1,4 @@
+import type { ChangeReason } from '@duck-diff/protocol'
 import { type Query, QueryClient } from '@tanstack/react-query'
 
 // Data here changes when the repo or GitHub says so, not with time: the server pushes an event per topic and
@@ -24,6 +25,17 @@ export const topicsOf = (query: Query): readonly string[] => (query.meta as Quer
 export function invalidateTopic(client: QueryClient, topic: string) {
   return client.invalidateQueries({ predicate: (query) => topicsOf(query).includes(topic) })
 }
+
+// The server's watcher sends a burst of changes as its highest reason (refs, then index, then worktree), so each
+// one stands for those below it as well: a switch, commit and merge in one go arrive as refs alone.
+const STALE: Record<ChangeReason, string[]> = {
+  refs: ['refs', 'index', 'worktree'],
+  index: ['index', 'worktree'],
+  worktree: ['worktree'],
+  saved: ['worktree'],
+  reviews: ['reviews'],
+}
+export const staleTopics = (reason: ChangeReason): string[] => STALE[reason]
 
 const GITHUB_TOPIC = /^(notifications|pulls|issues|runs|item:\d{1,9})$/
 

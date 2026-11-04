@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { useApp } from '../app/AppProvider'
 import { useView } from '../hooks/useView'
 import { openMerge } from '../merge/open-merge'
+import { fileNote } from './file-info'
 
 const ADDED = 'soft-success'
 const CHANGED = 'soft-warning'
@@ -51,6 +52,7 @@ export function FileHeader({
   onOpen?(): void
   children: ReactNode
 }) {
+  const note = file ? fileNote(file) : null
   return (
     <div className="flex h-11 items-center gap-3 border-border border-b bg-card px-3 font-sans">
       <Button
@@ -67,27 +69,37 @@ export function FileHeader({
         </Badge>
       ) : null}
       {file?.status === 'conflicted' ? <ResolveButton path={file.path} /> : null}
-      <span className="min-w-0 truncate" title={onOpen ? `Open ${path} in Files` : path}>
-        {file?.oldPath ? <span className="text-muted-foreground">{file.oldPath} to </span> : null}
+      {/* Each part cuts itself short: a path too long for the rest of the row would otherwise vanish whole. */}
+      <span className="flex min-w-0 items-center gap-1" title={onOpen ? `Open ${path} in Files` : path}>
+        {file?.oldPath ? (
+          <span className="min-w-0 shrink-[4] truncate text-muted-foreground">{file.oldPath} to</span>
+        ) : null}
         {onOpen ? (
           <Button
             variant="nothing"
             size="none"
             type="button"
             onClick={onOpen}
-            className="inline rounded-none hover:text-tn-blue hover:underline">
+            className="block min-w-0 shrink truncate rounded-none text-start hover:text-tn-blue hover:underline">
             {path}
           </Button>
         ) : (
-          path
+          <span className="min-w-0 truncate">{path}</span>
         )}
       </span>
-      {file && file.additions !== null && file.deletions !== null ? (
+      {/* A file with no line changed leaves out +0 -0; its note says why. */}
+      {file && file.additions !== null && file.deletions !== null && file.additions + file.deletions > 0 ? (
         <span className="shrink-0 tabular-nums">
           <span className="text-added">+{file.additions}</span> <span className="text-removed">-{file.deletions}</span>
         </span>
       ) : null}
-      <span className="ms-auto">{children}</span>
+      {/* Short of room, the note gives way first (its full text on hover), then the path; the buttons never do. */}
+      {note ? (
+        <span title={note} className="ms-auto min-w-0 shrink-[1000] truncate text-muted-foreground">
+          {note}
+        </span>
+      ) : null}
+      <span className={`shrink-0 ${note ? '' : 'ms-auto'}`}>{children}</span>
     </div>
   )
 }

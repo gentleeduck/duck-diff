@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- A file header short of room keeps everything on one line: a note such as Renamed without changes is cut short
+  first (its full text on hover), then the path, and the buttons always stay. A path too long for the row is cut
+  with an ellipsis where it used to vanish whole, and a file with no line changed leaves out +0 -0.
+- The status bar stays one line with a long branch name: the name is cut short beside its hash, and during a merge
+  the Merging line is cut short instead of running off the window with Open the conflicts.
+- The commit panel in the graph keeps its close button: it is never narrower than 18rem, Show changes folds to its
+  icon when the panel is narrow, and a long email or date wraps inside it.
+- The merge editor's column heads stay in their own column, giving up the subject, then the hash, then the name,
+  where a long branch name drew over the next column.
+- A pull request's tabs fold to their icons and counts on a narrow page, and Review changes to its icon, so the
+  button is no longer cut off.
+- A file name too long for the changed files tree ends in an ellipsis instead of being cut mid-letter.
+- A switch, commit and merge run together outside duck-diff no longer leave the page thinking nothing conflicts:
+  the status bar said ready to continue with a conflict open, because the change arrived as a branch change only
+  and the page read the staged and unstaged files again only on index and working tree changes.
+
 ## 0.7.4
 
 - Comments belong to the branch they were written on. A comment on the working tree, the index or a comparison
