@@ -104,10 +104,13 @@ function SideName({ side, sides, fallback }: { side: Side; sides: Sides; fallbac
     <span className="flex min-w-0 items-center gap-2">
       <span aria-hidden className={`h-4 w-1 shrink-0 rounded-full ${look.bar}`} />
       <span className={`shrink-0 ${look.text}`}>{look.label}</span>
-      <span className="shrink-0 text-foreground">{info?.name ?? fallback}</span>
-      {info ? <code className="shrink-0 text-muted-foreground">{info.sha}</code> : null}
+      {/* Short of room the subject goes first, then the hash, then the name, each cut short in place. */}
+      <span className="min-w-0 truncate text-foreground" title={info?.name ?? fallback}>
+        {info?.name ?? fallback}
+      </span>
+      {info ? <code className="min-w-0 shrink-[4] truncate text-muted-foreground">{info.sha}</code> : null}
       {info?.subject ? (
-        <span className="min-w-0 truncate text-muted-foreground" title={info.subject}>
+        <span className="min-w-0 shrink-[16] truncate text-muted-foreground" title={info.subject}>
           {info.subject}
         </span>
       ) : null}
@@ -839,7 +842,7 @@ export default function MergeEditor() {
         <div ref={page} className="relative min-h-0 flex-1 overflow-auto">
           {sideways.probe}
           {split && files[0] ? (
-            <div className="sticky top-0 z-30 grid h-9 grid-cols-3 items-center border-border border-b bg-card [&>*]:px-3">
+            <div className="sticky top-0 z-30 grid h-9 grid-cols-3 items-center border-border border-b bg-card [&>*]:min-w-0 [&>*]:overflow-hidden [&>*]:px-3">
               <SideName
                 side="ours"
                 sides={files[0].sides}

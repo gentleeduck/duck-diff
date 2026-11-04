@@ -68,9 +68,11 @@ function TabButton({ id, icon, label, count }: { id: Tab; icon: ReactNode; label
   return (
     <TabsTrigger
       value={id}
+      aria-label={label}
+      title={label}
       className="-mb-px h-auto gap-2 rounded-none border-transparent border-b-2 bg-transparent px-3 py-2 text-muted-foreground shadow-none hover:text-foreground aria-selected:border-tn-orange aria-selected:text-foreground">
       {icon}
-      {label}
+      <span className="hidden @3xl:inline">{label}</span>
       {count !== undefined ? (
         <Badge variant="muted" size="sm" className="rounded-full tabular-nums">
           {count}
@@ -360,7 +362,8 @@ export default function PullView({ number, onChanged }: { number: number; onChan
           </Badge>
           <CopyTool label="Copy branch name" text={pull.headRef} />
         </div>
-        <div className="flex items-end border-border border-b">
+        {/* A container, so a narrow page folds the tab names and Review changes to their icons. */}
+        <div className="@container flex items-end border-border border-b">
           <Tabs value={tab} onValueChange={(next) => setTab(next as Tab)}>
             <TabsList aria-label="Pull request" className="h-auto gap-0 rounded-none bg-transparent p-0">
               <TabButton
@@ -384,13 +387,13 @@ export default function PullView({ number, onChanged }: { number: number; onChan
               />
             </TabsList>
           </Tabs>
-          <span className="ms-auto flex items-center gap-3 pb-1.5">
+          <span className="ms-auto flex shrink-0 items-center gap-3 pb-1.5">
             <span className="flex items-center gap-1.5 tabular-nums">
               <span className="text-added">+{pull.additions.toLocaleString()}</span>
               <span className="text-removed">-{pull.deletions.toLocaleString()}</span>
               <DiffBlocks additions={pull.additions} deletions={pull.deletions} />
             </span>
-            {pull.state === 'open' ? <ReviewChanges /> : null}
+            {pull.state === 'open' ? <ReviewChanges fit /> : null}
           </span>
         </div>
         {/* Each tab draws the first time it opens and is kept, paused, while another one shows. */}

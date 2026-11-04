@@ -267,7 +267,7 @@ export default function GraphView() {
         {selected ? (
           <>
             <ResizableHandle withHandle={false} />
-            <ResizablePanel defaultSize="34%" minSize="22%" maxSize="55%">
+            <ResizablePanel defaultSize="34%" minSize="18rem" maxSize="55%">
               <CommitPanel sha={selected} onClose={() => graphSelection.set(null)} />
             </ResizablePanel>
           </>

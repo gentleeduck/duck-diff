@@ -39,10 +39,12 @@ function OperationStatus() {
       type="button"
       title="Open the conflicts"
       onClick={() => openMerge(app, show, null)}
-      className="flex cursor-pointer items-center gap-1.5 justify-start rounded-none whitespace-normal text-warning hover:text-foreground">
+      className="flex min-w-0 shrink cursor-pointer items-center gap-1.5 justify-start rounded-none text-warning hover:text-foreground">
       <GitMerge className="size-3.5" />
-      {headline(operation, status?.branch ?? null, status?.incoming ?? null)}
-      {count ? `, ${count} ${count === 1 ? 'file' : 'files'} to resolve` : ', ready to continue'}
+      <span className="min-w-0 truncate">
+        {headline(operation, status?.branch ?? null, status?.incoming ?? null)}
+        {count ? `, ${count} ${count === 1 ? 'file' : 'files'} to resolve` : ', ready to continue'}
+      </span>
     </Button>
   )
 }
@@ -59,16 +61,18 @@ export function StatusBar({ live }: { live: LiveState }) {
   const { jobs, panel } = useApp()
   const running = useStore(jobs, selectRunning)
 
+  // One line however long the branch: the branch and a running merge are cut short, the rest never shrinks.
   return (
     <>
-      <span className="flex items-center gap-1.5">
+      <span className="flex shrink-0 items-center gap-1.5">
         <span aria-hidden className="size-1.5 rounded-full" style={{ background: indicator.color }} />
         {indicator.label}
       </span>
       {live.repo && (
-        <span className="font-mono">
-          {live.repo.branch ?? 'detached'}
-          {live.repo.head && <span className="ml-1.5 opacity-70">{live.repo.head.slice(0, 7)}</span>}
+        // Never narrower than the hash beside the name (7ch and its margin), so the name gives way and the hash stays.
+        <span className="flex min-w-[calc(7ch+0.375rem)] font-mono" title={live.repo.branch ?? undefined}>
+          <span className="min-w-0 truncate">{live.repo.branch ?? 'detached'}</span>
+          {live.repo.head && <span className="ml-1.5 shrink-0 opacity-70">{live.repo.head.slice(0, 7)}</span>}
         </span>
       )}
       <Button
@@ -77,7 +81,7 @@ export function StatusBar({ live }: { live: LiveState }) {
         type="button"
         onClick={panel.toggle}
         title="Commands and output (Ctrl `)"
-        className="flex cursor-pointer items-center gap-1.5 hover:text-foreground justify-start rounded-none whitespace-normal">
+        className="flex cursor-pointer items-center gap-1.5 hover:text-foreground justify-start rounded-none">
         {running ? (
           <LoaderCircle className="size-3.5 animate-spin text-tn-blue" />
         ) : (
@@ -86,7 +90,7 @@ export function StatusBar({ live }: { live: LiveState }) {
         {running ? `Running ${running}` : 'Output'}
       </Button>
       <OperationStatus />
-      <span className="ml-auto" aria-live="polite">
+      <span className="ml-auto shrink-0 whitespace-nowrap" aria-live="polite">
         {status === 'loading' && 'Loading changes'}
         {status === 'error' && (
           <span className="block max-w-[60vw] truncate text-removed" title={error ?? undefined}>
