@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.5
 
 - A file header short of room keeps everything on one line: a note such as Renamed without changes is cut short
   first (its full text on hover), then the path, and the buttons always stay. A path too long for the row is cut
