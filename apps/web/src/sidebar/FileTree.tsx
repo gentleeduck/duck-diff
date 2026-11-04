@@ -81,7 +81,10 @@ function TreeItem({
           {mark.glyph}
         </span>
       ))}
-      <span className={`ms-0.5 min-w-0 truncate ${look.underline ? 'underline' : ''}`} style={{ color: look.color }}>
+      {/* A block, not the row's flex, or the ellipsis never draws. */}
+      <span
+        className={`ms-0.5 block! min-w-0 self-center truncate ${look.underline ? 'underline' : ''}`}
+        style={{ color: look.color }}>
         {row.name}
       </span>
     </Button>

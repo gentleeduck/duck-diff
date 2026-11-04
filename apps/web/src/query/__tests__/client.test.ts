@@ -1,6 +1,6 @@
 import { QueryObserver } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
-import { createQueryClient, invalidateTopic, watchedTopics } from '../client'
+import { createQueryClient, invalidateTopic, staleTopics, watchedTopics } from '../client'
 
 describe('query client', () => {
   it('reads again only the queries following a topic, and lists the GitHub topics on screen', async () => {
@@ -35,5 +35,14 @@ describe('query client', () => {
 
     for (const stop of stops) stop()
     expect(watchedTopics(client)).toEqual([])
+  })
+
+  it('reads a repo change as everything below it too, since a burst of changes arrives as its highest one', () => {
+    // A switch, a commit and a merge in one burst arrive as refs, with the index and working tree changed under it.
+    expect(staleTopics('refs')).toEqual(['refs', 'index', 'worktree'])
+    expect(staleTopics('index')).toEqual(['index', 'worktree'])
+    expect(staleTopics('worktree')).toEqual(['worktree'])
+    expect(staleTopics('saved')).toEqual(['worktree'])
+    expect(staleTopics('reviews')).toEqual(['reviews'])
   })
 })

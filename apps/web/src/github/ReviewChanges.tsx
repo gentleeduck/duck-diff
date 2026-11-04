@@ -20,7 +20,8 @@ const EVENTS: { event: ReviewEvent; label: string; icon: typeof Check }[] = [
 ]
 
 // GitHub's "Review changes": a summary and a verdict, sent with every comment gathered on the diff.
-// fit: in the compare bar, where the button folds to its icon as the bar narrows.
+// fit: in a row that is its own container (the compare bar, a pull request's tabs), where the button folds to its
+// icon as the row narrows.
 export function ReviewChanges({ fit = false }: { fit?: boolean }) {
   const { pullReview } = useApp()
   const pending = useStore(pullReview, selectCount)

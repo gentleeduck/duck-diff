@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useApp } from '../app/AppProvider'
 import { connectEvents, type EventsStatus } from '../lib/events'
 import { saved } from '../lib/saved'
-import { invalidateTopic, topicsOf, watchedTopics } from '../query/client'
+import { invalidateTopic, staleTopics, topicsOf, watchedTopics } from '../query/client'
 import { createRefresher } from './refresher'
 import { setQueryTopics, setTopicSender } from './topics'
 
@@ -75,8 +75,7 @@ export function useLiveRefresh(): LiveState {
           window.focus()
           return
         }
-        // A save is a working tree change; every other reason names the reads it makes stale.
-        void invalidateTopic(client, event.reason === 'saved' ? 'worktree' : event.reason)
+        for (const topic of staleTopics(event.reason)) void invalidateTopic(client, topic)
         if (event.reason === 'reviews') return void reviews.reload().catch(() => {})
         refresher.notify()
         if (event.reason === 'refs') {
