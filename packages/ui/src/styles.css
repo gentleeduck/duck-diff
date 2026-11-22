@@ -169,10 +169,14 @@
 
 /* A control's words centre on their capitals, as the eye reads them, not on the font's line box, which rounds a
    pixel or so high. The padding is the room descenders and accents need inside a clipped (cut-off) label.
-   :where keeps it below any class, so a span's own padding or display still wins. */
+   :where keeps it below any class, so a span's own padding or display still wins. Text clamped to a few lines
+   keeps its plain line boxes, since padding under the last one shows the top of the next. */
 @layer components {
   :where([data-slot="button"], [data-slot="badge"], [data-slot="tabs-trigger"], [data-slot="toggle"])
-    > :where(span:not([data-slot], .flex, .inline-flex, .grid, .inline-grid), [data-slot="text"]) {
+    > :where(
+      span:not([data-slot], .flex, .inline-flex, .grid, .inline-grid, [class*="line-clamp-"]),
+      [data-slot="text"]
+    ) {
     text-box: trim-both cap alphabetic;
     padding-block: 0.3em;
   }

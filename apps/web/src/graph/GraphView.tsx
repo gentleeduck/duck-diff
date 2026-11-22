@@ -54,7 +54,7 @@ function RefBadge({ refLabel, color }: { refLabel: RefLabel; color: string }) {
     <Badge
       variant="outline"
       size="sm"
-      className={`max-w-48 shrink-0 ${refLabel.current ? 'border-transparent' : ''}`}
+      className={`min-w-7 max-w-48 shrink ${refLabel.current ? 'border-transparent' : ''}`}
       style={refLabel.current ? { background: tint, color: 'var(--background)' } : { color: tint }}>
       <Icon className="size-3.5 shrink-0" />
       <span className="truncate">{refLabel.name}</span>
@@ -252,7 +252,9 @@ export default function GraphView() {
                           <span className="min-w-0 max-w-48 shrink-[2] truncate text-muted-foreground">
                             {entry.author}
                           </span>
-                          <span className="ms-auto flex shrink-0 items-center gap-1 ps-2">
+                          {/* Short of room, the ref names are cut too, and a list too narrow for even their icons
+                              leaves them to the sidebar and the commit panel rather than scrolling sideways. */}
+                          <span className="ms-auto hidden min-w-0 items-center gap-1 ps-2 @[20rem]:flex">
                             <RefBadges refs={entry.refs} color={laneColor(row.color) ?? ''} />
                           </span>
                         </div>

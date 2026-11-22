@@ -237,6 +237,108 @@ test('the merge columns name each side inside its own column', async ({ page, ap
   expect(await heads.first().locator('..').evaluate(leaks)).toBe(false)
 })
 
+// Text cut to a few lines that still shows the top of the next one under them.
+const peeks = (root: Element) =>
+  [...root.querySelectorAll('*')].some((element) => {
+    const lines = Number(getComputedStyle(element).webkitLineClamp)
+    if (!(lines > 0)) return false
+    const bottom = element.getBoundingClientRect().bottom
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    const shown = [...range.getClientRects()].filter((rect) => rect.top < bottom - 1)
+    return new Set(shown.map((rect) => Math.round(rect.top))).size > lines
+  })
+
+// Whether an element's text has room for all of it.
+const fits = (element: Element) => {
+  const range = document.createRange()
+  range.selectNodeContents(element)
+  return range.getBoundingClientRect().width <= element.getBoundingClientRect().width
+}
+
+test('the comments panel keeps long paths, branch names and comments inside it', async ({ page, app, repo }) => {
+  const deep = 'apps/marketplace-api/src/modules/file-objects/client/file-objects.controller.ts'
+  const body = 'no this should be like ~/modules/auth which is cleaner and keeps the names they had before. '.repeat(3)
+  const comment = (path: string) =>
+    page.evaluate(
+      (data) =>
+        fetch('/api/reviews', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(data),
+        }).then((response) => response.ok),
+      { target: { kind: 'local' }, path, side: 'additions', line: 1, lineHash: 'gone', body },
+    )
+  repo.commit('work in progress')
+  repo.git('checkout', '-q', '-b', LONG_BRANCH)
+  await page.setViewportSize({ width: 900, height: 700 })
+  await page.goto(app.url)
+  expect(await comment(deep)).toBe(true)
+  // Deleted outside duck-diff, its comment is left without a branch.
+  repo.git('checkout', '-q', 'main')
+  repo.git('branch', '-q', '-D', LONG_BRANCH)
+  expect(await comment(deep)).toBe(true)
+  expect(await comment('a-file-name-with-no-folder-that-is-long-enough-to-fill-the-panel.ts')).toBe(true)
+
+  await page.reload()
+  await page.getByRole('button', { name: /^Comments/ }).click()
+  const panel = page.getByRole('dialog', { name: 'Comments' })
+  await expect(panel.getByText('From deleted branches')).toBeVisible()
+  expect(await panel.evaluate(leaks)).toBe(false)
+  expect(await panel.evaluate(peeks)).toBe(false)
+  // Nothing in it scrolls sideways: a path too long is cut short in its own line, keeping the file's name.
+  const list = panel.locator('.overflow-y-auto')
+  expect(await list.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  for (const name of [deep, LONG_BRANCH]) {
+    const label = panel.getByTitle(name).first()
+    await expect(label).toBeVisible()
+    expect((await label.boundingBox())?.height).toBeLessThan(30)
+  }
+  const name = panel.getByText('file-objects.controller.ts', { exact: true }).first()
+  await expect(name).toBeVisible()
+  // Measured on the text itself: a cut of a fraction of a pixel still ends it in an ellipsis.
+  expect(await name.evaluate(fits)).toBe(true)
+  expect((await panel.getByText('From deleted branches').boundingBox())?.height).toBeLessThan(30)
+  const box = await panel.boundingBox()
+  for (const action of ['Move all here', 'Delete all']) {
+    const button = await panel.getByRole('button', { name: action }).boundingBox()
+    expect(box && button && button.x + button.width <= box.x + box.width).toBe(true)
+  }
+})
+
+test('a commit with long branch and tag names keeps them inside its row', async ({ page, app, repo }) => {
+  repo.commit('work in progress')
+  repo.git('tag', 'v1.2.3-a-long-tag-name-for-the-release-candidate-that-keeps-going')
+  repo.git('checkout', '-q', '-b', LONG_BRANCH)
+  await page.setViewportSize({ width: 1280, height: 700 })
+  await page.goto(`${app.url}&view=graph`)
+  await page.getByText('work in progress').first().click()
+  await expect(page.getByRole('complementary', { name: 'Commit' })).toBeVisible()
+  const list = page.getByRole('listbox', { name: 'Commits' })
+  await expect(list.getByText(LONG_BRANCH).first()).toBeVisible()
+  expect(await list.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  expect(await list.evaluate(leaks)).toBe(false)
+  // Narrower, with no room for the refs at all, the list still never scrolls sideways.
+  await page.setViewportSize({ width: 900, height: 700 })
+  await expect.poll(() => list.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  expect(await list.evaluate(leaks)).toBe(false)
+})
+
+test('the branch picker keeps each long name on one line', async ({ page, app, repo }) => {
+  repo.commit('work in progress')
+  repo.git('tag', 'v1.2.3-a-long-tag-name-for-the-release-candidate-that-keeps-going')
+  repo.git('branch', LONG_BRANCH)
+  await page.setViewportSize({ width: 900, height: 700 })
+  await page.goto(app.url)
+  await page.getByRole('button', { name: /^Compare from / }).click()
+  for (const name of [LONG_BRANCH, 'v1.2.3-a-long-tag-name-for-the-release-candidate-that-keeps-going']) {
+    const option = page.getByRole('option').filter({ hasText: name })
+    await expect(option).toBeVisible()
+    expect((await option.boundingBox())?.height).toBeLessThan(40)
+    expect(await option.evaluate(leaks)).toBe(false)
+  }
+})
+
 test('a file name too long for the tree ends in an ellipsis', async ({ page, app, repo }) => {
   const name = 'a-file-name-long-enough-that-the-changed-files-tree-has-to-cut-it-short.ts'
   repo.write(name, 'x\n')

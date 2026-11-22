@@ -18,6 +18,7 @@ import { ask } from '../app/Ask'
 import { COPIED, useCopy } from '../app/CopyTool'
 import { COUNT, ICON_ONLY, LABEL } from '../app/fit'
 import { IconTool } from '../app/IconTool'
+import { PathLabel } from '../app/PathLabel'
 import { useGit } from '../git/GitProvider'
 import { useSession } from '../hooks/useSession'
 import { itemId } from '../lib/items'
@@ -141,7 +142,9 @@ export function CommentsSheet() {
         <div className="-mx-2 flex-1 overflow-y-auto">
           {groups.map(([path, entries]) => (
             <section key={path} className="mb-4">
-              <h3 className="px-2 pb-1 font-mono text-muted-foreground">{path}</h3>
+              <h3 className="px-2 pb-1 font-mono text-muted-foreground">
+                <PathLabel path={path} />
+              </h3>
               <ul>
                 {entries.map((anchored) => (
                   <li key={anchored.comment.id} className="flex items-start gap-1">
@@ -195,28 +198,32 @@ function Orphaned({
       .catch((error: Error) => toast.error('Could not move the comments', { description: error.message }))
   return (
     <section aria-labelledby={heading} className="mt-2 border-border border-t pt-3">
-      <div className="flex items-center gap-2 px-2 pb-1">
-        <h3 id={heading} className="flex-1 text-warning">
+      {/* Short of room, the buttons go under the heading together rather than squeezing it. */}
+      <div className="flex flex-wrap items-center gap-2 px-2 pb-1">
+        <h3 id={heading} className="flex-1 whitespace-nowrap text-warning">
           From deleted branches
         </h3>
-        {branch ? (
-          <Button size="sm" variant="outline" onClick={() => void move(comments.map((entry) => entry.id))}>
-            <ArrowRightLeft />
-            Move all here
+        <div className="flex gap-2">
+          {branch ? (
+            <Button size="sm" variant="outline" onClick={() => void move(comments.map((entry) => entry.id))}>
+              <ArrowRightLeft />
+              Move all here
+            </Button>
+          ) : null}
+          <Button size="sm" variant="outline" onClick={onClear}>
+            <Trash2 />
+            Delete all
           </Button>
-        ) : null}
-        <Button size="sm" variant="outline" onClick={onClear}>
-          <Trash2 />
-          Delete all
-        </Button>
+        </div>
       </div>
       <ul>
         {comments.map((comment) => (
           <li key={comment.id} className="flex items-start gap-1 px-2 py-1.5">
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="text-muted-foreground">
-                <span className="font-mono">{comment.missing.join(', ')}</span>, {comment.path}
+              <span title={comment.missing.join(', ')} className="truncate font-mono text-muted-foreground">
+                {comment.missing.join(', ')}
               </span>
+              <PathLabel path={comment.path} className="font-mono text-muted-foreground" />
               <span className="line-clamp-2 whitespace-normal text-foreground">{comment.body}</span>
             </div>
             {branch ? (
