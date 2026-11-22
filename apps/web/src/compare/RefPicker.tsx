@@ -229,9 +229,12 @@ export function RefPicker({ label, value = '', side, refs, onPick, onRange }: Re
                         key={ref.name}
                         value={`ref:${ref.name}`}
                         onSelect={() => pick({ kind: 'ref', name: ref.name })}>
-                        <span className="font-mono">{ref.name}</span>
-                        {ref.subject && <span className="truncate text-muted-foreground">{ref.subject}</span>}
-                        {ref.current && <span className="ml-auto text-muted-foreground">current</span>}
+                        {/* The name keeps its room until it alone is too wide; the subject gives way first. */}
+                        <span className="flex min-w-0 flex-1 gap-2">
+                          <span className="max-w-full shrink-0 truncate font-mono">{ref.name}</span>
+                          {ref.subject && <span className="min-w-0 truncate text-muted-foreground">{ref.subject}</span>}
+                        </span>
+                        {ref.current && <span className="shrink-0 text-muted-foreground">current</span>}
                       </CommandItem>
                     ))}
                   </CommandGroup>

@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- A diff with files of tens of megabytes (deleted generated bundles, say) opens without freezing the page: the
+  stream is cut into files in one pass instead of going over a huge file again for every chunk, files with
+  megabytes of patch start folded like ones with thousands of lines, and the list is laid out less often while
+  a long diff streams in.
+- The comments panel keeps everything inside it: a long path stays on one line and is cut in its folders, so the
+  file's name still reads; a deleted branch's name gets its own line; From deleted branches keeps its heading on
+  one line, with Move all here and Delete all under it when there is no room beside it; and a comment cut to two
+  lines no longer shows the top of the third. The panel no longer scrolls sideways.
+- The commit graph never scrolls sideways: branch and tag names on a commit are cut short when the list is narrow,
+  and left to the sidebar and the commit panel when it is too narrow for even their icons.
+- The branch picker keeps each branch and tag name on one line, cut short with an ellipsis, where a long name broke
+  over two.
+
 ## 0.7.5
 
 - A file header short of room keeps everything on one line: a note such as Renamed without changes is cut short

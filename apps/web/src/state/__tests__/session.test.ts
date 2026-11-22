@@ -111,6 +111,53 @@ describe('session', () => {
     expect(session.get().items.map((i) => i.id)).toEqual(['diff:a.ts', 'diff:b.ts'])
     expect(seen.some((count) => count === 1)).toBe(true)
   })
+  it('publishes a long stream in a few growing batches, not every file again each 50 ms', async () => {
+    const encoder = new TextEncoder()
+    const file = (i: number) =>
+      `diff --git a/f${i}.ts b/f${i}.ts\nindex 1..2 100644\n--- a/f${i}.ts\n+++ b/f${i}.ts\n@@ -1 +1 @@\n-a\n+b\n`
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        for (let i = 0; i < 60; i++) {
+          controller.enqueue(encoder.encode(file(i)))
+          await new Promise((resolve) => setTimeout(resolve, 10))
+        }
+        controller.close()
+      },
+    })
+    const session = createSession(fakeApi({ diff: async () => body }), { kind: 'local' })
+    const published: number[] = []
+    session.subscribe(() => {
+      if (session.get().streaming) published.push(session.get().items.length)
+    })
+    await session.load({ kind: 'local' })
+    expect(session.get().items).toHaveLength(60)
+    expect(published[0]).toBe(1)
+    expect(published.length).toBeLessThanOrEqual(5)
+  })
+
+  // Generated bundles can hold megabytes in a few thousand lines, which no one reads in a diff.
+  it('folds a file whose patch is huge even when it has few lines', async () => {
+    const huge = `diff --git a/b.ts b/b.ts\nindex 3..4 100644\n--- a/b.ts\n+++ b/b.ts\n@@ -1 +1 @@\n-${'c'.repeat(2 << 20)}\n+d\n`
+    const patch = PATCH.split(/(?=diff --git a\/b)/)[0] + huge
+    const session = createSession(
+      fakeApi({
+        diff: async () =>
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode(patch))
+              controller.close()
+            },
+          }),
+      }),
+      { kind: 'local' },
+    )
+    await session.load({ kind: 'local' })
+    expect(session.get().items.map((item) => [item.id, Boolean(item.collapsed)])).toEqual([
+      ['diff:a.ts', false],
+      ['diff:b.ts', true],
+    ])
+  })
+
   it('keeps unchanged items identical across a reload so the viewer skips them', async () => {
     let files = FILES
     const session = createSession(fakeApi({ files: async () => files }), { kind: 'local' })

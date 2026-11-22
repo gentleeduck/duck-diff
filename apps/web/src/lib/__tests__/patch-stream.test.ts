@@ -26,6 +26,39 @@ describe('createPatchSplitter', () => {
     expect(files).toEqual([tricky])
   })
 
+  it('finds a file header split across two chunks at any point', () => {
+    const patch = A + B
+    for (let cut = 1; cut < patch.length; cut++) {
+      const files: string[] = []
+      const splitter = createPatchSplitter((text) => files.push(text))
+      splitter.push(patch.slice(0, cut))
+      splitter.push(patch.slice(cut))
+      splitter.finish()
+      expect(files).toEqual([A, B])
+    }
+  })
+
+  it('splits a patch fed one character at a time', () => {
+    const files: string[] = []
+    const splitter = createPatchSplitter((text) => files.push(text))
+    for (const char of A + B + A) splitter.push(char)
+    splitter.finish()
+    expect(files).toEqual([A, B, A])
+  })
+
+  // A deleted generated bundle can be tens of megabytes in one file, arriving in small network chunks.
+  it('reads a huge file in small chunks without going over it again for each chunk', () => {
+    const big = `diff --git a/big.json b/big.json\n--- a/big.json\n+++ /dev/null\n@@ -1 +0,0 @@\n-${'x'.repeat(40 << 20)}\n`
+    const sizes: number[] = []
+    const splitter = createPatchSplitter((text) => sizes.push(text.length))
+    const started = performance.now()
+    for (let i = 0; i < big.length; i += 1 << 14) splitter.push(big.slice(i, i + (1 << 14)))
+    splitter.push(B)
+    splitter.finish()
+    expect(performance.now() - started).toBeLessThan(500)
+    expect(sizes).toEqual([big.length, B.length])
+  })
+
   it('emits nothing for an empty patch', () => {
     const files: string[] = []
     const splitter = createPatchSplitter((text) => files.push(text))
