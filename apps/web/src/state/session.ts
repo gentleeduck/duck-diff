@@ -7,12 +7,18 @@ import { createPatchSplitter, readPatchStream } from '../lib/patch-stream'
 import { createStore, type Store } from '../lib/store'
 import { isImage } from '../viewer/file-info'
 
-// Binary, generated and huge diffs start folded so opening a large comparison stays fast.
+// Binary, generated and huge diffs start folded so opening a large comparison stays fast. A generated bundle
+// can hold megabytes in a few thousand lines, so size counts as well as lines.
 const COLLAPSE_LINES = 5000
-function shouldCollapse(file: ChangedFile): boolean {
+const COLLAPSE_CHARS = 1 << 20
+function shouldCollapse(file: ChangedFile, text: string): boolean {
   // Images stay open: their preview is the useful part.
   if (file.binary) return !isImage(file.path)
-  return Boolean(file.generated) || (file.additions ?? 0) + (file.deletions ?? 0) > COLLAPSE_LINES
+  return (
+    Boolean(file.generated) ||
+    (file.additions ?? 0) + (file.deletions ?? 0) > COLLAPSE_LINES ||
+    text.length > COLLAPSE_CHARS
+  )
 }
 
 export interface SessionState {
@@ -55,7 +61,7 @@ function itemFor(
   const file = byPath.get(item.fileDiff.name)
   if (file) {
     item.fileDiff.cacheKey = cacheKeyFor(file)
-    item.collapsed = shouldCollapse(file)
+    item.collapsed = shouldCollapse(file, text)
   }
   const before = previous.get(item.id)
   return file && before && before.fileDiff.cacheKey === item.fileDiff.cacheKey ? before : item
@@ -116,10 +122,12 @@ export function createSession(api: Api, initial: DiffTarget, seed: Seed | null =
     const previous = new Map(reuse.map((item) => [item.id, item]))
     const items: CodeViewDiffItem<undefined>[] = []
     let flushTimer: ReturnType<typeof setTimeout> | null = null
-    // The first file is published at once so something paints early; after that, 50 ms batches let files
-    // appear while git is still streaming without a render per file.
+    // The first file is published at once so something paints early; after that, files appear in batches
+    // while git is still streaming. Each publish lays out every file so far, so the wait doubles each time.
+    let wait = 50
     const flush = () => {
       flushTimer = null
+      wait = Math.min(wait * 2, 1000)
       if (!signal.aborted) onPartial?.(files, [...items])
     }
     await readPatchStream(
@@ -130,7 +138,7 @@ export function createSession(api: Api, initial: DiffTarget, seed: Seed | null =
         items.push(item)
         if (!onPartial) return
         if (items.length === 1) flush()
-        else flushTimer ??= setTimeout(flush, 50)
+        else flushTimer ??= setTimeout(flush, wait)
       },
       signal,
     )

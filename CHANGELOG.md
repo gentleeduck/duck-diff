@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A diff with files of tens of megabytes (deleted generated bundles, say) opens without freezing the page: the
+  stream is cut into files in one pass instead of going over a huge file again for every chunk, files with
+  megabytes of patch start folded like ones with thousands of lines, and the list is laid out less often while
+  a long diff streams in.
 - The comments panel keeps everything inside it: a long path stays on one line and is cut in its folders, so the
   file's name still reads; a deleted branch's name gets its own line; From deleted branches keeps its heading on
   one line, with Move all here and Delete all under it when there is no room beside it; and a comment cut to two
